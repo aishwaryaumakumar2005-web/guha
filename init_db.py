@@ -6,6 +6,7 @@ from app.models import Course, Student, Tutor, Attendance, FeeRecord, Enquiry, U
 from werkzeug.security import generate_password_hash
 
 def seed_database():
+    """Destructive seed — drops all tables and recreates"""
     print("Starting database seeding...")
     
     # 1. Clean existing tables
@@ -13,7 +14,24 @@ def seed_database():
     db.create_all()
     print("Database tables re-created successfully.")
     
-    # 1.5. Add default Users (Admin & Staff)
+    _seed_all_data()
+    print("Database seeding completed successfully!")
+
+
+def seed_if_empty():
+    """Non-destructive seed — only seeds if no users exist"""
+    if User.query.first():
+        print("Database already has data, skipping seed.")
+        return
+    print("Empty database detected — seeding sample data...")
+    db.create_all()
+    _seed_all_data()
+    print("Database seeding completed successfully!")
+
+
+def _seed_all_data():
+    """Internal: seeds all sample data (no drop/create, no guards)"""
+    # 1. Add default Users (Admin & Staff)
     admin_user = User(
         username="admin",
         password_hash=generate_password_hash("admin123"),
@@ -230,7 +248,6 @@ def seed_database():
     db.session.commit()
     print("Added historical attendance records.")
 
-    print("Database seeding completed successfully!")
 
 if __name__ == '__main__':
     app = create_app()
