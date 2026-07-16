@@ -4,7 +4,7 @@ from app import create_app
 from app.extensions import db
 from app.models import (Course, Student, Tutor, Attendance, FeeRecord,
                          Enquiry, User, LeaveRequest, ExpenseCategory,
-                         Expense, Exam, AuditLog)
+                         Expense, Exam)
 from werkzeug.security import generate_password_hash
 
 BACKUP_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backup_data.db')
@@ -51,7 +51,6 @@ def _restore_all():
     attendance = fetch_backup('attendance')
     leaves = fetch_backup('leave_request')
     exams_data = fetch_backup('exam')
-    audits = fetch_backup('audit_log')
     student_courses = fetch_backup('student_courses')
     tutor_courses = fetch_backup('tutor_courses')
 
@@ -59,7 +58,7 @@ def _restore_all():
           f"{len(students)} students, {len(expense_cats)} expense cats, "
           f"{len(expenses)} expenses, {len(fees)} fees, {len(enquiries)} enquiries, "
           f"{len(attendance)} attendance, {len(leaves)} leaves, "
-          f"{len(exams_data)} exams, {len(audits)} audits")
+          f"{len(exams_data)} exams")
 
     obj_map = {}
 
@@ -244,19 +243,6 @@ def _restore_all():
         )
         db.session.add(obj)
     print(f"Restored {len(exams_data)} exams")
-
-    # Audit Logs
-    for al in audits:
-        obj = AuditLog(
-            id=al['id'], user_id=al.get('user_id'),
-            username=al.get('username', ''),
-            action=al['action'], entity_type=al['entity_type'],
-            entity_id=al.get('entity_id'),
-            changes=al.get('changes'),
-            timestamp=datetime.fromisoformat(al['timestamp'])
-        )
-        db.session.add(obj)
-    print(f"Restored {len(audits)} audit logs")
 
     db.session.commit()
     print("All data committed.")
