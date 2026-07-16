@@ -55,9 +55,15 @@ def create_app(config_object=None):
                 template_folder='templates',
                 static_folder='static')
     app.config.from_object(config_object)
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or 'sqlite:///institute.db'
-    if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgres://'):
-        app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace('postgres://', 'postgresql://', 1)
+    db_url = (os.environ.get('DATABASE_URL') or 'sqlite:///institute.db').strip().strip('"').strip("'")
+    if db_url.startswith('postgres://'):
+        db_url = 'postgresql' + db_url[len('postgres'):]
+    app.config['SQLALCHEMY_DATABASE_URI'] = db_url
+    if db_url.startswith('sqlite'):
+        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+            'connect_args': {'check_same_thread': False},
+            'pool_pre_ping': True,
+        }
 
     db.init_app(app)
     login_manager.init_app(app)
