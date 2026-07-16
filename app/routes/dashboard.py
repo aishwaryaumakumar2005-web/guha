@@ -31,9 +31,12 @@ def get_dashboard_stats():
         FeeRecord.payment_date >= start_of_month
     ).scalar() or 0.0
     att_counts = db.session.query(
-        func.count(case((Attendance.person_type == 'student', 1), else_=None)).label('total'),
-        func.sum(case((Attendance.status == 'Present', Attendance.person_type == 'student'), else_=0)).label('present')
-    ).filter(Attendance.date >= fourteen_days_ago).first()
+        func.count(Attendance.id).label('total'),
+        func.sum(case((Attendance.status == 'Present', 1), else_=0)).label('present')
+    ).filter(
+        Attendance.date >= fourteen_days_ago,
+        Attendance.person_type == 'student'
+    ).first()
     total_att_records = att_counts.total or 0
     present_att_records = att_counts.present or 0
     avg_att = 100
