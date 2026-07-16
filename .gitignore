@@ -1,6 +1,7 @@
 __pycache__/
 *.py[cod]
 *.db
+!backup_data.db
 *.db-wal
 *.db-shm
 instance/

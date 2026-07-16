@@ -1,252 +1,265 @@
-import os
+import os, sqlite3
 from datetime import datetime, date, timedelta
 from app import create_app
 from app.extensions import db
-from app.models import Course, Student, Tutor, Attendance, FeeRecord, Enquiry, User, LeaveRequest, ExpenseCategory, Expense
+from app.models import (Course, Student, Tutor, Attendance, FeeRecord,
+                         Enquiry, User, LeaveRequest, ExpenseCategory,
+                         Expense, Exam, AuditLog)
 from werkzeug.security import generate_password_hash
 
+BACKUP_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backup_data.db')
+
+
+def fetch_backup(table):
+    conn = sqlite3.connect(BACKUP_PATH)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute(f'SELECT * FROM "{table}" ORDER BY id')
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
 def seed_database():
-    """Destructive seed — drops all tables and recreates"""
-    print("Starting database seeding...")
-    
-    # 1. Clean existing tables
+    print("Starting database seeding from backup...")
     db.drop_all()
     db.create_all()
-    print("Database tables re-created successfully.")
-    
-    _seed_all_data()
-    print("Database seeding completed successfully!")
+    print("Tables re-created.")
+    _restore_all()
+    print("Database restored successfully!")
 
 
 def seed_if_empty():
-    """Non-destructive seed — only seeds if no users exist"""
-    if User.query.first():
+    if Course.query.first():
         print("Database already has data, skipping seed.")
         return
-    print("Empty database detected — seeding sample data...")
+    print("Empty database — restoring from backup...")
     db.create_all()
-    _seed_all_data()
-    print("Database seeding completed successfully!")
+    _restore_all()
+    print("Database restored successfully!")
 
 
-def _seed_all_data():
-    """Internal: seeds all sample data (no drop/create, no guards)"""
-    # 1. Add default Users (Admin & Staff)
-    admin_user = User(
-        username="admin",
-        password_hash=generate_password_hash("admin123"),
-        role="Admin",
-        name="System Administrator",
-        email="admin@institute.edu"
-    )
-    staff_user = User(
-        username="staff",
-        password_hash=generate_password_hash("staff123"),
-        role="Staff",
-        name="Operations Staff",
-        email="staff@institute.edu"
-    )
-    db.session.add(admin_user)
-    db.session.add(staff_user)
-    db.session.commit()
-    print("Added default users (Admin & Staff).")
-    
-    # 2. Add Courses
-    courses_data = [
-        {
-            "name": "Python & Backend Automation",
-            "code": "PY-101",
-            "description": "Comprehensive course covering Python syntax, data structures, scripting, and system automation scripts.",
-            "duration_weeks": 8,
-            "duration_unit": "weeks",
-            "fees": 8000.0,
-            "gst_applicable": True,
-            "syllabus": "Week 1: Introduction to Variables & Loops\nWeek 2: Data Structures (Lists, Dicts, Tuples)\nWeek 3: Functions & Modular Programming\nWeek 4: File I/O & Exception Handling\nWeek 5: Core Automation (OS, Subprocess, Requests)\nWeek 6: SQLite & Database Queries\nWeek 7: Web Scraping with BeautifulSoup\nWeek 8: Capstone Automation Project"
-        },
-        {
-            "name": "Full-stack Modern Web Development",
-            "code": "WEB-301",
-            "description": "Create stunning, fully responsive interfaces using modern HTML5, CSS3, Bootstrap 5, interactive JavaScript, and Flask backends.",
-            "duration_weeks": 12,
-            "duration_unit": "weeks",
-            "fees": 12000.0,
-            "gst_applicable": True,
-            "syllabus": "Week 1-2: HTML5 Semantic Elements & CSS Grid\nWeek 3-4: Bootstrap Layouts & Custom Themes\nWeek 5-6: JavaScript DOM & Async Fetch Requests\nWeek 7-8: Flask Web Framework Routes\nWeek 9-10: Database Integration (SQLAlchemy)\nWeek 11-12: Full Stack Deployment & Responsive QA"
-        },
-        {
-            "name": "Structured SQL & Database Design",
-            "code": "DB-202",
-            "description": "Master schemas, table relations, indexes, transactions, and performance tuning inside SQLite and PostgreSQL.",
-            "duration_weeks": 6,
-            "duration_unit": "weeks",
-            "fees": 300.0,
-            "syllabus": "Week 1: Relational Schema & Entity Diagrams\nWeek 2: Basic SQL Queries (Select, Where, Join)\nWeek 3: Subqueries, Group By & Aggregations\nWeek 4: Table Indexes & Query Optimizations\nWeek 5: Database Constraints & Transactions\nWeek 6: Designing Production Grade Architectures"
-        },
-        {
-            "name": "Data Science & Pandas Fundamentals",
-            "code": "DS-404",
-            "description": "Introduction to data analysis, scientific plots, Pandas, NumPy, and simple linear regression models in Python.",
-            "duration_weeks": 10,
-            "duration_unit": "weeks",
-            "fees": 500.0,
-            "syllabus": "Week 1: Python for Data Analysis Overview\nWeek 2: NumPy Arrays & Numeric Computations\nWeek 3: Pandas DataFrames & Loading CSV/SQL\nWeek 4: Data Cleaning & Handling Missing Values\nWeek 5: Matplotlib & Seaborn Data Plots\nWeek 6: Exploratory Data Analysis Pipelines\nWeek 7: Grouping, Joining & Splitting Datasets\nWeek 8: Introduction to Scikit-Learn\nWeek 9: Predictive Modeling & Evaluations\nWeek 10: Final Analytical Dashboard Presentation"
-        }
-    ]
-    
-    courses = []
-    for c in courses_data:
-        course = Course(**c)
-        db.session.add(course)
-        courses.append(course)
-    db.session.commit()
-    print(f"Added {len(courses)} courses.")
+def _restore_all():
+    users = fetch_backup('user')
+    courses = fetch_backup('course')
+    tutors = fetch_backup('tutor')
+    students = fetch_backup('student')
+    expense_cats = fetch_backup('expense_category')
+    expenses = fetch_backup('expense')
+    fees = fetch_backup('fee_record')
+    enquiries = fetch_backup('enquiry')
+    attendance = fetch_backup('attendance')
+    leaves = fetch_backup('leave_request')
+    exams_data = fetch_backup('exam')
+    audits = fetch_backup('audit_log')
+    student_courses = fetch_backup('student_courses')
+    tutor_courses = fetch_backup('tutor_courses')
 
-    # 3. Add Tutors
-    tutors_data = [
-        {
-            "name": "Jane Doe",
-            "email": "jane.doe@institute.edu",
-            "phone": "555-0101",
-            "specialization": "Python & Backend Systems",
-            "status": "Active"
-        },
-        {
-            "name": "John Smith",
-            "email": "john.smith@institute.edu",
-            "phone": "555-0102",
-            "specialization": "Front-end & CSS Architecture",
-            "status": "Active"
-        },
-        {
-            "name": "Alan Turing",
-            "email": "alan.turing@institute.edu",
-            "phone": "555-0103",
-            "specialization": "Databases & Algorithms",
-            "status": "Active"
-        }
-    ]
-    
-    tutors = []
-    for t in tutors_data:
-        tutor = Tutor(**t)
-        # Assign courses
-        if "Python" in tutor.specialization:
-            tutor.courses.append(courses[0]) # Python
-            tutor.courses.append(courses[3]) # Data Science
-        elif "Front-end" in tutor.specialization:
-            tutor.courses.append(courses[1]) # Web
-        elif "Databases" in tutor.specialization:
-            tutor.courses.append(courses[2]) # Database
-            
-        db.session.add(tutor)
-        tutors.append(tutor)
-    db.session.commit()
-    print(f"Added {len(tutors)} tutors.")
+    print(f"Loaded: {len(users)} users, {len(courses)} courses, {len(tutors)} tutors, "
+          f"{len(students)} students, {len(expense_cats)} expense cats, "
+          f"{len(expenses)} expenses, {len(fees)} fees, {len(enquiries)} enquiries, "
+          f"{len(attendance)} attendance, {len(leaves)} leaves, "
+          f"{len(exams_data)} exams, {len(audits)} audits")
 
-    # 4. Add Students
-    students_data = [
-        {
-            "name": "Alice Cooper",
-            "email": "alice@gmail.com",
-            "phone": "555-0201",
-            "status": "Active"
-        },
-        {
-            "name": "Bob Dylan",
-            "email": "bob@gmail.com",
-            "phone": "555-0202",
-            "status": "Active"
-        },
-        {
-            "name": "Charlie Chaplin",
-            "email": "charlie@gmail.com",
-            "phone": "555-0203",
-            "status": "Active"
-        },
-        {
-            "name": "Diana Prince",
-            "email": "diana@gmail.com",
-            "phone": "555-0204",
-            "status": "Active"
-        }
-    ]
-    
-    students = []
-    for i, s in enumerate(students_data):
-        student = Student(**s)
-        # Assign courses
-        if i == 0:
-            student.courses.append(courses[0]) # Python
-            student.courses.append(courses[2]) # SQL
-        elif i == 1:
-            student.courses.append(courses[1]) # Web
-        elif i == 2:
-            student.courses.append(courses[0]) # Python
-        elif i == 3:
-            student.courses.append(courses[3]) # Data Science
-            
-        db.session.add(student)
-        students.append(student)
-    db.session.commit()
-    print(f"Added {len(students)} students.")
+    obj_map = {}
 
-    # 5. Add Fee Records
-    # Alice Cooper paid PY-101 (fee 8000 + GST 1440 = 9440) and partial DB-202
-    # Bob Dylan paid partial WEB-301 (fee 12000 + GST 2160 = 14160)
-    # Charlie Chaplin paid PY-101 (fee 8000 + GST 1440 = 9440)
-    # Diana Prince has paid nothing (outstanding)
-    today = date.today()
-    fee_records = [
-        FeeRecord(student_id=students[0].id, amount_paid=9440.0, payment_date=today - timedelta(days=20), payment_method="Bank Transfer", remarks="Python Full Course Fee (incl GST)"),
-        FeeRecord(student_id=students[0].id, amount_paid=150.0, payment_date=today - timedelta(days=5), payment_method="UPI", remarks="SQL Part Payment"),
-        FeeRecord(student_id=students[1].id, amount_paid=5000.0, payment_date=today - timedelta(days=15), payment_method="Card", remarks="Web Dev Part Payment"),
-        FeeRecord(student_id=students[2].id, amount_paid=9440.0, payment_date=today - timedelta(days=12), payment_method="UPI", remarks="Python full course payment (incl GST)")
-    ]
-    for fr in fee_records:
-        db.session.add(fr)
-    db.session.commit()
-    print("Added fee transaction records.")
+    # Users
+    _users = {}
+    for u in users:
+        obj = User(
+            id=u['id'], username=u['username'],
+            password_hash=u['password_hash'],
+            role=u['role'], name=u['name'], email=u['email'],
+            created_at=datetime.fromisoformat(u['created_at']) if u.get('created_at') else None
+        )
+        db.session.add(obj)
+        _users[u['id']] = obj
+    db.session.flush()
+    obj_map['user'] = _users
+    print(f"Restored {len(_users)} users")
 
-    # 6. Add Enquiries
-    enquiries = [
-        Enquiry(student_name="Bruce Wayne", email="bruce@waynecorp.com", phone="555-8888", course_id=courses[0].id, source="Social Media", status="New", notes="Interested in Python scripting for automation. Prefers evening batches."),
-        Enquiry(student_name="Clark Kent", email="clark@dailyplanet.com", phone="555-9999", course_id=courses[1].id, source="Referral", status="Contacted", notes="Spoke about HTML/CSS course. Says he will visit lab on Wednesday to finalize enrollment."),
-        Enquiry(student_name="Barry Allen", email="barry@star.labs", phone="555-7777", course_id=courses[2].id, source="Website", status="Converted", notes="Enquired about relational database optimization. Immediately enrolled (mapped to Charlie Cooper)."),
-        Enquiry(student_name="Selina Kyle", email="selina@cat.org", phone="555-4444", course_id=courses[1].id, source="Walk-in", status="Lost", notes="Enquired on full-stack but courses was too expensive for budget. Might follow up later.")
-    ]
-    for enq in enquiries:
-        db.session.add(enq)
-    db.session.commit()
-    print("Added prospect enquiries.")
+    # Courses
+    _courses = {}
+    for c in courses:
+        obj = Course(
+            id=c['id'], name=c['name'], code=c['code'],
+            description=c.get('description', ''),
+            duration_weeks=c['duration_weeks'],
+            duration_unit=c.get('duration_unit', 'weeks'),
+            fees=c['fees'],
+            gst_applicable=bool(c.get('gst_applicable', False)),
+            syllabus=c.get('syllabus', '')
+        )
+        db.session.add(obj)
+        _courses[c['id']] = obj
+    db.session.flush()
+    obj_map['course'] = _courses
+    print(f"Restored {len(_courses)} courses")
 
-    # 7. Add Attendance History
-    # We will seed attendance for the past 5 days
-    # Alice: present all
-    # Bob: absent on day -3, present others
-    # Charlie: late on day -2, present others
-    # Diana: absent on day -1 and day -2 (Low attendance simulator)
-    for day_offset in range(5, 0, -1):
-        target_date = today - timedelta(days=day_offset)
-        
-        # Student 1: Alice
-        db.session.add(Attendance(person_type="student", person_id=students[0].id, date=target_date, status="Present", marked_by="manual"))
-        # Student 2: Bob
-        s2_status = "Absent" if day_offset == 3 else "Present"
-        db.session.add(Attendance(person_type="student", person_id=students[1].id, date=target_date, status=s2_status, marked_by="manual"))
-        # Student 3: Charlie
-        s3_status = "Late" if day_offset == 2 else "Present"
-        db.session.add(Attendance(person_type="student", person_id=students[2].id, date=target_date, status=s3_status, marked_by="qr"))
-        # Student 4: Diana (Absent twice - triggering risk predictor)
-        s4_status = "Absent" if day_offset in [1, 2] else "Present"
-        db.session.add(Attendance(person_type="student", person_id=students[3].id, date=target_date, status=s4_status, marked_by="manual"))
-        
-        # Tutors present always
-        db.session.add(Attendance(person_type="tutor", person_id=tutors[0].id, date=target_date, status="Present", marked_by="manual"))
-        db.session.add(Attendance(person_type="tutor", person_id=tutors[1].id, date=target_date, status="Present", marked_by="qr"))
-        db.session.add(Attendance(person_type="tutor", person_id=tutors[2].id, date=target_date, status="Present", marked_by="manual"))
-        
+    # Tutors
+    _tutors = {}
+    for t in tutors:
+        obj = Tutor(
+            id=t['id'], name=t['name'], email=t['email'],
+            phone=t['phone'], specialization=t.get('specialization', ''),
+            status=t.get('status', 'Active'),
+            qr_code_uuid=t.get('qr_code_uuid')
+        )
+        db.session.add(obj)
+        _tutors[t['id']] = obj
+    db.session.flush()
+
+    # Tutor-Course relationships
+    for tc in tutor_courses:
+        tid, cid = tc['tutor_id'], tc['course_id']
+        if tid in _tutors and cid in _courses:
+            _tutors[tid].courses.append(_courses[cid])
+    db.session.flush()
+    obj_map['tutor'] = _tutors
+    print(f"Restored {len(_tutors)} tutors with course assignments")
+
+    # Students
+    _students = {}
+    for s in students:
+        obj = Student(
+            id=s['id'], name=s['name'], email=s['email'],
+            phone=s['phone'], status=s.get('status', 'Active'),
+            enrollment_date=(
+                datetime.strptime(s['enrollment_date'], '%Y-%m-%d').date()
+                if s.get('enrollment_date') else None
+            ),
+            qr_code_uuid=s.get('qr_code_uuid')
+        )
+        db.session.add(obj)
+        _students[s['id']] = obj
+    db.session.flush()
+
+    # Student-Course relationships
+    for sc in student_courses:
+        sid, cid = sc['student_id'], sc['course_id']
+        if sid in _students and cid in _courses:
+            _students[sid].courses.append(_courses[cid])
+    db.session.flush()
+    obj_map['student'] = _students
+    print(f"Restored {len(_students)} students with course enrollments")
+
+    # Expense Categories
+    _expense_cats = {}
+    for ec in expense_cats:
+        obj = ExpenseCategory(id=ec['id'], name=ec['name'], description=ec.get('description'))
+        db.session.add(obj)
+        _expense_cats[ec['id']] = obj
+    db.session.flush()
+    obj_map['expense_category'] = _expense_cats
+
+    # Expenses
+    for e in expenses:
+        obj = Expense(
+            id=e['id'], category_id=e['category_id'],
+            amount=e['amount'], description=e['description'],
+            expense_date=datetime.strptime(e['expense_date'], '%Y-%m-%d').date(),
+            created_by=e.get('created_by'),
+            created_at=(
+                datetime.fromisoformat(e['created_at']) if e.get('created_at') else None
+            )
+        )
+        db.session.add(obj)
+    db.session.flush()
+    print(f"Restored {len(expense_cats)} expense categories, {len(expenses)} expenses")
+
+    # Fee Records
+    for f in fees:
+        obj = FeeRecord(
+            id=f['id'], student_id=f['student_id'],
+            amount_paid=f['amount_paid'],
+            payment_date=datetime.strptime(f['payment_date'], '%Y-%m-%d').date(),
+            payment_method=f.get('payment_method', ''),
+            remarks=f.get('remarks', '')
+        )
+        db.session.add(obj)
+    db.session.flush()
+    print(f"Restored {len(fees)} fee records")
+
+    # Enquiries
+    for eq in enquiries:
+        obj = Enquiry(
+            id=eq['id'], student_name=eq['student_name'],
+            email=eq.get('email', ''), phone=eq['phone'],
+            course_id=eq['course_id'], source=eq.get('source', ''),
+            status=eq.get('status', 'New'), notes=eq.get('notes', ''),
+            created_at=(
+                datetime.fromisoformat(eq['created_at']) if eq.get('created_at') else None
+            )
+        )
+        db.session.add(obj)
+    db.session.flush()
+    print(f"Restored {len(enquiries)} enquiries")
+
+    # Attendance
+    for a in attendance:
+        obj = Attendance(
+            id=a['id'], person_type=a['person_type'],
+            person_id=a['person_id'],
+            date=datetime.strptime(a['date'], '%Y-%m-%d').date(),
+            status=a.get('status', 'Present'),
+            marked_by=a.get('marked_by', 'manual'),
+            timestamp=(
+                datetime.fromisoformat(a['timestamp']) if a.get('timestamp') else None
+            )
+        )
+        db.session.add(obj)
+    db.session.flush()
+    print(f"Restored {len(attendance)} attendance records")
+
+    # Leave Requests
+    for lr in leaves:
+        obj = LeaveRequest(
+            id=lr['id'], user_id=lr['user_id'],
+            start_date=datetime.strptime(lr['start_date'], '%Y-%m-%d').date(),
+            end_date=datetime.strptime(lr['end_date'], '%Y-%m-%d').date(),
+            reason=lr['reason'], status=lr['status'],
+            created_at=(
+                datetime.fromisoformat(lr['created_at']) if lr.get('created_at') else None
+            )
+        )
+        db.session.add(obj)
+    print(f"Restored {len(leaves)} leave requests")
+
+    # Exams
+    for ex in exams_data:
+        obj = Exam(
+            id=ex['id'], course_id=ex['course_id'],
+            title=ex['title'],
+            exam_date=(
+                datetime.strptime(ex['exam_date'], '%Y-%m-%d').date()
+                if ex.get('exam_date') else date.today()
+            ),
+            max_marks=ex['max_marks'],
+            passing_marks=ex['passing_marks'],
+            description=ex.get('description', ''),
+            exam_type=ex.get('exam_type', 'manual'),
+            num_questions=ex.get('num_questions', 0),
+            duration_minutes=ex.get('duration_minutes', 0),
+            is_published=bool(ex.get('is_published', False))
+        )
+        db.session.add(obj)
+    print(f"Restored {len(exams_data)} exams")
+
+    # Audit Logs
+    for al in audits:
+        obj = AuditLog(
+            id=al['id'], user_id=al.get('user_id'),
+            username=al.get('username', ''),
+            action=al['action'], entity_type=al['entity_type'],
+            entity_id=al.get('entity_id'),
+            changes=al.get('changes'),
+            timestamp=datetime.fromisoformat(al['timestamp'])
+        )
+        db.session.add(obj)
+    print(f"Restored {len(audits)} audit logs")
+
     db.session.commit()
-    print("Added historical attendance records.")
+    print("All data committed.")
 
 
 if __name__ == '__main__':
