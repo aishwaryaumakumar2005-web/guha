@@ -14,7 +14,7 @@ def fetch_backup(table):
     conn = sqlite3.connect(BACKUP_PATH)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
-    cur.execute(f'SELECT * FROM "{table}" ORDER BY id')
+    cur.execute(f'SELECT * FROM "{table}"')
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     return rows
