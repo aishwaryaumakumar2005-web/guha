@@ -175,17 +175,18 @@ def create_app(config_object=None):
             return Markup(html)
         return dict(empty_state=empty_state)
 
-    from sqlalchemy import event
-    with app.app_context():
-        @event.listens_for(db.get_engine(), 'connect')
-        def set_sqlite_pragma(dbapi_connection, connection_record):
-            cursor = dbapi_connection.cursor()
-            cursor.execute('PRAGMA journal_mode=WAL')
-            cursor.execute('PRAGMA synchronous=NORMAL')
-            cursor.execute('PRAGMA cache_size=-8000')
-            cursor.execute('PRAGMA busy_timeout=5000')
-            cursor.execute('PRAGMA temp_store=MEMORY')
-            cursor.close()
+    if app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+        from sqlalchemy import event
+        with app.app_context():
+            @event.listens_for(db.get_engine(), 'connect')
+            def set_sqlite_pragma(dbapi_connection, connection_record):
+                cursor = dbapi_connection.cursor()
+                cursor.execute('PRAGMA journal_mode=WAL')
+                cursor.execute('PRAGMA synchronous=NORMAL')
+                cursor.execute('PRAGMA cache_size=-8000')
+                cursor.execute('PRAGMA busy_timeout=5000')
+                cursor.execute('PRAGMA temp_store=MEMORY')
+                cursor.close()
         db.create_all()
         try:
             db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_date ON expense(expense_date)'))
