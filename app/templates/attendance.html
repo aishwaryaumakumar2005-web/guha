@@ -1,0 +1,344 @@
+{% extends 'base.html' %}{% block title %}Attendance Console{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item active" aria-current="page">Attendance</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+    <!-- Header Row -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold">
+Attendance Console</h2>
+            <p class="text-white mb-0">
+Track student and instructor daily attendances. Support manual rosters and live webcam QR scanning.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-premium" onclick="loadAttendanceAnalysis()">
+                <i class="bi bi-graph-up-arrow me-2">
+</i>
+AI Analysis            </button>
+            <!-- Tutor filter dropdown -->
+            <form class="d-flex align-items-center" method="GET" action="{{ url_for('attendance.attendance') }}">
+                <label for="tutor-select" class="text-white me-2 mb-0">
+Filter by Tutor:</label>
+                <select id="tutor-select" name="tutor_id" class="form-select me-2" style="width:auto;">
+                    <option value="" {% if not current_tutor_id %}selected{% endif %}>
+All Tutors</option>
+                    {% for tutor in tutors %}                        <option value="{{ tutor.id }}" {% if current_tutor_id == tutor.id %}selected{% endif %}>
+{{ tutor.name }}</option>
+                    {% endfor %}                </select>
+                <button type="submit" class="btn btn-premium">
+Apply</button>
+            </form>
+        </div>
+    </div>
+    <!-- AI Attendance Analysis Banner -->
+    <div class="glass-card p-4 mb-4 border border-info border-opacity-25" style="background: linear-gradient(135deg, rgba(27, 110, 243, 0.15) 0%, rgba(33, 37, 56, 0.45) 100%);">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <h5 class="fw-bold" style="color: #ffffff !important;">
+<i class="bi bi-cpu-fill me-2 animate-pulse" style="color: #ffffff !important;">
+</i>
+AI Attendance Pattern Analyzer</h5>
+                <p class="small mb-lg-0" style="color: #ffffff !important;">
+Analyze attendance trends, identify at-risk students, and get AI-powered intervention suggestions.</p>
+            </div>
+            <div class="col-lg-4 text-lg-end">
+                <button class="btn btn-outline-premium" onclick="loadAttendanceAnalysis()">
+                    <i class="bi bi-magic me-2">
+</i>
+Generate Insights                </button>
+            </div>
+        </div>
+    </div>
+    <!-- Live QR Scanning Viewport Panel (Collapsible drawer overlay) -->
+    <div class="glass-card p-4 mb-4 border border-dark border-opacity-25 d-none animate-fade-in" id="scanner-panel" style="background: rgba(0, 240, 255, 0.015);">
+        <div class="row">
+            <div class="col-lg-6 mb-3">
+                <h5 class="text-dark fw-bold mb-3">
+<i class="bi bi-qr-code-scan me-2">
+</i>
+Webcam Scanner Viewport</h5>
+                <div class="scanner-viewport-wrapper">
+                    <!-- Scanner guide crosshairs -->
+                    <div class="scanner-guide">
+                        <div class="scanner-laser">
+</div>
+                    </div>
+                    <!-- Target element for Html5Qrcode -->
+                    <div id="qr-reader" style="width: 100%;">
+</div>
+                </div>
+                <small class="text-muted d-block text-center mt-2">
+<i class="bi bi-info-circle me-1">
+</i>
+Present your generated physical/mobile QR ID card within the box boundary.</small>
+            </div>
+                        <div class="col-lg-6 mb-3">
+                <h5 class="text-dark fw-bold mb-3">
+<i class="bi bi-journal-check me-2">
+</i>
+Live Scan Stream Log</h5>
+                <div class="p-3 border border-color rounded bg-dark bg-opacity-50" id="scanner-log-feed" style="height: 320px; overflow-y: auto;">
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-clock-history fs-1 mb-2 d-block opacity-50">
+</i>
+                        Waiting for barcode signatures...                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Main Attendance Control Hub -->
+    <div class="row">
+        <!-- Manual Rosters Tab Panel -->
+        <div class="col-xl-7 mb-4">
+            <div class="glass-card p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 class="mb-0 text-white fw-bold">
+<i class="bi bi-card-checklist me-2 text-white">
+</i>
+Manual Grid Checklist</h4>
+                    <span class="badge badge-custom badge-cyan text-white">
+<i class="bi bi-calendar-event me-1">
+</i>
+Today: {{ today.strftime("%d %b %Y") }}</span>
+                </div>
+                                <!-- Nav tabs -->
+                <ul class="nav nav-pills mb-3 border-bottom border-color pb-2" id="attendanceTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active text-white" id="students-tab" data-bs-toggle="pill" data-bs-target="#students-pane" type="button" role="tab" aria-controls="students-pane" aria-selected="true">
+                            <i class="bi bi-people-fill me-1">
+</i>
+Students Directory                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link text-white" id="tutors-tab" data-bs-toggle="pill" data-bs-target="#tutors-pane" type="button" role="tab" aria-controls="tutors-pane" aria-selected="false">
+                            <i class="bi bi-person-workspace me-1">
+</i>
+Tutors Directory                        </button>
+                    </li>
+                </ul>
+                                <!-- Tab contents -->
+                <div class="tab-content" id="attendanceTabContent">
+                    <!-- Students Roster Pane -->
+                    <div class="tab-pane fade show active" id="students-pane" role="tabpanel" aria-labelledby="students-tab">
+                        <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-custom sortable" data-page-size="10">
+                                <thead>
+                                    <tr>
+                                        <th>
+Student Name</th>
+                                        <th>
+Enrolled Courses</th>
+                                        <th>
+Check-in Check</th>
+                                        <th>
+Logged Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if students %}                                        {% for student in students %}                                            {% set is_marked_present = marked_students.get(student.id) == 'Present' %}                                            <tr>
+                                                <td class="fw-medium text-white">
+{{ student.name }}</td>
+                                                <td>
+                                                    {% for c in student.courses %}<span class="badge badge-custom badge-cyan me-1">
+{{ c.code }}</span>
+{% endfor %}                                                </td>
+                                                <td>
+                                                    <div class="form-check form-switch">
+                                                        <input class="form-check-input attendance-toggle-switch" type="checkbox" role="switch"                                                               id="att-checkbox-student-{{ student.name }}"                                                               data-person-type="student"                                                               data-person-id="{{ student.id }}"                                                               {% if is_marked_present %}checked{% endif %}>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <span id="status-label-student-{{ student.id }}"                                                           class="badge badge-custom {% if is_marked_present %}badge-active{% else %}badge-inactive{% endif %}">
+                                                        {{ marked_students.get(student.id, 'Absent') }}                                                    </span>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}                                    {% else %}                                        <tr>
+                                            <td colspan="4" class="text-center text-muted py-4">
+No active students enrolled.</td>
+                                        </tr>
+                                    {% endif %}                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                                        <!-- Tutors Roster Pane -->
+                    <div class="tab-pane fade" id="tutors-pane" role="tabpanel" aria-labelledby="tutors-tab">
+                        <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-custom sortable" data-page-size="10">
+                                <thead>
+                                    <tr>
+                                        <th>
+Instructor</th>
+                                        <th>
+Specialization</th>
+                                        <th>
+Daily Check-in</th>
+                                        <th>
+Logged Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if tutors %}                                        {% for tutor in tutors %}                                            {% set is_marked_present = marked_tutors.get(tutor.id) == 'Present' %}                                            <tr>
+                                                <td class="fw-medium text-white">
+{{ tutor.name }}</td>
+                                                <td class="text-white">
+{{ tutor.specialization or "All courses" }}</td>
+                                                <td>
+                                                    <div class="form-check form-switch">
+                                                        <input class="form-check-input attendance-toggle-switch" type="checkbox" role="switch"                                                               id="att-checkbox-tutor-{{ tutor.name }}"                                                               data-person-type="tutor"                                                               data-person-id="{{ tutor.id }}"                                                               {% if is_marked_present %}checked{% endif %}>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <span id="status-label-tutor-{{ tutor.id }}"                                                           class="badge badge-custom {% if is_marked_present %}badge-active{% else %}badge-inactive{% endif %}">
+                                                        {{ marked_tutors.get(tutor.id, 'Absent') }}                                                    </span>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}                                    {% else %}                                        <tr>
+                                            <td colspan="4" class="text-center text-muted py-4">
+No active instructors registered.</td>
+                                        </tr>
+                                    {% endif %}                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Weekly Trend Visual Chart -->
+        <div class="col-xl-5 mb-4">
+            <div class="glass-card p-4 h-100">
+                <h4 class="mb-4 text-dark fw-bold">
+<i class="bi bi-bar-chart-fill me-2 text-dark">
+</i>
+Engagement Trend</h4>
+                <div style="position: relative; height: 350px; width: 100%;">
+                    <canvas id="attendanceTrendChart">
+</canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Initialize Attendance Engagement Chart -->
+<script data-ts="white-fix-v3">
+(function() {
+    var canvas = document.getElementById('attendanceTrendChart');
+    if (canvas) {
+        if (canvas._chart) canvas._chart.destroy();
+        var days = {{ history_days|tojson }};
+        var studentCounts = {{ history_students_present|tojson }};
+        var tutorCounts = {{ history_tutors_present|tojson }};
+        canvas._chart = new Chart(canvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: days,
+                datasets: [
+                    { label: 'Students Present', data: studentCounts, backgroundColor: 'rgba(217, 93, 57, 0.85)', borderColor: '#d95d39', borderWidth: 1.5, borderRadius: 6 },
+                    { label: 'Tutors Present', data: tutorCounts, backgroundColor: 'rgba(107, 142, 35, 0.85)', borderColor: '#6b8e23', borderWidth: 1.5, borderRadius: 6 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                color: 'white',
+                plugins: { legend: { position: 'top', labels: { color: 'white' } } },
+                scales: {
+                    x: { grid: { color: 'rgba(47, 72, 88, 0.08)' }, ticks: { color: 'white' } },
+                    y: { grid: { color: 'rgba(47, 72, 88, 0.08)' }, ticks: { color: 'white', stepSize: 1 } }
+                }
+            }
+        });
+    }
+})();
+</script>
+<!-- AI Attendance Analysis Modal -->
+<div class="modal fade" id="aiAttendanceAnalysisModal" tabindex="-1" aria-labelledby="aiAttendanceAnalysisModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="aiAttendanceAnalysisModalLabel">
+<i class="bi bi-graph-up-arrow text-dark me-2">
+</i>
+AI Attendance Pattern Analysis</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+</button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="attendanceAnalysisContent">
+                    <div class="d-flex align-items-center text-secondary">
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true">
+</span>
+                        Analyzing attendance patterns and generating insights...                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+function loadAttendanceAnalysis() {    const modal = new bootstrap.Modal(document.getElementById('aiAttendanceAnalysisModal'));    const contentDiv = document.getElementById('attendanceAnalysisContent');        contentDiv.innerHTML = `        <div class="d-flex align-items-center text-secondary">
+            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true">
+</span>
+            Analyzing attendance patterns and generating insights...        </div>
+    `;        modal.show();        fetch('/api/attendance/ai-analysis')        .then(response =>
+ response.json())        .then(data =>
+ {            let html = `                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="p-3 rounded border border-color bg-dark bg-opacity-25" style="background-color: #0d2740 !important;">
+                            <h6 class="text-white small fw-bold mb-2">
+<i class="bi bi-percent me-2 text-info">
+</i>
+Overall Attendance Rate</h6>
+                            <div class="text-white fw-bold fs-4">
+${data.overall_attendance_rate.toFixed(1)}%</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="p-3 rounded border border-color bg-dark bg-opacity-25" style="background-color: #0d2740 !important;">
+                            <h6 class="text-white small fw-bold mb-2">
+<i class="bi bi-graph-up me-2 text-success">
+</i>
+Attendance Trend</h6>
+                            <div class="text-white fw-bold fs-4">
+${data.attendance_trend}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <h6 class="text-white fw-bold mb-3">
+<i class="bi bi-lightbulb-fill me-2 text-warning">
+</i>
+AI Intervention Suggestions</h6>
+                    <ul class="mb-0">
+                        ${data.interventions.map(intervention =>
+ `<li class="mb-2 text-white" style="opacity: 0.9;">
+${intervention}</li>
+`).join('')}                    </ul>
+                </div>
+                <div class="mb-4">
+                    <h6 class="text-white fw-bold mb-3">
+<i class="bi bi-calendar-range me-2 text-primary">
+</i>
+Schedule Recommendations</h6>
+                    <ul class="mb-0">
+                        ${data.schedule_recommendations.map(rec =>
+ `<li class="mb-2 text-white" style="opacity: 0.9;">
+${rec}</li>
+`).join('')}                    </ul>
+                </div>
+            `;                        if (data.risk_students >
+ 0) {                html += `                    <div class="mb-4">
+                        <h6 class="text-white fw-bold mb-3">
+<i class="bi bi-exclamation-triangle-fill me-2 text-danger">
+</i>
+Students Requiring Intervention</h6>
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle me-2">
+</i>
+                            ${data.risk_students} students are at risk due to poor attendance patterns.                        </div>
+                    </div>
+                `;            }                        contentDiv.innerHTML = html;        })        .catch(error =>
+ {            console.error('Error:', error);            contentDiv.innerHTML = `                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle me-2">
+</i>
+                    Error generating attendance analysis. Please try again.                </div>
+            `;        });}</script>
+{% endblock %}

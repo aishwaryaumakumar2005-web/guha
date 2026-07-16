@@ -1,0 +1,79 @@
+{% extends 'base.html' %}{% block title %}Create MCQ Exam{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('exams.exam_list') }}">Exams</a></li><li class="breadcrumb-item active" aria-current="page">Create MCQ</li>{% endblock %}{% block content %}
+<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold"><i class="bi bi-robot me-2"></i>AI Generate MCQ Exam</h2>
+            <p class="text-white mb-0">Let AI create multiple-choice questions based on your course content.</p>
+        </div>
+        <a href="{{ url_for('exams.exam_list') }}" class="btn btn-outline-light"><i class="bi bi-arrow-left me-1"></i>Back to Exams</a>
+    </div>
+
+    <div class="glass-card p-4">
+        <form method="POST" action="{{ url_for('exams.mcq_generate') }}">
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <label class="form-label text-white small">Course <span class="text-danger">*</span></label>
+                    <select name="course_id" class="form-select" required autofocus>
+                        <option value="">-- Select Course --</option>
+                        {% for c in courses %}
+                        <option value="{{ c.id }}">{{ c.name }} ({{ c.code }})</option>
+                        {% endfor %}
+                    </select>
+                    <small class="text-white-50">AI uses the course name and description to generate relevant questions.</small>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label text-white small">Exam Title <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" name="title" placeholder="e.g. Python Basics - Quiz 1" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label text-white small">Number of Questions <span class="text-danger">*</span></label>
+                    <input type="number" class="form-control" name="num_questions" value="10" min="3" max="50" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label text-white small">Duration (minutes) <span class="text-danger">*</span></label>
+                    <input type="number" class="form-control" name="duration_mins" value="30" min="1" max="180" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label text-white small">Total Marks <span class="text-danger">*</span></label>
+                    <input type="number" step="0.5" class="form-control" name="total_marks" value="100" min="1" required>
+                    <small class="text-white-50">{{ ((100 / 10)|round(1)) }} marks per question (adjust as needed)</small>
+                </div>
+            </div>
+            <div class="mt-4">
+                <button type="submit" class="btn btn-premium btn-lg"><i class="bi bi-stars me-2"></i>Generate with AI</button>
+                <small class="text-white-50 ms-3">Uses Gemini or OpenAI to create questions based on course content.</small>
+            </div>
+        </form>
+    </div>
+
+    <div class="glass-card p-4 mt-4">
+        <h5 class="text-white fw-bold mb-3"><i class="bi bi-info-circle me-2"></i>How It Works</h5>
+        <div class="row g-3 text-white-50">
+            <div class="col-md-3">
+                <div class="p-3" style="background:rgba(27, 110, 243,0.06);border-radius:8px;">
+                    <h6 class="text-info mb-2">1. Configure</h6>
+                    <small>Select course, set number of questions, duration, and marks.</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="p-3" style="background:rgba(27, 110, 243,0.06);border-radius:8px;">
+                    <h6 class="text-info mb-2">2. AI Generates</h6>
+                    <small>AI creates questions with 4 options each and marks the correct answer.</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="p-3" style="background:rgba(27, 110, 243,0.06);border-radius:8px;">
+                    <h6 class="text-info mb-2">3. Review & Edit</h6>
+                    <small>Preview questions, edit any you don't like, then publish.</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="p-3" style="background:rgba(27, 110, 243,0.06);border-radius:8px;">
+                    <h6 class="text-info mb-2">4. Students Take</h6>
+                    <small>Students enrolled in the course can take the timed exam online.</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

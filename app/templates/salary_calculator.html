@@ -1,0 +1,246 @@
+{% extends 'base.html' %}{% block title %}Salary Calculator{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('expenses.list') }}">Finance</a></li><li class="breadcrumb-item active" aria-current="page">Salary Calculator</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+    <!-- Header Row -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold">
+Staff Salary Calculator</h2>
+            <p class="text-white mb-0" style="opacity: 0.85;">
+Compute commissions and record salaries based on student fee collections.</p>
+        </div>
+        <span class="badge badge-custom py-2 px-3 badge-cyan">
+<i class="bi bi-calculator-fill me-1">
+</i>
+Finance Tool</span>
+    </div>
+    <!-- Filter Dashboard -->
+    <div class="glass-card p-4 mb-4">
+        <form method="GET" action="{{ url_for('expenses.salary_calculator') }}" class="row g-3 align-items-end">
+            <!-- Tutor Selection -->
+            <div class="col-md-3">
+                <label class="form-label small text-white mb-1">
+Select Staff Member (Tutor)</label>
+                <select name="tutor_id" class="form-select" required>
+                    <option value="">
+-- Select Tutor --</option>
+                    {% for tutor in tutors %}                        <option value="{{ tutor.id }}" {% if selected_tutor_id == tutor.id %}selected{% endif %}>
+{{ tutor.name }} ({{ tutor.specialization or 'No Spec' }})</option>
+                    {% endfor %}                </select>
+            </div>
+            <!-- Percentage Input -->
+            <div class="col-md-2">
+                <label class="form-label small text-white mb-1">
+Commission (%)</label>
+                <div class="input-group">
+                    <input type="number" step="0.1" min="0" max="100" name="percentage" class="form-control" value="{{ percentage }}" required>
+                    <span class="input-group-text bg-dark border-color text-white">
+%</span>
+                </div>
+            </div>
+            <!-- Filter Type -->
+            <div class="col-md-2">
+                <label class="form-label small text-white mb-1">
+Filter Period By</label>
+                <select name="filter_type" id="filterType" class="form-select">
+                    <option value="month" {% if filter_type == 'month' %}selected{% endif %}>
+Monthly Track</option>
+                    <option value="range" {% if filter_type == 'range' %}selected{% endif %}>
+Custom Date Range</option>
+                </select>
+            </div>
+            <!-- Monthly Fields -->
+            <div class="col-md-3 filter-group" id="monthFilterGroup">
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="form-label small text-white mb-1">
+Month</label>
+                        <select name="month" class="form-select">
+                            {% for m in range(1, 13) %}                                <option value="{{ m }}" {% if filter_month == m %}selected{% endif %}>
+{{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m-1] }}</option>
+                            {% endfor %}                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small text-white mb-1">
+Year</label>
+                        <select name="year" class="form-select">
+                            {% for y in range(today.year - 2, today.year + 2) %}                                <option value="{{ y }}" {% if filter_year == y %}selected{% endif %}>
+{{ y }}</option>
+                            {% endfor %}                        </select>
+                    </div>
+                </div>
+            </div>
+            <!-- Date Range Fields -->
+            <div class="col-md-3 filter-group" id="rangeFilterGroup" style="display: none;">
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="form-label small text-white mb-1">
+From</label>
+                        <input type="date" name="start_date" class="form-control" value="{{ start_date.strftime('%Y-%m-%d') if start_date else '' }}">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small text-white mb-1">
+To</label>
+                        <input type="date" name="end_date" class="form-control" value="{{ end_date.strftime('%Y-%m-%d') if end_date else '' }}">
+                    </div>
+                </div>
+            </div>
+            <!-- Submit Button -->
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-premium w-100">
+<i class="bi bi-funnel-fill me-1">
+</i>
+Calculate</button>
+            </div>
+        </form>
+    </div>
+    {% if selected_tutor %}    <!-- Calculation Results -->
+    <div class="row mb-4">
+        <!-- Collection Stats -->
+        <div class="col-md-4 mb-3">
+            <div class="glass-card p-4 text-center">
+                <div class="text-secondary small fw-semibold text-uppercase tracking-wider">
+Student Fees Collected</div>
+                <div class="fw-bold fs-3 text-white mt-1">
+₹{{ "{:,.2f}".format(total_collected) }}</div>
+                <div class="small text-muted mt-2">
+Collected from {{ students|length }} enrolled student(s)</div>
+            </div>
+        </div>
+        <!-- Commission Rate -->
+        <div class="col-md-4 mb-3">
+            <div class="glass-card p-4 text-center">
+                <div class="text-secondary small fw-semibold text-uppercase tracking-wider">
+Commission Rate</div>
+                <div class="fw-bold fs-3 text-white mt-1">
+{{ percentage }}%</div>
+                <div class="small text-muted mt-2">
+Custom rate input by Administrator</div>
+            </div>
+        </div>
+        <!-- Calculated Salary -->
+        <div class="col-md-4 mb-3">
+            <div class="glass-card p-4 text-center" style="border-left: 4px solid var(--accent-emerald);">
+                <div class="text-secondary small fw-semibold text-uppercase tracking-wider">
+Calculated Staff Salary</div>
+                <div class="fw-bold fs-3 mt-1" style="color: #00BFA6;">
+₹{{ "{:,.2f}".format(calculated_salary) }}</div>
+                                {% if calculated_salary >
+ 0 %}                <form action="{{ url_for('expenses.salary_calculator') }}" method="POST" class="mt-2">
+                    <input type="hidden" name="action" value="record_salary">
+                    <input type="hidden" name="tutor_id" value="{{ selected_tutor.id }}">
+                    <input type="hidden" name="percentage" value="{{ percentage }}">
+                    <input type="hidden" name="filter_type" value="{{ filter_type }}">
+                    <input type="hidden" name="month" value="{{ filter_month }}">
+                    <input type="hidden" name="year" value="{{ filter_year }}">
+                    <input type="hidden" name="start_date" value="{{ start_date.strftime('%Y-%m-%d') }}">
+                    <input type="hidden" name="end_date" value="{{ end_date.strftime('%Y-%m-%d') }}">
+                                        <button type="submit" class="btn btn-premium btn-sm w-100 py-2">
+                        <i class="bi bi-wallet2 me-1">
+</i>
+Record & Log Salary as Expense                    </button>
+                </form>
+                {% else %}                {{ empty_state('No collections for this period', 'Record a student payment above', 'fees', none, none, none) }}
+                {% endif %}            </div>
+        </div>
+    </div>
+    <!-- Student and Payment Details Breakdown -->
+    <div class="row">
+        <!-- Assigned Student List -->
+        <div class="col-lg-5 mb-4">
+            <div class="glass-card p-4 h-100">
+                <h4 class="mb-3 text-dark fw-bold">
+<i class="bi bi-people-fill me-2 text-dark">
+</i>
+Enrolled Students ({{ students|length }})</h4>
+                <p class="text-secondary small mb-3">
+Students currently enrolled in courses mentored by {{ selected_tutor.name }}:</p>
+                                <div class="table-container">
+                    <table class="table table-custom">
+                        <thead>
+                            <tr>
+                                <th>
+Student Name</th>
+                                <th>
+Email</th>
+                                <th class="text-end">
+Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for s in students %}                            <tr>
+                                <td>
+{{ s.name }}</td>
+                                <td class="text-secondary small">
+{{ s.email }}</td>
+                                <td class="text-end">
+                                    <span class="badge badge-custom {% if s.status == 'Active' %}badge-active{% else %}badge-inactive{% endif %}">
+                                        {{ s.status }}                                    </span>
+                                </td>
+                            </tr>
+                            {% else %}                            <tr>
+                                <td colspan="3" class="text-center text-muted">
+No students assigned to this mentor.</td>
+                            </tr>
+                            {% endfor %}                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <!-- Ledger Log Breakdown -->
+        <div class="col-lg-7 mb-4">
+            <div class="glass-card p-4 h-100">
+                <h4 class="mb-3 text-dark fw-bold">
+<i class="bi bi-cash-stack me-2 text-dark">
+</i>
+Fee Ledger Receipts ({{ fee_records|length }})</h4>
+                <p class="text-secondary small mb-3">
+Payments received from matching students during the selected timeframe:</p>
+                                <div class="table-container">
+                    <table class="table table-custom">
+                        <thead>
+                            <tr>
+                                <th>
+Receipt Date</th>
+                                <th>
+Student</th>
+                                <th>
+Method</th>
+                                <th class="text-end">
+Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for record in fee_records %}                            <tr>
+                                <td>
+{{ record.payment_date.strftime('%d %b %Y') }}</td>
+                                <td>
+{{ record.student.name }}</td>
+                                <td>
+<span class="badge badge-custom badge-cyan">
+{{ record.payment_method }}</span>
+</td>
+                                <td class="text-end fw-bold text-white">
+₹{{ "{:,.2f}".format(record.amount_paid) }}</td>
+                            </tr>
+                            {% else %}                            <tr>
+                                {{ empty_state('No collections in this date range', 'Try adjusting the date range or record a new payment', 'fees', none, none, none, 4) }}
+                            </tr>
+                            {% endfor %}                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}    <!-- Welcoming prompt -->
+    <div class="glass-card p-5 text-center">
+        <i class="bi bi-wallet2 display-4 text-secondary opacity-50 mb-3 d-block">
+</i>
+        <h4 class="fw-bold text-white mb-2">
+Staff Payroll Calculator</h4>
+        <p class="text-secondary small mb-0" style="max-width: 500px; margin: 0 auto;">
+Select a tutor from the drop-down menu above, define the commission threshold percentage, and choose the filter parameters to begin generating payroll items.</p>
+    </div>
+    {% endif %}</div>
+<script>
+document.addEventListener('DOMContentLoaded', () =>
+ {    const filterType = document.getElementById('filterType');    const monthGroup = document.getElementById('monthFilterGroup');    const rangeGroup = document.getElementById('rangeFilterGroup');    function toggleFilterGroups() {        if (filterType.value === 'month') {            monthGroup.style.display = 'block';            rangeGroup.style.display = 'none';        } else {            monthGroup.style.display = 'none';            rangeGroup.style.display = 'block';        }    }    if (filterType) {        filterType.addEventListener('change', toggleFilterGroups);        toggleFilterGroups(); // Run on initial load    }});</script>
+{% endblock %}

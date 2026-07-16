@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login - Guha Academy</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:linear-gradient(135deg,#131521,#171b2d);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+.card{max-width:420px;width:100%;background:#1e2235;border-radius:24px;border:1px solid rgba(255,255,255,0.08);box-shadow:0 20px 40px rgba(0, 0, 0, 0.4);padding:40px;text-align:center}
+.logo{font-size:2rem;font-weight:800;color:#FFD700;margin-bottom:4px}
+.logo span{color:#FF8C00}
+.sub{color:#aaa;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:24px}
+.flash{background:#fff;color:#8B0000;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:.85rem;text-align:left}
+form{text-align:left}
+label{display:block;color:#ccc;font-size:.85rem;font-weight:500;margin-bottom:6px;margin-top:12px}
+label:first-of-type{margin-top:0}
+input{width:100%;padding:10px 14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#fff;font-size:.95rem;outline:none}
+input:focus{border-color:#1b6ef3}
+input::placeholder{color:rgba(255,255,255,.35)}
+.flex{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+.flex a{color:#1b6ef3;font-size:.8rem;text-decoration:none}
+.btn{width:100%;padding:12px;margin-top:16px;background:linear-gradient(135deg, #1b6ef3, #1545b2);border:none;border-radius:10px;color:#fff;font-size:1rem;font-weight:600;cursor:pointer}
+.btn:hover{box-shadow:0 4px 15px rgba(27, 110, 243,.45)}
+.footer{text-align:center;margin-top:20px}
+.footer p{color:#aaa;font-size:.85rem;margin-bottom:4px}
+.footer a{color:#1b6ef3;text-decoration:none;font-weight:700}
+code{color:#aaa;font-size:.8rem}
+@media(max-width:576px){.card{padding:28px 20px;margin:12px}.logo{font-size:1.6rem}body{padding:10px;align-items:flex-start;padding-top:40px}}
+</style>
+</head>
+<body>
+<div class="card">
+<div style="display:flex;align-items:center;justify-content:center;gap:12px">
+<img src="{{ url_for('static', filename='images/logo.png') }}" alt="GUHA ACADEMY" style="height:48px;width:auto;filter:brightness(2.0) contrast(1.4) saturate(1.4)">
+<div style="text-align:left">
+<div style="font-size:1.2rem;font-weight:800;background:linear-gradient(90deg,#FFD700,#FFA500);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:0.04em">GUHA ACADEMY</div>
+<div style="font-size:0.7rem;color:rgba(255,255,255,0.55);letter-spacing:0.06em">Learn Today, Lead Tomorrow</div>
+</div>
+</div>
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+{% for category, message in messages %}
+<div class="flash">{{ message }}</div>
+{% endfor %}
+{% endif %}
+{% endwith %}
+<form action="{{ url_for('auth.login') }}{% if request.args.get('next') %}?next={{ request.args.get('next') }}{% endif %}" method="POST">
+<label for="username">Username</label>
+<input type="text" id="username" name="username" placeholder="Enter username" required>
+<label for="password">Password</label>
+<input type="password" id="password" name="password" placeholder="Enter password" required>
+<div class="flex">
+<a href="{{ url_for('auth.forgot_password') }}">Forgot Password?</a>
+</div>
+<button type="submit" class="btn">Sign In &#x2192;</button>
+</form>
+<div class="footer">
+<p>Don't have an account? <a href="{{ url_for('auth.register') }}">Sign Up</a></p>
+<p>Admin: <code>admin</code> / <code>admin123</code> &nbsp; Staff: <code>staff</code> / <code>staff123</code></p>
+</div>
+</div>
+</body>
+</html>
+

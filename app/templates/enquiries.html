@@ -1,0 +1,359 @@
+{% extends 'base.html' %}{% block title %}Enquiry Pipeline{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item active" aria-current="page">Enquiries</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+    <!-- Header Row -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold">
+Prospect pipeline</h2>
+            <p class="text-white mb-0">
+Track student leads, manage advisor outreach, and use AI to write responses.</p>
+        </div>
+        <div class="d-flex gap-2">
+          <a href="{{ url_for('enquiries.kanban') }}" class="btn btn-outline-info"><i class="bi bi-kanban me-1"></i>Pipeline</a>
+          <button class="btn btn-premium" data-bs-toggle="modal" data-bs-target="#addEnquiryModal">
+            <i class="bi bi-funnel-fill me-2"></i>Log New Enquiry
+          </button>
+        </div>
+    </div>
+    <div class="mb-3 d-flex flex-wrap gap-2">
+        <span class="badge badge-custom badge-cyan">
+Total Leads: {{ enquiries|length }}</span>
+        <span class="badge badge-custom badge-amber">
+New: {{ enquiries|selectattr('status', 'equalto', 'New')|list|length }}</span>
+        <span class="badge badge-custom badge-active">
+Contacted: {{ enquiries|selectattr('status', 'equalto', 'Contacted')|list|length }}</span>
+        <span class="badge badge-custom badge-success">
+Converted: {{ enquiries|selectattr('status', 'equalto', 'Converted')|list|length }}</span>
+    </div>
+    <!-- Summary Metrics -->
+    <div class="row mb-4">
+        <div class="col">
+            <div class="glass-card p-3 d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-dark small uppercase">
+Total Leads</span>
+                    <h4 class="text-dark mb-0 fw-bold">
+{{ enquiries|length }}</h4>
+                </div>
+                <i class="bi bi-envelope-paper-fill fs-3 text-dark opacity-50">
+</i>
+            </div>
+        </div>
+        <div class="col">
+            <div class="glass-card p-3 d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-dark small uppercase">
+New / Uncontacted</span>
+                    <h4 class="text-dark mb-0 fw-bold">
+{{ enquiries|selectattr('status', 'equalto', 'New')|list|length }}</h4>
+                </div>
+                <i class="bi bi-bell-fill fs-3 text-rose opacity-50">
+</i>
+            </div>
+        </div>
+        <div class="col">
+            <div class="glass-card p-3 d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-dark small uppercase">
+Contacted Pipeline</span>
+                    <h4 class="text-dark mb-0 fw-bold">
+{{ enquiries|selectattr('status', 'equalto', 'Contacted')|list|length }}</h4>
+                </div>
+                <i class="bi bi-chat-left-dots-fill fs-3 text-amber opacity-50">
+</i>
+            </div>
+        </div>
+        <div class="col">
+            <div class="glass-card p-3 d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-dark small uppercase">
+Converted Enrollments</span>
+                    <h4 class="text-dark mb-0 fw-bold">
+{{ enquiries|selectattr('status', 'equalto', 'Converted')|list|length }}</h4>
+                </div>
+                <i class="bi bi-check-circle-fill fs-3 text-dark opacity-50">
+</i>
+            </div>
+        </div>
+    </div>
+    <!-- Enquiry Pipeline Table -->
+    <div class="glass-card p-4 mb-4">
+        <h4 class="mb-4 text-white fw-bold">
+<i class="bi bi-funnel me-2 text-white">
+</i>
+Active Pipelines Ledger</h4>
+        <div class="table-container">
+            <table class="table table-custom sortable" data-page-size="10">
+                <thead>
+                    <tr>
+                        <th>
+Lead Info</th>
+                        <th>
+Interested In</th>
+                        <th>
+Source</th>
+                        <th>
+Status</th>
+                        <th class="text-end">
+Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if enquiries %}                        {% for enq in enquiries %}                            <tr>
+                                <td>
+                                    <div class="fw-medium text-white">
+{{ enq.student_name }}</div>
+                                    <div class="small text-white">
+{{ enq.email or "No email" }} • {{ enq.phone }}</div>
+                                </td>
+                                <td>
+                                    <span class="badge badge-custom badge-cyan">
+{{ enq.course.code }}</span>
+                                    <span class="small text-white d-block mt-1">
+{{ enq.course.name }}</span>
+                                </td>
+                                <td>
+<span class="text-white small">
+{{ enq.source }}</span>
+</td>
+                                <td>
+                                    <span class="badge badge-custom                                         {% if enq.status == 'New' %}badge-inactive                                        {% elif enq.status == 'Contacted' %}badge-amber                                        {% elif enq.status == 'Converted' %}badge-active                                        {% else %}badge-cyan{% endif %}">
+                                        {{ enq.status }}                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <div class="d-flex justify-content-end gap-2">
+                                        <!-- Convert to Student Button (Only if not already converted) -->
+                                        {% if enq.status != 'Converted' %}                                            <form action="{{ url_for('enquiries.convert', id=enq.id) }}" method="POST" class="d-inline">
+                                                <button type="submit" class="btn btn-sm btn-outline-success" title="Convert to Enrolled Student" onclick="return confirm('Convert {{ enq.student_name }} into a fully registered student?')">
+                                                    <i class="bi bi-person-check-fill">
+</i>
+                                                </button>
+                                            </form>
+                                        {% endif %}                                        <!-- AI Assistant Trigger -->
+                                        <button class="btn btn-sm btn-outline-premium" onclick="generateEnquiryFollowUp({{ enq.id }})" title="AI Follow-up Draft">
+                                            <i class="bi bi-magic">
+</i>
+                                        </button>
+                                        <!-- Edit button -->
+                                        <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#editEnquiryModal{{ enq.id }}" title="Edit Lead">
+                                            <i class="bi bi-pencil-square">
+</i>
+                                        </button>
+                                        <!-- Delete button -->
+                                        <a href="{{ url_for('enquiries.delete', id=enq.id) }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to permanently delete this lead?')" title="Remove Lead">
+                                            <i class="bi bi-trash3-fill">
+</i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}                    {% else %}                        <tr>
+                            {{ empty_state('No enquiries logged yet', "Log your first lead to start tracking potential students", 'enquiries', '#', 'Log Enquiry', 'bi-plus-circle-fill', 5, 'data-bs-toggle="modal" data-bs-target="#addEnquiryModal"') }}
+                        </tr>
+                    {% endif %}                </tbody>
+            </table>
+        </div>
+    </div>
+    <!-- AI Follow-up Advisor (below table) -->
+    <div class="glass-card p-4 border border-success border-opacity-25 mb-4" style="border-left: 4px solid #10b981;">
+        <div class="row align-items-center mb-3">
+            <div class="col">
+                <h4 class="mb-0 text-dark fw-bold">
+<i class="bi bi-cpu text-dark me-2">
+</i>
+AI Follow-up Advisor</h4>
+            </div>
+        </div>
+        <p class="text-secondary small mb-4">
+Click the AI magic button (<i class="bi bi-magic text-dark">
+</i>
+) on any lead to dynamically generate personalized templates based on their context and course choice.</p>
+                <hr class="border-color">
+                <div id="ai-followup-loading" class="text-center d-none p-5">
+            <div class="spinner-border text-dark mb-3" role="status">
+</div>
+            <p class="text-secondary small">
+Synthesizing messaging copywriting draft...</p>
+        </div>
+                <div id="ai-followup-box" class="d-none">
+            <label class="form-label text-secondary small fw-bold">
+<i class="bi bi-file-earmark-text text-dark me-1">
+</i>
+Copywriting Pitch Draft:</label>
+            <textarea class="form-control mb-3 text-secondary" id="ai-followup-textarea" rows="8" style="font-size: 0.85rem; line-height: 1.6;">
+</textarea>
+                        <button class="btn btn-outline-premium w-100" id="btn-copy-followup" onclick="copyFollowUpToClipboard()">
+                <i class="bi bi-clipboard2-check me-2">
+</i>
+Copy Draft to Clipboard            </button>
+        </div>
+                <div id="ai-followup-placeholder" class="text-center text-dark py-5">
+            <i class="bi bi-envelope-exclamation fs-1 d-block mb-3 text-dark">
+</i>
+            Advisor logs waiting for selection.        </div>
+    </div>
+</div>
+<!-- ADD ENQUIRY MODAL -->
+<div class="modal fade" id="addEnquiryModal" tabindex="-1" aria-labelledby="addEnquiryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addEnquiryModalLabel">
+<i class="bi bi-funnel me-2 text-dark">
+</i>
+Log Lead Enquiry</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+</button>
+            </div>
+            <form action="{{ url_for('enquiries.list') }}" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small">
+Student Name</label>
+                        <input type="text" class="form-control" name="student_name" placeholder="e.g. Bruce Wayne" maxlength="100" required autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Email Address</label>
+                        <input type="email" class="form-control" name="email" placeholder="e.g. bruce@waynecorp.com" maxlength="100">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Phone Number</label>
+                        <input type="tel" class="form-control" name="phone" placeholder="e.g. 555-8888" pattern="[0-9+\-\s]{10,20}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+                        Course Focus</label>
+                        <select class="form-select ts-select" name="course_id" placeholder="Search course..." required>
+                            <option value="">
+-- Select Course Focus --</option>
+                            {% for course in courses %}                                <option value="{{ course.id }}">
+{{ course.code }}: {{ course.name }}</option>
+                            {% endfor %}                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Enquiry Lead Source</label>
+                        <select class="form-select" name="source">
+                            <option value="Website">
+Website</option>
+                            <option value="Walk-in">
+Walk-in</option>
+                            <option value="Referral">
+Referral</option>
+                            <option value="Social Media">
+Social Media</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Initial Status</label>
+                        <select class="form-select" name="status">
+                            <option value="New">
+New / Uncontacted</option>
+                            <option value="Contacted">
+Contacted</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Advisor notes / Background Context</label>
+                        <textarea class="form-control" name="notes" rows="3" placeholder="e.g. Looking for evening batches. Focuses on automation...">
+</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+Cancel</button>
+                    <button type="submit" class="btn btn-premium">
+Submit Enquiry</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% if enquiries %}{% for enq in enquiries %}<!-- EDIT ENQUIRY MODAL -->
+<div class="modal fade" id="editEnquiryModal{{ enq.id }}" tabindex="-1" aria-labelledby="editEnquiryModalLabel{{ enq.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editEnquiryModalLabel{{ enq.id }}">
+Modify Lead Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+</button>
+            </div>
+            <form action="{{ url_for('enquiries.edit', id=enq.id) }}" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small">
+Student Name</label>
+                        <input type="text" class="form-control" name="student_name" value="{{ enq.student_name }}" maxlength="100" required autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Email Address</label>
+                        <input type="email" class="form-control" name="email" value="{{ enq.email }}" maxlength="100">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Phone Number</label>
+                        <input type="tel" class="form-control" name="phone" value="{{ enq.phone }}" pattern="[0-9+\-\s]{10,20}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Course Focus</label>
+                        <select class="form-select ts-select" name="course_id" placeholder="Search course...">
+                            {% for course in courses %}                                <option value="{{ course.id }}" {% if course.id == enq.course_id %}selected{% endif %}>
+{{ course.code }}: {{ course.name }}</option>
+                            {% endfor %}                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Enquiry Lead Source</label>
+                        <select class="form-select" name="source">
+                            <option value="Website" {% if enq.source == 'Website' %}selected{% endif %}>
+Website</option>
+                            <option value="Walk-in" {% if enq.source == 'Walk-in' %}selected{% endif %}>
+Walk-in</option>
+                            <option value="Referral" {% if enq.source == 'Referral' %}selected{% endif %}>
+Referral</option>
+                            <option value="Social Media" {% if enq.source == 'Social Media' %}selected{% endif %}>
+Social Media</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Pipeline status</label>
+                        <select class="form-select" name="status">
+                            <option value="New" {% if enq.status == 'New' %}selected{% endif %}>
+New / Uncontacted</option>
+                            <option value="Contacted" {% if enq.status == 'Contacted' %}selected{% endif %}>
+Contacted</option>
+                            <option value="Converted" {% if enq.status == 'Converted' %}selected{% endif %}>
+Converted</option>
+                            <option value="Lost" {% if enq.status == 'Lost' %}selected{% endif %}>
+Lost</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Advisor notes / Background Context</label>
+                        <textarea class="form-control" name="notes" rows="3">
+{{ enq.notes }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+Cancel</button>
+                    <button type="submit" class="btn btn-premium">
+Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}{% endif %}<!-- Trigger initial setup -->
+<script>
+    // Hide placeholder and show textarea when dynamic loading fires    const observer = new MutationObserver(function(mutations) {        mutations.forEach(function(mutation) {            if (mutation.attributeName === "class") {                const isHidden = document.getElementById('ai-followup-box').classList.contains('d-none');                const isSpinning = document.getElementById('ai-followup-loading').classList.contains('d-none');                const placeholder = document.getElementById('ai-followup-placeholder');                                if (!isHidden || !isSpinning) {                    placeholder.classList.add('d-none');                } else {                    placeholder.classList.remove('d-none');                }            }        });    });        document.addEventListener('DOMContentLoaded', () =>
+ {        observer.observe(document.getElementById('ai-followup-box'), { attributes: true });        observer.observe(document.getElementById('ai-followup-loading'), { attributes: true });    });</script>
+{% endblock %}

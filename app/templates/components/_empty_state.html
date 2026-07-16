@@ -1,0 +1,80 @@
+{% macro empty_state(title, subtitle=none, type='general', cta_url=none, cta_text=none, cta_icon=none, colspan=none) %}
+{% set svgs = {
+  'students': '<svg viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="38" cy="30" r="12" stroke="currentColor" stroke-width="2" fill="none" opacity="0.3"/><path d="M20 68c0-10 8-18 18-18s18 8 18 18" stroke="currentColor" stroke-width="2" fill="none" opacity="0.3"/><circle cx="82" cy="28" r="10" stroke="currentColor" stroke-width="2" fill="none" opacity="0.2"/><path d="M68 62c0-8 6.5-14.5 14-14.5S96 54 96 62" stroke="currentColor" stroke-width="2" fill="none" opacity="0.2"/><circle cx="98" cy="14" r="6" stroke="currentColor" stroke-width="2" fill="none" opacity="0.12"/><path d="M90 34c0-4.5 3.5-8 8-8s8 3.5 8 8" stroke="currentColor" stroke-width="2" fill="none" opacity="0.12"/><circle cx="60" cy="72" r="20" stroke="var(--accent-cyan)" stroke-width="2" fill="none" stroke-dasharray="4 4" opacity="0.5"/></svg>',
+  'courses': '<svg viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="20" y="14" width="80" height="72" rx="8" stroke="currentColor" stroke-width="2" fill="none" opacity="0.3"/><line x1="34" y1="36" x2="86" y2="36" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.2"/><line x1="34" y1="50" x2="72" y2="50" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.15"/><line x1="34" y1="64" x2="60" y2="64" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.1"/><circle cx="60" cy="42" r="38" stroke="var(--accent-cyan)" stroke-width="2" fill="none" stroke-dasharray="4 4" opacity="0.4"/></svg>',
+  'enquiries': '<svg viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="28" y="10" width="64" height="80" rx="6" stroke="currentColor" stroke-width="2" fill="none" opacity="0.3"/><line x1="40" y1="32" x2="80" y2="32" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.2"/><line x1="40" y1="44" x2="72" y2="44" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.15"/><line x1="40" y1="56" x2="68" y2="56" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.1"/><path d="M96 66l10 10-10-10z" stroke="var(--accent-cyan)" stroke-width="2" fill="none" opacity="0.6"/><circle cx="60" cy="50" r="30" stroke="var(--accent-cyan)" stroke-width="2" fill="none" stroke-dasharray="4 4" opacity="0.35"/></svg>',
+  'expenses': '<svg viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="30" y="16" width="60" height="68" rx="4" stroke="currentColor" stroke-width="2" fill="none" opacity="0.3"/><line x1="42" y1="36" x2="78" y2="36" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.2"/><line x1="42" y1="48" x2="66" y2="48" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.15"/><line x1="42" y1="60" x2="54" y2="60" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.1"/><circle cx="60" cy="50" r="28" stroke="var(--accent-amber)" stroke-width="2" fill="none" stroke-dasharray="4 4" opacity="0.4"/></svg>',
+  'fees': '<svg viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="60" cy="44" r="22" stroke="currentColor" stroke-width="2" fill="none" opacity="0.3"/><path d="M52 38h16v12H52z" stroke="currentColor" stroke-width="2" fill="none" opacity="0.2"/><line x1="60" y1="28" x2="60" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.2"/><line x1="60" y1="66" x2="60" y2="72" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.2"/><line x1="42" y1="44" x2="36" y2="44" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.2"/><line x1="78" y1="44" x2="84" y2="44" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.2"/><circle cx="60" cy="44" r="32" stroke="var(--accent-emerald)" stroke-width="2" fill="none" stroke-dasharray="4 4" opacity="0.35"/></svg>',
+  'exams': '<svg viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="34" y="12" width="52" height="76" rx="4" stroke="currentColor" stroke-width="2" fill="none" opacity="0.3"/><line x1="44" y1="32" x2="62" y2="32" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.2"/><line x1="44" y1="44" x2="58" y2="44" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.15"/><line x1="44" y1="56" x2="68" y2="56" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.1"/><path d="M78 66l14 14-14-14zM92 80l-6-6" stroke="var(--accent-rose)" stroke-width="2" fill="none" opacity="0.5"/><circle cx="60" cy="50" r="32" stroke="var(--accent-rose)" stroke-width="2" fill="none" stroke-dasharray="4 4" opacity="0.3"/></svg>',
+  'attendance': '<svg viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="24" y="14" width="72" height="72" rx="8" stroke="currentColor" stroke-width="2" fill="none" opacity="0.3"/><text x="60" y="54" text-anchor="middle" fill="currentColor" opacity="0.15" font-size="28" font-family="Inter">??</text><line x1="24" y1="34" x2="96" y2="34" stroke="currentColor" stroke-width="2" opacity="0.1"/><line x1="48" y1="14" x2="48" y2="4" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.2"/><line x1="72" y1="14" x2="72" y2="4" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.2"/><circle cx="60" cy="66" r="6" stroke="var(--accent-emerald)" stroke-width="2" fill="none" opacity="0.5"/><circle cx="60" cy="50" r="28" stroke="var(--accent-emerald)" stroke-width="2" fill="none" stroke-dasharray="4 4" opacity="0.3"/></svg>',
+  'leaves': '<svg viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="24" y="12" width="72" height="76" rx="6" stroke="currentColor" stroke-width="2" fill="none" opacity="0.3"/><line x1="24" y1="34" x2="96" y2="34" stroke="currentColor" stroke-width="2" opacity="0.1"/><text x="60" y="58" text-anchor="middle" fill="currentColor" opacity="0.15" font-size="22" font-family="Inter">~~</text><line x1="48" y1="12" x2="48" y2="4" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.2"/><line x1="72" y1="12" x2="72" y2="4" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.2"/><circle cx="60" cy="66" r="6" stroke="var(--accent-amber)" stroke-width="2" fill="none" opacity="0.5"/><circle cx="60" cy="50" r="30" stroke="var(--accent-amber)" stroke-width="2" fill="none" stroke-dasharray="4 4" opacity="0.3"/></svg>',
+  'payroll': '<svg viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="26" y="18" width="68" height="64" rx="6" stroke="currentColor" stroke-width="2" fill="none" opacity="0.3"/><rect x="36" y="28" width="48" height="12" rx="3" stroke="currentColor" stroke-width="2" fill="none" opacity="0.2"/><rect x="36" y="48" width="32" height="10" rx="2" stroke="currentColor" stroke-width="2" fill="none" opacity="0.12"/><path d="M86 60l14 14-14-14z" stroke="var(--accent-emerald)" stroke-width="2" fill="none" opacity="0.5"/><circle cx="60" cy="50" r="28" stroke="var(--accent-emerald)" stroke-width="2" fill="none" stroke-dasharray="4 4" opacity="0.3"/></svg>',
+  'backups': '<svg viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="60" cy="72" rx="32" ry="10" stroke="currentColor" stroke-width="2" fill="none" opacity="0.2"/><rect x="36" y="24" width="48" height="48" rx="6" stroke="currentColor" stroke-width="2" fill="none" opacity="0.3"/><rect x="44" y="34" width="32" height="6" rx="2" stroke="currentColor" stroke-width="2" fill="none" opacity="0.2"/><rect x="44" y="46" width="24" height="6" rx="2" stroke="currentColor" stroke-width="2" fill="none" opacity="0.12"/><circle cx="60" cy="42" r="32" stroke="var(--accent-cyan)" stroke-width="2" fill="none" stroke-dasharray="4 4" opacity="0.35"/><path d="M74 16l10 10-10-10z" stroke="var(--accent-cyan)" stroke-width="2" fill="none" opacity="0.5"/></svg>',
+  'sync': '<svg viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M36 60c0-13 11-24 24-24s24 11 24 24" stroke="currentColor" stroke-width="2" fill="none" opacity="0.3"/><circle cx="84" cy="60" r="12" stroke="currentColor" stroke-width="2" fill="none" opacity="0.2"/><path d="M84 52v8h8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.2"/><circle cx="36" cy="60" r="12" stroke="currentColor" stroke-width="2" fill="none" opacity="0.2"/><path d="M36 52v8h-8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.2"/><circle cx="60" cy="48" r="30" stroke="var(--accent-cyan)" stroke-width="2" fill="none" stroke-dasharray="4 4" opacity="0.4"/></svg>',
+  'salary': '<svg viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="26" y="20" width="68" height="60" rx="6" stroke="currentColor" stroke-width="2" fill="none" opacity="0.3"/><text x="60" y="58" text-anchor="middle" fill="currentColor" opacity="0.12" font-size="24" font-family="Inter">+</text><line x1="40" y1="38" x2="80" y2="38" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.15"/><circle cx="60" cy="58" r="4" stroke="var(--accent-emerald)" stroke-width="2" fill="none" opacity="0.5"/><circle cx="60" cy="50" r="28" stroke="var(--accent-emerald)" stroke-width="2" fill="none" stroke-dasharray="4 4" opacity="0.35"/></svg>',
+  'general': '<svg viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="60" cy="42" r="24" stroke="currentColor" stroke-width="2" fill="none" opacity="0.25"/><line x1="78" y1="60" x2="92" y2="74" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.25"/><circle cx="60" cy="42" r="32" stroke="var(--accent-cyan)" stroke-width="2" fill="none" stroke-dasharray="4 4" opacity="0.35"/></svg>'
+} %}
+{% set type_icons = {
+  'students': 'bi-people-fill',
+  'courses': 'bi-journal-code',
+  'enquiries': 'bi-question-circle-fill',
+  'expenses': 'bi-receipt',
+  'fees': 'bi-wallet2',
+  'exams': 'bi-pencil-square',
+  'attendance': 'bi-calendar2-check',
+  'leaves': 'bi-calendar-range',
+  'payroll': 'bi-cash-stack',
+  'backups': 'bi-hdd-stack-fill',
+  'sync': 'bi-arrow-repeat',
+  'salary': 'bi-calculator-fill',
+  'general': 'bi-inbox-fill'
+} %}
+{% set colors = {
+  'students': 'var(--accent-azure)',
+  'courses': 'var(--accent-purple)',
+  'enquiries': 'var(--accent-cyan)',
+  'expenses': 'var(--accent-amber)',
+  'fees': 'var(--accent-emerald)',
+  'exams': 'var(--accent-rose)',
+  'attendance': 'var(--accent-emerald)',
+  'leaves': 'var(--accent-amber)',
+  'payroll': 'var(--accent-emerald)',
+  'backups': 'var(--accent-cyan)',
+  'sync': 'var(--accent-cyan)',
+  'salary': 'var(--accent-emerald)',
+  'general': 'var(--accent-cyan)'
+} %}
+{% set illustration = svgs.get(type, svgs['general']) %}
+{% set icon = type_icons.get(type, type_icons['general']) %}
+{% set color = colors.get(type, colors['general']) %}
+{% set cta_icon = cta_icon or icon %}
+{% if colspan %}
+<td colspan="{{ colspan }}" class="empty-state-td">
+  <div class="empty-state">
+    <div class="empty-state-illustration">{{ illustration }}</div>
+    <div class="empty-state-content">
+      <h4 class="empty-state-title">{{ title }}</h4>
+      {% if subtitle %}<p class="empty-state-subtitle">{{ subtitle }}</p>{% endif %}
+      {% if cta_url and cta_text %}
+      <a href="{{ cta_url }}" class="empty-state-cta">
+        <i class="bi {{ cta_icon }} me-1"></i> {{ cta_text }}
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</td>
+{% else %}
+<div class="empty-state">
+  <div class="empty-state-illustration">{{ illustration }}</div>
+  <div class="empty-state-content">
+    <h4 class="empty-state-title">{{ title }}</h4>
+    {% if subtitle %}<p class="empty-state-subtitle">{{ subtitle }}</p>{% endif %}
+    {% if cta_url and cta_text %}
+    <a href="{{ cta_url }}" class="empty-state-cta">
+      <i class="bi {{ cta_icon }} me-1"></i> {{ cta_text }}
+    </a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endmacro %}

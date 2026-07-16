@@ -1,0 +1,384 @@
+{% extends 'base.html' %}{% block title %}Dashboard{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item active" aria-current="page">Dashboard</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1 fw-bold text-white">Dashboard</h2>
+            <p class="text-white mb-0" style="opacity: 0.7;">{{ stats.active_students }} active students &middot; {{ stats.courses }} courses</p>
+        </div>
+    </div>
+
+    <!-- Quick Stats Row -->
+    <div class="row mb-4 animate-on-scroll">
+        <div class="col-12">
+            <div class="glass-card p-3">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <i class="bi bi-lightning-fill fs-5" style="color:hsl(40,100%,55%);"></i>
+                    <h6 class="mb-0 fw-bold" style="color:hsl(40,100%,55%);">Quick Stats</h6>
+                </div>
+                <div class="row g-3" id="quick-stats-container">
+                    <div class="d-flex align-items-center text-secondary small">
+                        <span class="spinner-border spinner-border-sm me-2" style="color:hsl(40,100%,55%);" role="status"></span>
+                        Loading quick stats...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bento-grid">
+        <!-- Stat Cards -->
+        <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll">
+            <div class="summary-card students">
+                <div><div class="stat-number">{{ stats.active_students }}</div><div class="stat-label">Students</div></div>
+                <div class="stat-sub">Active enrollments</div>
+                <i class="bi bi-people-fill stat-icon"></i>
+            </div>
+        </div>
+        {% if current_user.role == 'Admin' %}
+        <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll stagger-1">
+            <div class="summary-card courses">
+                <div><div class="stat-number">{{ stats.courses }}</div><div class="stat-label">Courses</div></div>
+                <div class="stat-sub">Active programs</div>
+                <i class="bi bi-journal-code stat-icon"></i>
+            </div>
+        </div>
+        <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll stagger-2">
+            <div class="summary-card staff">
+                <div><div class="stat-number">{{ stats.tutors }}</div><div class="stat-label">Staff</div></div>
+                <div class="stat-sub">Mentors &amp; instructors</div>
+                <i class="bi bi-person-workspace stat-icon"></i>
+            </div>
+        </div>
+        {% else %}
+        <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll stagger-1">
+            <div class="summary-card staff">
+                <div><div class="stat-number">{{ stats.tutors }}</div><div class="stat-label">Staff</div></div>
+                <div class="stat-sub">Teaching team</div>
+                <i class="bi bi-person-workspace stat-icon"></i>
+            </div>
+        </div>
+        <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll stagger-2">
+            <div class="summary-card enrollments">
+                <div><div class="stat-number">{{ stats.pending_leaves_count }}</div><div class="stat-label">Pending</div></div>
+                <div class="stat-sub">Leave requests</div>
+                <i class="bi bi-hourglass-split stat-icon"></i>
+            </div>
+        </div>
+        {% endif %}
+        <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll stagger-3">
+            <div class="summary-card staff">
+                <div><div class="stat-number">{{ stats.avg_student_attendance }}%</div><div class="stat-label">Attendance</div></div>
+                <div class="stat-sub">Last 14 days</div>
+                <i class="bi bi-calendar-check stat-icon"></i>
+            </div>
+        </div>
+
+        {% if current_user.role == 'Admin' %}
+        <!-- Today's Activities -->
+        <div class="bento-card bento-xl-12 animate-on-scroll">
+            <div class="glass-card p-3">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <i class="bi bi-list-check fs-4" style="color:hsl(40,100%,55%);"></i>
+                    <h5 class="mb-0 fw-bold" style="color:hsl(40,100%,55%);">Today's Tasks</h5>
+                    <span class="badge badge-custom ms-1" id="tasks-count-badge" style="background:rgba(255,193,7,0.2);color:#ffc107;border:1px solid rgba(255,193,7,0.3);font-size:0.6rem;">...</span>
+                </div>
+                <div id="todays-tasks-container">
+                    <div class="d-flex align-items-center text-secondary small">
+                        <span class="spinner-border spinner-border-sm me-2" style="color:hsl(40,100%,55%);" role="status"></span>
+                        Loading tasks...
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- AI Advisor Compact -->
+        <div class="bento-card bento-xl-12 animate-on-scroll">
+            <div class="glass-card p-3">
+                <div class="d-flex align-items-center justify-content-between cursor-pointer" onclick="var c=this.nextElementSibling;c.classList.toggle('d-none');this.querySelector('.collapse-icon').classList.toggle('bi-chevron-up');this.querySelector('.collapse-icon').classList.toggle('bi-chevron-down');">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-cpu-fill fs-5" style="color:hsl(200,100%,50%);"></i>
+                        <h5 class="mb-0 fw-bold" style="color:hsl(200,100%,50%);">AI Institute Advisor</h5>
+                        <span class="badge badge-custom badge-active ms-2" style="font-size:0.6rem;">LIVE</span>
+                    </div>
+                    <i class="bi bi-chevron-down collapse-icon fs-6" style="color:rgba(255,255,255,0.5);"></i>
+                </div>
+                <div class="mt-3 d-none" id="aiContent">
+                    <div id="ai-insights-summary">
+                        <div class="d-flex align-items-center text-secondary small">
+                            <span class="spinner-border spinner-border-sm me-2" style="color:hsl(200,100%,50%);" role="status"></span>
+                            Loading insights...
+                        </div>
+                    </div>
+                    <div class="row mt-3" id="ai-insights-container"></div>
+                    <div class="mt-4 pt-3 border-top border-color">
+                        <div class="d-flex align-items-center gap-2 mb-3">
+                            <i class="bi bi-graph-up-arrow" style="color:hsl(150,100%,40%);"></i>
+                            <h6 class="mb-0 fw-bold" style="color:hsl(150,100%,40%);">Predictive Analytics</h6>
+                        </div>
+                        <div id="predictive-analytics-container">
+                            <div class="d-flex align-items-center text-secondary small">
+                                <span class="spinner-border spinner-border-sm me-2" style="color:hsl(150,100%,40%);" role="status"></span>
+                                Loading...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fee Chart + Pipeline -->
+        <div class="bento-card bento-xl-7 bento-md-12 animate-on-scroll">
+            <div class="glass-card p-4 h-100">
+                <h5 class="mb-4 fw-bold"><i class="bi bi-graph-up me-2" style="color:hsl(200,100%,50%);"></i>Fee Collection</h5>
+                <div style="position:relative;height:260px;width:100%;"><canvas id="revenueChart"></canvas></div>
+            </div>
+        </div>
+        <div class="bento-card bento-xl-5 bento-md-12 animate-on-scroll stagger-1">
+            <div class="glass-card p-4 h-100">
+                <h5 class="mb-4 fw-bold"><i class="bi bi-funnel-fill me-2" style="color:hsl(200,100%,50%);"></i>Hot Leads</h5>
+                <div class="list-group list-group-flush">
+                    {% if recent_enquiries %}
+                        {% for enq in recent_enquiries %}
+                            <div class="list-group-item border-0 px-0 py-2 mb-2 rounded" style="background:transparent !important;">
+                                <div class="d-flex w-100 justify-content-between align-items-center">
+                                    <h6 class="mb-0 text-white small fw-semibold">{{ enq.student_name }}</h6>
+                                    <span class="badge badge-custom {% if enq.status == 'New' %}badge-inactive{% elif enq.status == 'Contacted' %}badge-amber{% else %}badge-active{% endif %}" style="font-size:0.6rem;">{{ enq.status }}</span>
+                                </div>
+                                <small class="text-white" style="opacity:0.5;">{{ enq.source }} &middot; {{ enq.notes|truncate(40) if enq.notes else 'No notes' }}</small>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-4"><p class="text-white small mb-0" style="opacity:0.5;">No enquiries yet</p></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Enrollments + Top Courses -->
+        <div class="bento-card bento-xl-7 bento-md-12 animate-on-scroll">
+            <div class="glass-card p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-journal-text me-2" style="color:hsl(200,100%,50%);"></i>Recent Enrollments</h5>
+                    <a href="{{ url_for('fees.list') }}" class="btn btn-sm" style="background:transparent;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);border-radius:8px;padding:4px 14px;font-size:0.8rem;">View All</a>
+                </div>
+                <div class="table-container">
+                    <table class="table table-custom sortable" data-page-size="10">
+                        <thead><tr><th>Student</th><th>Amount</th><th>Date</th><th>Method</th></tr></thead>
+                        <tbody>
+                            {% if recent_fees %}
+                                {% for fee in recent_fees %}
+                                    <tr>
+                                        <td class="fw-medium text-white small">{{ fee.student.name }}</td>
+                                        <td class="fw-semibold small" style="color:hsl(200,100%,50%);">₹{{ "{:,.2f}".format(fee.amount_paid) }}</td>
+                                        <td class="text-white small" style="opacity:0.7;">{{ fee.payment_date.strftime("%d %b %Y") }}</td>
+                                        <td><span class="badge badge-custom badge-cyan" style="font-size:0.6rem;">{{ fee.payment_method }}</span></td>
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>{{ empty_state('No recent enrollments', 'Fee payments will appear here once students enroll', 'fees', none, none, none, 4) }}</tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="bento-card bento-xl-5 bento-md-12 animate-on-scroll stagger-1">
+            <div class="glass-card p-4 h-100">
+                <h5 class="mb-4 fw-bold"><i class="bi bi-trophy me-2" style="color:hsl(200,100%,50%);"></i>Top Courses</h5>
+                <div class="d-flex flex-column gap-2">
+                    {% if top_courses %}
+                        {% for course in top_courses %}
+                            <div class="d-flex align-items-center gap-3 p-2 rounded" style="background:rgba(255,255,255,0.03);">
+                                <div class="rounded d-flex align-items-center justify-content-center" style="width:36px;height:36px;background:rgba(27, 110, 243,0.1);color:hsl(200,100%,50%);flex-shrink:0;"><i class="bi bi-journal-code"></i></div>
+                                <div class="flex-grow-1 min-width-0">
+                                    <div class="fw-semibold small text-white text-truncate">{{ course.name }}</div>
+                                    <div class="text-white small" style="opacity:0.5;font-size:0.75rem;">{{ course.enrolled }} enrolled</div>
+                                </div>
+                                <div class="small fw-bold" style="color:hsl(200,100%,50%);">{{ (course.enrolled / stats.active_students * 100)|round|int if stats.active_students else 0 }}%</div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-4"><p class="text-white small mb-0" style="opacity:0.5;">No enrollments yet</p></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        {% else %}
+        <!-- Staff View -->
+        <div class="bento-card bento-xl-6 bento-md-12 animate-on-scroll">
+            <div class="glass-card p-4 h-100">
+                <h5 class="mb-4 fw-bold"><i class="bi bi-lightning-fill me-2" style="color:hsl(200,100%,50%);"></i>Quick Actions</h5>
+                <div class="d-grid gap-3">
+                    <a href="{{ url_for('attendance.attendance') }}" class="btn btn-premium py-3 text-start d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-calendar2-check-fill me-2"></i>Log Attendance</span>
+                        <i class="bi bi-arrow-right-short fs-4"></i>
+                    </a>
+                    <a href="{{ url_for('leaves.leaves') }}" class="btn" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:12px;padding:14px 20px;text-align:start;" class="d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-calendar-range-fill me-2"></i>Request Leave</span>
+                        <i class="bi bi-arrow-right-short fs-4"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="bento-card bento-xl-6 bento-md-12 animate-on-scroll stagger-1">
+            <div class="glass-card p-4 h-100">
+                <h5 class="mb-4 fw-bold"><i class="bi bi-shield-check me-2" style="color:hsl(200,100%,50%);"></i>Your Access</h5>
+                <ul class="list-unstyled mb-0 small" style="line-height:2;">
+                    <li><i class="bi bi-check-circle me-2" style="color:hsl(150,100%,40%);"></i>Mark daily attendance</li>
+                    <li><i class="bi bi-check-circle me-2" style="color:hsl(150,100%,40%);"></i>Submit leave requests</li>
+                    <li><i class="bi bi-check-circle me-2" style="color:hsl(150,100%,40%);"></i>View attendance trends</li>
+                    <li><i class="bi bi-x-circle me-2" style="color:hsl(0,100%,60%);"></i>Financial &amp; course management</li>
+                </ul>
+                <div class="mt-3 p-2 rounded small" style="background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.4);">Contact admin for advanced permissions.</div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+<script>
+(function() {
+    // Quick Stats
+    var qsContainer = document.getElementById('quick-stats-container');
+    if (qsContainer) {
+        var stats = {{ stats|tojson }};
+        var qs = [
+            { label: 'Active Students', value: stats.active_students, icon: 'bi-people-fill', color: '#1b6ef3' },
+            { label: 'Courses', value: stats.courses, icon: 'bi-journal-code', color: '#7b3fe4' },
+            { label: 'Staff', value: stats.tutors, icon: 'bi-person-workspace', color: '#44b669' },
+            { label: 'Attendance Rate', value: stats.avg_student_attendance + '%', icon: 'bi-calendar-check', color: '#f59639' },
+            { label: 'Pending Enq.', value: stats.unresolved_enquiries, icon: 'bi-funnel-fill', color: '#ff3366' },
+            { label: 'Fees (Month)', value: '₹' + ((stats.monthly_fees_collected || 0)/1000).toFixed(0) + 'k', icon: 'bi-currency-rupee', color: '#00BFA6' }
+        ];
+        var h = '';
+        qs.forEach(function(s) {
+            h += '<div class="col-md-2 col-sm-4 col-6">';
+            h += '<div class="p-3 rounded h-100" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);">';
+            h += '<div class="d-flex align-items-center gap-2 mb-2">';
+            h += '<div class="rounded d-flex align-items-center justify-content-center" style="width:32px;height:32px;background:rgba(' + s.color + ',0.15);color:' + s.color + ';">';
+            h += '<i class="bi ' + s.icon + '"></i></div>';
+            h += '<span class="small text-white-50">' + s.label + '</span></div>';
+            h += '<div class="fw-bold text-white fs-5">' + s.value + '</div></div></div>';
+        });
+        qsContainer.innerHTML = h;
+    }
+})();
+</script>
+{% if current_user.role == 'Admin' %}
+<script>
+(function() {
+    // Predictive Analytics
+    var paContainer = document.getElementById('predictive-analytics-container');
+    if (paContainer) {
+        fetch('/api/dashboard/predictive-analytics')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var html = '<div class="row">';
+                html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);">';
+                html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-people-fill me-2" style="color:hsl(150,100%,40%);"></i>Enrollment Forecast</h6>';
+                html += '<div class="d-flex justify-content-between align-items-center mb-2"><span class="text-white small">Growth:</span><span class="text-success fw-bold small">+' + data.growth_rate + '%</span></div>';
+                html += '<div class="d-flex gap-2">';
+                data.enrollment_forecast.forEach(function(val) { html += '<div class="text-center flex-fill"><div class="text-white fw-bold small">' + val + '</div><div class="text-white" style="opacity:0.5;font-size:0.65rem;">Mo</div></div>'; });
+                html += '</div></div></div>';
+                html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);">';
+                html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-currency-rupee me-2" style="color:hsl(150,100%,40%);"></i>Revenue Forecast</h6>';
+                html += '<div class="d-flex gap-2">';
+                data.revenue_forecast.forEach(function(val) { html += '<div class="text-center flex-fill"><div class="text-white fw-bold small">' + (val/1000).toFixed(0) + 'k</div><div class="text-white" style="opacity:0.5;font-size:0.65rem;">Mo</div></div>'; });
+                html += '</div></div></div>';
+                html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);">';
+                html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-lightning-fill me-2" style="color:hsl(150,100%,40%);"></i>Opportunities</h6><ul class="mb-0 ps-3">';
+                (data.opportunities || []).slice(0,3).forEach(function(opp) { html += '<li class="text-white small mb-1" style="opacity:0.7;">' + opp + '</li>'; });
+                html += '</ul></div></div></div>';
+                if (data.risk_factors && data.risk_factors.length) {
+                    html += '<div class="mt-2"><h6 class="text-white small fw-bold mb-2"><i class="bi bi-exclamation-triangle-fill me-2" style="color:#F59E0B;"></i>Risks</h6><div class="d-flex flex-wrap gap-1">';
+                    data.risk_factors.forEach(function(risk) { html += '<span class="badge badge-custom badge-amber" style="font-size:0.6rem;">' + risk + '</span>'; });
+                    html += '</div></div>';
+                }
+                paContainer.innerHTML = html;
+            })
+            .catch(function() { paContainer.innerHTML = '<p class="text-danger small mb-0">Could not load analytics</p>'; });
+    }
+
+    // Today's Tasks
+    (function() {
+        var container = document.getElementById('todays-tasks-container');
+        var badge = document.getElementById('tasks-count-badge');
+        if (!container) return;
+        fetch('/api/dashboard/todays-activities')
+            .then(function(r) { return r.json(); })
+            .then(function(resp) {
+                var tasks = resp.tasks || [];
+                if (!tasks.length) {
+                    container.innerHTML = '<div class="text-center py-3"><i class="bi bi-emoji-smile fs-3 d-block mb-1" style="color:hsl(150,100%,45%);"></i><span class="small text-white-50">All caught up! No pending tasks.</span></div>';
+                    if (badge) badge.textContent = '0';
+                    return;
+                }
+                if (badge) badge.textContent = tasks.length;
+                var html = '';
+                var completedCount = 0;
+                tasks.forEach(function(t) {
+                    var colors = {high: '#dc3545', medium: '#ffc107', low: '#6c757d'};
+                    var labels = {high: 'HIGH', medium: 'MED', low: 'LOW'};
+                    var c = colors[t.priority] || '#6c757d';
+                    var progress = t.progress || 0;
+                    var isCompleted = progress === 100;
+                    if (isCompleted) completedCount++;
+                    
+                    html += '<div class="d-flex align-items-center gap-3 p-2 mb-2 rounded" style="background:rgba(255,255,255,0.03);">';
+                    html += '<span class="badge" style="background:' + c + ';color:#fff;font-size:0.5rem;padding:2px 6px;">' + (labels[t.priority] || t.priority.toUpperCase()) + '</span>';
+                    html += '<i class="bi bi-' + (isCompleted ? 'check-circle-fill' : (t.icon || 'bell')) + ' flex-shrink-0" style="color:' + (isCompleted ? '#00BFA6' : c) + ';font-size:1.1rem;"></i>';
+                    html += '<div class="flex-grow-1 min-width-0"><div class="d-flex justify-content-between align-items-center mb-1"><div class="text-white small fw-semibold">' + (t.title || '') + '</div>';
+                    html += '<span class="small" style="color:' + (isCompleted ? '#00BFA6' : 'rgba(255,255,255,0.6)') + ';font-size:0.7rem;">' + progress + '%</span></div>';
+                    html += '<div class="text-white-50 small" style="opacity:0.6;font-size:0.75rem;">' + (t.detail || '') + '</div>';
+                    html += '<div class="progress mt-1" style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;"><div class="progress-bar" style="width:' + progress + '%;background:' + (isCompleted ? '#00BFA6' : c) + ';border-radius:2px;transition:width 0.3s ease;"></div></div></div>';
+                    if (t.action_url && !isCompleted) {
+                        html += '<a href="' + t.action_url + '" class="btn btn-sm flex-shrink-0" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:0.7rem;padding:2px 10px;white-space:nowrap;">' + (t.action_label || 'Go') + '</a>';
+                    }
+                    html += '</div>';
+                });
+                // Add overall progress summary
+                var overallProgress = Math.round((completedCount / tasks.length) * 100);
+                var progressHtml = '<div class="mt-3 pt-3 border-top" style="border-color:rgba(255,255,255,0.08);">';
+                progressHtml += '<div class="d-flex justify-content-between align-items-center mb-2"><span class="small text-white-50">Overall Progress</span><span class="small fw-bold" style="color:#00BFA6;">' + completedCount + '/' + tasks.length + ' completed</span></div>';
+                progressHtml += '<div class="progress" style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;"><div class="progress-bar" style="width:' + overallProgress + '%;background:linear-gradient(90deg,#00BFA6,#1b6ef3);border-radius:3px;transition:width 0.5s ease;"></div></div>';
+                progressHtml += '</div>';
+                container.innerHTML = html + progressHtml;
+            })
+            .catch(function() {
+                container.innerHTML = '<div class="text-danger small">Could not load tasks.</div>';
+            });
+    })();
+
+    // Revenue Chart
+    var revCanvas = document.getElementById('revenueChart');
+    if (revCanvas) {
+        if (revCanvas._chart) revCanvas._chart.destroy();
+        var months = {{ chart_months|tojson }};
+        var collections = {{ chart_data|tojson }};
+        revCanvas._chart = new Chart(revCanvas.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: months,
+                datasets: [{
+                    label: 'Fees Collected',
+                    data: collections,
+                    borderColor: '#3B82F6',
+                    backgroundColor: 'rgba(59,130,246,0.06)',
+                    borderWidth: 3, fill: true, tension: 0.35,
+                    pointBackgroundColor: '#1E1E2F', pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#ffffff', font: { size: 11 } } },
+                    y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#ffffff', font: { size: 11 }, callback: function(v) { return '₹' + v; } } }
+                }
+            }
+        });
+    }
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,332 @@
+{% extends 'base.html' %}{% block title %}Exams{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item active" aria-current="page">Exams</li>{% endblock %}{% block content %}
+<style>
+.score-input { width: 70px; }
+.rank-badge { display: inline-block; width: 28px; height: 28px; line-height: 28px; text-align: center; border-radius: 50%; font-weight: 700; font-size: 0.8rem; }
+.rank-1 { background: #ffd700; color: #000; }
+.rank-2 { background: #c0c0c0; color: #000; }
+.rank-3 { background: #cd7f32; color: #fff; }
+</style>
+<div class="container-fluid p-0">
+    {% if section == 'student_list' %}
+    <!-- ===== STUDENT EXAM LIST ===== -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold"><i class="bi bi-pencil-square me-2"></i>My Exams</h2>
+            <p class="text-white mb-0">Assigned MCQ exams.</p>
+        </div>
+    </div>
+    {% if exams %}
+    <div class="row g-3">
+        {% for e in exams %}
+        {% set attempt = attempt_map.get(e.id) %}
+        <div class="col-md-6 col-xl-4">
+            <div class="glass-card p-4 h-100">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <h5 class="fw-bold text-white mb-1">{{ e.title }}</h5>
+                        <span class="badge bg-info bg-opacity-25 text-info fw-semibold">{{ e.course.code }}</span>
+                        <span class="badge bg-warning bg-opacity-25 text-warning fw-semibold ms-1"><i class="bi bi-question-circle-fill"></i> MCQ</span>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between text-white-50 small mb-3">
+                    <span><i class="bi bi-list-ol me-1"></i>{{ e.num_questions }} questions</span>
+                    <span><i class="bi bi-clock me-1"></i>{{ e.duration_minutes }} min</span>
+                    <span><i class="bi bi-trophy me-1"></i>{{ e.max_marks|round(0) }} marks</span>
+                </div>
+                <div class="mt-3">
+                    {% if attempt and attempt.status == 'completed' %}
+                    <a href="{{ url_for('exams.mcq_results', id=e.id) }}" class="btn btn-sm btn-outline-success w-100"><i class="bi bi-check-circle me-1"></i>View Results ({{ attempt.percentage }}%)</a>
+                    {% elif e.is_published %}
+                    <a href="{{ url_for('exams.mcq_take', id=e.id) }}" class="btn btn-sm btn-premium w-100"><i class="bi bi-play-circle me-1"></i>Take Exam</a>
+                    {% else %}
+                    <button class="btn btn-sm btn-outline-secondary w-100" disabled><i class="bi bi-hourglass me-1"></i>Not Available</button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="glass-card p-0 border-0" style="background:transparent;">
+        {{ empty_state('No exams assigned yet', 'Create your first exam to start tracking student performance', 'exams', url_for('exams.mcq_create'), 'Create Exam', 'bi-plus-circle-fill') }}
+    </div>
+    {% endif %}
+
+    {% elif section == 'scores' %}
+    <!-- ===== SCORE ENTRY SECTION ===== -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold"><i class="bi bi-pencil-square me-2"></i>{{ exam.title }}</h2>
+            <p class="text-white mb-0">{{ exam.course.name }} ({{ exam.course.code }}) &middot; {{ exam.exam_date.strftime('%d %b %Y') }} &middot; Max: {{ exam.max_marks|round(0) }} &middot; Pass: {{ exam.passing_marks|round(0) }}</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('exams.exam_report', id=exam.id) }}" class="btn btn-outline-premium"><i class="bi bi-file-pdf me-1"></i>Report PDF</a>
+            <a href="{{ url_for('exams.exam_list') }}" class="btn btn-outline-light"><i class="bi bi-arrow-left me-1"></i>Back</a>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    {% set scored = namespace(count=0, total=0, passed=0) %}
+    {% for s in students %}{% if s.id in score_map %}{% set scored.count = scored.count + 1 %}{% set scored.total = scored.total + score_map[s.id].marks_obtained %}{% if score_map[s.id].marks_obtained >= exam.passing_marks %}{% set scored.passed = scored.passed + 1 %}{% endif %}{% endif %}{% endfor %}
+    <div class="row g-2 mb-4">
+        <div class="col-md-3 col-6">
+            <div class="glass-card p-3 text-center">
+                <div class="text-white-50 small fw-semibold text-uppercase">Scored</div>
+                <div class="fw-bold fs-5 text-white">{{ scored.count }}/{{ students|length }}</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="glass-card p-3 text-center">
+                <div class="text-white-50 small fw-semibold text-uppercase">Passed</div>
+                <div class="fw-bold fs-5" style="color: #5cb85c;">{{ scored.passed }}</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="glass-card p-3 text-center">
+                <div class="text-white-50 small fw-semibold text-uppercase">Failed</div>
+                <div class="fw-bold fs-5" style="color: #d9534f;">{{ scored.count - scored.passed }}</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="glass-card p-3 text-center">
+                <div class="text-white-50 small fw-semibold text-uppercase">Average</div>
+                <div class="fw-bold fs-5 text-white">{{ (scored.total / scored.count)|round(1) if scored.count > 0 else 'N/A' }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Score Form -->
+    <div class="glass-card p-0 overflow-hidden">
+        <form method="POST" action="{{ url_for('exams.save_scores', id=exam.id) }}">
+            <table class="table table-dark table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th style="width:40px;">#</th>
+                        <th>Student</th>
+                        <th style="width:100px;">Marks</th>
+                        <th style="width:80px;">%</th>
+                        <th style="width:70px;">Result</th>
+                        <th>Remarks</th>
+                        <th style="width:40px;">Rank</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in students %}
+                    {% set sc = score_map.get(s.id) %}
+                    <tr>
+                        <td class="text-white-50">{{ loop.index }}</td>
+                        <td>
+                            <a href="{{ url_for('students.list') }}?student_id={{ s.id }}" class="text-info text-decoration-none">{{ s.name }}</a>
+                            <small class="d-block text-white-50">{{ s.email }}</small>
+                        </td>
+                        <td>
+                            <input type="hidden" name="student_id[]" value="{{ s.id }}">
+                            <input type="number" step="0.1" class="form-control form-control-sm score-input" name="marks[]" value="{{ sc.marks_obtained|round(1) if sc else '' }}" placeholder="-">
+                        </td>
+                        <td class="text-white">
+                            {% if sc %}{{ ((sc.marks_obtained / exam.max_marks) * 100)|round(0) }}%{% else %}-{% endif %}
+                        </td>
+                        <td>
+                            {% if sc %}
+                            {% if sc.marks_obtained >= exam.passing_marks %}<span class="text-success fw-semibold">Pass</span>
+                            {% else %}<span class="text-danger fw-semibold">Fail</span>{% endif %}
+                            {% else %}<span class="text-white-50">-</span>{% endif %}
+                        </td>
+                        <td>
+                            <input type="text" class="form-control form-control-sm" name="remarks[]" value="{{ sc.remarks if sc else '' }}" placeholder="Optional">
+                        </td>
+                        <td class="text-center">
+                            {% if s.id in rank_map %}
+                            <span class="rank-badge {% if rank_map[s.id] == 1 %}rank-1{% elif rank_map[s.id] == 2 %}rank-2{% elif rank_map[s.id] == 3 %}rank-3{% else %}{% endif %}">{{ rank_map[s.id] }}</span>
+                            {% else %}-{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="p-3 text-end">
+                <a href="{{ url_for('exams.exam_list') }}" class="btn btn-outline-light me-2">Cancel</a>
+                <button type="submit" class="btn btn-premium"><i class="bi bi-save me-1"></i>Save Scores</button>
+            </div>
+        </form>
+    </div>
+
+    {% else %}
+    <!-- ===== EXAM LIST SECTION ===== -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold"><i class="bi bi-pencil-square me-2"></i>Exam Management</h2>
+            <p class="text-white mb-0">Create tests per course, record scores, and generate performance reports.</p>
+        </div>
+        <a href="{{ url_for('exams.mcq_create') }}" class="btn btn-premium">
+            <i class="bi bi-stars me-2"></i>Create MCQ Exam with AI
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div class="glass-card p-3 mb-4">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label text-white small">Course</label>
+                <select name="course_id" class="form-select">
+                    <option value="">All Courses</option>
+                    {% for c in courses %}
+                    <option value="{{ c.id }}" {% if filter_course == c.id %}selected{% endif %}>{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label text-white small">Month</label>
+                <select name="month" class="form-select">
+                    <option value="">All</option>
+                    {% for m in range(1, 13) %}
+                    <option value="{{ m }}" {% if filter_month == m %}selected{% endif %}>{{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m-1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label text-white small">Year</label>
+                <select name="year" class="form-select">
+                    <option value="">All</option>
+                    {% for y in range(today.year - 2, today.year + 2) %}
+                    <option value="{{ y }}" {% if filter_year == y %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-premium w-100"><i class="bi bi-funnel me-1"></i>Filter</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Exam Cards -->
+    {% if exams %}
+    <div class="row g-3">
+        {% for e in exams %}
+        {% set scored_count = e.scores|length %}
+        {% set enrolled_count = e.course.students.count() if e.course.students else 0 %}
+        {% set score_pct = (scored_count / enrolled_count * 100)|round(0) if enrolled_count > 0 else 0 %}
+        <div class="col-md-6 col-xl-4">
+            <div class="glass-card p-4 h-100">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <h5 class="fw-bold text-white mb-1">{{ e.title }}</h5>
+                        <span class="badge bg-info bg-opacity-25 text-info fw-semibold">{{ e.course.code }}</span>
+                        {% if e.exam_type == 'mcq' %}
+                        <span class="badge bg-warning bg-opacity-25 text-warning fw-semibold ms-1"><i class="bi bi-question-circle-fill"></i> MCQ</span>
+                        {% endif %}
+                        <span class="text-white-50 small ms-2">{{ e.exam_date.strftime('%d %b %Y') }}</span>
+                    </div>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            {% if e.exam_type == 'mcq' %}
+                            <li><a class="dropdown-item" href="{{ url_for('exams.mcq_preview', id=e.id) }}"><i class="bi bi-eye me-2"></i>Preview Questions</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('exams.mcq_assign', id=e.id) }}"><i class="bi bi-person-plus me-2"></i>Assign to Students</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('exams.mcq_solutions', id=e.id) }}"><i class="bi bi-check2-square me-2"></i>View Solutions</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('exams.mcq_analysis', id=e.id) }}"><i class="bi bi-bar-chart me-2"></i>Analysis</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('exams.mcq_report_pdf', id=e.id) }}"><i class="bi bi-file-pdf me-2"></i>Download Report</a></li>
+                            {% else %}
+                            <li><a class="dropdown-item" href="{{ url_for('exams.exam_scores', id=e.id) }}"><i class="bi bi-pencil-square me-2"></i>Enter Scores</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('exams.exam_report', id=e.id) }}"><i class="bi bi-file-pdf me-2"></i>Download Report</a></li>
+                            {% endif %}
+                            <li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#editExamModal{{ e.id }}"><i class="bi bi-gear me-2"></i>Edit</button></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form method="POST" action="{{ url_for('exams.delete_exam', id=e.id) }}" onsubmit="return confirm('Delete exam {{ e.title }}? This will also delete all scores.');">
+                                    <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash me-2"></i>Delete</button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                {% if e.description %}<p class="text-white-50 small mb-2">{{ e.description[:120] }}</p>{% endif %}
+                {% if e.exam_type == 'mcq' %}
+                <div class="d-flex justify-content-between text-white-50 small mb-2">
+                    <span><i class="bi bi-list-ol me-1"></i>{{ e.num_questions }} questions</span>
+                    <span><i class="bi bi-clock me-1"></i>{{ e.duration_minutes }} min</span>
+                    <span><i class="bi bi-check-circle me-1"></i>{{ e.mcq_attempts|length }} attempts</span>
+                </div>
+                {% else %}
+                <div class="d-flex justify-content-between text-white-50 small mb-2">
+                    <span><i class="bi bi-trophy me-1"></i>Max: {{ e.max_marks|round(0) }}</span>
+                    <span><i class="bi bi-check-circle me-1"></i>Pass: {{ e.passing_marks|round(0) }}</span>
+                    <span><i class="bi bi-people me-1"></i>{{ scored_count }}/{{ enrolled_count }} scored</span>
+                </div>
+                {% endif %}
+                <div class="progress" style="height:5px;">
+                    <div class="progress-bar bg-info" role="progressbar" style="width:{{ score_pct }}%"></div>
+                </div>
+                <div class="mt-3">
+                    {% if e.exam_type == 'mcq' %}
+                    <a href="{{ url_for('exams.mcq_preview', id=e.id) }}" class="btn btn-sm btn-outline-premium w-100"><i class="bi bi-eye me-1"></i>View MCQ Exam</a>
+                    {% else %}
+                    <a href="{{ url_for('exams.exam_scores', id=e.id) }}" class="btn btn-sm btn-outline-premium w-100"><i class="bi bi-pencil-square me-1"></i>Enter / View Scores</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="glass-card p-0 border-0" style="background:transparent;">
+        {{ empty_state('No exams found yet', 'Click "Create MCQ Exam with AI" above to get started', 'exams', url_for('exams.mcq_create'), 'Create Exam', 'bi-plus-circle-fill') }}
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+
+
+
+<!-- Edit Exam Modals -->
+{% for e in exams %}
+<div class="modal fade" id="editExamModal{{ e.id }}" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-white"><i class="bi bi-gear me-2"></i>Edit Exam</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('exams.edit_exam', id=e.id) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Course</label>
+                        <select name="course_id" class="form-select" required autofocus>
+                            {% for c in courses %}
+                            <option value="{{ c.id }}" {% if e.course_id == c.id %}selected{% endif %}>{{ c.name }} ({{ c.code }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Title</label>
+                        <input type="text" class="form-control" name="title" value="{{ e.title }}" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label text-white small">Date</label>
+                            <input type="date" class="form-control" name="exam_date" value="{{ e.exam_date.strftime('%Y-%m-%d') }}" required>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label text-white small">Max Marks</label>
+                            <input type="number" step="0.1" class="form-control" name="max_marks" value="{{ e.max_marks }}" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Passing Marks</label>
+                        <input type="number" step="0.1" class="form-control" name="passing_marks" value="{{ e.passing_marks }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Description</label>
+                        <textarea class="form-control" name="description" rows="2">{{ e.description or '' }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-premium"><i class="bi bi-save me-1"></i>Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

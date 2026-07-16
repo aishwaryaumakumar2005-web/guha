@@ -1,0 +1,652 @@
+{% extends 'base.html' %}{% block title %}Reports{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item active" aria-current="page">Reports</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold">
+Reports & Analytics</h2>
+            <p class="text-white mb-0">
+Income, fees, expense and overall financial reports.</p>
+        </div>
+    </div>
+    {% if not is_staff %}
+    <!-- Date Filter Bar -->
+    <div class="glass-card p-3 mb-4">
+        <form method="GET" action="{{ url_for('reports.reports') }}" class="row g-2 align-items-end">
+            <input type="hidden" name="tab" value="{{ tab }}">
+            <div class="col-auto">
+                <label class="form-label small text-secondary mb-1">
+Period</label>
+                <select name="filter_mode" class="form-select form-select-sm" onchange="toggleDateRange(this.value)">
+                    <option value="monthly" {% if filter_mode == 'monthly' %}selected{% endif %}>
+Monthly</option>
+                    <option value="quarterly" {% if filter_mode == 'quarterly' %}selected{% endif %}>
+Quarterly</option>
+                    <option value="custom" {% if filter_mode == 'custom' %}selected{% endif %}>
+Custom Range</option>
+                </select>
+            </div>
+            <div class="col-auto" id="monthPicker">
+                <label class="form-label small text-secondary mb-1" id="monthLabel">
+Month</label>
+                <select name="month" class="form-select form-select-sm" id="monthSelect">
+                    {% for m in range(1, 13) %}                        <option value="{{ m }}" class="month-option" {% if filter_month == m %}selected{% endif %}>
+{{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m-1] }}</option>
+                    {% endfor %}                    <option value="1" class="quarter-option" {% if filter_month == 1 %}selected{% endif %}>
+Q1 (Jan-Mar)</option>
+                    <option value="4" class="quarter-option" {% if filter_month == 4 %}selected{% endif %}>
+Q2 (Apr-Jun)</option>
+                    <option value="7" class="quarter-option" {% if filter_month == 7 %}selected{% endif %}>
+Q3 (Jul-Sep)</option>
+                    <option value="10" class="quarter-option" {% if filter_month == 10 %}selected{% endif %}>
+Q4 (Oct-Dec)</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small text-secondary mb-1">
+Year</label>
+                <select name="year" class="form-select form-select-sm">
+                    {% for y in range(today.year - 3, today.year + 2) %}                        <option value="{{ y }}" {% if filter_year == y %}selected{% endif %}>
+{{ y }}</option>
+                    {% endfor %}                </select>
+            </div>
+            <div class="col-auto" id="dateRangePicker" style="display: none;">
+                <label class="form-label small text-secondary mb-1">
+From - To</label>
+                <div class="d-flex gap-1">
+                    <input type="date" name="start_date" class="form-control form-control-sm" value="{{ start_date_str }}">
+                    <input type="date" name="end_date" class="form-control form-control-sm" value="{{ end_date_str }}">
+                </div>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-premium btn-sm">
+<i class="bi bi-funnel me-1">
+</i>
+Apply</button>
+            </div>
+        </form>
+    </div>
+    <!-- Tab Navigation -->
+    <ul class="nav nav-tabs mb-4" id="reportTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {% if tab == 'income' %}active{% endif %}" id="income-tab" data-bs-toggle="tab" data-bs-target="#income" type="button" role="tab">
+                <i class="bi bi-graph-up-arrow me-1">
+</i>
+Income Report            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {% if tab == 'fees' %}active{% endif %}" id="fees-tab" data-bs-toggle="tab" data-bs-target="#fees" type="button" role="tab">
+                <i class="bi bi-person-vcard me-1">
+</i>
+Student Fees Report            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {% if tab == 'expense' %}active{% endif %}" id="expense-tab" data-bs-toggle="tab" data-bs-target="#expense" type="button" role="tab">
+                <i class="bi bi-receipt me-1">
+</i>
+Expense Report            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {% if tab == 'overall' %}active{% endif %}" id="overall-tab" data-bs-toggle="tab" data-bs-target="#overall" type="button" role="tab">
+                <i class="bi bi-pie-chart-fill me-1">
+</i>
+Overall Report            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {% if tab == 'payment_methods' %}active{% endif %}" id="payment_methods-tab" data-bs-toggle="tab" data-bs-target="#payment_methods" type="button" role="tab">
+                <i class="bi bi-credit-card-2-front me-1">
+</i>
+Payment Methods            </button>
+        </li>
+    </ul>
+    {% endif %}
+    <!-- Tab Content -->
+    <div class="tab-content">
+        {% if is_staff and tab == 'staff' %}
+        <!-- Staff Reports -->
+        <div class="tab-pane fade show active" id="staff" role="tabpanel">
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="glass-card p-4 text-center">
+                        <h3 class="text-dark fw-bold mb-1">{{ staff_data.students|length }}</h3>
+                        <p class="text-muted small mb-0">My Students</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="glass-card p-4 text-center">
+                        <h3 class="text-dark fw-bold mb-1">{{ staff_data.courses|length }}</h3>
+                        <p class="text-muted small mb-0">My Courses</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="glass-card p-4 text-center">
+                        <h3 class="text-dark fw-bold mb-1">{{ staff_data.attendance_rate }}%</h3>
+                        <p class="text-muted small mb-0">Attendance Rate (30d)</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="glass-card p-4 text-center">
+                        <h3 class="text-dark fw-bold mb-1">₹{{ "{:,.0f}".format(staff_data.total_collected) }}</h3>
+                        <p class="text-muted small mb-0">Fees Collected</p>
+                    </div>
+                </div>
+            </div>
+            <div class="glass-card p-4 mb-4">
+                <h4 class="text-dark fw-bold mb-3">My Students</h4>
+                <div class="table-container">
+                    <table class="table table-custom">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for student in staff_data.students %}
+                            <tr>
+                                <td>{{ student.name }}</td>
+                                <td>{{ student.email }}</td>
+                                <td>{{ student.phone }}</td>
+                                <td><span class="badge badge-custom {% if student.status == 'Active' %}badge-active{% else %}badge-inactive{% endif %}">{{ student.status }}</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="glass-card p-4">
+                <h4 class="text-dark fw-bold mb-3">Recent Fee Payments</h4>
+                <div class="table-container">
+                    <table class="table table-custom">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Student</th>
+                                <th>Amount</th>
+                                <th>Method</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for fee in staff_data.recent_fees %}
+                            <tr>
+                                <td>{{ fee.payment_date.strftime('%d %b %Y') }}</td>
+                                <td>{{ fee.student.name }}</td>
+                                <td>₹{{ "{:,.0f}".format(fee.amount_paid) }}</td>
+                                <td>{{ fee.payment_method }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <!-- === TAB 1: INCOME REPORT === -->
+        <div class="tab-pane fade {% if tab == 'income' %}show active{% endif %}" id="income" role="tabpanel">
+            <div class="d-flex justify-content-end mb-3">
+                <a href="{{ url_for('reports.report_pdf', tab='income', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str) }}" class="btn btn-premium btn-sm" target="_blank">
+                    <i class="bi bi-filetype-pdf me-1">
+</i>
+PDF                </a>
+                <a href="{{ url_for('reports.report_excel', tab='income', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str) }}" class="btn btn-outline-premium btn-sm" target="_blank">
+                    <i class="bi bi-file-earmark-spreadsheet me-1">
+</i>
+Excel                </a>
+            </div>
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <div class="glass-card p-3 text-center">
+                        <div class="text-secondary small fw-semibold text-uppercase">
+Total Income (All Time)</div>
+                        <div class="fw-bold fs-3" style="color: #dc3545;">
+₹{{ "{:,.2f}".format(total_income) }}</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="glass-card p-3 text-center">
+                        <div class="text-secondary small fw-semibold text-uppercase">
+Year {{ filter_year }}</div>
+                        <div class="fw-bold fs-3 text-dark">
+₹{{ "{:,.2f}".format(income_monthly|sum) }}</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="glass-card p-3 text-center">
+                        <div class="text-secondary small fw-semibold text-uppercase">
+Monthly Avg ({{ filter_year }})</div>
+                        <div class="fw-bold fs-3 text-dark">
+₹{{ "{:,.2f}".format(income_monthly|sum / 12) }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="row g-4">
+                <div class="col-lg-6">
+                    <div class="glass-card p-4">
+                        <h5 class="fw-bold mb-3">
+Monthly Income ({{ filter_year }})</h5>
+                        <div style="position:relative;height:200px;">
+<canvas id="incomeChart">
+</canvas>
+</div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="glass-card p-4">
+                        <h5 class="fw-bold mb-3">
+Cumulative Income Growth ({{ filter_year }})</h5>
+                        <div style="position:relative;height:200px;">
+<canvas id="cumulativeChart">
+</canvas>
+</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- === TAB 2: STUDENT FEES REPORT === -->
+        <div class="tab-pane fade {% if tab == 'fees' %}show active{% endif %}" id="fees" role="tabpanel">
+            <div class="d-flex justify-content-end mb-3">
+                <a href="{{ url_for('reports.report_pdf', tab='fees', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str) }}" class="btn btn-premium btn-sm" target="_blank">
+                    <i class="bi bi-filetype-pdf me-1">
+</i>
+PDF                </a>
+                <a href="{{ url_for('reports.report_excel', tab='fees', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str) }}" class="btn btn-outline-premium btn-sm" target="_blank">
+                    <i class="bi bi-file-earmark-spreadsheet me-1">
+</i>
+Excel                </a>
+            </div>
+            <div class="row g-4 mb-4">
+                <div class="col-lg-6">
+                    <div class="glass-card p-4">
+                        <h5 class="fw-bold mb-3">
+Monthly Fees Collection ({{ filter_year }})</h5>
+                        <div style="position:relative;height:200px;">
+<canvas id="feesMonthlyChart">
+</canvas>
+</div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="glass-card p-4">
+                        <h5 class="fw-bold mb-3">
+Payment Methods</h5>
+                        <div style="position:relative;height:200px;">
+<canvas id="paymentMethodChart">
+</canvas>
+</div>
+                    </div>
+                </div>
+            </div>
+            <div class="row g-4 mb-4">
+                <div class="col-lg-6">
+                    <div class="glass-card p-4">
+                        <h5 class="fw-bold mb-3">
+Course-wise Income</h5>
+                        <div style="position:relative;height:200px;">
+<canvas id="courseIncomeChart">
+</canvas>
+</div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="glass-card p-4">
+                        <h5 class="fw-bold mb-3">
+Daily Collections (Last 30 Days)</h5>
+                        <div style="position:relative;height:200px;">
+<canvas id="dailySparkline">
+</canvas>
+</div>
+                    </div>
+                </div>
+            </div>
+            <div class="row g-4">
+                <div class="col-lg-6">
+                    <div class="glass-card p-4" data-aos="fade-up" data-aos-delay="0"><h5 class="fw-bold mb-3">Course-wise Table</h5>
+                        <div class="table-container" style="max-height: 260px; overflow-y: auto;">
+                            <table class="table table-custom sortable" data-page-size="10">
+                                <thead>
+                                    <tr>
+<th>
+Course</th>
+<th class="text-end">
+Collected</th>
+</tr>
+                                </thead>
+                                <tbody>
+                                    {% if course_wise_income %}                                        {% for c in course_wise_income %}                                        <tr>
+                                            <td>
+{{ c.name }} ({{ c.code }})</td>
+                                            <td class="text-end fw-semibold">
+₹{{ "{:,.2f}".format(c.total) }}</td>
+                                        </tr>
+                                        {% endfor %}                                    {% else %}                                        <tr>
+<td colspan="2" class="text-center text-muted py-3">
+No data</td>
+</tr>
+                                    {% endif %}                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="glass-card p-4" data-aos="fade-up" data-aos-delay="100"><h5 class="fw-bold mb-3">Daily Collections Table</h5>
+                        <div class="table-container" style="max-height: 260px; overflow-y: auto;">
+                            <table class="table table-custom sortable" data-page-size="10">
+                                <thead>
+                                    <tr>
+<th>
+Date</th>
+<th>
+Student</th>
+<th>
+Amount</th>
+<th>
+Method</th>
+</tr>
+                                </thead>
+                                <tbody>
+                                    {% if daily_collections[:15] %}                                        {% for r in daily_collections[:15] %}                                        <tr>
+                                            <td class="small">
+{{ r.payment_date.strftime("%d %b") }}</td>
+                                            <td>
+{{ r.student.name[:18] }}</td>
+                                            <td class="fw-semibold">
+₹{{ "{:,.0f}".format(r.amount_paid) }}</td>
+                                            <td>
+<span class="badge badge-custom badge-cyan">
+{{ r.payment_method }}</span>
+</td>
+                                        </tr>
+                                        {% endfor %}                                    {% else %}                                        <tr>
+<td colspan="4" class="text-center text-muted py-4">
+No collections</td>
+</tr>
+                                    {% endif %}                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- === TAB 3: EXPENSE REPORT === -->
+        <div class="tab-pane fade {% if tab == 'expense' %}show active{% endif %}" id="expense" role="tabpanel">
+            <div class="d-flex justify-content-end mb-3">
+                <a href="{{ url_for('reports.report_pdf', tab='expense', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str) }}" class="btn btn-premium btn-sm" target="_blank">
+                    <i class="bi bi-filetype-pdf me-1">
+</i>
+PDF                </a>
+                <a href="{{ url_for('reports.report_excel', tab='expense', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str) }}" class="btn btn-outline-premium btn-sm" target="_blank">
+                    <i class="bi bi-file-earmark-spreadsheet me-1">
+</i>
+Excel                </a>
+            </div>
+            <div class="row g-4 mb-4">
+                <div class="col-lg-6">
+                    <div class="glass-card p-4">
+                        <h5 class="fw-bold mb-3">
+Monthly Expense ({{ filter_year }})</h5>
+                        <div style="position:relative;height:200px;">
+<canvas id="expenseMonthlyChart">
+</canvas>
+</div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="glass-card p-4">
+                        <h5 class="fw-bold mb-3">
+Category-wise Expense (Period)</h5>
+                        <div style="position:relative;height:200px;">
+<canvas id="categoryExpenseChart">
+</canvas>
+</div>
+                    </div>
+                </div>
+            </div>
+            <div class="row g-4 mb-4">
+                <div class="col-lg-6">
+                    <div class="glass-card p-4">
+                        <h5 class="fw-bold mb-3">
+Expense Trend</h5>
+                        <div style="position:relative;height:200px;">
+<canvas id="expenseTrendChart">
+</canvas>
+</div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="glass-card p-4">
+                        <h5 class="fw-bold mb-3">
+Category-wise Table</h5>
+                        <div class="table-container" style="max-height: 300px; overflow-y: auto;">
+                            <table class="table table-custom sortable" data-page-size="10">
+                                <thead>
+                                    <tr>
+<th>
+Category</th>
+<th class="text-end">
+Count</th>
+<th class="text-end">
+Total</th>
+</tr>
+                                </thead>
+                                <tbody>
+                                    {% for s in expense_summary %}                                    <tr>
+                                        <td>
+{{ s.name }}</td>
+                                        <td class="text-end">
+{{ s.count }}</td>
+                                        <td class="text-end fw-semibold">
+₹{{ "{:,.2f}".format(s.total) }}</td>
+                                    </tr>
+                                    {% endfor %}                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- === TAB 4: OVERALL REPORT === -->
+        <div class="tab-pane fade {% if tab == 'overall' %}show active{% endif %}" id="overall" role="tabpanel">
+            <div class="d-flex justify-content-end mb-3">
+                <a href="{{ url_for('reports.report_pdf', tab='overall', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str) }}" class="btn btn-premium btn-sm" target="_blank">
+                    <i class="bi bi-filetype-pdf me-1">
+</i>
+PDF                </a>
+                <a href="{{ url_for('reports.report_excel', tab='overall', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str) }}" class="btn btn-outline-premium btn-sm" target="_blank">
+                    <i class="bi bi-file-earmark-spreadsheet me-1">
+</i>
+Excel                </a>
+            </div>
+            <!-- KPI Cards -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <div class="glass-card p-3 text-center" style="border-left: 4px solid #0033cc;">
+                        <div class="text-secondary small fw-semibold text-uppercase">
+Total Income</div>
+                        <div class="fw-bold fs-3" style="color: #0033cc;">
+₹{{ "{:,.2f}".format(total_income_filtered) }}</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="glass-card p-3 text-center" style="border-left: 4px solid var(--accent-rose);">
+                        <div class="text-secondary small fw-semibold text-uppercase">
+Total Expense</div>
+                        <div class="fw-bold fs-3" style="color: var(--accent-rose);">
+₹{{ "{:,.2f}".format(total_expense_filtered) }}</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="glass-card p-3 text-center" style="border-left: 4px solid {% if net_balance >= 0 %}var(--accent-cyan){% else %}var(--accent-rose){% endif %};">
+                        <div class="text-secondary small fw-semibold text-uppercase">
+Net Balance</div>
+                        <div class="fw-bold fs-3 {% if net_balance >= 0 %}text-dark{% else %}text-danger{% endif %}">
+                            {% if net_balance >= 0 %}+{% endif %}₹{{ "{:,.2f}".format(net_balance) }}                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row g-4 mb-4">
+                <div class="col-lg-6">
+                    <div class="glass-card p-4">
+                        <h5 class="fw-bold mb-3">
+Monthly Profit & Loss ({{ filter_year }})</h5>
+                        <div style="position:relative;height:200px;">
+<canvas id="plChart">
+</canvas>
+</div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="glass-card p-4">
+                        <h5 class="fw-bold mb-3">
+Net Balance Trend ({{ filter_year }})</h5>
+                        <div style="position:relative;height:200px;">
+<canvas id="netTrendChart">
+</canvas>
+</div>
+                    </div>
+                </div>
+            </div>
+            <!-- P&L Table -->
+            <div class="glass-card p-4">
+                <h5 class="fw-bold mb-3">
+<i class="bi bi-table me-2">
+</i>
+Profit & Loss Details ({{ filter_year }})</h5>
+                <div class="table-container" style="max-height: 500px; overflow-y: auto;">
+                    <table class="table table-custom sortable" data-page-size="10">
+                        <thead>
+                            <tr>
+                                <th>
+Month</th>
+                                <th class="text-end">
+Income</th>
+                                <th class="text-end">
+Expense</th>
+                                <th class="text-end">
+Net</th>
+                                <th class="text-center">
+Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in pl_monthly %}                            <tr>
+                                <td class="fw-medium">
+{{ p.month }}</td>
+                                <td class="text-end" style="color: var(--accent-emerald);">
+₹{{ "{:,.2f}".format(p.income) }}</td>
+                                <td class="text-end" style="color: var(--accent-rose);">
+₹{{ "{:,.2f}".format(p.expense) }}</td>
+                                <td class="text-end fw-semibold {% if p.net < 0 %}text-danger{% endif %}">
+                                    {% if p.net >= 0 %}+{% endif %}₹{{ "{:,.2f}".format(p.net) }}                                </td>
+                                <td class="text-center">
+                                    {% if p.net >
+ 0 %}                                        <span class="badge badge-custom badge-active">
+Profit</span>
+                                    {% elif p.net < 0 %}                                        <span class="badge badge-custom badge-inactive">
+Loss</span>
+                                    {% else %}                                        <span class="badge badge-custom badge-amber">
+Breakeven</span>
+                                    {% endif %}                                </td>
+                            </tr>
+                            {% endfor %}                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <!-- === TAB 5: PAYMENT METHODS REPORT === -->
+        <div class="tab-pane fade {% if tab == 'payment_methods' %}show active{% endif %}" id="payment_methods" role="tabpanel">
+            <div class="d-flex justify-content-end mb-3">
+                <a href="{{ url_for('reports.report_pdf', tab='payment_methods', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str) }}" class="btn btn-premium btn-sm" target="_blank">
+                    <i class="bi bi-filetype-pdf me-1">
+</i>
+PDF                </a>
+                <a href="{{ url_for('reports.report_excel', tab='payment_methods', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str) }}" class="btn btn-outline-premium btn-sm" target="_blank">
+                    <i class="bi bi-file-earmark-spreadsheet me-1">
+</i>
+Excel                </a>
+            </div>
+            <!-- Summary Cards -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="glass-card p-3 text-center">
+                        <div class="text-secondary small fw-semibold text-uppercase">
+Total Collected</div>
+                        <div class="fw-bold fs-3" style="color: #0033cc;">
+₹{{ "{:,.2f}".format(total_collected_period) }}</div>
+                    </div>
+                </div>
+                {% for method, data in payment_methods_report.items() %}                <div class="col-md-3">
+                    <div class="glass-card p-3 text-center">
+                        <div class="text-secondary small fw-semibold text-uppercase">
+{{ method }}</div>
+                        <div class="fw-bold fs-3" style="color: {% if method == 'Cash' %}var(--accent-emerald){% elif method == 'UPI - Guha India' %}var(--accent-cyan){% elif method == 'UPI - Ejaj Sir' %}var(--accent-rose){% else %}#ffc107{% endif %};">
+₹{{ "{:,.2f}".format(data.total) }}</div>
+                        <div class="small text-white" style="opacity: 0.6;">
+{{ data.records|length }} transactions</div>
+                    </div>
+                </div>
+                {% endfor %}            </div>
+            <!-- Detail Tables -->
+            <div class="row g-4">
+                {% for method, data in payment_methods_report.items() %}                <div class="col-lg-6">
+                    <div class="glass-card p-4 h-100">
+                        <h5 class="fw-bold mb-3">
+                            <i class="bi bi-{% if method == 'Cash' %}cash{% elif 'UPI' in method %}phone{% else %}credit-card{% endif %} me-2">
+</i>
+                            {{ method }} Transactions                            <span class="badge badge-custom badge-cyan ms-2">
+₹{{ "{:,.2f}".format(data.total) }}</span>
+                        </h5>
+                        <div class="table-container" style="max-height: 300px; overflow-y: auto;">
+                            {% if data.records %}                            <table class="table table-custom">
+                                <thead>
+                                    <tr>
+                                        <th>
+Date</th>
+                                        <th>
+Student</th>
+                                        <th>
+Amount</th>
+                                        <th>
+Remarks</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for r in data.records %}                                    <tr>
+                                        <td class="small">
+{{ r.payment_date.strftime("%d %b %Y") }}</td>
+                                        <td>
+{{ r.student.name[:20] }}</td>
+                                        <td class="fw-semibold">
+₹{{ "{:,.0f}".format(r.amount_paid) }}</td>
+                                        <td class="small" style="opacity: 0.7;">
+{{ r.remarks or '-' }}</td>
+                                    </tr>
+                                    {% endfor %}                                </tbody>
+                            </table>
+                            {% else %}                            <div class="text-center text-muted py-4">
+No {{ method }} transactions in this period.</div>
+                            {% endif %}                        </div>
+                    </div>
+                </div>
+                {% endfor %}            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}{% block scripts %}{% if tab != 'staff' %}
+<script>
+function toggleDateRange(val) {    document.getElementById('monthPicker').style.display = (val === 'custom') ? 'none' : 'block';    document.getElementById('dateRangePicker').style.display = (val === 'custom') ? 'block' : 'none';    document.querySelectorAll('.month-option').forEach(o =>
+ o.style.display = (val === 'quarterly') ? 'none' : '');    document.querySelectorAll('.quarter-option').forEach(o =>
+ o.style.display = (val === 'quarterly') ? '' : 'none');    document.getElementById('monthLabel').textContent = (val === 'quarterly') ? 'Quarter' : 'Month';    var sel = document.getElementById('monthSelect');    if (val === 'quarterly' && !sel.value.match(/^[147]0?$/)) {        sel.value = sel.querySelector('.quarter-option').value;    }}toggleDateRange('{{ filter_mode }}');var _charts = {};var _created = {};function makeChart(id, config) {    var el = document.getElementById(id);    if (!el || _created[id]) return;    _charts[id] = new Chart(el, config);    _created[id] = true;}function initTabCharts(tabId) {    var tabChartMap = {        'income':  ['incomeChart','cumulativeChart'],        'fees':    ['feesMonthlyChart','paymentMethodChart','courseIncomeChart','dailySparkline'],        'expense': ['expenseMonthlyChart','categoryExpenseChart','expenseTrendChart'],        'overall': ['plChart','netTrendChart']    };    var ids = tabChartMap[tabId] || [];    ids.forEach(function(id) {        var cfg = chartConfigs[id];        if (cfg) makeChart(id, cfg);    });    Object.keys(_charts).forEach(function(k) {        if (_charts[k] && _charts[k].resize) _charts[k].resize();    });}var chartConfigs = {};chartConfigs['incomeChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Income (₹)',            data: {{ income_monthly|tojson }},            backgroundColor: 'rgba(107, 142, 35, 0.6)',            borderColor: 'rgba(107, 142, 35, 1)',            borderWidth: 2,            borderRadius: 6        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } ,
+                scales: {
+                    x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#ffffff' } },
+                    y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#ffffff', beginAtZero: true } }
+                }
+            }};chartConfigs['cumulativeChart'] = {    type: 'line',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Cumulative Income (₹)',            data: {{ cumulative_income|tojson }},            backgroundColor: 'rgba(70, 130, 180, 0.1)',            borderColor: 'rgba(70, 130, 180, 1)',            borderWidth: 2,            fill: true,            tension: 0.3,            pointBackgroundColor: 'rgba(70, 130, 180, 1)',            pointRadius: 3        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};chartConfigs['feesMonthlyChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Collected (₹)',            data: {{ fees_monthly|map(attribute='total')|list|tojson }},            backgroundColor: 'rgba(107, 142, 35, 0.6)',            borderColor: 'rgba(107, 142, 35, 1)',            borderWidth: 2,            borderRadius: 6        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};{% if payment_labels %}chartConfigs['paymentMethodChart'] = {    type: 'doughnut',    data: {        labels: {{ payment_labels|tojson }},        datasets: [{            data: {{ payment_data|tojson }},            backgroundColor: ['rgba(107,142,35,0.7)','rgba(217,93,57,0.7)','rgba(70,130,180,0.7)','rgba(204,160,0,0.7)'],            borderWidth: 0        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } ,
+                plugins: { legend: { labels: { color: '#ffffff' } } }
+            }};{% endif %}{% if course_wise_income %}chartConfigs['courseIncomeChart'] = {    type: 'doughnut',    data: {        labels: {{ course_wise_income|map(attribute='name')|list|tojson }},        datasets: [{            data: {{ course_wise_income|map(attribute='total')|list|tojson }},            backgroundColor: ['rgba(107,142,35,0.7)','rgba(217,93,57,0.7)','rgba(70,130,180,0.7)','rgba(204,160,0,0.7)','rgba(192,57,43,0.7)'],            borderWidth: 0        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};{% endif %}{% if daily_labels %}chartConfigs['dailySparkline'] = {    type: 'line',    data: {        labels: {{ daily_labels|tojson }},        datasets: [{            label: 'Daily Collection (₹)',            data: {{ daily_amounts|tojson }},            backgroundColor: 'rgba(107, 142, 35, 0.08)',            borderColor: 'rgba(107, 142, 35, 1)',            borderWidth: 1.5,            fill: true,            tension: 0.4,            pointRadius: 0        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};{% endif %}chartConfigs['expenseMonthlyChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Expense (₹)',            data: {{ monthly_expense|map(attribute='total')|list|tojson }},            backgroundColor: 'rgba(192, 57, 43, 0.5)',            borderColor: 'rgba(192, 57, 43, 1)',            borderWidth: 2,            borderRadius: 6        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};{% if category_wise_expense %}chartConfigs['categoryExpenseChart'] = {    type: 'doughnut',    data: {        labels: {{ category_wise_expense|map(attribute='name')|list|tojson }},        datasets: [{            data: {{ category_wise_expense|map(attribute='total')|list|tojson }},            backgroundColor: ['rgba(217,93,57,0.7)','rgba(70,130,180,0.7)','rgba(204,160,0,0.7)','rgba(107,142,35,0.7)','rgba(192,57,43,0.7)','rgba(100,100,100,0.7)','rgba(150,100,50,0.7)'],            borderWidth: 0        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } ,
+                plugins: { legend: { labels: { color: '#ffffff' } } }
+            }};{% endif %}{% if exp_chart_labels %}chartConfigs['expenseTrendChart'] = {    type: 'line',    data: {        labels: {{ exp_chart_labels|tojson }},        datasets: [{            label: 'Expense (₹)',            data: {{ exp_chart_amounts|tojson }},            backgroundColor: 'rgba(192, 57, 43, 0.08)',            borderColor: 'rgba(192, 57, 43, 0.8)',            borderWidth: 1.5,            fill: true,            tension: 0.4,            pointRadius: 2,            pointBackgroundColor: 'rgba(192, 57, 43, 1)'        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};{% endif %}chartConfigs['plChart'] = {    type: 'bar',    data: {        labels: {{ pl_monthly|map(attribute='month')|list|tojson }},        datasets: [            {                label: 'Income',                data: {{ pl_monthly|map(attribute='income')|list|tojson }},                backgroundColor: 'rgba(107, 142, 35, 0.6)',                borderColor: 'rgba(107, 142, 35, 1)',                borderWidth: 2,                borderRadius: 6            },            {                label: 'Expense',                data: {{ pl_monthly|map(attribute='expense')|list|tojson }},                backgroundColor: 'rgba(192, 57, 43, 0.6)',                borderColor: 'rgba(192, 57, 43, 1)',                borderWidth: 2,                borderRadius: 6            }        ]    },    options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: false, ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};chartConfigs['netTrendChart'] = {    type: 'line',    data: {        labels: {{ pl_monthly|map(attribute='month')|list|tojson }},        datasets: [{            label: 'Net Balance (₹)',            data: {{ net_trend|tojson }},            borderColor: 'rgba(47, 72, 88, 1)',            backgroundColor: 'rgba(47, 72, 88, 0.1)',            borderWidth: 2,            fill: true,            tension: 0.3,            pointRadius: 4,            pointBackgroundColor: function(ctx) {                var val = ctx.dataset.data[ctx.dataIndex];                return val >= 0 ? 'rgba(107, 142, 35, 1)' : 'rgba(192, 57, 43, 1)';            }        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};var activeTab = document.querySelector('#reportTabs .nav-link.active');if (activeTab) initTabCharts(activeTab.id.replace('-tab', ''));document.querySelectorAll('#reportTabs button').forEach(function(tab) {    tab.addEventListener('shown.bs.tab', function(e) {        initTabCharts(e.target.id.replace('-tab', ''));        const params = new URLSearchParams(window.location.search);        params.set('tab', e.target.id.replace('-tab', ''));        window.history.replaceState({}, '', '?' + params.toString());    });});</script>
+{% endif %}{% endblock %}
+
+
+

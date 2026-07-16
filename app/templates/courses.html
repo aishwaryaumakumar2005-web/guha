@@ -1,0 +1,401 @@
+{% extends 'base.html' %}{% block title %}Curriculum Courses{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item active" aria-current="page">Courses</li>{% endblock %}{% block content %}<style>
+select.form-select[name="duration_unit"] {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 0.75rem center !important;
+    background-size: 16px 12px !important;
+}
+</style>
+<div class="container-fluid p-0">
+    <!-- Header Row -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold">
+{% if is_staff %}My Courses{% else %}Curriculum Programs{% endif %}</h2>
+            <p class="text-white mb-0">
+{% if is_staff %}View courses you are assigned to teach.{% else %}Define course code registries, duration tracks, course fees, and weekly syllabus timelines.{% endif %}</p>
+        </div>
+        {% if not is_staff %}
+        <button class="btn btn-premium" data-bs-toggle="modal" data-bs-target="#addCourseModal">
+            <i class="bi bi-journal-plus me-2">
+</i>
+Create Course        </button>
+        {% endif %}
+    </div>
+    <div class="mb-3 d-flex flex-wrap gap-2">
+        <span class="badge badge-custom badge-cyan">
+Total Programs: {{ total_courses }}</span>
+        <span class="badge badge-custom badge-active">
+Enrolled Courses: {{ courses_with_enrollment }}</span>
+        <span class="badge badge-custom badge-amber">
+Empty Courses: {{ courses_without_enrollment }}</span>
+        <span class="badge badge-custom badge-active">
+Total Enrollments: {{ total_enrollments }}</span>
+    </div>
+    <!-- Courses Grid -->
+    <div class="row xl-course-grid">
+        {% if courses %}            {% for course in courses %}                <div class="col-xl-6 mb-4">
+                    <div class="glass-card p-4 h-100 d-flex flex-column justify-content-between" data-aos="fade-up" data-aos-delay="{{ loop.index0 * 80 }}">
+                        <div>
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                    {% set enrolled_count = course.students.count() %}                                    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                                        <span class="badge badge-custom badge-cyan">
+{{ course.code }}</span>
+                                        {% if course.gst_applicable %}<span class="badge badge-custom" style="background: #d97706;">GST</span>{% endif %}
+                                        <span class="badge badge-custom {% if enrolled_count == 0 %}badge-inactive{% elif enrolled_count <= 5 %}badge-amber{% else %}badge-active{% endif %}">
+                                            {{ enrolled_count }} Learner{{ 's' if enrolled_count != 1 else '' }}                                        </span>
+                                        <span class="badge badge-custom {% if enrolled_count == 0 %}badge-inactive{% elif enrolled_count <= 5 %}badge-amber{% else %}badge-active{% endif %}">
+                                            {% if enrolled_count == 0 %}No Enrollments{% elif enrolled_count <= 5 %}Open Seats{% else %}High Demand{% endif %}                                        </span>
+                                    </div>
+                                    <h4 class="text-dark fw-bold mb-1">
+{{ course.name }}</h4>
+                                </div>
+                                <div class="text-end">
+                                    <div class="text-dark fw-bold fs-5">
+₹{{ "{:,.2f}".format(course.fees) }}</div>
+                                    {% if course.gst_applicable %}
+                                        {% set total_pct = gst_rates.cgst + gst_rates.sgst %}
+                                        {% set gst_amt = (course.fees * total_pct / 100) | round(2) %}
+                                        {% set total = course.fees + gst_amt %}
+                                        <div class="small text-white-50" style="opacity: 0.7; font-size: 0.7rem;">
+                                        + {{ total_pct }}% GST = ₹{{ "{:,.2f}".format(total) }}</div>
+                                    {% endif %}
+                                    <span class="text-secondary small">
+<i class="bi bi-clock me-1">
+</i>
+{{ course.duration_weeks }} {{ course.duration_unit or 'weeks' }}</span>
+                                </div>
+                            </div>
+                                                        <p class="text-secondary small mb-4" style="line-height: 1.6;">
+{{ course.description or "No course description configured." }}</p>
+                                                    <!-- Actions bar -->
+                        <div class="d-flex justify-content-between align-items-center border-top border-color pt-3 mt-auto">
+                            <span class="text-muted small">
+<i class="bi bi-people-fill me-1">
+</i>
+{{ course.students.count() }} Enrolled student(s)</span>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-outline-premium" onclick="optimizeSyllabus({{ course.id }}, '{{ course.name }}')">
+                                    <i class="bi bi-magic me-1">
+</i>
+AI Optimize                                </button>
+                                {% if not is_staff %}
+                                <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#editCourseModal{{ course.id }}">
+                                    <i class="bi bi-pencil-square me-1">
+</i>
+Edit                                </button>
+                                <a href="{{ url_for('courses.delete', id=course.id) }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Deleting this course will drop it from all enrolled students! Proceed?')">
+                                    <i class="bi bi-trash3-fill me-1">
+</i>
+Remove                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}        {% else %}            <div class="col-12 glass-card p-0" style="background:transparent;border:none;box-shadow:none;">
+                {% if not is_staff %}
+                {{ empty_state('No courses added yet', "Create your first course to start building the curriculum", 'courses', '#', 'Create Course', 'bi-journal-plus') }}
+                {% else %}
+                <div class="text-center text-muted small py-5">No courses assigned to you yet.</div>
+                {% endif %}
+            </div>
+        {% endif %}    </div>
+</div>
+<!-- EDIT COURSE MODALS (rendered outside grid to avoid stacking context issues) -->
+{% if courses %}{% for course in courses %}<div class="modal fade" id="editCourseModal{{ course.id }}" tabindex="-1" aria-labelledby="editCourseModalLabel{{ course.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editCourseModalLabel{{ course.id }}">
+Edit Course Details ({{ course.code }})</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close">
+</button>
+            </div>
+            <form action="{{ url_for('courses.edit', id=course.id) }}" method="POST">
+                <div class="modal-body p-4">
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label class="form-label small">
+Course Program Title</label>
+                            <input type="text" class="form-control" name="name" value="{{ course.name }}" maxlength="100" required autofocus>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label small">
+Course Registry Code</label>
+                            <input type="text" class="form-control" value="{{ course.code }}" name="code" readonly>
+                            <small class="text-muted">
+                            Unique registry codes cannot be altered</small>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-white small">
+Duration <span class="text-white small fw-normal">(number + unit)</span></label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" name="duration_weeks" value="{{ course.duration_weeks }}" min="1" required>
+                                <select class="form-select" name="duration_unit" required style="flex: 0 0 auto; width: auto; color: #ffffff; background-color: #0d2740; border: 1px solid var(--border-color);">
+                                    <option value="weeks" {% if course.duration_unit == 'weeks' %}selected{% endif %}>
+Weeks</option>
+                                    <option value="months" {% if course.duration_unit == 'months' %}selected{% endif %}>
+Months</option>
+                                    <option value="days" {% if course.duration_unit == 'days' %}selected{% endif %}>
+Days</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label small">
+                            Tuition Course Fee (₹)</label>
+                            <input type="number" step="0.01" class="form-control" name="fees" value="{{ course.fees }}" min="0" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" name="gst_applicable" id="edit_gst_{{ course.id }}" {% if course.gst_applicable %}checked{% endif %} onchange="updateGstPreview('edit', {{ course.id }})">
+                            <label class="form-check-label" for="edit_gst_{{ course.id }}">18% GST Applicable (GST added on top of fee)</label>
+                        </div>
+                        <div id="edit_gst_preview_{{ course.id }}" class="small mt-1" style="color: #d97706; display: {% if course.gst_applicable %}block{% else %}none{% endif %};"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+                        Course Pitch / Summary Description</label>
+                        <textarea class="form-control" name="description" rows="3" required>
+{{ course.description }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Detailed Syllabus (Weekly Index Outline)</label>
+                        <textarea class="form-control" name="syllabus" rows="5" placeholder="Week 1: Focus Area&#10;Week 2: Focus Area" required>
+{{ course.syllabus }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+Cancel</button>
+                    <button type="submit" class="btn btn-premium">
+Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}{% endif %}<!-- ADD COURSE MODAL -->
+<div class="modal fade" id="addCourseModal" tabindex="-1" aria-labelledby="addCourseModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addCourseModalLabel">
+<i class="bi bi-journal-plus me-2">
+</i>
+Create New Course Registry</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close">
+</button>
+            </div>
+            <form action="{{ url_for('courses.list') }}" method="POST">
+                <div class="modal-body p-4">
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label class="form-label small">
+Course Program Title</label>
+                            <input type="text" class="form-control" name="name" placeholder="e.g. Python & Backend Automation" maxlength="100" required autofocus>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label small">
+Unique Registry Code</label>
+                            <input type="text" class="form-control" name="code" placeholder="e.g. PY-101" required>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label small">
+Duration <span class="text-white small fw-normal">(number + unit)</span></label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" name="duration_weeks" placeholder="e.g. 8" min="1" required style="color: #ffffff;">
+                                <select class="form-select" name="duration_unit" required style="flex: 0 0 auto; width: auto; color: #ffffff; background-color: #0d2740; border: 1px solid var(--border-color);">
+                                    <option value="" disabled selected>Unit</option>
+                                    <option value="weeks">
+Weeks</option>
+                                    <option value="months">
+Months</option>
+                                    <option value="days">
+Days</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label small">
+Tuition Course Fee (₹)</label>
+                            <input type="number" step="0.01" class="form-control" name="fees" placeholder="e.g. 450.00" min="0" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" name="gst_applicable" id="add_gst" onchange="updateGstPreview('add')">
+                            <label class="form-check-label" for="add_gst">18% GST Applicable (GST added on top of fee)</label>
+                        </div>
+                        <div id="add_gst_preview" class="small mt-1" style="color: #d97706; display: none;"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+                        Course Pitch / Summary Description</label>
+                        <textarea class="form-control" name="description" rows="3" placeholder="Briefly describe what students will build and study..." required>
+</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Detailed Syllabus (Weekly Outline Index)</label>
+                        <textarea class="form-control" name="syllabus" rows="5" placeholder="Week 1: Setup and Basics&#10;Week 2: Conditionals & Loops&#10;Week 3: Core Project" required>
+</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+Cancel</button>
+                    <button type="submit" class="btn btn-premium">
+Publish Course</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<!-- AI Syllabus Optimization Modal -->
+<div class="modal fade" id="aiSyllabusModal" tabindex="-1" aria-labelledby="aiSyllabusModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="aiSyllabusModalLabel">
+<i class="bi bi-magic me-2">
+</i>
+AI Syllabus Optimization</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close">
+</button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="syllabusOptimizationContent">
+                    <div class="d-flex align-items-center text-secondary">
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true">
+</span>
+                        Analyzing course syllabus and generating recommendations...                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+function optimizeSyllabus(courseId, courseName) {    const modal = new bootstrap.Modal(document.getElementById('aiSyllabusModal'));    const contentDiv = document.getElementById('syllabusOptimizationContent');        contentDiv.innerHTML = `        <div class="d-flex align-items-center text-secondary">
+            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true">
+</span>
+            Analyzing course syllabus and generating recommendations...        </div>
+    `;        modal.show();        fetch(`/api/courses/${courseId}/ai-syllabus-optimization`)        .then(response =>
+ response.json())        .then(data =>
+ {            let html = `                <div class="mb-4">
+                    <h6 class="fw-bold mb-3">
+<i class="bi bi-lightbulb-fill me-2 text-warning">
+</i>
+Syllabus Gaps to Address</h6>
+                    <ul class="mb-0">
+                        ${data.syllabus_gaps.map(gap =>
+ `<li class="mb-2">
+${gap}</li>
+`).join('')}                    </ul>
+                </div>
+                <div class="mb-4">
+                    <h6 class="fw-bold mb-3">
+<i class="bi bi-arrow-clockwise me-2 text-info">
+</i>
+Outdated Content to Update</h6>
+                    <ul class="mb-0">
+                        ${data.outdated_content.map(item =>
+ `<li class="mb-2">
+${item}</li>
+`).join('')}                    </ul>
+                </div>
+                <div class="mb-4">
+                    <h6 class="fw-bold mb-3">
+<i class="bi bi-diagram-3 me-2 text-success">
+</i>
+Structure Recommendations</h6>
+                    <ul class="mb-0">
+                        ${data.structure_recommendations.map(rec =>
+ `<li class="mb-2">
+${rec}</li>
+`).join('')}                    </ul>
+                </div>
+                <div class="mb-4">
+                    <h6 class="fw-bold mb-3">
+<i class bi bi-building me-2 text-primary">
+</i>
+Industry Alignment</h6>
+                    <p class="text-secondary">
+${data.industry_alignment}</p>
+                </div>
+                <div class="mb-4">
+                    <h6 class="fw-bold mb-3">
+<i class="bi bi-speedometer2 me-2 text-danger">
+</i>
+Difficulty Adjustment</h6>
+                    <p class="text-secondary">
+${data.difficulty_adjustment}</p>
+                </div>
+            `;            contentDiv.innerHTML = html;        })        .catch(error =>
+ {            console.error('Error:', error);            contentDiv.innerHTML = `                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle me-2">
+</i>
+                    Error generating syllabus optimization. Please try again.                </div>
+            `;        });}
+
+function updateGstPreview(mode, id) {
+    const cb = document.getElementById(mode === 'edit' ? 'edit_gst_' + id : 'add_gst');
+    const feeInput = cb.closest('.modal-body').querySelector('input[name="fees"]');
+    const previewId = mode === 'edit' ? 'edit_gst_preview_' + id : 'add_gst_preview';
+    const preview = document.getElementById(previewId);
+    const cgst = {{ gst_rates.cgst }}, sgst = {{ gst_rates.sgst }};
+    const totalPct = cgst + sgst;
+
+    if (cb.checked && feeInput.value > 0) {
+        const taxable = parseFloat(feeInput.value);
+        const cgstAmt = taxable * cgst / 100;
+        const sgstAmt = taxable * sgst / 100;
+        const total = taxable + cgstAmt + sgstAmt;
+        preview.innerHTML = `₹${taxable.toFixed(2)} + CGST ₹${cgstAmt.toFixed(2)} + SGST ₹${sgstAmt.toFixed(2)} = ₹${total.toFixed(2)}`;
+        preview.style.display = 'block';
+    } else {
+        preview.style.display = 'none';
+    }
+}
+
+// Initialize previews on page load
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('input[name="fees"]').forEach(function(el) {
+        el.addEventListener('input', function() {
+            const modal = el.closest('.modal');
+            if (modal) {
+                const cb = modal.querySelector('input[name="gst_applicable"]');
+                if (cb && cb.checked) {
+                    const id = modal.id.replace('editCourseModal', '');
+                    if (id && id !== 'addCourseModal') {
+                        updateGstPreview('edit', parseInt(id));
+                    } else {
+                        updateGstPreview('add');
+                    }
+                }
+            }
+        });
+    });
+    // Trigger initial preview for edit modals with GST checked
+    {% for course in courses %}
+        {% if course.gst_applicable %}
+            updateGstPreview('edit', {{ course.id }});
+        {% endif %}
+    {% endfor %}
+});
+</script>
+{% endblock %}
+

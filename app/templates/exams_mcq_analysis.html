@@ -1,0 +1,111 @@
+{% extends 'base.html' %}{% block title %}Analysis: {{ exam.title }}{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('exams.exam_list') }}">Exams</a></li><li class="breadcrumb-item active" aria-current="page">{{ exam.title }}</li>{% endblock %}{% block content %}
+<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold"><i class="bi bi-bar-chart-fill me-2"></i>{{ exam.title }} — Analysis</h2>
+            <p class="text-white mb-0">{{ exam.course.name }} ({{ exam.course.code }}) &middot; {{ attempts|length }} students completed</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('exams.mcq_question_stats', id=exam.id) }}" class="btn btn-outline-info"><i class="bi bi-pie-chart me-1"></i>Question Stats</a>
+            <a href="{{ url_for('exams.mcq_report_pdf', id=exam.id) }}" class="btn btn-outline-premium"><i class="bi bi-file-pdf me-1"></i>PDF Report</a>
+            <a href="{{ url_for('exams.exam_list') }}" class="btn btn-outline-light"><i class="bi bi-arrow-left me-1"></i>Back</a>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    {% set grade_counts = {'A':0,'B':0,'C':0,'D':0,'F':0} %}
+    {% for a in attempts %}{% if a.grade in grade_counts %}{% set _ = grade_counts.update({a.grade: grade_counts[a.grade] + 1}) %}{% endif %}{% endfor %}
+    {% set passed = attempts|selectattr('grade', 'ne', 'F')|selectattr('grade', 'ne', 'N/A')|list %}
+    {% set avg_pct = (attempts|sum(attribute='percentage') / attempts|length)|round(1) if attempts else 0 %}
+    <div class="row g-2 mb-4">
+        <div class="col-md-3 col-6">
+            <div class="glass-card p-3 text-center">
+                <div class="text-white-50 small fw-semibold text-uppercase">Completed</div>
+                <div class="fw-bold fs-4 text-white">{{ attempts|length }}</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="glass-card p-3 text-center">
+                <div class="text-white-50 small fw-semibold text-uppercase">Passed</div>
+                <div class="fw-bold fs-4" style="color:#5cb85c;">{{ passed|length }}</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="glass-card p-3 text-center">
+                <div class="text-white-50 small fw-semibold text-uppercase">Failed</div>
+                <div class="fw-bold fs-4" style="color:#d9534f;">{{ attempts|length - passed|length }}</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="glass-card p-3 text-center">
+                <div class="text-white-50 small fw-semibold text-uppercase">Average</div>
+                <div class="fw-bold fs-4 text-white">{{ avg_pct }}%</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grade Distribution -->
+    <div class="row g-2 mb-4">
+        {% for grade, color in [('A','#1b6ef3'),('B','#1b6ef3'),('C','#ffc107'),('D','#ff9933'),('F','#dc3545')] %}
+        <div class="col-md-2 col-4">
+            <div class="glass-card p-3 text-center">
+                <div class="fw-bold fs-4" style="color:{{ color }};">{{ grade_counts.get(grade,0) }}</div>
+                <small class="text-white-50">Grade {{ grade }}</small>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Student List -->
+    <div class="glass-card p-0 overflow-hidden">
+        <table class="table table-dark table-hover mb-0">
+            <thead>
+                <tr>
+                    <th style="width:40px;">#</th>
+                    <th>Student Name</th>
+                    <th>Email</th>
+                    <th style="width:80px;">Score</th>
+                    <th style="width:60px;">%</th>
+                    <th style="width:60px;">Grade</th>
+                    <th style="width:90px;">Duration</th>
+                    <th style="width:100px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in attempts %}
+                <tr>
+                    <td class="text-white-50">{{ loop.index }}</td>
+                    <td class="text-white">{{ a.student.name }}</td>
+                    <td class="text-white-50 small">{{ a.student.email }}</td>
+                    <td class="text-white">{{ a.score|round(0) }}/{{ a.total_marks|round(0) }}</td>
+                    <td>
+                        <span class="fw-semibold" style="color:{% if a.grade == 'F' %}#dc3545{% elif a.grade == 'D' %}#ff9933{% elif a.grade == 'C' %}#ffc107{% elif a.grade == 'B' %}#1b6ef3{% else %}#1b6ef3{% endif %};">{{ a.percentage }}%</span>
+                    </td>
+                    <td>
+                        <span class="badge {% if a.grade == 'F' %}bg-danger{% elif a.grade == 'D' %}bg-warning text-dark{% elif a.grade == 'C' %}bg-warning text-dark{% elif a.grade == 'B' %}bg-info{% else %}bg-success{% endif %}">{{ a.grade }}</span>
+                    </td>
+                    <td class="text-white-50 small">
+                        {% if a.start_time and a.end_time %}
+                        {% set diff = (a.end_time - a.start_time).total_seconds()|int %}
+                        {{ (diff // 60)|int }}m {{ (diff % 60)|int }}s
+                        {% else %}-{% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('exams.mcq_student_report_pdf', id=exam.id, student_id=a.student_id) }}" class="btn btn-sm btn-outline-info" title="Download PDF">
+                            <i class="bi bi-file-pdf"></i>
+                        </a>
+                        <a href="{{ url_for('exams.student_report', student_id=a.student_id) }}" class="btn btn-sm btn-outline-premium" title="Full Report">
+                            <i class="bi bi-person-lines-fill"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    {{ empty_state('No students have completed this exam yet', 'Results will appear here once students finish the exam', 'exams', none, none, none, 8) }}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

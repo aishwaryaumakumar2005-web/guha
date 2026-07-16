@@ -1,0 +1,89 @@
+{% extends 'base.html' %}{% block title %}Extra Features{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item active" aria-current="page">Extras</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold">Extra Features</h2>
+            <p class="text-white mb-0">Miscellaneous tools, backup & restore utilities.</p>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="glass-card p-4 mb-4">
+                <h4 class="mb-4 text-white fw-bold"><i class="bi bi-database-fill me-2"></i>Database Backup & Restore</h4>
+                <div class="d-flex gap-2 mb-4">
+                    <a href="{{ url_for('admin.create_backup') }}" class="btn btn-premium"><i class="bi bi-cloud-arrow-down me-2"></i>Create Backup</a>
+                </div>
+                <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-custom" id="backup-table">
+                        <thead><tr><th>File Name</th><th>Size</th><th>Date</th><th>Actions</th></tr></thead>
+                        <tbody><tr><td colspan="4" class="text-center text-muted py-3">Loading backups...</td></tr></tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-3" id="backup-pagination" style="display:none !important;">
+                    <span class="text-white small" id="backup-page-info"></span>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-secondary" id="backup-prev-btn" onclick="changeBackupPage(-1)"><i class="bi bi-chevron-left"></i> Prev</button>
+                        <button class="btn btn-sm btn-outline-secondary" id="backup-next-btn" onclick="changeBackupPage(1)">Next <i class="bi bi-chevron-right"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="glass-card p-4 mb-4">
+                <h4 class="mb-4 text-white fw-bold"><i class="bi bi-moon-fill me-2"></i>Dark Mode</h4>
+                <p class="text-white small mb-3">Toggle between light and dark theme.</p>
+                <button class="btn btn-outline-premium w-100" onclick="document.getElementById('darkModeToggle').click()"><i class="bi bi-moon-fill me-2"></i>Toggle Theme</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+var backupData = [];
+var backupPage = 0;
+var backupPerPage = 5;
+
+function renderBackupPage() {
+    var tbody = document.querySelector('#backup-table tbody');
+    var totalPages = Math.ceil(backupData.length / backupPerPage) || 1;
+    if (backupPage >= totalPages) backupPage = totalPages - 1;
+    if (backupPage < 0) backupPage = 0;
+    var start = backupPage * backupPerPage;
+    var end = Math.min(start + backupPerPage, backupData.length);
+    var pageItems = backupData.slice(start, end);
+    var pagination = document.getElementById('backup-pagination');
+    if (backupData.length <= backupPerPage) {
+        pagination.style.display = 'none';
+    } else {
+        pagination.style.display = 'flex';
+        document.getElementById('backup-page-info').textContent = 'Page ' + (backupPage + 1) + ' of ' + totalPages + ' (' + backupData.length + ' total)';
+        document.getElementById('backup-prev-btn').disabled = backupPage === 0;
+        document.getElementById('backup-next-btn').disabled = backupPage >= totalPages - 1;
+    }
+    if (!pageItems.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No backups available.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = pageItems.map(function(b) {
+        return '<tr><td class="text-white fw-medium">' + b.name + '</td><td class="text-white small">' + b.size + '</td><td class="text-white small">' + b.modified + '</td><td><a href="/admin/backup/restore/' + encodeURIComponent(b.name) + '" class="btn btn-sm btn-outline-danger me-1" onclick="return confirm(\'Restore ' + b.name + '? This will overwrite current data.\')"><i class="bi bi-arrow-counterclockwise"></i></a></td></tr>';
+    }).join('');
+}
+
+function changeBackupPage(delta) {
+    backupPage += delta;
+    renderBackupPage();
+}
+
+(function() {
+    fetch('/admin/backups')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        backupData = data;
+        backupPage = 0;
+        renderBackupPage();
+    })
+    .catch(function() {
+        var tbody = document.querySelector('#backup-table tbody');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">Error loading backups.</td></tr>';
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,117 @@
+{% extends 'base.html' %}{% block title %}Import Database{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('admin.admin_console') }}">Admin</a></li><li class="breadcrumb-item active" aria-current="page">Import Database</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="text-white fw-bold"><i class="bi bi-database-up me-2"></i>Import Database</h2>
+      <p class="text-white mb-0">Merge records from another institute database. Matches by email (students/tutors), code (courses), and name (expense categories).</p>
+    </div>
+    <a href="{{ url_for('admin.admin_console') }}" class="btn btn-outline-premium"><i class="bi bi-arrow-left me-1"></i>Back to Admin</a>
+  </div>
+
+  {% if results %}
+  {# ---- Step 3: Results ---- #}
+  <div class="glass-card p-4 mb-4">
+    <h4 class="fw-bold mb-3" style="color:#ffffff;"><i class="bi bi-check2-circle me-2" style="color:#4caf50;"></i>Import Complete</h4>
+    <div class="table-container">
+      <table class="table table-custom">
+        <thead><tr><th>Entity</th><th>Imported</th><th>Skipped</th></tr></thead>
+        <tbody>
+          {% for key, label in [('courses','Courses'),('students','Students'),('tutors','Tutors'),('expense_categories','Expense Categories'),('student_courses','Student-Course Links'),('tutor_courses','Tutor-Course Links'),('enquiries','Enquiries'),('fees','Fee Records'),('attendance','Attendance Logs'),('exams','Exams'),('exam_scores','Exam Scores'),('exam_assignments','Exam Assignments'),('expenses','Expenses')] %}
+          {% set r = results.get(key) %}
+          {% if r is not none %}
+          <tr>
+            <td>{{ label }}</td>
+            <td>{% if r is mapping %}{{ r.imported }}{% else %}{{ r }}{% endif %}</td>
+            <td>{% if r is mapping %}{{ r.skipped }}{% else %}—{% endif %}</td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <a href="{{ url_for('admin.admin_console') }}" class="btn btn-premium mt-3"><i class="bi bi-arrow-left me-1"></i>Return to Admin Console</a>
+  </div>
+
+  {% elif preview %}
+  {# ---- Step 2: Preview ---- #}
+  <form method="POST" action="{{ url_for('admin.import_database') }}">
+    <input type="hidden" name="confirm_import" value="1">
+    <input type="hidden" name="temp_path" value="{{ temp_path }}">
+    <div class="glass-card p-4 mb-4">
+      <h4 class="fw-bold mb-3" style="color:#ffffff;"><i class="bi bi-eye me-2"></i>Preview — Data Found in Source Database</h4>
+      <p class="small mb-3" style="color:#ffffffcc;">Select the entities to import. Matching records (by email/code/name) will be skipped. New records will be added with auto-generated IDs.</p>
+
+      {% if not preview.has_any %}
+      <div class="alert alert-warning">No recognizable data tables found in the uploaded database.</div>
+      {% else %}
+      <div class="table-container mb-3">
+        <table class="table table-custom">
+          <thead><tr><th style="width:36px;"><input type="checkbox" id="selectAll" checked></th><th>Entity</th><th class="text-center">Total</th><th class="text-center" style="color:#4caf50;">New</th><th class="text-center" style="color:#ff9800;">Conflicts (skipped)</th></tr></thead>
+          <tbody>
+            {% for key, label in [('courses','Courses'),('students','Students'),('tutors','Tutors'),('expense_categories','Expense Categories'),('student_courses','Student-Course Links'),('tutor_courses','Tutor-Course Links'),('enquiries','Enquiries'),('fees','Fee Records'),('attendance','Attendance Logs'),('exams','Exams'),('exam_scores','Exam Scores'),('exam_assignments','Exam Assignments'),('expenses','Expenses')] %}
+            {% set p = preview.get(key) %}
+            {% if p and p.has_table and p.total > 0 %}
+            <tr>
+              <td><input type="checkbox" name="tables" value="{{ key }}" class="entity-check" checked></td>
+              <td>{{ label }}</td>
+              <td class="text-center">{{ p.total }}</td>
+              <td class="text-center" style="color:#4caf50;">{{ p.new }}</td>
+              <td class="text-center" style="color:#ff9800;">{{ p.conflicts }}</td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-premium flex-fill"><i class="bi bi-upload me-1"></i>Confirm & Import Selected</button>
+        <a href="{{ url_for('admin.import_database') }}" class="btn btn-outline-danger"><i class="bi bi-x-lg me-1"></i>Cancel</a>
+      </div>
+      {% endif %}
+    </div>
+  </form>
+
+  <div class="glass-card p-4">
+    <h5 class="fw-bold mb-2" style="color:#ffffff;"><i class="bi bi-info-circle me-2"></i>How Import Works</h5>
+    <ul class="small mb-0" style="color:#ffffffcc;">
+      <li><strong>Courses</strong> — matched by <code>code</code>. New courses added; duplicates skipped.</li>
+      <li><strong>Students &amp; Tutors</strong> — matched by <code>email</code>. New records added; duplicates skipped.</li>
+      <li><strong>Expense Categories</strong> — matched by <code>name</code>. New categories added; duplicates skipped.</li>
+      <li><strong>Dependent records</strong> (enquiries, fees, attendance, exams, scores, assignments, expenses) — always imported with remapped foreign keys.</li>
+      <li><strong>Users, Payroll, MCQ data</strong> — not imported (security &amp; complexity reasons).</li>
+      <li>Source database file is deleted immediately after import.</li>
+      <li>Changes are wrapped in a single transaction — if anything fails, nothing is partially imported.</li>
+    </ul>
+  </div>
+
+  {% else %}
+  {# ---- Step 1: Upload ---- #}
+  <div class="glass-card p-4">
+    <h4 class="fw-bold mb-3" style="color:#ffffff;"><i class="bi bi-cloud-upload me-2"></i>Upload Source Database</h4>
+    <p class="small mb-4" style="color:#ffffffcc;">Choose a <code>.db</code> file exported from another instance of this application. The import will match existing records and merge new ones.</p>
+    <form method="POST" action="{{ url_for('admin.import_database') }}" enctype="multipart/form-data">
+      <div class="mb-4">
+        <label class="form-label small fw-bold" style="color:#ffffff;">SQLite Database File</label>
+        <input type="file" class="form-control" name="db_file" accept=".db,.sqlite,.sqlite3" required style="padding:0.75rem;">
+        <small class="text-white-50 d-block mt-1">Maximum file size: 100 MB</small>
+      </div>
+      <button type="submit" class="btn btn-premium"><i class="bi bi-search me-1"></i>Analyze Database</button>
+    </form>
+  </div>
+
+  <div class="glass-card p-4 mt-4">
+    <h5 class="fw-bold mb-2" style="color:#ffffff;"><i class="bi bi-shield-check me-2"></i>Safe to Import</h5>
+    <p class="small mb-0" style="color:#ffffffcc;">The import is read-only until you confirm. The preview step will show exactly what will be merged. You can cancel at any time before confirming.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+{% if preview %}
+<script>
+document.getElementById('selectAll')?.addEventListener('change', function() {
+  document.querySelectorAll('.entity-check').forEach(cb => cb.checked = this.checked);
+});
+</script>
+{% endif %}
+{% endblock %}

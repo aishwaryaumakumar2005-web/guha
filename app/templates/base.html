@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Student Management System{% endblock %} - Computer Institute</title>
+    <!-- Bootstrap 5 CSS CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Core Customized Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=56">
+
+    <!-- CDNs for QR and Scanning -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <!-- Chart.js CDN for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- HTMX for AJAX navigation -->
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <!-- TomSelect for searchable selects -->
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+</head>
+<body hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="innerHTML">
+    <script>
+        if (localStorage.getItem('darkMode') === 'enabled') {
+            document.body.classList.add('dark-mode');
+        }
+    </script>
+    <!-- Mobile Top Bar -->
+    <div class="mobile-topbar" id="mobileTopbar">
+        <button class="btn btn-link text-white p-0 me-2" id="sidebarToggle" type="button">
+            <i class="bi bi-list fs-3"></i>
+        </button>
+        <span class="fw-bold" style="font-family: var(--font-heading);display:flex;align-items:center;gap:8px">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="GUHA" class="brand-logo-img" style="height:44px;width:auto">
+            <span style="background:linear-gradient(90deg,#FFD700,#FFA500);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-size:1.1rem">GUHA</span>
+        </span>
+        <div class="ms-auto d-flex gap-2">
+            <a href="#" id="darkModeToggleMobile" class="text-white theme-toggle-btn" title="Toggle Dark Mode" style="font-size: 1.2rem; text-decoration: none;">
+                <i class="bi bi-moon-fill"></i>
+            </a>
+            <a href="/logged-out" onclick="window.location.href='/logged-out'; return false;" class="text-white logout-btn" title="Logout" style="font-size: 1.2rem; text-decoration: none;">
+                <i class="bi bi-box-arrow-right"></i>
+            </a>
+        </div>
+    </div>
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <!-- Sidebar Navigation -->
+    <div class="sidebar-container" id="sidebar">
+        <div class="d-flex align-items-center justify-content-between mb-3 d-lg-none">
+            <span class="fw-bold text-white" style="font-family: var(--font-heading);">
+Menu</span>
+            <button class="btn btn-link text-white p-0" id="sidebarClose" type="button">
+                <i class="bi bi-x-lg">
+</i>
+            </button>
+        </div>
+        <div class="brand-title">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="GUHA ACADEMY" class="brand-logo-img" style="height:54px;width:auto">
+            <div>
+                <span style="background:linear-gradient(90deg,#FFD700,#FFA500);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-weight:800;font-size:1.2rem;white-space:nowrap">GUHA ACADEMY</span>
+                <div style="font-size:0.7rem;color:rgba(255,255,255,0.55);letter-spacing:0.06em;line-height:1.2;margin-top:-4px">Learn Today, Lead Tomorrow</div>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <!-- Dashboard — always visible -->
+            <a href="{{ url_for('dashboard.dashboard') }}" class="nav-item-link {% if request.path == '/' %}active{% endif %}">
+                <span class="nav-icon">
+<i class="bi bi-grid-1x2-fill">
+</i>
+</span>
+                <span>
+Dashboard</span>
+            </a>
+            {% if current_user.role == 'Admin' %}            <!-- Accordion: Academic -->
+            <div class="accord-section">
+                    <div class="accord-trigger {% if request.path in ['/students','/courses','/tutors','/attendance','/leaves','/exams'] %}expanded{% endif %}">
+                    <span class="nav-icon">
+<i class="bi bi-book-fill">
+</i>
+</span>
+                    <span>
+Academic</span>
+                    <i class="bi bi-chevron-down accord-arrow">
+</i>
+                </div>
+                <div class="accord-body {% if request.path in ['/students','/courses','/tutors','/attendance','/leaves'] or request.path.startswith('/exams') %}open{% endif %}">
+                    <a href="{{ url_for('students.list') }}" class="nav-item-link {% if request.path == '/students' %}active{% endif %}">
+                        <span class="nav-icon">
+<i class="bi bi-people-fill">
+</i>
+</span>
+                        <span>
+Students</span>
+                        <span class="nav-badge">
+{{ student_count }}</span>
+                    </a>
+                    <a href="{{ url_for('courses.list') }}" class="nav-item-link {% if request.path == '/courses' %}active{% endif %}">
+                        <span class="nav-icon">
+<i class="bi bi-journal-code">
+</i>
+</span>
+                        <span>
+Courses</span>
+                        <span class="nav-badge">
+{{ course_count }}</span>
+                    </a>
+                    <a href="{{ url_for('tutors.list') }}" class="nav-item-link {% if request.path == '/tutors' %}active{% endif %}">
+                        <span class="nav-icon">
+<i class="bi bi-person-workspace">
+</i>
+</span>
+                        <span>
+Staff</span>
+                        <span class="nav-badge">
+{{ staff_count }}</span>
+                    </a>
+                    <a href="{{ url_for('attendance.attendance') }}" class="nav-item-link {% if request.path == '/attendance' %}active{% endif %}">
+                        <span class="nav-icon">
+<i class="bi bi-calendar2-check-fill">
+</i>
+</span>
+                        <span>
+Attendance</span>
+                    </a>
+                    <a href="{{ url_for('exams.exam_list') }}" class="nav-item-link {% if request.path == '/exams' or request.path.startswith('/exams/') %}active{% endif %}">
+                        <span class="nav-icon">
+<i class="bi bi-pencil-square">
+</i>
+</span>
+                        <span>
+Exams</span>
+                    </a>
+                    <a href="{{ url_for('leaves.leaves') }}" class="nav-item-link {% if request.path == '/leaves' %}active{% endif %}">
+                        <span class="nav-icon">
+<i class="bi bi-calendar-range-fill">
+</i>
+</span>
+                        <span>
+Leaves</span>
+                    </a>
+                </div>
+            </div>
+            <!-- Accordion: Finance -->
+            <div class="accord-section">
+                <div class="accord-trigger {% if request.path in ['/fees','/expenses','/enquiries','/salary-calculator','/payroll'] %}expanded{% endif %}">
+                    <span class="nav-icon">
+<i class="bi bi-coin">
+</i>
+</span>
+                    <span>
+Finance</span>
+                    <i class="bi bi-chevron-down accord-arrow">
+</i>
+                </div>
+                <div class="accord-body {% if request.path in ['/fees','/expenses','/enquiries','/salary-calculator'] %}open{% endif %}">
+                    <a href="{{ url_for('fees.list') }}" class="nav-item-link {% if request.path == '/fees' %}active{% endif %}">
+                        <span class="nav-icon">
+<i class="bi bi-wallet2">
+</i>
+</span>
+                        <span>
+Fees & Ledger</span>
+                    </a>
+                    <a href="{{ url_for('expenses.list') }}" class="nav-item-link {% if request.path == '/expenses' %}active{% endif %}">
+                        <span class="nav-icon">
+<i class="bi bi-receipt">
+</i>
+</span>
+                        <span>
+Expenses</span>
+                    </a>
+                    <a href="{{ url_for('payroll.payroll_list') }}" class="nav-item-link {% if request.path == '/payroll' %}active{% endif %}">
+                        <span class="nav-icon"><i class="bi bi-cash-stack"></i></span>
+                        <span>Payroll</span>
+                    </a>
+                    <a href="{{ url_for('enquiries.list') }}" class="nav-item-link {% if request.path == '/enquiries' %}active{% endif %}">
+                        <span class="nav-icon">
+<i class="bi bi-funnel-fill">
+</i>
+</span>
+                        <span>
+Enquiries</span>
+                        <span class="nav-badge">
+{{ enquiry_count }}</span>
+                    </a>
+                    {% if current_user.role == 'Admin' %}                    <a href="{{ url_for('expenses.salary_calculator') }}" class="nav-item-link {% if request.path == '/salary-calculator' %}active{% endif %}">
+                        <span class="nav-icon">
+<i class="bi bi-calculator-fill">
+</i>
+</span>
+                        <span>
+Salary Calculator</span>
+                    </a>
+                    {% endif %}                </div>
+            </div>
+            <!-- Accordion: Analytics -->
+            <div class="accord-section">
+                <div class="accord-trigger {% if request.path in ['/reports','/google-sync'] %}expanded{% endif %}">
+                    <span class="nav-icon">
+<i class="bi bi-graph-up">
+</i>
+</span>
+                    <span>
+Analytics</span>
+                    <i class="bi bi-chevron-down accord-arrow">
+</i>
+                </div>
+                <div class="accord-body {% if request.path in ['/reports','/google-sync'] %}open{% endif %}">
+                    <a href="{{ url_for('reports.reports') }}" class="nav-item-link {% if request.path == '/reports' %}active{% endif %}">
+                        <span class="nav-icon">
+<i class="bi bi-bar-chart-fill">
+</i>
+</span>
+                        <span>
+Reports</span>
+                    </a>
+                    <a href="{{ url_for('google_sync.google_sync') }}" class="nav-item-link {% if request.path == '/google-sync' %}active{% endif %}">
+                        <span class="nav-icon">
+<i class="bi bi-google">
+</i>
+</span>
+                        <span>Google Sync</span>
+                    </a>
+                </div>
+            </div>
+            {% elif current_user.role == 'Staff' %}
+            <!-- Staff: Academic Section -->
+            <div class="accord-section">
+                <div class="accord-trigger {% if request.path in ['/students','/courses','/attendance','/exams'] %}expanded{% endif %}">
+                    <span class="nav-icon">
+<i class="bi bi-book-fill">
+</i>
+</span>
+                    <span>
+My Classes</span>
+                    <i class="bi bi-chevron-down accord-arrow">
+</i>
+                </div>
+                <div class="accord-body {% if request.path in ['/students','/courses','/attendance'] or request.path.startswith('/exams') %}open{% endif %}">
+                    <a href="{{ url_for('students.list') }}" class="nav-item-link {% if request.path == '/students' %}active{% endif %}">
+                        <span class="nav-icon">
+<i class="bi bi-people-fill">
+</i>
+</span>
+                        <span>
+My Students</span>
+                    </a>
+                    <a href="{{ url_for('courses.list') }}" class="nav-item-link {% if request.path == '/courses' %}active{% endif %}">
+                        <span class="nav-icon">
+<i class="bi bi-journal-code">
+</i>
+</span>
+                        <span>
+My Courses</span>
+                    </a>
+                    <a href="{{ url_for('attendance.attendance') }}" class="nav-item-link {% if request.path == '/attendance' %}active{% endif %}">
+                        <span class="nav-icon">
+<i class="bi bi-calendar2-check-fill">
+</i>
+</span>
+                        <span>
+Attendance</span>
+                    </a>
+                    <a href="{{ url_for('exams.exam_list') }}" class="nav-item-link {% if request.path == '/exams' or request.path.startswith('/exams/') %}active{% endif %}">
+                        <span class="nav-icon">
+<i class="bi bi-pencil-square">
+</i>
+</span>
+                        <span>
+Exams</span>
+                    </a>
+                </div>
+            </div>
+            <!-- Staff: Finance Section -->
+            <div class="accord-section">
+                <div class="accord-trigger {% if request.path == '/fees' %}expanded{% endif %}">
+                    <span class="nav-icon">
+<i class="bi bi-coin">
+</i>
+</span>
+                    <span>
+Finance</span>
+                    <i class="bi bi-chevron-down accord-arrow">
+</i>
+                </div>
+                <div class="accord-body {% if request.path == '/fees' %}open{% endif %}">
+                    <a href="{{ url_for('fees.list') }}" class="nav-item-link {% if request.path == '/fees' %}active{% endif %}">
+                        <span class="nav-icon">
+<i class="bi bi-wallet2">
+</i>
+</span>
+                        <span>
+Student Fees</span>
+                    </a>
+                </div>
+            </div>
+            <!-- Staff: Analytics Section -->
+            <div class="accord-section">
+                <div class="accord-trigger {% if request.path == '/reports' %}expanded{% endif %}">
+                    <span class="nav-icon">
+<i class="bi bi-graph-up">
+</i>
+</span>
+                    <span>
+Reports</span>
+                    <i class="bi bi-chevron-down accord-arrow">
+</i>
+                </div>
+                <div class="accord-body {% if request.path == '/reports' %}open{% endif %}">
+                    <a href="{{ url_for('reports.reports') }}" class="nav-item-link {% if request.path == '/reports' %}active{% endif %}">
+                        <span class="nav-icon">
+<i class="bi bi-bar-chart-fill">
+</i>
+</span>
+                        <span>
+Class Reports</span>
+                    </a>
+                </div>
+            </div>
+            <!-- Staff: Leave Management -->
+            <a href="{{ url_for('leaves.leaves') }}" class="nav-item-link {% if request.path == '/leaves' %}active{% endif %}">
+                <span class="nav-icon">
+<i class="bi bi-calendar-range-fill">
+</i>
+</span>
+                <span>
+My Leaves</span>
+            </a>
+            {% endif %}
+            <div class="nav-spacer"></div>
+            {% if current_user.role == 'Admin' %}
+            <div class="sidebar-divider"></div>
+            <a href="{{ url_for('admin.admin_console') }}" class="nav-item-link nav-item-xl {% if request.path == '/admin' %}active{% endif %}">
+                <span class="nav-icon">
+                    <i class="bi bi-shield-lock-fill"></i>
+                </span>
+                <span>Admin Console</span>
+                <span class="nav-badge">{{ admin_count }}</span>
+            </a>
+            <a href="{{ url_for('extras.extras') }}" class="nav-item-link {% if request.path == '/extras' %}active{% endif %}">
+                <span class="nav-icon">
+                    <i class="bi bi-tools"></i>
+                </span>
+                <span>Extra Features</span>
+            </a>
+            {% endif %}
+        </nav>
+        {% if current_user.is_authenticated %}
+        <div class="sidebar-footer">
+            <div class="d-flex align-items-center gap-2 pt-3" style="border-top: 1px solid rgba(255, 255, 255, 0.06);">
+                {% set initials = current_user.name.split(' ')[0][0] %}
+                {% if current_user.name.split(' ')|length > 1 %}
+                    {% set initials = initials ~ current_user.name.split(' ')[1][0] %}
+                {% endif %}
+                <div class="user-avatar">{{ initials }}</div>
+                <div class="user-info flex-grow-1 min-w-0">
+                    <div class="user-name text-truncate">{{ current_user.name }}</div>
+                    <div class="user-role text-truncate">{{ current_user.role }}</div>
+                </div>
+                <div class="footer-actions">
+                    <a href="#" id="darkModeToggle" title="Toggle Theme" class="theme-toggle-btn">
+                        <i class="bi bi-moon-fill" id="darkModeIcon"></i>
+                    </a>
+                    <a href="{{ url_for('auth.logged_out') }}" hx-boost="false" title="Logout" class="logout-btn">
+                        <i class="bi bi-box-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    <!-- Main Content Panel -->
+    <div id="main-content">
+        <div class="main-content">
+            <div class="d-none d-lg-flex justify-content-between align-items-center mb-3" style="position: sticky; top: 0; z-index: 999;">
+                <!-- Global Search -->
+                <div class="global-search-wrap" style="position:relative;width:360px;">
+                    <div class="gs-label"><i class="bi bi-search"></i> Global Search</div>
+                    <div class="input-group input-group-sm gs-input-group">
+                        <span class="input-group-text gs-input-prepend border-end-0">
+                            <i class="bi bi-search"></i>
+                        </span>
+                        <input type="text" class="form-control border-start-0 gs-input" id="globalSearch" placeholder="Search students, tutors, courses, enquiries..." autocomplete="off">
+                    </div>
+                    <div id="globalSearchDropdown" class="global-search-dropdown d-none"></div>
+                </div>
+                <span class="text-white small me-3">
+                    <i class="bi bi-person-circle me-1"></i>
+                    {{ current_user.name }} ({{ current_user.role }})
+                </span>
+            </div>
+            <!-- Flash Alert Messages Block -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show border-0 mb-4 flash-alert" role="alert" style="border-left: 4px solid var(--accent-{% if category == 'danger' %}rose{% elif category == 'success' %}emerald{% else %}cyan{% endif %}) !important; box-shadow: 0 4px 20px rgba(0,0,0,0.25); border-radius: 28px;">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-{% if category == 'danger' %}exclamation-octagon{% elif category == 'success' %}check-circle{% else %}info-circle{% endif %}-fill me-2 fs-5" style="color: var(--accent-{% if category == 'danger' %}rose{% elif category == 'success' %}emerald{% else %}cyan{% endif %}) !important;"></i>
+                                <span class="fw-medium">{{ message }}</span>
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            <!-- Breadcrumb -->
+            {% block breadcrumb %}<nav aria-label="breadcrumb" class="mt-2 mb-3 d-none d-md-block">
+                <ol class="breadcrumb mb-0">
+                    {% block breadcrumb_items %}<li class="breadcrumb-item active text-white-50" aria-current="page">Home</li>{% endblock %}
+                </ol>
+            </nav>{% endblock %}
+            <!-- Yield Body Content -->
+            {% block content %}{% endblock %}        </div>
+        {% block modals %}{% endblock %}
+        {% block scripts %}{% endblock %}    </div>
+    <!-- Core Integrated Client Javascript -->
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=6">
+</script>
+    <!-- GLOBAL PRINTABLE ID CARD MODAL -->
+    <div class="modal fade" id="idCardModal" tabindex="-1" aria-labelledby="idCardModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 380px;">
+            <div class="modal-content glass-card p-2 border-0 bg-transparent shadow-none">
+                <div class="modal-header border-0 pb-0 justify-content-end">
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close">
+</button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="id-card-wrap">
+                        <div class="physical-id-card">
+                            <div class="id-card-header">
+                                <div class="id-card-logo" style="display:flex;align-items:center;gap:8px">
+                                    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="GUHA ACADEMY" class="brand-logo-img" style="height:40px;width:auto">
+                                    <span style="font-size:1.1rem">GUHA ACADEMY</span>
+                                </div>
+                                <div class="id-card-subtitle">
+Institute of Technology</div>
+                            </div>
+                                                        <div class="id-card-photo">
+                                <i class="bi bi-person-fill">
+</i>
+                            </div>
+                                                        <div class="d-flex flex-column align-items-center w-100">
+                                <div class="id-card-name" id="modal-id-name">
+Student Name</div>
+                                <div class="id-card-role" id="modal-id-role">
+Student</div>
+                            </div>
+                                                        <div class="id-card-qr-box" id="modal-id-qr">
+                                <!-- Generated QR Image goes here -->
+                            </div>
+                                                        <div class="id-card-details">
+                                <div class="mb-1 text-truncate">
+<strong>
+Email:</strong>
+ <span id="modal-id-email">
+email@test.com</span>
+</div>
+                                <div class="mb-1">
+<strong>
+Phone:</strong>
+ <span id="modal-id-phone">
+555-1234</span>
+</div>
+                                <div class="small d-none mt-1 text-dark border-top border-color pt-1" id="modal-id-extra">
+Extra Information</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-2 justify-content-center">
+                    <button type="button" class="btn btn-outline-premium w-100" onclick="printCurrentIDCard()">
+                        <i class="bi bi-printer me-2">
+</i>
+Print/Download ID Card                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Bootstrap 5 Bundle JS CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
+</script>
+    <script>
+    (function() {
+        var toggle = document.getElementById('darkModeToggle');
+        var toggleMobile = document.getElementById('darkModeToggleMobile');
+        var icon = document.getElementById('darkModeIcon');
+        var iconMobile = toggleMobile ? toggleMobile.querySelector('i') : null;
+        if (toggle && icon) {
+            if (document.body.classList.contains('dark-mode')) {
+                icon.className = 'bi bi-sun-fill';
+                if (iconMobile) iconMobile.className = 'bi bi-sun-fill';
+            }
+            function toggleDark(e) {
+                e.preventDefault();
+                document.body.classList.add('theme-transitioning');
+                var isDark = document.body.classList.toggle('dark-mode');
+                localStorage.setItem('darkMode', isDark ? 'enabled' : 'disabled');
+                var cls = isDark ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+                icon.className = cls;
+                if (iconMobile) iconMobile.className = cls;
+                setTimeout(function() {
+                    document.body.classList.remove('theme-transitioning');
+                }, 600);
+            }
+            toggle.addEventListener('click', toggleDark);
+            if (toggleMobile) toggleMobile.addEventListener('click', toggleDark);
+        }
+        var sbToggle = document.getElementById('sidebarToggle');
+        var sbClose = document.getElementById('sidebarClose');
+        var overlay = document.getElementById('sidebarOverlay');
+        function openSidebar() { document.body.classList.add('sidebar-open'); }
+        function closeSidebar() { document.body.classList.remove('sidebar-open'); }
+        if (sbToggle) sbToggle.addEventListener('click', openSidebar);
+        if (sbClose) sbClose.addEventListener('click', closeSidebar);
+        if (overlay) overlay.addEventListener('click', closeSidebar);
+        function initAccordion() {
+            document.querySelectorAll('.accord-trigger').forEach(function(tr) {
+                var body = tr.nextElementSibling;
+                if (!body || !body.classList.contains('accord-body')) return;
+                if (body.classList.contains('open')) {
+                    body.style.maxHeight = body.scrollHeight + 'px';
+                    var fin = function() {
+                        if (body.classList.contains('open')) body.style.maxHeight = 'none';
+                        body.removeEventListener('transitionend', fin);
+                    };
+                    body.addEventListener('transitionend', fin);
+                }
+                tr.addEventListener('click', function() {
+                    var b = this.nextElementSibling;
+                    if (!b || !b.classList.contains('accord-body')) return;
+                    var isOpen = b.classList.contains('open');
+                    // close all other accordions
+                    document.querySelectorAll('.accord-body').forEach(function(other) {
+                        if (other !== b && other.classList.contains('open')) {
+                            other.style.maxHeight = other.scrollHeight + 'px';
+                            requestAnimationFrame(function() {
+                                other.classList.remove('open');
+                                other.style.maxHeight = '0';
+                            });
+                            if (other.previousElementSibling) other.previousElementSibling.classList.remove('expanded');
+                        }
+                    });
+                    if (isOpen) {
+                        b.style.maxHeight = b.scrollHeight + 'px';
+                        requestAnimationFrame(function() {
+                            b.classList.remove('open');
+                            b.style.maxHeight = '0';
+                        });
+                    } else {
+                        b.classList.add('open');
+                        b.style.maxHeight = b.scrollHeight + 'px';
+                        var finishOpen = function() {
+                            if (b.classList.contains('open')) b.style.maxHeight = 'none';
+                            b.removeEventListener('transitionend', finishOpen);
+                        };
+                        b.addEventListener('transitionend', finishOpen);
+                    }
+                    this.classList.toggle('expanded', !isOpen);
+                });
+            });
+        }
+        initAccordion();
+        function closeSidebarMobile() {
+            if (window.innerWidth < 992) closeSidebar();
+        }
+        document.querySelectorAll('.sidebar-nav .nav-item-link').forEach(function(el) {
+            el.addEventListener('click', closeSidebarMobile);
+        });
+        function updateSidebarActive() {
+            var path = window.location.pathname;
+            document.querySelectorAll('.sidebar-nav .nav-item-link').forEach(function(el) {
+                el.classList.toggle('active', el.getAttribute('href') === path);
+            });
+            document.querySelectorAll('.accord-trigger').forEach(function(el) {
+                var expanded = el.getAttribute('data-paths');
+                if (!expanded) {
+                    expanded = [];
+                    el.nextElementSibling.querySelectorAll('.nav-item-link').forEach(function(link) {
+                        expanded.push(link.getAttribute('href'));
+                    });
+                    el.setAttribute('data-paths', JSON.stringify(expanded));
+                } else {
+                    expanded = JSON.parse(expanded);
+                }
+                var shouldExpand = expanded.indexOf(path) !== -1;
+                el.classList.toggle('expanded', shouldExpand);
+                el.nextElementSibling.classList.toggle('open', shouldExpand);
+                if (shouldExpand) el.nextElementSibling.style.maxHeight = 'none';
+                else el.nextElementSibling.style.maxHeight = '0';
+            });
+        }
+        document.addEventListener('htmx:afterSettle', updateSidebarActive);
+        // Clean up modal state on HTMX navigation to prevent scroll lock
+        document.addEventListener('htmx:beforeSwap', function() {
+            document.querySelectorAll('.modal.show').forEach(function(m) {
+                var modal = bootstrap.Modal.getInstance(m);
+                if (modal) modal.hide();
+            });
+            document.body.classList.remove('modal-open');
+            document.querySelectorAll('.modal-backdrop').forEach(function(b) { b.remove(); });
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('padding-right');
+        });
+    })();
+    </script>
+    <!-- Toast Container for notifications -->
+    <div id="toastContainer" style="position: fixed !important; top: 20px !important; right: 20px !important; bottom: auto !important; left: auto !important; z-index: 9999 !important; padding: 12px !important;"></div>
+
+    {% if current_user.is_authenticated %}
+    <!-- AI Chatbot Assistant -->
+    <button class="chat-fab" id="chatFab" aria-label="Open AI Assistant" onclick="toggleChat()">
+        <div class="smiley">
+            <span class="eye l"></span>
+            <span class="eye r"></span>
+            <span class="mouth"></span>
+        </div>
+        <i class="bi bi-x-lg"></i>
+    </button>
+    <div class="chat-panel" id="chatPanel">
+        <div class="chat-panel-header">
+            <div class="chat-smiley-header">
+                <span class="eye l"></span>
+                <span class="eye r"></span>
+                <span class="mouth"></span>
+            </div>
+            <span>AI Institute Assistant</span>
+            <span class="status-dot" title="Online"></span>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+            <div class="chat-msg bot">
+                Hello! I'm your AI assistant. Ask me about students, fees, attendance, courses, exams, or leave requests.
+            </div>
+        </div>
+        <div class="chat-input-bar">
+            <input type="text" id="chatInput" placeholder="Ask me anything..." autocomplete="off">
+            <button class="chat-send-btn" id="chatSendBtn" onclick="sendChatMessage()">
+                <i class="bi bi-send-fill"></i>
+            </button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        var chatOpen = false;
+        window.toggleChat = function() {
+            chatOpen = !chatOpen;
+            document.getElementById('chatPanel').classList.toggle('open', chatOpen);
+            document.getElementById('chatFab').classList.toggle('open', chatOpen);
+            if (chatOpen) {
+                var input = document.getElementById('chatInput');
+                setTimeout(function() { input.focus(); }, 100);
+            }
+        };
+        window.sendChatMessage = function() {
+            var input = document.getElementById('chatInput');
+            var msg = input.value.trim();
+            if (!msg) return;
+            input.value = '';
+            var container = document.getElementById('chatMessages');
+            var userDiv = document.createElement('div');
+            userDiv.className = 'chat-msg user';
+            userDiv.textContent = msg;
+            container.appendChild(userDiv);
+            container.scrollTop = container.scrollHeight;
+            var typingDiv = document.createElement('div');
+            typingDiv.className = 'chat-msg bot typing';
+            typingDiv.innerHTML = '<span></span><span></span><span></span>';
+            container.appendChild(typingDiv);
+            container.scrollTop = container.scrollHeight;
+            document.getElementById('chatSendBtn').disabled = true;
+            fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ message: msg })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                typingDiv.remove();
+                var botDiv = document.createElement('div');
+                botDiv.className = 'chat-msg bot';
+                botDiv.textContent = data.reply || 'Sorry, I couldn\'t process that.';
+                container.appendChild(botDiv);
+                container.scrollTop = container.scrollHeight;
+            })
+            .catch(function() {
+                typingDiv.remove();
+                var errDiv = document.createElement('div');
+                errDiv.className = 'chat-msg bot';
+                errDiv.textContent = 'Network error. Please try again.';
+                container.appendChild(errDiv);
+            })
+            .finally(function() {
+                document.getElementById('chatSendBtn').disabled = false;
+            });
+        };
+        document.getElementById('chatInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
+        });
+
+        // Confirmation Dialog for Destructive Actions
+        window.confirmAction = function(message, callback) {
+            var modalHtml = `
+                <div class="modal fade" id="confirmActionModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title text-white"><i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Confirm Action</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p class="text-white mb-0">${message}</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-danger" id="confirmActionBtn">Confirm</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            var existingModal = document.getElementById('confirmActionModal');
+            if (existingModal) existingModal.remove();
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            var modal = new bootstrap.Modal(document.getElementById('confirmActionModal'));
+            var confirmBtn = document.getElementById('confirmActionBtn');
+            
+            confirmBtn.addEventListener('click', function() {
+                modal.hide();
+                callback();
+            });
+            
+            modal.show();
+            
+            document.getElementById('confirmActionModal').addEventListener('hidden.bs.modal', function() {
+                this.remove();
+            }, { once: true });
+        };
+
+        // Button Loading State
+        window.setButtonLoading = function(button, loading, originalText) {
+            if (loading) {
+                button.dataset.originalText = button.innerHTML;
+                button.disabled = true;
+                button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Processing...';
+            } else {
+                button.disabled = false;
+                button.innerHTML = button.dataset.originalText || originalText || button.innerHTML;
+            }
+        };
+
+        // Auto-apply loading states to all forms
+        document.addEventListener('DOMContentLoaded', function() {
+            var forms = document.querySelectorAll('form:not([data-no-loading])');
+            forms.forEach(function(form) {
+                form.addEventListener('submit', function(e) {
+                    var submitBtn = form.querySelector('button[type="submit"]');
+                    if (submitBtn && !submitBtn.disabled) {
+                        setButtonLoading(submitBtn, true);
+                    }
+                });
+            });
+
+            // Real-time form validation
+            var inputs = document.querySelectorAll('input[required], select[required], textarea[required]');
+            inputs.forEach(function(input) {
+                input.addEventListener('blur', function() {
+                    validateField(input);
+                });
+                input.addEventListener('input', function() {
+                    if (input.classList.contains('is-invalid')) {
+                        validateField(input);
+                    }
+                });
+            });
+        });
+
+        // Field validation
+        function validateField(input) {
+            var value = input.value.trim();
+            var isValid = true;
+            var errorMessage = '';
+
+            if (input.required && !value) {
+                isValid = false;
+                errorMessage = 'This field is required';
+            } else if (input.type === 'email' && value && !isValidEmail(value)) {
+                isValid = false;
+                errorMessage = 'Please enter a valid email address';
+            } else if (input.type === 'tel' && value && !isValidPhone(value)) {
+                isValid = false;
+                errorMessage = 'Please enter a valid phone number';
+            } else if (input.pattern && value && !new RegExp(input.pattern).test(value)) {
+                isValid = false;
+                errorMessage = 'Please enter a valid value';
+            }
+
+            // Update UI
+            var feedbackEl = input.parentElement.querySelector('.invalid-feedback');
+            if (!feedbackEl) {
+                feedbackEl = document.createElement('div');
+                feedbackEl.className = 'invalid-feedback';
+                input.parentElement.appendChild(feedbackEl);
+            }
+
+            if (isValid) {
+                input.classList.remove('is-invalid');
+                input.classList.add('is-valid');
+                feedbackEl.textContent = '';
+            } else {
+                input.classList.remove('is-valid');
+                input.classList.add('is-invalid');
+                feedbackEl.textContent = errorMessage;
+            }
+
+            return isValid;
+        }
+
+        function isValidEmail(email) {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        }
+
+        function isValidPhone(phone) {
+            return /^[\d\s\-\+\(\)]{10,20}$/.test(phone);
+        }
+
+        // Error message display
+        window.showError = function(message, title) {
+            title = title || 'Error';
+            var toastHtml = `
+                <div class="toast show toast-error" role="alert" style="border-radius: 12px; margin-bottom: 1rem;">
+                    <div class="toast-header" style="background: transparent; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <strong class="me-auto">${title}</strong>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+                    </div>
+                    <div class="toast-body">${message}</div>
+                </div>
+            `;
+            
+            var toastContainer = document.getElementById('toastContainer');
+            if (!toastContainer) return;
+            
+            toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+            
+            var toast = toastContainer.lastElementChild;
+            var closeBtn = toast.querySelector('.btn-close');
+            closeBtn.addEventListener('click', function() {
+                toast.remove();
+            });
+            
+            setTimeout(function() {
+                if (toast.parentElement) toast.remove();
+            }, 5000);
+        };
+
+        // Global error handler for fetch requests
+        var originalFetch = window.fetch;
+        window.fetch = function() {
+            return originalFetch.apply(this, arguments).then(function(response) {
+                if (!response.ok) {
+                    return response.text().then(function(text) {
+                        try {
+                            var json = JSON.parse(text);
+                            throw new Error(json.error || json.message || 'Request failed');
+                        } catch (e) {
+                            if (e.message !== 'Request failed') throw e;
+                            throw new Error(text || 'Request failed');
+                        }
+                    });
+                }
+                return response;
+            }).catch(function(error) {
+                showError(error.message || 'Network error. Please try again.');
+                throw error;
+            });
+        };
+    })();
+    </script>
+    {% endif %}
+</body>
+</html>
+
+

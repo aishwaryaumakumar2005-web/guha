@@ -1,0 +1,9 @@
+@echo off
+cd /d "%~dp0"
+echo Installing dependencies...
+pip install -r requirements.txt
+echo Initializing database...
+python init_db.py
+echo Starting server...
+python app.py
+pause

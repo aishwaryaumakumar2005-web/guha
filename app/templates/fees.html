@@ -1,0 +1,390 @@
+{% extends 'base.html' %}{% block title %}Fees Ledger{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('expenses.list') }}">Finance</a></li><li class="breadcrumb-item active" aria-current="page">Fees & Ledger</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+    <!-- Header Row -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold">
+Fees & Collections Ledger</h2>
+            <p class="text-white mb-0">
+Record student tuition payments, inspect collection histories, and monitor pending balances.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-download me-1"></i>Export</button>
+                <ul class="dropdown-menu dropdown-menu-dark">
+                    <li><a class="dropdown-item" href="{{ url_for('accounting.export_tally') }}"><i class="bi bi-filetype-xml me-2"></i>Tally XML</a></li>
+                    <li><a class="dropdown-item" href="{{ url_for('accounting.export_zoho') }}"><i class="bi bi-filetype-csv me-2"></i>Zoho Books CSV</a></li>
+                </ul>
+            </div>
+            <button class="btn btn-outline-premium" onclick="loadFeeAnalysis()">
+                <i class="bi bi-graph-up-arrow me-2">
+</i>
+AI Analysis            </button>
+            {% if current_user.role == 'Admin' %}                <button class="btn btn-premium" data-bs-toggle="modal" data-bs-target="#recordPaymentModal">
+                    <i class="bi bi-wallet2 me-2">
+</i>
+Record Payment                </button>            {% endif %}
+        </div>
+    </div>
+    <!-- AI Fee Analysis Banner -->
+    <div class="glass-card p-4 mb-4 border border-info border-opacity-25" style="background: linear-gradient(135deg, rgba(27, 110, 243, 0.15) 0%, rgba(33, 37, 56, 0.45) 100%);">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <h5 class="fw-bold" style="color: #ffffff !important;">
+<i class="bi bi-cpu-fill me-2 animate-pulse" style="color: #ffffff !important;">
+</i>
+AI Fee Collection Optimizer</h5>
+                <p class="small mb-lg-0" style="color: #ffffff !important;">
+Analyze collection patterns, identify default risks, and get AI-powered recommendations for improving fee collection efficiency.</p>
+            </div>
+            <div class="col-lg-4 text-lg-end">
+                <button class="btn btn-outline-premium" onclick="loadFeeAnalysis()">
+                    <i class="bi bi-magic me-2">
+</i>
+Generate Insights                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Date Range Filter -->
+    <div id="dateRangeFilterContainer"></div>
+    <!-- Student Balances Matrix (full width on top) -->
+    <div class="glass-card p-4 mb-4" data-aos="fade-up">
+        <h4 class="mb-4 text-white fw-bold">
+<i class="bi bi-person-check-fill me-2 text-white">
+</i>
+Student Balances Matrix</h4>
+        <div class="table-container">
+            <table class="table table-custom sortable" data-page-size="10">
+                <thead>
+                    <tr>
+                        <th>
+                        Student</th>
+                        <th>
+                        Taxable Fee</th>
+                        <th>
+                        GST</th>
+                        <th>
+                        Total Due</th>
+                        <th>
+                        Total Paid</th>
+                        <th>
+                        Outstanding</th>
+                        <th>
+                        Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if balances %}                        {% for item in balances %}                            <tr>
+                                <td>
+                                    <div class="fw-medium text-white">
+{{ item.student.name }}</div>
+                                    <div class="small text-white" style="opacity: 0.85;">
+                                        {% if item.student.courses %}                                            {% for c in item.student.courses %}{{ c.code }}{% if c.gst_applicable %} <span class="badge badge-custom" style="background: #d97706; font-size: 0.6rem; padding: 1px 4px;">GST</span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}                                        {% else %}                                            No courses mapped                                        {% endif %}                                    </div>
+                                </td>
+                                <td class="text-white fw-semibold">
+                                ₹{{ "{:,.2f}".format(item.total_taxable) }}</td>
+                                <td class="{% if item.gst_applicable %}text-warning{% else %}text-secondary{% endif %} fw-semibold small">
+                                    {% if item.gst_applicable %}₹{{ "{:,.2f}".format(item.gst_amount) }}{% else %}<span class="text-secondary">-</span>{% endif %}</td>
+                                <td class="text-white fw-semibold">
+                                ₹{{ "{:,.2f}".format(item.total_fee) }}</td>
+                                <td class="text-white fw-semibold">
+                                ₹{{ "{:,.2f}".format(item.total_paid) }}</td>
+                                <td class="{% if item.balance >
+ 0 %}text-white{% else %}text-white{% endif %} fw-semibold">
+                                    ₹{{ "{:,.2f}".format(item.balance) }}                                </td>
+                                <td>
+                                    {% if item.balance <= 0 and item.total_fee >
+ 0 %}                                        <span class="badge badge-custom badge-active">
+Paid In Full</span>
+                                    {% elif item.balance >
+ 0 and item.total_paid >
+ 0 %}                                        <span class="badge badge-custom badge-amber">
+Partial Dues</span>
+                                    {% elif item.balance >
+ 0 and item.total_paid == 0 %}                                        <span class="badge badge-custom badge-inactive">
+Unpaid Full</span>
+                                    {% else %}                                        <span class="text-muted small">
+-</span>
+                                    {% endif %}                                </td>
+                            </tr>
+                        {% endfor %}                    {% else %}                        <tr>
+                            <td colspan="6" class="text-center text-white py-4">
+                            No enrolled student balance structures registered.</td>
+                        </tr>
+                    {% endif %}                </tbody>
+            </table>
+        </div>
+    </div>
+    <!-- Recent Payment History (below the balance matrix) -->
+    <div class="glass-card p-4 mb-4" data-aos="fade-up">
+        <h4 class="mb-4 text-white fw-bold">
+<i class="bi bi-clock-history me-2 text-white">
+</i>
+Recent Payment History</h4>
+        <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+            <table class="table table-custom sortable" data-page-size="10">
+                <thead>
+                    <tr>
+                        <th>
+Student</th>
+                        <th>
+Paid</th>
+                        <th>
+Date</th>
+                        <th>
+Method</th>
+                        <th class="text-end">
+Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if records %}                        {% for record in records %}                            <tr>
+                                <td>
+                                    <div class="fw-medium text-white text-truncate" style="max-width: 120px;">
+{{ record.student.name }}</div>
+                                    <div class="small text-white" style="font-size: 0.75rem; opacity: 0.85;">
+{{ record.remarks or "Regular installment" }}</div>
+                                </td>
+                                <td class="text-white fw-semibold">
+₹{{ "{:,.2f}".format(record.amount_paid) }}</td>
+                                <td class="text-white small">
+{{ record.payment_date.strftime("%d %b %Y") }}</td>
+                                <td>
+<span class="badge badge-custom badge-cyan">
+{{ record.payment_method }}</span>
+</td>
+                                <td class="text-end">
+                                    <a href="{{ url_for('accounting.download_invoice', fee_id=record.id) }}" class="btn btn-sm btn-outline-info" title="Download GST Invoice">
+                                        <i class="bi bi-receipt-cutoff">
+</i>
+                                    </a>
+                                    {% if current_user.role == 'Admin' %}                                    <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Reverse and delete this fee transaction record? This action cannot be undone.', function() { window.location.href = '{{ url_for('fees.delete', id=record.id) }}'; })">
+                                        <i class="bi bi-x-square-fill">
+</i>
+                                    </button>                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}                                            {% else %}                        <tr>
+                            {% if current_user.role == 'Admin' %}                                {{ empty_state('No payment collections found', "Record a fee payment to track student transactions", 'fees', '#', 'Record Payment', 'bi-cash-coin', 5, 'data-bs-toggle="modal" data-bs-target="#recordPaymentModal"') }}                            {% else %}                                <td colspan="5" class="text-center text-muted py-4">No payment records yet.</td>                            {% endif %}                        </tr>
+                    {% endif %}                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% if current_user.role == 'Admin' %}<!-- RECORD PAYMENT MODAL -->
+<div class="modal fade" id="recordPaymentModal" tabindex="-1" aria-labelledby="recordPaymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="recordPaymentModalLabel">
+<i class="bi bi-wallet-fill me-2 text-dark">
+</i>
+ Record Tuition Collection</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+</button>
+            </div>
+            <form action="{{ url_for('fees.list') }}" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small">
+Select Enrolled Student</label>
+                        <select class="form-select ts-select" name="student_id" placeholder="Search student..." required autofocus>
+                            <option value="">
+-- Choose Student --</option>
+                            {% for student in students %}                                <option value="{{ student.id }}">
+{{ student.name }} (Enrolled in {{ student.courses|length }} batch(es))</option>
+                            {% endfor %}                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Amount Collected (₹)</label>
+                        <input type="number" step="0.01" class="form-control" name="amount_paid" placeholder="e.g. 150.00" min="0.01" max="999999" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Payment Transaction Date</label>
+                        <input type="date" class="form-control" name="payment_date" value="{{ today.strftime('%Y-%m-%d') }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Payment Mode</label>
+                        <select class="form-select" name="payment_method">
+                            <option value="UPI - Guha India">
+UPI - Guha India</option>
+                            <option value="UPI - Ejaj Sir">
+UPI - Ejaj Sir</option>
+                            <option value="UPI">
+UPI / Digital Wallet</option>
+                            <option value="Cash">
+Cash Handover</option>
+                            <option value="Card">
+Credit/Debit Card</option>
+                            <option value="Bank Transfer">
+Direct Bank Wire</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Remarks / Notes</label>
+                        <input type="text" class="form-control" name="remarks" placeholder="e.g. Installment 1 / Capstone fee" maxlength="200">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+Cancel</button>
+                    <button type="submit" class="btn btn-premium">
+Log Payment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+<!-- AI Fee Analysis Modal -->
+<div class="modal fade" id="aiFeeAnalysisModal" tabindex="-1" aria-labelledby="aiFeeAnalysisModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="aiFeeAnalysisModalLabel">
+<i class="bi bi-graph-up-arrow text-dark me-2">
+</i>
+AI Fee Collection Analysis</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+</button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="feeAnalysisContent">
+                    <div class="d-flex align-items-center text-secondary">
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true">
+</span>
+                        Analyzing fee collection patterns and generating insights...                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+function loadFeeAnalysis() {    const modal = new bootstrap.Modal(document.getElementById('aiFeeAnalysisModal'));    const contentDiv = document.getElementById('feeAnalysisContent');        contentDiv.innerHTML = `        <div class="d-flex align-items-center text-secondary">
+            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true">
+</span>
+            Analyzing fee collection patterns and generating insights...        </div>
+    `;        modal.show();        fetch('/api/fees/ai-analysis')        .then(response =>
+ response.json())        .then(data =>
+ {            let html = `                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="p-3 rounded border border-color bg-dark bg-opacity-25" style="background-color: #0d2740 !important;">
+                            <h6 class="text-white small fw-bold mb-2">
+<i class="bi bi-heart-pulse-fill me-2 text-success">
+</i>
+Collection Health Score</h6>
+                            <div class="text-white fw-bold fs-4">
+${data.collection_health_score}/100</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="p-3 rounded border border-color bg-dark bg-opacity-25" style="background-color: #0d2740 !important;">
+                            <h6 class="text-white small fw-bold mb-2">
+<i class="bi bi-currency-rupee me-2 text-info">
+</i>
+Next Month Forecast</h6>
+                            <div class="text-white fw-bold fs-4">
+₹${(data.forecast/1000).toFixed(0)}k</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <h6 class="text-white fw-bold mb-3">
+<i class="bi bi-lightbulb-fill me-2 text-warning">
+</i>
+AI Recommendations</h6>
+                    <ul class="mb-0">
+                        ${data.recommendations.map(rec =>
+ `<li class="mb-2 text-white" style="opacity: 0.9;">
+${rec}</li>
+`).join('')}                    </ul>
+                </div>
+            `;                        if (data.default_risk_students && data.default_risk_students.length >
+ 0) {                html += `                    <div class="mb-4">
+                        <h6 class="text-white fw-bold mb-3">
+<i class="bi bi-exclamation-triangle-fill me-2 text-danger">
+</i>
+Students at Default Risk</h6>
+                        <div class="table-container">
+                            <table class="table table-custom">
+                                <thead>
+                                    <tr>
+                                        <th>
+Student</th>
+                                        <th>
+Pending Amount</th>
+                                        <th>
+Risk Level</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.default_risk_students.map(student =>
+ `                                        <tr>
+                                            <td class="text-white">
+${student.student}</td>
+                                            <td class="text-white">
+₹${student.pending_amount.toFixed(2)}</td>
+                                            <td>
+<span class="badge badge-custom ${student.risk_level === 'High' ? 'badge-danger' : 'badge-amber'}">
+${student.risk_level}</span>
+</td>
+                                        </tr>
+                                    `).join('')}                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;            }                        contentDiv.innerHTML = html;        })        .catch(error =>
+ {            console.error('Error:', error);            contentDiv.innerHTML = `                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle me-2">
+</i>
+                    Error generating fee analysis. Please try again.                </div>
+            `;        });
+
+        // Initialize date range filter
+        document.addEventListener('DOMContentLoaded', function() {
+            const filterContainer = document.getElementById('dateRangeFilterContainer');
+            if (filterContainer) {
+                createDateRangeFilter(filterContainer, function(from, to) {
+                    // Filter table rows based on date range
+                    const table = document.querySelector('.table-custom');
+                    if (!table) return;
+                    
+                    const rows = table.querySelectorAll('tbody tr');
+                    rows.forEach(row => {
+                        if (!from && !to) {
+                            row.style.display = '';
+                            return;
+                        }
+                        
+                        const dateCell = row.querySelector('td:nth-child(3)'); // Assuming date is in 3rd column
+                        if (!dateCell) {
+                            row.style.display = '';
+                            return;
+                        }
+                        
+                        const rowDate = new Date(dateCell.textContent.trim());
+                        const fromDate = from ? new Date(from) : null;
+                        const toDate = to ? new Date(to) : null;
+                        
+                        let show = true;
+                        if (fromDate && rowDate < fromDate) show = false;
+                        if (toDate && rowDate > toDate) show = false;
+                        
+                        row.style.display = show ? '' : 'none';
+                    });
+                    
+                    showToast(from && to ? 'Date filter applied' : 'Date filter cleared', 'success');
+                });
+            }
+        });
+}</script>
+{% endblock %}
+

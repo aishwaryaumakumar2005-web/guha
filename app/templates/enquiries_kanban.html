@@ -1,0 +1,148 @@
+{% extends 'base.html' %}{% block title %}Lead Pipeline{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item active" aria-current="page">Lead Pipeline</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h2 class="text-white fw-bold mb-0"><i class="bi bi-kanban me-2"></i>Lead Pipeline</h2>
+      <p class="text-white-50 small mb-0 mt-1">Drag enquiries between columns to update their status.</p>
+    </div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-premium" data-bs-toggle="modal" data-bs-target="#addEnquiryModal"><i class="bi bi-plus-lg me-1"></i>New Enquiry</button>
+      <a href="{{ url_for('enquiries.list') }}" class="btn btn-outline-premium"><i class="bi bi-table me-1"></i>Table View</a>
+    </div>
+  </div>
+
+  <div class="kanban-board d-flex gap-3 overflow-auto pb-2" style="min-height:calc(100vh - 220px);">
+    {% for stage in stages %}
+    {% set stage_colors = {'New': 'rgba(27, 110, 243,0.2)', 'Contacted': 'rgba(255,193,7,0.2)', 'Visited': 'rgba(156,39,176,0.2)', 'Converted': 'rgba(76,175,80,0.2)', 'Lost': 'rgba(244,67,54,0.2)'} %}
+    {% set stage_borders = {'New': 'rgba(27, 110, 243,0.4)', 'Contacted': 'rgba(255,193,7,0.4)', 'Visited': 'rgba(156,39,176,0.4)', 'Converted': 'rgba(76,175,80,0.4)', 'Lost': 'rgba(244,67,54,0.4)'} %}
+    {% set stage_labels = {'New': 'New Leads', 'Contacted': 'Contacted', 'Visited': 'Visited', 'Converted': 'Enrolled', 'Lost': 'Lost'} %}
+    {% set stage_icons = {'New': 'bi-star', 'Contacted': 'bi-chat-dots', 'Visited': 'bi-geo-alt', 'Converted': 'bi-check2-circle', 'Lost': 'bi-x-circle'} %}
+    <div class="kanban-column d-flex flex-column" style="min-width:260px;max-width:260px;flex-shrink:0;background:rgba(255,255,255,0.03);border-radius:12px;border:1px solid rgba(255,255,255,0.06);">
+      <div class="kanban-column-header px-3 py-2 d-flex justify-content-between align-items-center" style="border-bottom:2px solid {{ stage_borders[stage] }};border-radius:12px 12px 0 0;background:{{ stage_colors[stage] }};">
+        <span class="fw-bold text-white small"><i class="bi {{ stage_icons[stage] }} me-1"></i>{{ stage_labels[stage] }}</span>
+        <span class="badge" style="background:rgba(0,0,0,0.3);color:#fff;">{{ columns[stage]|length }}</span>
+      </div>
+      <div class="kanban-cards px-2 py-2 flex-grow-1" data-stage="{{ stage }}" style="overflow-y:auto;min-height:100px;">
+        {% for enquiry in columns[stage] %}
+          {% include '_enquiry_card.html' %}
+        {% else %}
+          <div class="text-center text-white-50 small py-4" style="opacity:0.4;"><i class="bi bi-inbox fs-4 d-block mb-1"></i>No leads</div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="modal fade" id="addEnquiryModal" tabindex="-1" aria-labelledby="addEnquiryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addEnquiryModalLabel"><i class="bi bi-funnel me-2 text-dark"></i>Log Lead Enquiry</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('enquiries.list') }}" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small">Student Name</label>
+                        <input type="text" class="form-control" name="student_name" placeholder="e.g. Bruce Wayne" maxlength="100" required autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Email Address</label>
+                        <input type="email" class="form-control" name="email" placeholder="e.g. bruce@waynecorp.com" maxlength="100">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Phone Number</label>
+                        <input type="tel" class="form-control" name="phone" placeholder="e.g. 555-8888" pattern="[0-9+\-\s]{10,20}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Course Focus</label>
+                        <select class="form-select" name="course_id" required>
+                            <option value="">-- Select Course --</option>
+                            {% for course in courses %}<option value="{{ course.id }}">{{ course.code }}: {{ course.name }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Lead Source</label>
+                        <select class="form-select" name="source">
+                            <option value="Website">Website</option>
+                            <option value="Walk-in">Walk-in</option>
+                            <option value="Referral">Referral</option>
+                            <option value="Social Media">Social Media</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Initial Status</label>
+                        <select class="form-select" name="status">
+                            <option value="New">New / Uncontacted</option>
+                            <option value="Contacted">Contacted</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Notes</label>
+                        <textarea class="form-control" name="notes" rows="3" placeholder="e.g. Looking for evening batches..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-premium">Submit Enquiry</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script>
+(function() {
+  const csrfToken = '{{ csrf_token() if csrf_token is defined else "" }}';
+
+  document.querySelectorAll('.kanban-cards').forEach(el => {
+    new Sortable(el, {
+      group: 'enquiries',
+      animation: 200,
+      ghostClass: 'kanban-ghost',
+      dragClass: 'kanban-dragging',
+      onEnd: function(evt) {
+        const card = evt.item;
+        const newStage = evt.to.dataset.stage;
+        const enquiryId = card.dataset.enquiryId;
+        if (!enquiryId || !newStage) return;
+
+        fetch('/enquiries/status/' + enquiryId, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: 'status=' + encodeURIComponent(newStage)
+        }).then(r => {
+          if (!r.ok) {
+            evt.from.insertBefore(card, evt.from.children[evt.oldIndex] || null);
+          } else {
+            // Update column counts
+            document.querySelectorAll('.kanban-column').forEach(col => {
+              const count = col.querySelectorAll('.kanban-card').length;
+              col.querySelector('.badge').textContent = count;
+            });
+          }
+        }).catch(() => {
+          evt.from.insertBefore(card, evt.from.children[evt.oldIndex] || null);
+        });
+      }
+    });
+  });
+})();
+</script>
+<style>
+.kanban-ghost { opacity: 0.4; }
+.kanban-dragging { opacity: 0.8; transform: rotate(2deg); }
+.kanban-cards { transition: background 0.2s; }
+.kanban-column { transition: box-shadow 0.2s; }
+.kanban-column:hover { box-shadow: 0 0 20px rgba(27, 110, 243,0.05); }
+.kanban-board::-webkit-scrollbar { height: 6px; }
+.kanban-board::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); border-radius: 3px; }
+.kanban-board::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+</style>
+{% endblock %}

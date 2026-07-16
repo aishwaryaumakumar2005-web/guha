@@ -1,0 +1,281 @@
+{% extends "base.html" %}{% block title %}Google Form Sync{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item active" aria-current="page">Google Sync</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold">
+<i class="bi bi-google me-2">
+</i>
+Google Form Sync</h2>
+            <p class="text-white mb-0">
+Import enquiries from Google Forms into the system.</p>
+        </div>
+        <span class="badge badge-custom badge-cyan">
+Enquiry Import</span>
+    </div>
+    {% with messages = get_flashed_messages(with_categories=true) %}        {% if messages %}            {% for category, msg in messages %}                <div class="alert alert-{{ category }} alert-dismissible fade show">
+{{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert">
+</button>
+</div>
+            {% endfor %}        {% endif %}    {% endwith %}    <div class="row g-4">
+        <!-- Step 1: Service Account Key -->
+        <div class="col-lg-6">
+            <div class="glass-card p-4 h-100">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <span class="badge badge-custom badge-cyan" style="border-radius:50%;width:28px;height:28px;line-height:16px;text-align:center;padding:6px 0;font-size:0.8rem;">
+1</span>
+                    <h5 class="fw-bold mb-0">
+Upload Service Account Key</h5>
+                </div>
+                <p class="text-secondary small mb-3">
+Download the JSON key from Google Cloud Console &rarr; IAM &rarr; Service Accounts.</p>
+                <div class="mb-3">
+                    <label class="form-label text-secondary small">
+Upload <code>.json</code> key file</label>
+                    <input type="file" id="keyFileInput" class="form-control form-control-sm" accept=".json">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-secondary small">
+Or paste JSON content</label>
+                    <textarea id="keyJsonTextarea" class="form-control form-control-sm" rows="4" placeholder='{"type": "service_account", ...}'>
+</textarea>
+                </div>
+                <button id="saveKeyBtn" class="btn btn-premium btn-sm w-100" onclick="uploadKey()">
+Save Service Account Key</button>
+                <div id="keyStatus" class="mt-2 small">
+                    {% if has_key %}<span class="text-success">
+&#10003; Service account key saved</span>
+{% endif %}                </div>
+            </div>
+        </div>
+        <!-- Step 2: Sheet ID & Form URL -->
+        <div class="col-lg-6">
+            <div class="glass-card p-4 h-100">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <span class="badge badge-custom badge-cyan" style="border-radius:50%;width:28px;height:28px;line-height:16px;text-align:center;padding:6px 0;font-size:0.8rem;">
+2</span>
+                    <h5 class="fw-bold mb-0">
+Connect Google Sheet</h5>
+                </div>
+                <p class="text-secondary small mb-3">
+Paste the Sheet ID from the linked spreadsheet URL. Share the sheet with your service account email.</p>
+                <div class="mb-3">
+                    <label class="form-label text-secondary small">
+Google Sheet ID</label>
+                    <input type="text" id="sheetIdInput" class="form-control form-control-sm" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" value="{{ sheet_id }}">
+                    <div class="form-text text-secondary small">
+Found in the Sheet URL: <code>docs.google.com/spreadsheets/d/<strong>&lt;ID&gt;</strong>/edit</code>
+</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-secondary small">
+Google Form URL (optional)</label>
+                    <input type="url" id="formUrlInput" class="form-control form-control-sm" placeholder="https://docs.google.com/forms/d/e/..." value="{{ form_url }}">
+                </div>
+                <button id="saveSheetBtn" class="btn btn-premium btn-sm w-100" onclick="saveSheet()">
+Save &amp; Test Connection</button>
+                <div id="connectionStatus" class="mt-2 small">
+</div>
+            </div>
+        </div>
+        <!-- Step 3: Column Mapping -->
+        <div class="col-12">
+            <div class="glass-card p-4">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <span class="badge badge-custom badge-cyan" style="border-radius:50%;width:28px;height:28px;line-height:16px;text-align:center;padding:6px 0;font-size:0.8rem;">
+3</span>
+                    <h5 class="fw-bold mb-0">
+Map Columns</h5>
+                    <button class="btn btn-outline-premium btn-sm ms-auto" onclick="detectColumns()">
+<i class="bi bi-magic">
+</i>
+ Auto-Detect</button>
+                </div>
+                <p class="text-secondary small mb-3">
+Map spreadsheet columns to enquiry fields.</p>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label text-secondary small">
+Student Name</label>
+                        <select id="mapName" class="form-select form-select-sm">
+<option value="">-- Select --</option>
+</select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label text-secondary small">
+Email</label>
+                        <select id="mapEmail" class="form-select form-select-sm">
+<option value="">-- Select --</option>
+</select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label text-secondary small">
+Phone</label>
+                        <select id="mapPhone" class="form-select form-select-sm">
+<option value="">-- Select --</option>
+</select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label text-secondary small">
+Course</label>
+                        <select id="mapCourse" class="form-select form-select-sm">
+<option value="">-- Select --</option>
+</select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label text-secondary small">
+Source</label>
+                        <select id="mapSource" class="form-select form-select-sm">
+<option value="">-- Select --</option>
+</select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label text-secondary small">
+Notes</label>
+                        <select id="mapNotes" class="form-select form-select-sm">
+<option value="">-- Select --</option>
+</select>
+                    </div>
+                </div>
+                <div id="detectInfo" class="mt-2 small text-secondary">
+</div>
+            </div>
+        </div>
+        <!-- Step 4: Sync -->
+        <div class="col-12">
+            <div class="glass-card p-4">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <span class="badge badge-custom badge-cyan" style="border-radius:50%;width:28px;height:28px;line-height:16px;text-align:center;padding:6px 0;font-size:0.8rem;">
+4</span>
+                    <h5 class="fw-bold mb-0">
+Sync Data</h5>
+                    <div class="ms-auto d-flex align-items-center gap-3">
+                        {% if last_sync %}<small class="text-secondary">
+Last sync: <span id="lastSyncLabel">{{ last_sync }}</span>
+</small>
+{% endif %}                        <button id="syncBtn" class="btn btn-premium" onclick="syncData()">
+<i class="bi bi-arrow-repeat me-1">
+</i>
+Sync Now</button>
+                    </div>
+                </div>
+                <div id="syncResult" class="alert d-none mb-0">
+</div>
+            </div>
+        </div>
+        <!-- Quick Links -->
+        <div class="col-12">
+            <div class="glass-card p-4">
+                <div class="d-flex align-items-center gap-4 flex-wrap">
+                    <span class="fw-semibold small text-secondary">
+<i class="bi bi-link-45deg me-1">
+</i>
+Quick Links</span>
+                    <a href="{{ form_url or '#' }}" target="_blank" class="btn btn-outline-premium btn-sm {% if not form_url %}disabled{% endif %}">
+<i class="bi bi-google me-1">
+</i>
+Open Google Form</a>
+                    <a href="https://docs.google.com/spreadsheets/d/{{ sheet_id }}" target="_blank" class="btn btn-outline-premium btn-sm {% if not sheet_id %}disabled{% endif %}">
+<i class="bi bi-table me-1">
+</i>
+Open Google Sheet</a>
+                    <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" class="btn btn-outline-premium btn-sm">
+<i class="bi bi-gear me-1">
+</i>
+Google Cloud Console</a>
+                    <span class="ms-auto text-secondary small">
+Share sheet with your service account email (<code>...@...iam.gserviceaccount.com</code>
+)</span>
+                </div>
+            </div>
+        </div>
+        <!-- Synced Enquiries Table -->
+        <div class="col-12">
+            <div class="glass-card p-4">
+                <h5 class="fw-bold mb-3">
+<i class="bi bi-person-lines-fill me-2">
+</i>
+Synced Enquiries</h5>
+                <div class="table-container">
+                    <table class="table table-custom" data-page-size="10">
+                        <thead>
+                            <tr>
+                                <th>
+#</th>
+                                <th>
+Name</th>
+                                <th>
+Phone</th>
+                                <th>
+Email</th>
+                                <th>
+Course</th>
+                                <th>
+Source</th>
+                                <th>
+Status</th>
+                                <th>
+Synced</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if synced_enquiries %}                                {% for enq in synced_enquiries %}                                <tr>
+                                    <td>
+{{ enq.id }}</td>
+                                    <td class="fw-medium text-white">
+{{ enq.student_name }}</td>
+                                    <td>
+{{ enq.phone }}</td>
+                                    <td>
+{{ enq.email or '-' }}</td>
+                                    <td>
+{{ enq.course.name if enq.course else '-' }}</td>
+                                    <td>
+<span class="badge badge-custom badge-active" style="background:#4682b4 !important;color:#fff !important;">
+{{ enq.source or 'Google Form' }}</span>
+</td>
+                                    <td>
+<span class="badge badge-custom {% if enq.status == 'New' %}badge-inactive{% elif enq.status == 'Contacted' %}badge-amber{% elif enq.status == 'Converted' %}badge-active{% else %}badge-inactive{% endif %}">
+{{ enq.status }}</span>
+</td>
+                                    <td>
+<small class="text-secondary">
+{{ enq.created_at.strftime('%d %b %Y') }}</small>
+</td>
+                                </tr>
+                                {% endfor %}                            {% else %}                                <tr>
+{{ empty_state('No synced enquiries yet', 'Configure Google Sheets sync above and sync your first batch of enquiries', 'sync', none, none, none, 8) }}
+</tr>
+                            {% endif %}                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<style>
+#syncResult.d-none { display: none; }#syncResult:not(.d-none) { display: block; }</style>
+{% endblock %}{% block scripts %}<script>
+async function uploadKey() {    const file = document.getElementById('keyFileInput').files[0];    const paste = document.getElementById('keyJsonTextarea').value.trim();    let keyJson = paste;    if (file) {        keyJson = await file.text();    }    if (!keyJson) {        document.getElementById('keyStatus').innerHTML = '<span class="text-danger">
+Provide a file or paste JSON content.</span>
+';        return;    }    const btn = document.getElementById('saveKeyBtn');    btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm">
+</span> Saving...';    try {        const r = await fetch('/api/google-sync/upload-key', {            method: 'POST',            headers: {'Content-Type': 'application/json'},            body: JSON.stringify({key_json: keyJson})        });        const d = await r.json();        document.getElementById('keyStatus').innerHTML = r.ok            ? '<span class="text-success">
+&#10003; Service account key saved.</span>
+'            : '<span class="text-danger">
+Error: ' + (d.error || 'Unknown') + '</span>
+';    } catch(e) {        document.getElementById('keyStatus').innerHTML = '<span class="text-danger">
+Network error: ' + e.message + '</span>
+';    } finally {        btn.disabled = false; btn.innerHTML = 'Save Service Account Key';    }}async function saveSheet() {    const sheetId = document.getElementById('sheetIdInput').value.trim();    const formUrl = document.getElementById('formUrlInput').value.trim();    if (!sheetId) { toast('warning', 'Sheet ID is required.'); return; }    const btn = document.getElementById('saveSheetBtn');    btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm">
+</span> Testing...';    const statusEl = document.getElementById('connectionStatus');    try {        const r = await fetch('/api/google-sync/save-sheet', {            method: 'POST',            headers: {'Content-Type': 'application/json'},            body: JSON.stringify({sheet_id: sheetId, form_url: formUrl})        });        if (!r.ok) { statusEl.innerHTML = '<span class="text-danger">
+Save failed.</span>
+'; btn.disabled = false; btn.innerHTML = 'Save & Test Connection'; return; }        const s = await fetch('/api/google-sync/status');        const d = await s.json();        if (d.connected) {            statusEl.innerHTML = '<span class="text-success">
+&#10003; Connected! Found ' + d.row_count + ' rows. Headers: ' + (d.headers || []).join(', ') + '</span>
+';            populateMapping(d.headers);        } else {            statusEl.innerHTML = '<span class="text-danger">
+Connection failed: ' + (d.error || 'Check key/sheet permissions') + '</span>
+';        }    } catch(e) {        statusEl.innerHTML = '<span class="text-danger">
+Network error: ' + e.message + '</span>
+';    } finally {        btn.disabled = false; btn.innerHTML = 'Save & Test Connection';    }}function populateMapping(headers) {    const fields = ['mapName', 'mapEmail', 'mapPhone', 'mapCourse', 'mapSource', 'mapNotes'];    fields.forEach(function(id) {        const sel = document.getElementById(id);        sel.innerHTML = '<option value="">-- Select --</option>';        headers.forEach(function(h) {            sel.innerHTML += '<option value="' + h + '">' + h + '</option>';        });    });    const lc = headers.map(function(h) { return h.toLowerCase(); });    const guess = {        mapName: lc.findIndex(function(v) { return v.includes('name') || v.includes('student'); }),        mapEmail: lc.findIndex(function(v) { return v.includes('email') || v.includes('mail'); }),        mapPhone: lc.findIndex(function(v) { return v.includes('phone') || v.includes('mobile') || v.includes('contact'); }),        mapCourse: lc.findIndex(function(v) { return v.includes('course') || v.includes('program') || v.includes('class'); }),        mapSource: lc.findIndex(function(v) { return v.includes('source') || v.includes('how') || v.includes('refer'); }),        mapNotes: lc.findIndex(function(v) { return v.includes('note') || v.includes('comment') || v.includes('message'); })    };    Object.entries(guess).forEach(function(_ref) {        var id = _ref[0], idx = _ref[1];        if (idx >= 0) document.getElementById(id).value = headers[idx];    });    document.getElementById('detectInfo').textContent = 'Auto-mapped ' + Object.values(guess).filter(function(i) { return i >= 0; }).length + ' fields. Adjust if needed.';}async function detectColumns() {    const btn = document.querySelector('button[onclick="detectColumns()"]');    btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm">
+</span>';    try {        const s = await fetch('/api/google-sync/status');        const d = await s.json();        if (d.connected) populateMapping(d.headers);        else document.getElementById('detectInfo').textContent = 'Not connected. Save sheet ID first.';    } catch(e) {        document.getElementById('detectInfo').textContent = 'Error: ' + e.message;    } finally {        btn.disabled = false; btn.innerHTML = '<i class="bi bi-magic">
+</i> Auto-Detect';    }}async function syncData() {    const mapping = {        name: document.getElementById('mapName').value,        email: document.getElementById('mapEmail').value,        phone: document.getElementById('mapPhone').value,        course: document.getElementById('mapCourse').value,        source: document.getElementById('mapSource').value,        notes: document.getElementById('mapNotes').value    };    if (!mapping.name) { toast('warning', 'Map at least the Name column before syncing.'); return; }    const btn = document.getElementById('syncBtn');    btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm">
+</span> Syncing...';    const resultEl = document.getElementById('syncResult');    resultEl.classList.add('d-none');    try {        const r = await fetch('/api/google-sync/sync', {            method: 'POST',            headers: {'Content-Type': 'application/json'},            body: JSON.stringify({mapping: mapping})        });        const d = await r.json();        resultEl.classList.remove('d-none');        if (r.ok) {            resultEl.className = 'alert alert-success d-flex align-items-center gap-2 mb-0';            resultEl.innerHTML = '<i class="bi bi-check-circle-fill">
+</i> Imported <strong>' + d.imported + '</strong> new enquiry(s). Skipped <strong>' + d.skipped + '</strong> duplicate(s).';            const lbl = document.getElementById('lastSyncLabel');            if (lbl) lbl.textContent = new Date().toLocaleString();            setTimeout(function() { location.reload(); }, 1500);        } else {            resultEl.className = 'alert alert-danger mb-0';            resultEl.textContent = 'Sync failed: ' + (d.error || 'Unknown error');        }    } catch(e) {        resultEl.classList.remove('d-none');        resultEl.className = 'alert alert-danger mb-0';        resultEl.textContent = 'Network error: ' + e.message;    } finally {        btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-repeat me-1">
+</i> Sync Now';    }}function toast(cat, msg) {    const el = document.getElementById('syncResult');    el.classList.remove('d-none');    el.className = 'alert alert-' + cat + ' mb-0';    el.textContent = msg;}// Auto-populate mapping on page load if sheet ID present(function() {    const sheetId = '{{ sheet_id }}';    if (sheetId) {        fetch('/api/google-sync/status')            .then(function(r) { return r.json(); })            .then(function(d) {                if (d.connected) populateMapping(d.headers);            })            .catch(function() {});    }})();</script>
+{% endblock %}

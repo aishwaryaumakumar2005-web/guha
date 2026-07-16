@@ -1,0 +1,88 @@
+{% extends 'base.html' %}{% block title %}Audit Log{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('admin.admin_console') }}">Admin</a></li><li class="breadcrumb-item active" aria-current="page">Audit Log</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="text-white fw-bold"><i class="bi bi-journal-text me-2"></i>Audit Log</h2>
+      <p class="text-white mb-0">All create, update, and delete operations recorded with timestamps and user information.</p>
+    </div>
+    <div class="text-end">
+      <span class="badge badge-custom py-2 px-3" style="background:rgba(27, 110, 243,0.15);color:#fff;border:1px solid rgba(27, 110, 243,0.3);">{{ total }} entries</span>
+    </div>
+  </div>
+
+  <div class="glass-card p-3 mb-4">
+    <form method="GET" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="small text-white-50 mb-1">Entity Type</label>
+        <select name="entity" class="form-select" onchange="this.form.submit()">
+          <option value="">All Entities</option>
+          {% for et in entity_types %}<option value="{{ et }}" {{ 'selected' if entity_filter==et }}>{{ label(et) }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="small text-white-50 mb-1">Action</label>
+        <select name="action" class="form-select" onchange="this.form.submit()">
+          <option value="">All Actions</option>
+          <option value="INSERT" {{ 'selected' if action_filter=='INSERT' }}>Create</option>
+          <option value="UPDATE" {{ 'selected' if action_filter=='UPDATE' }}>Update</option>
+          <option value="DELETE" {{ 'selected' if action_filter=='DELETE' }}>Delete</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="small text-white-50 mb-1">&nbsp;</label>
+        <a href="{{ url_for('admin.audit_log') }}" class="btn btn-outline-secondary w-100"><i class="bi bi-x-circle me-1"></i>Clear Filters</a>
+      </div>
+    </form>
+  </div>
+
+  <div class="glass-card p-0">
+    <div class="table-container">
+      <table class="table table-custom mb-0">
+        <thead>
+          <tr><th>Timestamp</th><th>User</th><th>Action</th><th>Entity</th><th>ID</th><th>Changes</th></tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td class="text-nowrap small">{{ log.timestamp.strftime('%d %b %Y %I:%M %p') }}</td>
+            <td>{{ log.username or '—' }}</td>
+            <td>
+              {% if log.action == 'INSERT' %}<span class="badge bg-success">CREATE</span>
+              {% elif log.action == 'UPDATE' %}<span class="badge bg-info text-dark">UPDATE</span>
+              {% elif log.action == 'DELETE' %}<span class="badge bg-danger">DELETE</span>
+              {% else %}<span class="badge bg-secondary">{{ log.action }}</span>{% endif %}
+            </td>
+            <td>{{ label(log.entity_type) }}</td>
+            <td>{{ log.entity_id or '—' }}</td>
+            <td style="max-width:350px;">
+              {% set ch = log.changes_dict() %}
+              {% if ch %}
+              <button class="btn btn-sm btn-outline-info py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#change-{{ log.id }}" aria-expanded="false">
+                <i class="bi bi-arrows-expand"></i> {{ ch.keys()|list|length }} field(s)
+              </button>
+              <div class="collapse small mt-1" id="change-{{ log.id }}">
+                <pre class="mb-0 p-2 rounded" style="background:rgba(0,0,0,0.3);color:#8ab4f8;font-size:11px;max-height:200px;overflow:auto;white-space:pre-wrap;">{{ ch|tojson(indent=2) }}</pre>
+              </div>
+              {% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No audit entries found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if total > per_page %}
+  <div class="d-flex justify-content-between align-items-center mt-3">
+    <small class="text-white-50">Showing page {{ page }} of {{ ((total - 1) // per_page) + 1 }}</small>
+    <nav>
+      <ul class="pagination pagination-sm mb-0">
+        {% if page > 1 %}<li class="page-item"><a class="page-link" href="?page={{ page - 1 }}{% if entity_filter %}&entity={{ entity_filter }}{% endif %}{% if action_filter %}&action={{ action_filter }}{% endif %}">Previous</a></li>{% endif %}
+        {% if page * per_page < total %}<li class="page-item"><a class="page-link" href="?page={{ page + 1 }}{% if entity_filter %}&entity={{ entity_filter }}{% endif %}{% if action_filter %}&action={{ action_filter }}{% endif %}">Next</a></li>{% endif %}
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

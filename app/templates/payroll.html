@@ -1,0 +1,316 @@
+{% extends 'base.html' %}{% block title %}Payroll{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('expenses.list') }}">Finance</a></li><li class="breadcrumb-item active" aria-current="page">Payroll</li>{% endblock %}{% block content %}
+<style>
+.payslip-table th { background: #0d2740; color: white; font-size: 0.8rem; padding: 8px; }
+.payslip-table td { padding: 8px; font-size: 0.85rem; }
+.status-draft { color: #f0ad4e; }
+.status-paid { color: #5cb85c; }
+.status-cancelled { color: #d9534f; }
+</style>
+<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold"><i class="bi bi-currency-rupee me-2"></i>Payroll Management</h2>
+            <p class="text-white mb-0">Process monthly salaries, manage deductions, and generate payslips.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-premium" data-bs-toggle="modal" data-bs-target="#processAllModal">
+                <i class="bi bi-gear-wide-connected me-2"></i>Process All
+            </button>
+            <button class="btn btn-premium" data-bs-toggle="modal" data-bs-target="#processModal">
+                <i class="bi bi-plus-circle me-2"></i>Process Payroll
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-2 col-6">
+            <div class="glass-card p-3 text-center">
+                <div class="text-white-50 small fw-semibold text-uppercase">Total Base</div>
+                <div class="fw-bold fs-5 text-white">₹{{ "{:,.0f}".format(totals.base) }}</div>
+            </div>
+        </div>
+        <div class="col-md-2 col-6">
+            <div class="glass-card p-3 text-center">
+                <div class="text-white-50 small fw-semibold text-uppercase">Commission</div>
+                <div class="fw-bold fs-5 text-white">₹{{ "{:,.0f}".format(totals.commission) }}</div>
+            </div>
+        </div>
+        <div class="col-md-2 col-6">
+            <div class="glass-card p-3 text-center">
+                <div class="text-white-50 small fw-semibold text-uppercase">Bonus</div>
+                <div class="fw-bold fs-5 text-white">₹{{ "{:,.0f}".format(totals.bonus) }}</div>
+            </div>
+        </div>
+        <div class="col-md-2 col-6">
+            <div class="glass-card p-3 text-center">
+                <div class="text-white-50 small fw-semibold text-uppercase">TDS</div>
+                <div class="fw-bold fs-5 text-white">₹{{ "{:,.0f}".format(totals.tds) }}</div>
+            </div>
+        </div>
+        <div class="col-md-2 col-6">
+            <div class="glass-card p-3 text-center">
+                <div class="text-white-50 small fw-semibold text-uppercase">Other Ded</div>
+                <div class="fw-bold fs-5 text-white">₹{{ "{:,.0f}".format(totals.other) }}</div>
+            </div>
+        </div>
+        <div class="col-md-2 col-6">
+            <div class="glass-card p-3 text-center" style="border-left: 4px solid var(--accent-emerald);">
+                <div class="text-white-50 small fw-semibold text-uppercase">Net Payable</div>
+                <div class="fw-bold fs-5" style="color: #1b6ef3;">₹{{ "{:,.0f}".format(totals.net) }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="glass-card p-3 mb-4">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label text-white small">Month</label>
+                <select name="month" class="form-select">
+                    {% for m in range(1, 13) %}
+                    <option value="{{ m }}" {% if filter_month == m %}selected{% endif %}>{{ ["January","February","March","April","May","June","July","August","September","October","November","December"][m-1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label text-white small">Year</label>
+                <select name="year" class="form-select">
+                    {% for y in range(today.year - 2, today.year + 2) %}
+                    <option value="{{ y }}" {% if filter_year == y %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label text-white small">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">All</option>
+                    <option value="Draft" {% if filter_status == 'Draft' %}selected{% endif %}>Draft</option>
+                    <option value="Paid" {% if filter_status == 'Paid' %}selected{% endif %}>Paid</option>
+                    <option value="Cancelled" {% if filter_status == 'Cancelled' %}selected{% endif %}>Cancelled</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-premium w-100"><i class="bi bi-funnel me-1"></i>Filter</button>
+            </div>
+            <div class="col-md-3 text-end">
+                <small class="text-white-50">{{ records|length }} record(s)</small>
+            </div>
+        </form>
+    </div>
+
+    <!-- Payroll Table -->
+    <div class="glass-card p-0 overflow-hidden">
+        <table class="table table-dark table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Tutor</th>
+                    <th class="text-end">Base</th>
+                    <th class="text-end">Commission</th>
+                    <th class="text-end">Bonus</th>
+                    <th class="text-end">Gross</th>
+                    <th class="text-end">TDS</th>
+                    <th class="text-end">Other Ded</th>
+                    <th class="text-end">Net</th>
+                    <th>Status</th>
+                    <th class="text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if records %}
+                {% for r in records %}
+                {% set gross = r.base_amount + r.commission_amount + r.bonus_amount %}
+                <tr>
+                    <td><a href="{{ url_for('tutors.list') }}?tutor_id={{ r.tutor_id }}" class="text-info text-decoration-none">{{ r.tutor.name }}</a></td>
+                    <td class="text-end text-white">₹{{ "{:,.0f}".format(r.base_amount) }}</td>
+                    <td class="text-end text-white">₹{{ "{:,.0f}".format(r.commission_amount) }}</td>
+                    <td class="text-end text-white">₹{{ "{:,.0f}".format(r.bonus_amount) }}</td>
+                    <td class="text-end text-white">₹{{ "{:,.0f}".format(gross) }}</td>
+                    <td class="text-end text-danger">-₹{{ "{:,.0f}".format(r.tds_amount) }}</td>
+                    <td class="text-end text-danger">-₹{{ "{:,.0f}".format(r.other_deductions) }}</td>
+                    <td class="text-end fw-bold" style="color: #1b6ef3;">₹{{ "{:,.0f}".format(r.net_amount) }}</td>
+                    <td>
+                        {% if r.status == 'Draft' %}<span class="status-draft fw-semibold">Draft</span>
+                        {% elif r.status == 'Paid' %}<span class="status-paid fw-semibold">Paid</span>
+                        {% else %}<span class="status-cancelled fw-semibold">Cancelled</span>{% endif %}
+                    </td>
+                    <td class="text-center">
+                        <div class="btn-group btn-group-sm">
+                            <a href="{{ url_for('payroll.payslip_pdf', id=r.id) }}" class="btn btn-outline-info" title="Download Payslip"><i class="bi bi-file-pdf"></i></a>
+                            {% if r.status == 'Draft' %}
+                            <form method="POST" action="{{ url_for('payroll.confirm_payroll', id=r.id) }}" class="d-inline" onsubmit="return confirm('Confirm payroll for {{ r.tutor.name }}? An expense will be auto-recorded.');">
+                                <button type="submit" class="btn btn-outline-success" title="Confirm & Record Expense"><i class="bi bi-check-lg"></i></button>
+                            </form>
+                            <form method="POST" action="{{ url_for('payroll.cancel_payroll', id=r.id) }}" class="d-inline" onsubmit="return confirm('Cancel this payroll record?');">
+                                <button type="submit" class="btn btn-outline-danger" title="Cancel"><i class="bi bi-x-lg"></i></button>
+                            </form>
+                            {% endif %}
+                            <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#settingsModal{{ r.tutor_id }}" title="Settings"><i class="bi bi-gear"></i></button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                {{ empty_state('No payroll records for this period', 'Click "Process Payroll" above to generate payroll for the selected period', 'payroll', none, none, none, 10) }}
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Process Single Modal -->
+<div class="modal fade" id="processModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-white"><i class="bi bi-person-gear me-2"></i>Process Individual Payroll</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('payroll.process_payroll') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Tutor</label>
+                        <select name="tutor_id" class="form-select" required autofocus>
+                            <option value="">-- Select Tutor --</option>
+                            {% for t in tutors %}
+                            <option value="{{ t.id }}">{{ t.name }}{% if t.payroll_settings %} (Base: ₹{{ "{:,.0f}".format(t.payroll_settings.base_salary) }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label text-white small">Month</label>
+                            <select name="month" class="form-select" required>
+                                {% for m in range(1, 13) %}
+                                <option value="{{ m }}" {% if filter_month == m %}selected{% endif %}>{{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m-1] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label text-white small">Year</label>
+                            <select name="year" class="form-select" required>
+                                {% for y in range(today.year - 2, today.year + 2) %}
+                                <option value="{{ y }}" {% if filter_year == y %}selected{% endif %}>{{ y }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Commission % <span class="text-white-50">(leave blank for default)</span></label>
+                        <input type="number" step="0.1" class="form-control" name="percentage" placeholder="e.g. 10">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-premium"><i class="bi bi-calculator me-1"></i>Calculate & Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Process All Modal -->
+<div class="modal fade" id="processAllModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-white"><i class="bi bi-people-gear me-2"></i>Process All Active Tutors</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('payroll.process_all_payroll') }}">
+                <div class="modal-body">
+                    <p class="text-white-50 small">This will create Draft payroll records for all active tutors for the selected period. Existing records will be skipped.</p>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label text-white small">Month</label>
+                            <select name="month" class="form-select" required autofocus>
+                                {% for m in range(1, 13) %}
+                                <option value="{{ m }}" {% if filter_month == m %}selected{% endif %}>{{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m-1] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label text-white small">Year</label>
+                            <select name="year" class="form-select" required>
+                                {% for y in range(today.year - 2, today.year + 2) %}
+                                <option value="{{ y }}" {% if filter_year == y %}selected{% endif %}>{{ y }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Commission % <span class="text-white-50">(overrides individual settings)</span></label>
+                        <input type="number" step="0.1" class="form-control" name="percentage" placeholder="Leave blank to use per-tutor settings">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-premium"><i class="bi bi-gear-wide-connected me-1"></i>Process All</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Settings Modals per Tutor -->
+{% for t in tutors %}
+<div class="modal fade" id="settingsModal{{ t.id }}" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-white"><i class="bi bi-gear me-2"></i>Payroll Settings: {{ t.name }}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('payroll.update_settings', tutor_id=t.id) }}">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label text-white small">Base Salary (Monthly) <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" class="form-control" name="base_salary" value="{{ t.payroll_settings.base_salary if t.payroll_settings else 0 }}" min="0" required autofocus>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label text-white small">Commission %</label>
+                            <input type="number" step="0.1" class="form-control" name="commission_percentage" value="{{ t.payroll_settings.commission_percentage if t.payroll_settings else 0 }}" min="0" max="100">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label text-white small">TDS %</label>
+                            <input type="number" step="0.1" class="form-control" name="tds_percentage" value="{{ t.payroll_settings.tds_percentage if t.payroll_settings else 10 }}" min="0" max="100">
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label text-white small">Bonus</label>
+                            <input type="number" step="0.01" class="form-control" name="bonus" value="{{ t.payroll_settings.bonus if t.payroll_settings else 0 }}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Other Deductions</label>
+                        <input type="number" step="0.01" class="form-control" name="other_deductions" value="{{ t.payroll_settings.other_deductions if t.payroll_settings else 0 }}">
+                    </div>
+                    <hr class="border-secondary">
+                    <h6 class="text-white small fw-semibold mb-2">Bank Details (for payslip)</h6>
+                    <div class="row">
+                        <div class="col-12 mb-2">
+                            <label class="form-label text-white small">Bank Name</label>
+                            <input type="text" class="form-control" name="bank_name" value="{{ t.payroll_settings.bank_name if t.payroll_settings else '' }}">
+                        </div>
+                        <div class="col-6 mb-2">
+                            <label class="form-label text-white small">Account Number</label>
+                            <input type="text" class="form-control" name="account_number" value="{{ t.payroll_settings.account_number if t.payroll_settings else '' }}">
+                        </div>
+                        <div class="col-6 mb-2">
+                            <label class="form-label text-white small">IFSC Code</label>
+                            <input type="text" class="form-control" name="ifsc_code" value="{{ t.payroll_settings.ifsc_code if t.payroll_settings else '' }}">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-premium"><i class="bi bi-save me-1"></i>Save Settings</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

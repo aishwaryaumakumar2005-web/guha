@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.db
+*.db-wal
+*.db-shm
+instance/
+.env
+flask_out.txt
+flask_err.txt
+*.log
+backups/
+.DS_Store
+Thumbs.db
+docs/*.docx

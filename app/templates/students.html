@@ -1,0 +1,535 @@
+{% extends 'base.html' %}{% block title %}Students Directory{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item active" aria-current="page">Students</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+    <!-- Header Row -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold">
+{% if is_staff %}My Students{% else %}Students Directory{% endif %}</h2>
+            <p class="text-white mb-0" style="opacity: 0.85;">
+{% if is_staff %}View students enrolled in your courses.{% else %}Enroll new students, map syllabus programs, and print barcode ID cards.{% endif %}</p>
+        </div>
+        {% if not is_staff %}
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-premium" data-bs-toggle="modal" data-bs-target="#uploadStudentsModal">
+                <i class="bi bi-file-earmark-excel me-2">
+</i>
+Import Excel            </button>
+            <button class="btn btn-premium" data-bs-toggle="modal" data-bs-target="#enrollStudentModal">
+                <i class="bi bi-person-plus-fill me-2">
+</i>
+Enroll Student            </button>
+        </div>
+        {% endif %}
+    </div>
+    {% if not is_staff %}
+    <!-- Course filter -->
+    <div class="d-flex align-items-center gap-3 mb-3">
+        <form method="GET" action="{{ url_for('students.list') }}" class="d-flex align-items-center gap-2">
+            <label for="course-filter" class="text-white small mb-0">Filter by Course:</label>
+            <select id="course-filter" name="course_id" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+                <option value="">All Courses</option>
+                {% for c in courses %}                    <option value="{{ c.id }}" {% if selected_course_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}            </select>
+        </form>
+        {% if selected_course_id %}<a href="{{ url_for('students.list') }}" class="btn btn-sm btn-outline-secondary">Clear</a>{% endif %}
+    </div>
+    <!-- AI Excel Import Assistant Header -->
+    <div class="glass-card p-4 mb-4 border border-info border-opacity-25" style="background: linear-gradient(135deg, rgba(27, 110, 243, 0.15) 0%, rgba(33, 37, 56, 0.45) 100%);">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <h5 class="fw-bold" style="color: #ffffff !important;">
+<i class="bi bi-cpu-fill me-2 animate-pulse" style="color: #ffffff !important;">
+</i>
+AI-Powered Excel Import</h5>
+                <p class="small mb-lg-0" style="color: #ffffff !important;">
+Bulk import student records from Excel files with AI-powered data validation, duplicate detection, and smart course mapping suggestions.</p>
+            </div>
+            <div class="col-lg-4 text-lg-end">
+                <button class="btn btn-outline-premium" data-bs-toggle="modal" data-bs-target="#uploadStudentsModal">
+                    <i class="bi bi-upload me-2">
+</i>
+Upload Excel File                </button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    <!-- Student Table Grid -->
+    <div class="glass-card p-4" data-aos="fade-up">
+        <div class="table-container">
+            <table class="table table-custom sortable" data-page-size="10">
+                <thead>
+                    <tr>
+                        <th>
+ID</th>
+                        <th>
+Full Name</th>
+                        <th>
+Phone</th>
+                        <th>
+Courses Enrolled</th>
+                        <th>
+Enrollment Date</th>
+                        <th>
+Status</th>
+                        <th class="text-end">
+Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if students %}                        {% for student in students %}                            <tr>
+                                <td data-label="ID" class="text-white small" style="opacity: 0.85;">
+#{{ student.id }}</td>
+                                <td data-label="Name">
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar-stub me-2 d-flex align-items-center justify-content-center bg-cyan bg-opacity-10 text-white rounded-circle fw-bold" style="width: 32px; height: 32px; font-size: 0.85rem">
+                                            {{ student.name[:2].upper() }}                                        </div>
+                                        <span class="fw-medium text-white">
+{{ student.name }}</span>
+                                    </div>
+                                </td>
+                                <td data-label="Phone" class="text-white" style="opacity: 0.85;">
+{{ student.phone }}</td>
+                                <td data-label="Courses">
+                                    {% if student.courses %}                                        {% for c in student.courses %}                                            <span class="badge badge-custom badge-cyan mb-1">
+{{ c.name }}</span>
+                                        {% endfor %}                                    {% else %}                                        <span class="text-white small" style="opacity: 0.85;">
+-</span>
+                                    {% endif %}                                </td>
+                                <td data-label="Enrolled" class="text-white" style="opacity: 0.85;">
+{{ student.enrollment_date.strftime("%d %b %Y") if student.enrollment_date else 'Not set' }}</td>
+                                <td data-label="Status">
+                                    <span class="badge badge-custom {% if student.status == 'Active' %}badge-active{% else %}badge-inactive{% endif %}">
+                                        {{ student.status }}                                    </span>
+                                </td>
+                                <td data-label="Actions" class="text-end">
+                                    <div class="d-flex justify-content-end gap-2">
+                                        <!-- View Details Button -->
+                                        <button class="btn btn-sm btn-outline-info"                                                 onclick="viewStudentDetails({{ student.id }})"                                                title="View Full Details">
+                                            <i class="bi bi-eye-fill">
+</i>
+                                        </button>
+                                        <!-- AI Performance Insights Button -->
+                                        <button class="btn btn-sm btn-outline-premium"                                                 onclick="loadStudentPerformanceInsights({{ student.id }}, '{{ student.name }}')"                                                title="AI Performance Insights">
+                                            <i class="bi bi-graph-up-arrow">
+</i>
+                                        </button>
+                                        <!-- ID Card Generator Button -->
+                                        {% set course_list = student.courses|map(attribute='name')|join(', ') %}                                        <button class="btn btn-sm btn-outline-premium"                                                 onclick="showIDCard('{{ student.name }}', 'STUDENT', '{{ student.email }}', '{{ student.phone }}', '{{ student.qr_code_uuid }}', 'Enrolled Course(s)', '{{ course_list or 'Not Assigned' }}')"                                                title="Print ID Card">
+                                            <i class="bi bi-qr-code-scan">
+</i>
+                                        </button>
+                                        {% if not is_staff %}
+                                        <!-- Edit button -->
+                                        <button class="btn btn-sm btn-outline-info"                                                 data-bs-toggle="modal"                                                 data-bs-target="#editStudentModal{{ student.id }}"                                                title="Edit Student">
+                                            <i class="bi bi-pencil-square">
+</i>
+                                        </button>
+                                        <!-- Delete button -->
+                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Are you sure you want to completely remove this student record? This action cannot be undone.', function() { window.location.href = '{{ url_for('students.delete', id=student.id) }}'; })" title="Delete Student">
+                                            <i class="bi bi-trash3-fill">
+</i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}                    {% else %}                        <tr>
+                            {% if not is_staff %}
+                            {{ empty_state('No students enrolled yet', "Get started by enrolling your first student using the button above", 'students', '#', 'Enroll Student', 'bi-person-plus-fill', 7) }}
+                            {% else %}
+                            <td colspan="7"><div class="text-center text-muted small py-5">No students enrolled in your courses yet.</div></td>
+                            {% endif %}
+                        </tr>
+                    {% endif %}                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}{% block modals %}<!-- ENROLL STUDENT MODAL -->
+<div class="modal fade" id="enrollStudentModal" tabindex="-1" aria-labelledby="enrollStudentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="enrollStudentModalLabel">
+<i class="bi bi-person-plus-fill me-2">
+</i>
+Enroll New Student</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close">
+</button>
+            </div>
+            <form action="{{ url_for('students.list') }}" method="POST" data-no-ajax>
+                <input type="hidden" name="_no_ajax" value="1">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small text-white">
+Full Name</label>
+                        <input type="text" class="form-control" name="name" placeholder="e.g. Alice Cooper" maxlength="100" required autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-white">
+                        Email Address</label>
+                        <input type="email" class="form-control" name="email" placeholder="e.g. alice@gmail.com" maxlength="100" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-white">
+Phone Number</label>
+                        <input type="tel" class="form-control" name="phone" placeholder="e.g. 555-0201" pattern="[0-9+\-\s]{10,20}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-white">
+                        Courses Mapping</label>
+                        <select class="form-select ts-select" name="courses" multiple placeholder="Search courses...">
+                            {% if courses %}                                {% for course in courses %}                                    <option value="{{ course.id }}">{{ course.code }}: {{ course.name }} (₹{{ course.fees }})</option>
+                                {% endfor %}                            {% else %}                                <option disabled>No active courses. Add courses first!</option>
+                            {% endif %}                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+Cancel</button>
+                    <button type="submit" class="btn btn-premium">
+Enroll & Generate QR</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% if students %}{% for student in students %}<!-- EDIT STUDENT MODAL -->
+<div class="modal fade" id="editStudentModal{{ student.id }}" tabindex="-1" aria-labelledby="editStudentModalLabel{{ student.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-white" id="editStudentModalLabel{{ student.id }}">
+Modify Student Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close">
+</button>
+            </div>
+            <form action="{{ url_for('students.edit', id=student.id) }}" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-white small">
+Full Name</label>
+                        <input type="text" class="form-control" name="name" value="{{ student.name }}" maxlength="100" required autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">
+                        Email Address</label>
+                        <input type="email" class="form-control" name="email" value="{{ student.email }}" maxlength="100" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">
+Phone Number</label>
+                        <input type="tel" class="form-control" name="phone" value="{{ student.phone }}" pattern="[0-9+\-\s]{10,20}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">
+Status</label>
+                        <select class="form-select" name="status">
+                            <option value="Active" {% if student.status == 'Active' %}selected{% endif %}>
+Active</option>
+                            <option value="Inactive" {% if student.status == 'Inactive' %}selected{% endif %}>
+Inactive</option>
+                                    </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">
+                        Courses Mapping</label>
+                        <select class="form-select ts-select" name="courses" multiple placeholder="Search courses...">
+                            {% for course in courses %}                                <option value="{{ course.id }}" {% if course in student.courses %}selected{% endif %}>{{ course.code }}: {{ course.name }}</option>
+                            {% endfor %}                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+Cancel</button>
+                    <button type="submit" class="btn btn-premium">
+Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}{% endif %}<!-- EXCEL UPLOAD MODAL -->
+<div class="modal fade" id="uploadStudentsModal" tabindex="-1" aria-labelledby="uploadStudentsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uploadStudentsModalLabel">
+<i class="bi bi-file-earmark-excel me-2">
+</i>
+Import Students from Excel</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close">
+</button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="p-3 rounded border border-color mb-3" style="background:rgba(27, 110, 243,0.06);">
+                    <div class="d-flex gap-2">
+                        <i class="bi bi-info-circle flex-shrink-0 mt-1" style="color:#1b6ef3;">
+</i>
+                        <div class="small text-white">
+                            <strong class="text-white">
+Excel Format Requirements:</strong>
+<br>
+ Your Excel file should have columns: <code>
+Name</code>
+, <code>
+Email</code>
+, <code>
+Phone</code>
+, <code>
+Status</code>
+ (optional), <code>
+Courses</code>
+ (optional, comma-separated course codes).                        </div>
+                    </div>
+                </div>
+                                <form id="uploadStudentsForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label small text-white">
+Select Excel File (.xlsx, .xls)</label>
+                        <input type="file" class="form-control" name="excel_file" accept=".xlsx,.xls" required autofocus>
+                    </div>
+                                        <div class="mb-3 form-check">
+                        <input class="form-check-input" type="checkbox" name="ai_validation" id="aiValidationCheck" checked>
+                        <label class="form-check-label small text-white" for="aiValidationCheck">
+                            Enable AI-powered data validation and enrichment                        </label>
+                    </div>
+                                        <div class="mb-3 form-check">
+                        <input class="form-check-input" type="checkbox" name="auto_course_mapping" id="autoCourseMappingCheck">
+                        <label class="form-check-label small text-white" for="autoCourseMappingCheck">
+                            Enable AI course mapping suggestions                        </label>
+                    </div>
+                </form>
+                                <hr class="border-color">
+                                <!-- Validation Results -->
+                <div id="validationResults" class="d-none">
+                    <h6 class="text-white small mb-3">
+<i class="bi bi-robot me-2">
+</i>
+AI Validation Results</h6>
+                    <div id="validationContent">
+</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+Cancel</button>
+                <button type="button" class="btn btn-premium" id="btnUploadExcel" onclick="uploadStudentExcel()">
+                    <i class="bi bi-upload me-2">
+</i>
+Validate & Import                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+function uploadStudentExcel() {    const form = document.getElementById('uploadStudentsForm');    const formData = new FormData(form);    const aiValidation = document.getElementById('aiValidationCheck').checked;    const autoCourseMapping = document.getElementById('autoCourseMappingCheck').checked;        formData.append('ai_validation', aiValidation);    formData.append('auto_course_mapping', autoCourseMapping);        const btn = document.getElementById('btnUploadExcel');    btn.disabled = true;    btn.innerHTML = '<i class="bi bi-hourglass-split me-2">
+</i>
+Processing...';        fetch('/api/students/import-excel', {        method: 'POST',        body: formData    })    .then(response =>
+ response.json())    .then(data =>
+ {        const validationDiv = document.getElementById('validationResults');        const validationContent = document.getElementById('validationContent');                validationDiv.classList.remove('d-none');                if (data.success) {            validationContent.innerHTML = `                <div class="alert alert-success">
+                    <i class="bi bi-check-circle me-2">
+</i>
+                    <strong>
+Import Successful!</strong>
+<br>
+                    ${data.message}                </div>
+            `;            setTimeout(() =>
+ {                location.reload();            }, 2000);        } else {            let errorHtml = '<div class="alert alert-danger">
+';            errorHtml += `<i class="bi bi-exclamation-triangle me-2">
+</i>
+<strong>
+Validation Failed</strong>
+<br>
+`;                        if (data.errors && data.errors.length >
+ 0) {                errorHtml += '<ul class="mb-0 mt-2">
+';                data.errors.forEach(err =>
+ {                    errorHtml += `<li>
+${err}</li>
+`;                });                errorHtml += '</ul>
+';            }                        if (data.warnings && data.warnings.length >
+ 0) {                errorHtml += '<strong>
+Warnings:</strong>
+<ul class="mb-0 mt-2">
+';                data.warnings.forEach(warn =>
+ {                    errorHtml += `<li>
+${warn}</li>
+`;                });                errorHtml += '</ul>
+';            }                        if (data.suggestions && data.suggestions.length >
+ 0) {                errorHtml += '<strong>
+AI Suggestions:</strong>
+<ul class="mb-0 mt-2">
+';                data.suggestions.forEach(sugg =>
+ {                    errorHtml += `<li>
+${sugg}</li>
+`;                });                errorHtml += '</ul>
+';            }                        errorHtml += '</div>
+';            validationContent.innerHTML = errorHtml;        }                btn.disabled = false;        btn.innerHTML = '<i class="bi bi-upload me-2">
+</i>
+Validate & Import';    })    .catch(error =>
+ {        console.error('Error:', error);        const validationDiv = document.getElementById('validationResults');        const validationContent = document.getElementById('validationContent');                validationDiv.classList.remove('d-none');        validationContent.innerHTML = `            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle me-2">
+</i>
+                <strong>
+Error uploading file</strong>
+<br>
+                ${error.message}            </div>
+        `;                btn.disabled = false;        btn.innerHTML = '<i class="bi bi-upload me-2">
+</i>
+Validate & Import';    });}</script>
+<!-- Student Full Details Modal -->
+<div class="modal fade" id="studentDetailsModal" tabindex="-1" aria-labelledby="studentDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="studentDetailsModalLabel">
+<i class="bi bi-person-vcard-fill me-2">
+</i>
+Student Full Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close">
+</button>
+            </div>
+            <div class="modal-body p-4" id="studentDetailsContent">
+                <div class="d-flex align-items-center text-secondary">
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true">
+</span>
+                    Loading student details...                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- AI Student Performance Insights Modal -->
+<div class="modal fade" id="aiStudentPerformanceModal" tabindex="-1" aria-labelledby="aiStudentPerformanceModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="aiStudentPerformanceModalLabel">
+<i class="bi bi-graph-up-arrow text-dark me-2">
+</i>
+AI Student Performance Insights</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+</button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="studentPerformanceContent">
+                    <div class="d-flex align-items-center text-secondary">
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true">
+</span>
+                        Analyzing student performance and generating insights...                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+function viewStudentDetails(studentId) {    
+    try {
+        const modalEl = document.getElementById('studentDetailsModal');
+        if (!modalEl) { console.error('Modal element not found'); return; }
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        const contentDiv = document.getElementById('studentDetailsContent');
+        if (!contentDiv) { console.error('Content div not found'); return; }
+        contentDiv.innerHTML = '<div class="d-flex align-items-center text-secondary"><span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading student details...</div>';
+        modal.show();
+        fetch('/api/students/' + studentId + '/details')
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            var coursesHtml = '';
+            if (data.courses.length > 0) {
+                coursesHtml = data.courses.map(function(c) {
+                    return '<div class="col-md-6 mb-2"><div class="p-2 rounded border border-color bg-dark bg-opacity-25"><div class="fw-bold text-white small">' + c.code + ': ' + c.name + '</div><div class="text-white small" style="opacity: 0.7;">Fee: ₹' + c.fees.toFixed(2) + ' &middot; Duration: ' + c.duration + '</div></div></div>';
+                }).join('');
+            } else {
+                coursesHtml = '<div class="text-white small" style="opacity: 0.7;">No courses enrolled.</div>';
+            }
+            var attendanceHtml = '';
+            if (data.attendance.total_days > 0) {
+                attendanceHtml = '<div class="row g-2"><div class="col-3"><div class="p-2 rounded text-center" style="background: rgba(27, 110, 243,0.15);"><div class="fw-bold text-info fs-5">' + data.attendance.total_days + '</div><div class="small text-white" style="opacity: 0.7;">Total</div></div></div><div class="col-3"><div class="p-2 rounded text-center" style="background: rgba(27, 110, 243,0.15);"><div class="fw-bold" style="color: #1b6ef3; font-size: 1.25rem;">' + data.attendance.present + '</div><div class="small text-white" style="opacity: 0.7;">Present</div></div></div><div class="col-3"><div class="p-2 rounded text-center" style="background: rgba(255,51,102,0.15);"><div class="fw-bold" style="color: #ff3366; font-size: 1.25rem;">' + data.attendance.absent + '</div><div class="small text-white" style="opacity: 0.7;">Absent</div></div></div><div class="col-3"><div class="p-2 rounded text-center" style="background: rgba(255,193,7,0.15);"><div class="fw-bold" style="color: #ffc107; font-size: 1.25rem;">' + data.attendance.late + '</div><div class="small text-white" style="opacity: 0.7;">Late</div></div></div></div>';
+            } else {
+                attendanceHtml = renderEmptyState('No attendance records', 'Attendance will appear once logs are recorded', 'attendance');
+            }
+            contentDiv.innerHTML = '<div class="row g-4"><div class="col-lg-4"><div class="p-3 rounded border border-color h-100" style="background-color: #0d2740;"><h6 class="text-white fw-bold mb-3"><i class="bi bi-person-badge-fill me-2 text-info"></i>Personal Details</h6><div class="mb-2 d-flex justify-content-between"><span class="text-white small" style="opacity: 0.6;">Name</span><span class="text-white small fw-medium">' + data.name + '</span></div><div class="mb-2 d-flex justify-content-between"><span class="text-white small" style="opacity: 0.6;">Email</span><span class="text-white small">' + data.email + '</span></div><div class="mb-2 d-flex justify-content-between"><span class="text-white small" style="opacity: 0.6;">Phone</span><span class="text-white small">' + data.phone + '</span></div><div class="mb-2 d-flex justify-content-between"><span class="text-white small" style="opacity: 0.6;">Enrolled On</span><span class="text-white small">' + data.enrollment_date + '</span></div><div class="mb-2 d-flex justify-content-between"><span class="text-white small" style="opacity: 0.6;">Status</span><span class="badge ' + (data.status === 'Active' ? 'badge-active' : 'badge-inactive') + '">' + data.status + '</span></div><div class="d-flex justify-content-between align-items-center"><span class="text-white small" style="opacity: 0.6;">QR UUID</span><span class="text-white small" style="font-size: 0.7rem; opacity: 0.5;">' + data.qr_code_uuid + '</span></div></div></div><div class="col-lg-4"><div class="p-3 rounded border border-color h-100" style="background-color: #0d2740;"><h6 class="text-white fw-bold mb-3"><i class="bi bi-journal-bookmark-fill me-2 text-success"></i>Enrolled Courses</h6><div class="row">' + coursesHtml + '</div></div></div><div class="col-lg-4"><div class="p-3 rounded border border-color h-100" style="background-color: #0d2740;"><h6 class="text-white fw-bold mb-3"><i class="bi bi-cash-stack me-2 text-warning"></i>Fee Summary</h6><div class="mb-2 d-flex justify-content-between"><span class="text-white small" style="opacity: 0.6;">Total Course Fee</span><span class="text-white small fw-medium">₹' + data.fees.total_course_fee.toFixed(2) + '</span></div><div class="mb-2 d-flex justify-content-between"><span class="text-white small" style="opacity: 0.6;">Total Paid</span><span class="text-white small" style="color: #1b6ef3;">₹' + data.fees.total_paid.toFixed(2) + '</span></div><div class="mb-3 d-flex justify-content-between pb-2" style="border-bottom: 1px solid var(--border-color);"><span class="text-white small" style="opacity: 0.6;">Pending</span><span class="fw-bold" style="color: ' + (data.fees.pending > 0 ? '#ff3366' : '#1b6ef3') + ';">₹' + data.fees.pending.toFixed(2) + '</span></div><h6 class="text-white fw-bold mb-3 mt-3"><i class="bi bi-calendar-check me-2 text-info"></i>Attendance</h6>' + attendanceHtml + '</div></div></div>';
+        })
+        .catch(function(error) {
+            console.error('Error:', error);
+            contentDiv.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>Error loading student details. Please try again.</div>';
+        });
+    } catch (e) {
+        console.error('viewStudentDetails error:', e);
+    }
+}function loadStudentPerformanceInsights(studentId, studentName) {    const modal = new bootstrap.Modal(document.getElementById('aiStudentPerformanceModal'));    const contentDiv = document.getElementById('studentPerformanceContent');        contentDiv.innerHTML = `        <div class="d-flex align-items-center text-secondary">
+            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true">
+</span>
+            Analyzing student performance and generating insights...        </div>
+    `;        modal.show();        fetch(`/api/students/${studentId}/ai-performance-insights`)        .then(response =>
+ response.json())        .then(data =>
+ {            let html = `                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="p-3 rounded border border-color bg-dark bg-opacity-25" style="background-color: #0d2740 !important;">
+                            <h6 class="text-white small fw-bold mb-2">
+<i class="bi bi-trophy-fill me-2 text-warning">
+</i>
+Performance Level</h6>
+                            <div class="text-white fw-bold fs-4">
+${data.performance_level}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="p-3 rounded border border-color bg-dark bg-opacity-25" style="background-color: #0d2740 !important;">
+                            <h6 class="text-white small fw-bold mb-2">
+<i class="bi bi-check-circle-fill me-2 text-success">
+</i>
+Success Probability</h6>
+                            <div class="text-white fw-bold fs-4">
+${data.success_probability}%</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <h6 class="text-white fw-bold mb-3">
+<i class="bi bi-star-fill me-2 text-info">
+</i>
+Strengths</h6>
+                    <ul class="mb-0">
+                        ${data.strengths.map(strength =>
+ `<li class="mb-2 text-white" style="opacity: 0.9;">
+${strength}</li>
+`).join('')}                    </ul>
+                </div>
+                <div class="mb-4">
+                    <h6 class="text-white fw-bold mb-3">
+<i class="bi bi-exclamation-triangle-fill me-2 text-danger">
+</i>
+Areas for Improvement</h6>
+                    <ul class="mb-0">
+                        ${data.areas_for_improvement.map(area =>
+ `<li class="mb-2 text-white" style="opacity: 0.9;">
+${area}</li>
+`).join('')}                    </ul>
+                </div>
+                <div class="mb-4">
+                    <h6 class="text-white fw-bold mb-3">
+<i class="bi bi-lightbulb-fill me-2 text-warning">
+</i>
+AI Recommendations</h6>
+                    <ul class="mb-0">
+                        ${data.recommendations.map(rec =>
+ `<li class="mb-2 text-white" style="opacity: 0.9;">
+${rec}</li>
+`).join('')}                    </ul>
+                </div>
+            `;                        contentDiv.innerHTML = html;        })        .catch(error =>
+ {            console.error('Error:', error);            contentDiv.innerHTML = `                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle me-2">
+</i>
+                    Error generating student performance insights. Please try again.                </div>
+            `;        });}</script>
+{% endblock %}
+

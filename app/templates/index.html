@@ -1,0 +1,159 @@
+{% extends 'base.html' %}{% block title %}Welcome - Computer Institute{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item active" aria-current="page">Welcome</li>{% endblock %}{% block content %}<style>
+    .landing-hero {        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);        color: white;        padding: 80px 20px;        text-align: center;        position: relative;        overflow: hidden;    }    .landing-hero::before {        content: '';        position: absolute;        top: 0;        left: 0;        right: 0;        bottom: 0;        background:             radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%),            radial-gradient(circle at 80% 80%, rgba(255,255,255,0.05) 0%, transparent 50%);        pointer-events: none;    }    .hero-content {        position: relative;        z-index: 1;        max-width: 900px;        margin: 0 auto;    }    .hero-title {        font-family: var(--font-heading);        font-size: 3.5rem;        font-weight: 800;        margin-bottom: 20px;        text-shadow: 0 2px 10px rgba(0,0,0,0.1);    }    .hero-subtitle {        font-size: 1.5rem;        opacity: 0.95;        margin-bottom: 40px;        font-weight: 300;        letter-spacing: 0.5px;    }    .hero-buttons {        display: flex;        gap: 20px;        justify-content: center;        flex-wrap: wrap;    }    .btn-primary-hero {        background: white;        color: #667eea;        border: 2px solid white;        padding: 15px 40px;        border-radius: 50px;        font-weight: 600;        font-size: 1.1rem;        transition: all 0.3s ease;        text-decoration: none;        display: inline-block;    }    .btn-primary-hero:hover {        transform: translateY(-3px);        box-shadow: 0 10px 30px rgba(0,0,0,0.2);        background: #f0f0f0;        color: #667eea;        text-decoration: none;    }    .btn-secondary-hero {        background: transparent;        color: white;        border: 2px solid white;        padding: 15px 40px;        border-radius: 50px;        font-weight: 600;        font-size: 1.1rem;        transition: all 0.3s ease;        text-decoration: none;        display: inline-block;    }    .btn-secondary-hero:hover {        background: white;        color: #667eea;        transform: translateY(-3px);        box-shadow: 0 10px 30px rgba(0,0,0,0.2);        text-decoration: none;    }    .courses-section {        padding: 80px 20px;        background: #F5F6FA;    }    .section-title {        font-family: var(--font-heading);        font-size: 2.5rem;        font-weight: 700;        margin-bottom: 15px;        color: var(--text-primary);    }    .section-subtitle {        color: var(--text-secondary);        font-size: 1.1rem;        margin-bottom: 50px;    }    .course-card {        background: white;        border-radius: 15px;        padding: 40px 30px;        text-align: center;        transition: all 0.3s ease;        box-shadow: 0 5px 20px rgba(0,0,0,0.08);        border: 1px solid #E2E5EA;        height: 100%;    }    .course-card:hover {        transform: translateY(-10px);        box-shadow: 0 15px 40px rgba(0,0,0,0.12);        border-color: #667eea;    }    .course-icon {        width: 80px;        height: 80px;        margin: 0 auto 25px;        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);        border-radius: 15px;        display: flex;        align-items: center;        justify-content: center;        font-size: 2.5rem;    }    .course-card.web-dev .course-icon {        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);    }    .course-card.data-science .course-icon {        background: linear-gradient(135deg, #764ba2 0%, #f093fb 100%);    }    .course-card.cyber-security .course-icon {        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);    }    .course-title {        font-family: var(--font-heading);        font-size: 1.5rem;        font-weight: 700;        margin-bottom: 10px;        color: var(--text-primary);    }    .course-description {        color: var(--text-secondary);        margin-bottom: 0;        font-size: 0.95rem;    }    .features-section {        padding: 80px 20px;        background: white;    }    .features-title {        font-family: var(--font-heading);        font-size: 2.5rem;        font-weight: 700;        margin-bottom: 15px;        color: var(--text-primary);    }    .features-subtitle {        color: var(--text-secondary);        font-size: 1.1rem;        margin-bottom: 50px;    }    .feature-item {        text-align: center;        margin-bottom: 40px;    }    .feature-icon {        width: 90px;        height: 90px;        margin: 0 auto 25px;        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);        border-radius: 15px;        display: flex;        align-items: center;        justify-content: center;        font-size: 2.5rem;        color: white;    }    .feature-title {        font-family: var(--font-heading);        font-size: 1.3rem;        font-weight: 700;        margin-bottom: 15px;        color: var(--text-primary);    }    .feature-description {        color: var(--text-secondary);        line-height: 1.6;        max-width: 300px;        margin: 0 auto;    }    .cta-section {        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);        color: white;        padding: 60px 20px;        text-align: center;        border-radius: 0;    }    .cta-title {        font-family: var(--font-heading);        font-size: 2.2rem;        font-weight: 700;        margin-bottom: 15px;    }    .cta-subtitle {        font-size: 1.1rem;        margin-bottom: 30px;        opacity: 0.95;    }    .footer-section {        background: var(--text-primary);        color: white;        padding: 40px 20px 20px;        text-align: center;    }    .contact-info {        display: flex;        justify-content: center;        gap: 40px;        flex-wrap: wrap;        margin-bottom: 30px;    }    .contact-item {        display: flex;        align-items: center;        gap: 10px;    }    .contact-item i {        font-size: 1.3rem;    }    @media (max-width: 768px) {        .hero-title {            font-size: 2.2rem;        }        .hero-subtitle {            font-size: 1.1rem;        }        .section-title {            font-size: 2rem;        }        .cta-title {            font-size: 1.8rem;        }    }    /* Dark mode adjustments */    body.dark-mode .landing-hero {        background: linear-gradient(135deg, #1f2d52 0%, #2a1a3d 100%);    }    body.dark-mode .courses-section {        background: var(--bg-primary);    }    body.dark-mode .features-section {        background: var(--bg-primary);    }    body.dark-mode .course-card,    body.dark-mode .feature-item {        background: var(--bg-card);        border-color: var(--border-color);        color: var(--text-primary);    }    body.dark-mode .course-card:hover {        border-color: #667eea;        box-shadow: 0 15px 40px rgba(102, 126, 234, 0.2);    }    body.dark-mode .section-title,    body.dark-mode .course-title,    body.dark-mode .feature-title,    body.dark-mode .cta-title {        color: var(--text-primary);    }    body.dark-mode .section-subtitle,    body.dark-mode .course-description,    body.dark-mode .feature-description,    body.dark-mode .cta-subtitle {        color: var(--text-secondary);    }    body.dark-mode .cta-section {        background: linear-gradient(135deg, #1f2d52 0%, #2a1a3d 100%);    }    body.dark-mode .footer-section {        background: #0a0e14;    }</style>
+<!-- Hero Section -->
+<div class="landing-hero">
+    <div class="hero-content">
+        <h1 class="hero-title">
+Welcome to<br>
+<strong>
+TechAcademy</strong>
+</h1>
+        <p class="hero-subtitle">
+Empowering Your Future in Technology.</p>
+        <div class="hero-buttons">
+            <a href="#courses" class="btn-primary-hero">
+                <i class="bi bi-book me-2">
+</i>
+Explore Courses            </a>
+            <a href="{% if current_user.is_authenticated %}{{ url_for('dashboard.dashboard') }}{% else %}{{ url_for('auth.login') }}{% endif %}" class="btn-secondary-hero">
+                <i class="bi bi-play-circle me-2">
+</i>
+Get Started            </a>
+        </div>
+    </div>
+</div>
+<!-- Courses Section -->
+<div class="courses-section">
+    <div class="container-lg" id="courses">
+        <h2 class="section-title">
+Our Popular Courses</h2>
+        <p class="section-subtitle">
+Learn the Skills You Need</p>
+                <div class="row">
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="course-card web-dev">
+                    <div class="course-icon">
+                        <i class="bi bi-window-stack" style="color: white;">
+</i>
+                    </div>
+                    <h3 class="course-title">
+Web Development</h3>
+                    <p class="course-description">
+HTML, CSS, JavaScript</p>
+                </div>
+            </div>
+                        <div class="col-lg-4 col-md-6 mb-4">
+                <div class="course-card data-science">
+                    <div class="course-icon">
+                        <i class="bi bi-graph-up" style="color: white;">
+</i>
+                    </div>
+                    <h3 class="course-title">
+Data Science</h3>
+                    <p class="course-description">
+Machine Learning, Python</p>
+                </div>
+            </div>
+                        <div class="col-lg-4 col-md-6 mb-4">
+                <div class="course-card cyber-security">
+                    <div class="course-icon">
+                        <i class="bi bi-shield-check" style="color: white;">
+</i>
+                    </div>
+                    <h3 class="course-title">
+Cyber Security</h3>
+                    <p class="course-description">
+Network & Security</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Features Section -->
+<div class="features-section">
+    <div class="container-lg">
+        <h2 class="features-title">
+Why Choose Us?</h2>
+        <p class="features-subtitle">
+Build Your Career with the Best</p>
+                <div class="row">
+            <div class="col-lg-4 col-md-6">
+                <div class="feature-item">
+                    <div class="feature-icon">
+                        <i class="bi bi-mortarboard">
+</i>
+                    </div>
+                    <h3 class="feature-title">
+Expert Instructors</h3>
+                    <p class="feature-description">
+Learn from Industry Professionals with years of experience</p>
+                </div>
+            </div>
+                        <div class="col-lg-4 col-md-6">
+                <div class="feature-item">
+                    <div class="feature-icon">
+                        <i class="bi bi-award">
+</i>
+                    </div>
+                    <h3 class="feature-title">
+Certification</h3>
+                    <p class="feature-description">
+Get Certified Courses recognized by industry leaders</p>
+                </div>
+            </div>
+                        <div class="col-lg-4 col-md-6">
+                <div class="feature-item">
+                    <div class="feature-icon">
+                        <i class="bi bi-briefcase">
+</i>
+                    </div>
+                    <h3 class="feature-title">
+Job Assistance</h3>
+                    <p class="feature-description">
+Placement Support and career guidance for all students</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- CTA Section -->
+<div class="cta-section">
+    <div class="container-lg">
+        <h2 class="cta-title">
+Ready to Start Learning?</h2>
+        <p class="cta-subtitle">
+Join thousands of students already transforming their careers</p>
+        <a href="{% if current_user.is_authenticated %}{{ url_for('dashboard.dashboard') }}{% else %}{{ url_for('auth.login') }}{% endif %}" class="btn btn-light btn-lg" style="border-radius: 50px; padding: 15px 50px; font-weight: 600;">
+            <i class="bi bi-play-fill me-2">
+</i>
+Start Learning Now        </a>
+    </div>
+</div>
+<!-- Footer -->
+<footer class="footer-section">
+    <div class="container-lg">
+        <div class="contact-info">
+            <div class="contact-item">
+                <i class="bi bi-telephone">
+</i>
+                <span>
++123 456 7890</span>
+            </div>
+            <div class="contact-item">
+                <i class="bi bi-envelope">
+</i>
+                <span>
+info@techacademy.com</span>
+            </div>
+            <div class="contact-item">
+                <i class="bi bi-geo-alt">
+</i>
+                <span>
+456 Elm Street, Downtown</span>
+            </div>
+        </div>
+        <p style="margin: 0; color: rgba(255,255,255,0.7);">
+            &copy; 2024 TechAcademy. All rights reserved.        </p>
+    </div>
+</footer>
+{% endblock %}

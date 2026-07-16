@@ -1,0 +1,462 @@
+{% extends 'base.html' %}{% block title %}Admin Console{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item active" aria-current="page">Admin Console</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+    <!-- Header Row -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold">Admin Console</h2>
+            <p class="text-white mb-0">Control global settings, manage database tables, and configure neural API integrations.</p>
+        </div>
+        <span class="badge badge-custom py-2 px-3" style="background: rgba(107, 142, 35, 0.85); color: #ffffff; border: 1px solid rgba(107, 142, 35, 0.9);">
+            <i class="bi bi-cpu-fill me-1"></i> System Status: Online
+        </span>
+    </div>
+
+    <!-- Tab Navigation -->
+    <ul class="nav nav-tabs admin-tabs mb-4" id="adminTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="ai-tab" data-bs-toggle="tab" data-bs-target="#ai" type="button" role="tab">
+                <i class="bi bi-cpu-fill"></i> AI & Integrations
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="db-tab" data-bs-toggle="tab" data-bs-target="#db" type="button" role="tab">
+                <i class="bi bi-database-fill"></i> Database
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="org-tab" data-bs-toggle="tab" data-bs-target="#org" type="button" role="tab">
+                <i class="bi bi-building"></i> Organization
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="users-tab" data-bs-toggle="tab" data-bs-target="#users" type="button" role="tab">
+                <i class="bi bi-people-fill"></i> Users
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="notif-tab" data-bs-toggle="tab" data-bs-target="#notif" type="button" role="tab">
+                <i class="bi bi-bell-fill"></i> Notifications
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="adminTabsContent">
+        <!-- ==================== TAB 1: AI & INTEGRATIONS ==================== -->
+        <div class="tab-pane fade show active" id="ai" role="tabpanel">
+            <div class="row">
+                <div class="col-lg-7 mb-4">
+                    <!-- AI Keys -->
+                    <div class="glass-card p-4 h-100">
+                        <h4 class="mb-3 text-dark fw-bold"><i class="bi bi-key-fill me-2 text-dark"></i>AI Engine Integration</h4>
+                        <p class="text-secondary small mb-4">Store your custom LLM API keys directly inside the local database. These keys are applied instantly across the entire application without needing server reboots.</p>
+                        <form action="{{ url_for('admin.admin_console') }}" method="POST">
+                            <input type="hidden" name="action" value="save_keys">
+                            <div class="mb-4">
+                                <label class="form-label text-secondary small fw-bold d-flex justify-content-between">
+                                    <span>Gemini Developer API Key</span>
+                                    {% if g_active %}<span class="text-dark small"><i class="bi bi-patch-check-fill me-1"></i>Active / Configured</span>
+                                    {% else %}<span class="text-rose small"><i class="bi bi-exclamation-triangle-fill me-1"></i>Inactive (Simulating locally)</span>{% endif %}
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-dark border-color text-muted"><i class="bi bi-google"></i></span>
+                                    <input type="password" class="form-control" name="gemini_api_key" placeholder="AIzaSy..." value="{{ gemini_key }}">
+                                </div>
+                                <small class="text-muted d-block mt-1">Acquire an API Key from Google AI Studio. This powers the operational dashboard recommendations and enquiry follow-ups.</small>
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label text-secondary small fw-bold d-flex justify-content-between">
+                                    <span>OpenAI API Key (Alternate)</span>
+                                    {% if o_active %}<span class="text-dark small"><i class="bi bi-patch-check-fill me-1"></i>Active / Configured</span>
+                                    {% else %}<span class="text-rose small"><i class="bi bi-exclamation-triangle-fill me-1"></i>Inactive</span>{% endif %}
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-dark border-color text-muted"><i class="bi bi-cpu"></i></span>
+                                    <input type="password" class="form-control" name="openai_api_key" placeholder="sk-proj-..." value="{{ openai_key }}">
+                                </div>
+                                <small class="text-muted d-block mt-1">Fallback system. If Gemini is not set, the advisor searches for this key first.</small>
+                            </div>
+                            <button type="submit" class="btn btn-premium w-100 mt-2"><i class="bi bi-shield-fill-check me-2"></i>Save AI Credentials</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="col-lg-5 mb-4">
+                    <!-- WhatsApp Config -->
+                    <div class="glass-card p-4 mb-4">
+                        <h4 class="mb-3 fw-bold" style="color: #ffffff !important;"><i class="bi bi-whatsapp me-2" style="color: #25D366 !important;"></i>WhatsApp Business API</h4>
+                        <p class="small mb-4" style="color: #ffffff !important;">Send fee reminders, attendance alerts, and exam schedules directly to students' WhatsApp via Meta Cloud API.</p>
+                        <form action="{{ url_for('admin.admin_console') }}" method="POST">
+                            <input type="hidden" name="action" value="save_whatsapp">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label small" style="color: #ffffff !important;">Permanent Access Token</label>
+                                    <input type="password" class="form-control" name="WHATSAPP_TOKEN" placeholder="EAAT..." value="{{ wa.whatsapp_token }}">
+                                    <small class="text-white-50 d-block mt-1" style="opacity:0.7;">From Meta Business Suite > WhatsApp > API Setup.</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small" style="color: #ffffff !important;">Phone Number ID</label>
+                                    <input type="text" class="form-control" name="WHATSAPP_PHONE_ID" placeholder="123456789" value="{{ wa.whatsapp_phone_id }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small" style="color: #ffffff !important;">Business Account ID</label>
+                                    <input type="text" class="form-control" name="WHATSAPP_BUSINESS_ID" placeholder="123456789" value="{{ wa.whatsapp_business_id }}">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-premium mt-3 w-100" style="background: linear-gradient(135deg, #25D366, #128C7E); border: none;"><i class="bi bi-whatsapp me-2"></i>Save WhatsApp Settings</button>
+                        </form>
+                    </div>
+                    <!-- SMS Gateway Config -->
+                    <div class="glass-card p-4">
+                        <h4 class="mb-3 fw-bold" style="color: #ffffff !important;"><i class="bi bi-chat-dots me-2" style="color: #1b6ef3 !important;"></i>SMS Gateway</h4>
+                        <p class="small mb-4" style="color: #ffffff !important;">Send fee reminders, attendance alerts, and exam schedules via SMS using an HTTP gateway.</p>
+                        <form action="{{ url_for('admin.admin_console') }}" method="POST">
+                            <input type="hidden" name="action" value="save_sms">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label small" style="color: #ffffff !important;">Gateway URL</label>
+                                    <input type="text" class="form-control" name="SMS_GATEWAY_URL" placeholder="http://localhost:13013/cgi-bin/sendsms" value="{{ sms.sms_gateway_url }}">
+                                    <small class="text-white-50 d-block mt-1" style="opacity:0.7;">The HTTP endpoint your SMS gateway exposes.</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small" style="color: #ffffff !important;">API Key</label>
+                                    <input type="password" class="form-control" name="SMS_API_KEY" placeholder="Optional API key/token" value="{{ sms.sms_api_key }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small" style="color: #ffffff !important;">Sender ID</label>
+                                    <input type="text" class="form-control" name="SMS_SENDER_ID" placeholder="GUHAAC" value="{{ sms.sms_sender_id }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small" style="color: #ffffff !important;">HTTP Method</label>
+                                    <select class="form-select" name="SMS_METHOD">
+                                        <option value="GET" {% if sms.sms_method == 'GET' %}selected{% endif %}>GET</option>
+                                        <option value="POST" {% if sms.sms_method == 'POST' %}selected{% endif %}>POST</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small" style="color: #ffffff !important;">Phone Param</label>
+                                    <input type="text" class="form-control" name="SMS_PHONE_PARAM" placeholder="mobile" value="{{ sms.sms_phone_param or 'mobile' }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small" style="color: #ffffff !important;">Message Param</label>
+                                    <input type="text" class="form-control" name="SMS_MSG_PARAM" placeholder="message" value="{{ sms.sms_msg_param or 'message' }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small" style="color: #ffffff !important;">Key Param Name</label>
+                                    <input type="text" class="form-control" name="SMS_KEY_PARAM" placeholder="api_key" value="{{ sms.sms_key_param or 'api_key' }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small" style="color: #ffffff !important;">Sender Param Name</label>
+                                    <input type="text" class="form-control" name="SMS_SENDER_PARAM" placeholder="sender" value="{{ sms.sms_sender_param or 'sender' }}">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-premium mt-3 w-100" style="background: linear-gradient(135deg, #1b6ef3, #1545b2); border: none;"><i class="bi bi-chat-dots me-2"></i>Save SMS Gateway Settings</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-12 mb-4">
+                    <!-- SMTP Config -->
+                    <div class="glass-card p-4">
+                        <h4 class="mb-3 fw-bold" style="color: #ffffff !important;"><i class="bi bi-envelope-fill me-2" style="color: #ffffff !important;"></i>Email Notification Settings</h4>
+                        <p class="small mb-4" style="color: #ffffff !important;">Configure SMTP to enable automated alerts for low attendance, fee due reminders, and enquiry follow-ups.</p>
+                        <form action="{{ url_for('admin.admin_console') }}" method="POST">
+                            <input type="hidden" name="action" value="save_smtp">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label small" style="color: #ffffff !important;">SMTP Server</label>
+                                    <input type="text" class="form-control" name="SMTP_SERVER" placeholder="smtp.gmail.com" value="{{ smtp.smtp_server }}">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small" style="color: #ffffff !important;">Port</label>
+                                    <input type="number" class="form-control" name="SMTP_PORT" placeholder="587" value="{{ smtp.smtp_port or '587' }}">
+                                </div>
+                                <div class="col-md-3 d-flex align-items-end pb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="SMTP_USE_TLS" value="1" id="smtpTls" {% if smtp.smtp_use_tls != '0' %}checked{% endif %}>
+                                        <label class="form-check-label small" for="smtpTls" style="color: #ffffff !important;">Use TLS</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small" style="color: #ffffff !important;">Username</label>
+                                    <input type="text" class="form-control" name="SMTP_USERNAME" placeholder="admin@institute.com" value="{{ smtp.smtp_username }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small" style="color: #ffffff !important;">Password</label>
+                                    <input type="password" class="form-control" name="SMTP_PASSWORD" placeholder="App password" value="{{ smtp.smtp_password }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small" style="color: #ffffff !important;">From Email</label>
+                                    <input type="email" class="form-control" name="FROM_EMAIL" placeholder="noreply@institute.com" value="{{ smtp.from_email }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small" style="color: #ffffff !important;">From Name</label>
+                                    <input type="text" class="form-control" name="FROM_NAME" placeholder="Guha Academy" value="{{ smtp.from_name or 'Guha Academy' }}">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small" style="color: #ffffff !important;">Admin Notification Email</label>
+                                    <input type="email" class="form-control" name="ADMIN_EMAIL" placeholder="admin@institute.com" value="{{ smtp.admin_email }}">
+                                    <small class="text-white-50 d-block mt-1" style="opacity:0.7;">All automated alerts are sent to this address.</small>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-premium mt-3 w-100"><i class="bi bi-check-circle me-2"></i>Save SMTP Settings</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 2: DATABASE ==================== -->
+        <div class="tab-pane fade" id="db" role="tabpanel">
+            <div class="row">
+                <div class="col-lg-7 mb-4">
+                    <div class="glass-card p-4 h-100">
+                        <h4 class="mb-3 fw-bold" style="color: #ffffff !important;"><i class="bi bi-database-fill me-2" style="color: #ffffff !important;"></i>Database Registry Status</h4>
+                        <p class="small mb-4" style="color: #ffffff !important;">Current record listings compiled from active SQLite tables:</p>
+                        <div class="row g-3">
+                            <div class="col-6"><div class="p-3 border border-color rounded text-center" style="background: rgba(25, 65, 100, 0.45);"><span class="small d-block" style="color: #ffffff !important;">Students Enrolled</span><strong class="fs-4" style="color: #ffffff;">{{ db_counts.students }}</strong></div></div>
+                            <div class="col-6"><div class="p-3 border border-color rounded text-center" style="background: rgba(25, 65, 100, 0.45);"><span class="small d-block" style="color: #ffffff !important;">Mentors / Tutors</span><strong class="fs-4" style="color: #ffffff;">{{ db_counts.tutors }}</strong></div></div>
+                            <div class="col-6"><div class="p-3 border border-color rounded text-center" style="background: rgba(25, 65, 100, 0.45);"><span class="small d-block" style="color: #ffffff !important;">Curriculums</span><strong class="fs-4" style="color: #ffffff;">{{ db_counts.courses }}</strong></div></div>
+                            <div class="col-6"><div class="p-3 border border-color rounded text-center" style="background: rgba(25, 65, 100, 0.45);"><span class="small d-block" style="color: #ffffff !important;">Sales Enquiries</span><strong class="fs-4" style="color: #ffffff;">{{ db_counts.enquiries }}</strong></div></div>
+                            <div class="col-6"><div class="p-3 border border-color rounded text-center" style="background: rgba(25, 65, 100, 0.45);"><span class="small d-block" style="color: #ffffff !important;">Payments Tracked</span><strong class="fs-4" style="color: #ffffff;">{{ db_counts.fees }}</strong></div></div>
+                            <div class="col-6"><div class="p-3 border border-color rounded text-center" style="background: rgba(25, 65, 100, 0.45);"><span class="small d-block" style="color: #ffffff !important;">Attendance Logs</span><strong class="fs-4" style="color: #ffffff;">{{ db_counts.attendance }}</strong></div></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-5 mb-4">
+                    <div class="glass-card p-4 border border-rose border-opacity-25" style="background: rgba(25, 65, 100, 0.65); border-left: 4px solid var(--accent-rose);">
+                        <h4 class="mb-2 fw-bold" style="color: #ffffff;"><i class="bi bi-database-gear me-2" style="color: #ffffff;"></i>Database Operations</h4>
+                        <p class="small mb-3" style="color: #ffffff !important;">Backup, import, or reset the entire database.</p>
+                        <div class="d-flex gap-2 mb-3">
+                            <a href="{{ url_for('admin.create_backup') }}" class="btn btn-sm btn-outline-premium flex-fill"><i class="bi bi-download me-1"></i>Backup</a>
+                            <a href="{{ url_for('admin.import_database') }}" class="btn btn-sm btn-outline-info flex-fill text-white fw-bold" style="background:rgba(27, 110, 243,0.2);border:1px solid rgba(27, 110, 243,0.5);"><i class="bi bi-upload me-1"></i>Import</a>
+                            <a href="{{ url_for('admin.audit_log') }}" class="btn btn-sm flex-fill text-white fw-bold" style="background:rgba(255,193,7,0.15);border:1px solid rgba(255,193,7,0.4);"><i class="bi bi-journal-text me-1"></i>Audit Log</a>
+                        </div>
+                        <hr class="border-secondary opacity-25 my-3">
+                        <form action="{{ url_for('admin.admin_console') }}" method="POST" onsubmit="return confirm('WARNING: This will wipe out all current students, tutors, courses, fee structures, and attendance records! Do you want to proceed with factory resetting the system?')">
+                            <input type="hidden" name="action" value="reset_db">
+                            <button type="submit" class="btn btn-danger w-100 text-white fw-bold"><i class="bi bi-arrow-counterclockwise me-2"></i>Wipe & Re-Seed Database</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 3: ORGANIZATION ==================== -->
+        <div class="tab-pane fade" id="org" role="tabpanel">
+            <div class="row">
+                <div class="col-12 mb-4">
+                    <div class="glass-card p-4">
+                        <h4 class="mb-3 text-dark fw-bold"><i class="bi bi-building me-2 text-dark"></i>Organization & GST Settings</h4>
+                        <p class="text-secondary small mb-4">Configure business info for GST-compliant invoices and accounting exports.</p>
+                        <form action="{{ url_for('admin.admin_console') }}" method="POST">
+                            <input type="hidden" name="action" value="save_org">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label text-secondary small fw-bold">Organization Name</label>
+                                    <input type="text" class="form-control" name="ORG_NAME" value="{{ org.get('org_name', 'Guha Academy') }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label text-secondary small fw-bold">Address</label>
+                                    <input type="text" class="form-control" name="ORG_ADDRESS" value="{{ org.get('org_address', '') }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label text-secondary small fw-bold">GSTIN</label>
+                                    <input type="text" class="form-control" name="ORG_GSTIN" value="{{ org.get('org_gstin', '') }}">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label text-secondary small fw-bold">HSN/SAC Code</label>
+                                    <input type="text" class="form-control" name="ORG_HSN" value="{{ org.get('org_hsn', '999293') }}">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label text-secondary small fw-bold">State</label>
+                                    <input type="text" class="form-control" name="ORG_STATE" value="{{ org.get('org_state', 'State') }}">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label text-secondary small fw-bold">State Code</label>
+                                    <input type="text" class="form-control" name="ORG_STATE_CODE" value="{{ org.get('org_state_code', '99') }}">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label text-secondary small fw-bold">CGST %</label>
+                                    <input type="number" step="0.01" class="form-control" name="CGST_PCT" value="{{ org.get('cgst_pct', '9') }}">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label text-secondary small fw-bold">SGST %</label>
+                                    <input type="number" step="0.01" class="form-control" name="SGST_PCT" value="{{ org.get('sgst_pct', '9') }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label text-secondary small fw-bold">Invoice Prefix</label>
+                                    <input type="text" class="form-control" name="INVOICE_PREFIX" value="{{ org.get('invoice_prefix', 'INV') }}">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-success mt-3"><i class="bi bi-save me-2"></i>Save Organization Settings</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 4: USERS ==================== -->
+        <div class="tab-pane fade" id="users" role="tabpanel">
+            <div class="row">
+                <div class="col-12 mb-4">
+                    <div class="glass-card p-4">
+                        <h4 class="mb-3 text-dark fw-bold"><i class="bi bi-people-fill me-2 text-dark"></i>User Accounts & Permissions</h4>
+                        <p class="text-secondary small mb-4">Manage portal accounts, toggle admin access, or delete credentials.</p>
+                        <div class="table-container">
+                            <table class="table table-custom">
+                                <thead>
+                                    <tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Registered</th><th class="text-end">Actions</th></tr>
+                                </thead>
+                                <tbody>
+                                    {% for u in users %}
+                                    <tr>
+                                        <td>{{ u.name }}</td>
+                                        <td><code>{{ u.username }}</code></td>
+                                        <td>{{ u.email or 'N/A' }}</td>
+                                        <td><span class="badge badge-custom {% if u.role == 'Admin' %}badge-cyan{% else %}badge-active{% endif %}">{{ u.role }}</span></td>
+                                        <td>{{ u.created_at.strftime('%d %b %Y') if u.created_at else 'N/A' }}</td>
+                                        <td class="text-end">
+                                            <div class="d-flex gap-2 justify-content-end">
+                                                {% if u.id != current_user.id %}
+                                                <form action="{{ url_for('admin.admin_console') }}" method="POST" class="d-inline">
+                                                    <input type="hidden" name="action" value="toggle_role">
+                                                    <input type="hidden" name="user_id" value="{{ u.id }}">
+                                                    <button type="submit" class="btn btn-outline-premium btn-sm py-1"><i class="bi bi-arrow-left-right me-1"></i>Toggle Role</button>
+                                                </form>
+                                                <form action="{{ url_for('admin.admin_console') }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete user account: {{ u.username }}?')">
+                                                    <input type="hidden" name="action" value="delete_user">
+                                                    <input type="hidden" name="user_id" value="{{ u.id }}">
+                                                    <button type="submit" class="btn btn-danger btn-sm py-1 text-white fw-bold"><i class="bi bi-trash me-1"></i>Delete</button>
+                                                </form>
+                                                {% else %}
+                                                <span class="small text-muted font-monospace">(Current User)</span>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 5: NOTIFICATIONS ==================== -->
+        <div class="tab-pane fade" id="notif" role="tabpanel">
+            <div class="row">
+                <div class="col-lg-7 mb-4">
+                    <!-- Run Notifications -->
+                    <div class="glass-card p-4 mb-4 border border-info border-opacity-25" style="background: rgba(27, 110, 243,0.06);">
+                        <h5 class="fw-bold mb-3" style="color: #ffffff !important;"><i class="bi bi-bell-fill me-2" style="color: #ffffff !important;"></i>Run Notifications Now</h5>
+                        <p class="small mb-3" style="color: #ffffff !important; opacity:0.8;">Check for low attendance, fee due balances, and stale enquiries — email alerts will be dispatched immediately.</p>
+                        <form action="{{ url_for('admin.admin_console') }}" method="POST">
+                            <input type="hidden" name="action" value="run_notifications">
+                            <button type="submit" class="btn btn-premium w-100"><i class="bi bi-lightning-fill me-2"></i>Run All Checks</button>
+                        </form>
+                        <div class="d-flex gap-2 mt-3">
+                            <a href="{{ url_for('notifications.notify_attendance') }}" class="btn btn-sm btn-outline-info flex-fill">Attendance</a>
+                            <a href="{{ url_for('notifications.notify_fees') }}" class="btn btn-sm btn-outline-info flex-fill">Fees</a>
+                            <a href="{{ url_for('notifications.notify_enquiries') }}" class="btn btn-sm btn-outline-info flex-fill">Enquiries</a>
+                        </div>
+                        <small class="d-block mt-3 text-white-50" style="opacity:0.6;"><i class="bi bi-clock-history me-1"></i>For automation, set a cron job to call <code>/api/cron/notify?key=YOUR_SECRET</code></small>
+                    </div>
+                    <!-- Bulk WhatsApp Campaigns -->
+                    <div class="glass-card p-4 mb-4 border border-success border-opacity-25" style="background: rgba(37,211,102,0.06);">
+                        <h5 class="fw-bold mb-3" style="color: #ffffff !important;"><i class="bi bi-lightning-fill me-2" style="color: #25D366 !important;"></i>Bulk WhatsApp Campaigns</h5>
+                        <form action="{{ url_for('admin.admin_console') }}" method="POST" class="mb-3">
+                            <input type="hidden" name="action" value="whatsapp_fee_reminders">
+                            <button type="submit" class="btn btn-success w-100 mb-2" style="background:#25D366;border:none;"><i class="bi bi-currency-rupee me-2"></i>Send Fee Reminders</button>
+                        </form>
+                        <form action="{{ url_for('admin.admin_console') }}" method="POST" class="mb-3">
+                            <input type="hidden" name="action" value="whatsapp_attendance_alerts">
+                            <button type="submit" class="btn btn-success w-100 mb-2" style="background:#128C7E;border:none;"><i class="bi bi-bar-chart me-2"></i>Send Attendance Alerts</button>
+                        </form>
+                        <form action="{{ url_for('admin.admin_console') }}" method="POST">
+                            <input type="hidden" name="action" value="whatsapp_exam_schedule">
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <select class="form-select form-select-sm" name="exam_course_id">
+                                        <option value="">All Courses</option>
+                                        {% for c in courses %}<option value="{{ c.id }}">{{ c.code }}</option>{% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-6"><input type="date" class="form-control form-select-sm" name="exam_date" required></div>
+                                <div class="col-6"><input type="text" class="form-control form-select-sm" name="exam_time" placeholder="10:00 AM" value="10:00 AM"></div>
+                                <div class="col-6"><input type="text" class="form-control form-select-sm" name="exam_venue" placeholder="Main Campus" value="Main Campus"></div>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100" style="background:#075E54;border:none;"><i class="bi bi-calendar-event me-2"></i>Send Exam Schedule</button>
+                        </form>
+                    </div>
+                    <!-- Bulk SMS Campaigns -->
+                    <div class="glass-card p-4 border border-info border-opacity-25" style="background: rgba(27, 110, 243,0.06);">
+                        <h5 class="fw-bold mb-3" style="color: #ffffff !important;"><i class="bi bi-lightning-fill me-2" style="color: #1b6ef3 !important;"></i>Bulk SMS Campaigns</h5>
+                        <form action="{{ url_for('admin.admin_console') }}" method="POST" class="mb-3">
+                            <input type="hidden" name="action" value="sms_fee_reminders">
+                            <button type="submit" class="btn w-100 mb-2" style="background:#1b6ef3;border:none;color:#000;"><i class="bi bi-currency-rupee me-2"></i>Send Fee Reminders</button>
+                        </form>
+                        <form action="{{ url_for('admin.admin_console') }}" method="POST" class="mb-3">
+                            <input type="hidden" name="action" value="sms_attendance_alerts">
+                            <button type="submit" class="btn w-100 mb-2" style="background:#1545b2;border:none;color:#fff;"><i class="bi bi-bar-chart me-2"></i>Send Attendance Alerts</button>
+                        </form>
+                        <form action="{{ url_for('admin.admin_console') }}" method="POST">
+                            <input type="hidden" name="action" value="sms_exam_schedule">
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <select class="form-select form-select-sm" name="sms_exam_course_id">
+                                        <option value="">All Courses</option>
+                                        {% for c in courses %}<option value="{{ c.id }}">{{ c.code }}</option>{% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-6"><input type="date" class="form-control form-select-sm" name="sms_exam_date" required></div>
+                                <div class="col-6"><input type="text" class="form-control form-select-sm" name="sms_exam_time" placeholder="10:00 AM" value="10:00 AM"></div>
+                                <div class="col-6"><input type="text" class="form-control form-select-sm" name="sms_exam_venue" placeholder="Main Campus" value="Main Campus"></div>
+                            </div>
+                            <button type="submit" class="btn w-100" style="background:#0055aa;border:none;color:#fff;"><i class="bi bi-calendar-event me-2"></i>Send Exam Schedule</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="col-lg-5 mb-4">
+                    <!-- Test Email -->
+                    <div class="glass-card p-4 mb-4">
+                        <h5 class="fw-bold mb-3" style="color: #ffffff !important;"><i class="bi bi-send-fill me-2" style="color: #ffffff !important;"></i>Send Test Email</h5>
+                        <form action="{{ url_for('admin.admin_console') }}" method="POST">
+                            <input type="hidden" name="action" value="send_test_email">
+                            <div class="mb-3">
+                                <label class="form-label small" style="color: #ffffff !important;">Recipient Email</label>
+                                <input type="email" class="form-control" name="test_email" placeholder="you@example.com" required>
+                            </div>
+                            <button type="submit" class="btn btn-outline-premium w-100"><i class="bi bi-envelope-check me-2"></i>Send Test Email</button>
+                        </form>
+                    </div>
+                    <!-- Test WhatsApp -->
+                    <div class="glass-card p-4 mb-4">
+                        <h5 class="fw-bold mb-3" style="color: #ffffff !important;"><i class="bi bi-send-fill me-2" style="color: #25D366 !important;"></i>Send Test WhatsApp</h5>
+                        <form action="{{ url_for('admin.admin_console') }}" method="POST">
+                            <input type="hidden" name="action" value="send_test_whatsapp">
+                            <div class="mb-3">
+                                <label class="form-label small" style="color: #ffffff !important;">Recipient Phone (with country code)</label>
+                                <input type="text" class="form-control" name="test_wa_phone" placeholder="+919876543210" required>
+                            </div>
+                            <button type="submit" class="btn btn-outline-premium w-100"><i class="bi bi-whatsapp me-2"></i>Send Test via WhatsApp</button>
+                        </form>
+                    </div>
+                    <!-- Test SMS -->
+                    <div class="glass-card p-4">
+                        <h5 class="fw-bold mb-3" style="color: #ffffff !important;"><i class="bi bi-send-fill me-2" style="color: #1b6ef3 !important;"></i>Send Test SMS</h5>
+                        <form action="{{ url_for('admin.admin_console') }}" method="POST">
+                            <input type="hidden" name="action" value="send_test_sms">
+                            <div class="mb-3">
+                                <label class="form-label small" style="color: #ffffff !important;">Recipient Phone (10 digits)</label>
+                                <input type="text" class="form-control" name="test_sms_phone" placeholder="9876543210" required>
+                            </div>
+                            <button type="submit" class="btn btn-outline-premium w-100"><i class="bi bi-chat-dots me-2"></i>Send Test SMS</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
