@@ -187,6 +187,7 @@ def create_app(config_object=None):
                 cursor.execute('PRAGMA busy_timeout=5000')
                 cursor.execute('PRAGMA temp_store=MEMORY')
                 cursor.close()
+    with app.app_context():
         db.create_all()
         try:
             db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_date ON expense(expense_date)'))
