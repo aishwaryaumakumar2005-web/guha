@@ -245,7 +245,22 @@ def _restore_all():
     print(f"Restored {len(exams_data)} exams")
 
     db.session.commit()
-    print("All data committed.")
+
+    # Reset all auto-increment sequences (PostgreSQL)
+    from sqlalchemy import text
+    for tbl, model_cls in [
+        ('user', User), ('course', Course), ('tutor', Tutor), ('student', Student),
+        ('expense_category', ExpenseCategory), ('expense', Expense),
+        ('fee_record', FeeRecord), ('enquiry', Enquiry), ('attendance', Attendance),
+        ('leave_request', LeaveRequest), ('exam', Exam),
+    ]:
+        try:
+            max_id = db.session.query(db.func.max(model_cls.id)).scalar() or 0
+            db.session.execute(text(f"SELECT setval('{tbl}_id_seq', {max_id})"))
+        except Exception:
+            pass  # skip if sequence doesn't exist (e.g. SQLite)
+    db.session.commit()
+    print("All data committed (sequences reset).")
 
 
 if __name__ == '__main__':
