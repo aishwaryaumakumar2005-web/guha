@@ -213,6 +213,18 @@ def create_app(config_object=None):
     def server_error(e):
         return render_template('errors/500.html'), 500
 
+    # Auto-seed admin/staff users on first deploy (fresh database)
+    with app.app_context():
+        from .models import User
+        from werkzeug.security import generate_password_hash
+        if not User.query.first():
+            admin = User(username='admin', password_hash=generate_password_hash('admin123'), role='Admin', name='System Administrator', email='admin@institute.edu')
+            staff = User(username='staff', password_hash=generate_password_hash('staff123'), role='Staff', name='Operations Staff', email='staff@institute.edu')
+            db.session.add(admin)
+            db.session.add(staff)
+            db.session.commit()
+            print("Auto-seeded admin/staff users (fresh database)")
+
     # Start the scheduler for daily backups (only in development)
     # Render uses cron jobs for scheduled tasks, not in-app scheduler
     if os.environ.get('FLASK_ENV') == 'development':
