@@ -236,7 +236,7 @@ def api_todays_activities():
     ).count()
 
     new_enquiries_today = Enquiry.query.filter(
-        db.func.date(Enquiry.created_at) == today
+        db.cast(Enquiry.created_at, db.Date) == today
     ).count()
 
     fee_due_students = Student.query.filter(Student.status == 'Active').filter(

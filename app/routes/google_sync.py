@@ -24,7 +24,7 @@ def google_sync():
     last_sync = last_sync_setting.value if last_sync_setting else ''
     form_url = form_url_setting.value if form_url_setting else ''
     synced_ids = synced_ids_setting.value.split(',') if synced_ids_setting and synced_ids_setting.value else []
-    synced_enquiries = Enquiry.query.filter(Enquiry.notes.like('[Google Form]%')).order_by(Enquiry.id.desc()).limit(50).all()
+    synced_enquiries = Enquiry.query.filter(Enquiry.notes.ilike('[Google Form]%')).order_by(Enquiry.id.desc()).limit(50).all()
     return render_template('google_sync.html', has_key=has_key, sheet_id=sheet_id, last_sync=last_sync,
         form_url=form_url, synced_enquiries=synced_enquiries, courses=Course.query.all())
 
