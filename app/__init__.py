@@ -205,6 +205,24 @@ def create_app(config_object=None):
             db.session.commit()
         except Exception:
             db.session.rollback()
+        # Reset PostgreSQL sequences on every startup so inserted IDs never collide
+        if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+            from sqlalchemy import text
+            from .models import (User, Course, Tutor, Student, ExpenseCategory,
+                                  Expense, FeeRecord, Enquiry, Attendance,
+                                  LeaveRequest, Exam)
+            for tbl, model_cls in [
+                ('user', User), ('course', Course), ('tutor', Tutor), ('student', Student),
+                ('expense_category', ExpenseCategory), ('expense', Expense),
+                ('fee_record', FeeRecord), ('enquiry', Enquiry), ('attendance', Attendance),
+                ('leave_request', LeaveRequest), ('exam', Exam),
+            ]:
+                try:
+                    max_id = db.session.query(db.func.max(model_cls.id)).scalar() or 0
+                    db.session.execute(text(f"ALTER SEQUENCE {tbl}_id_seq RESTART WITH {max_id + 1}"))
+                except Exception:
+                    db.session.rollback()
+            db.session.commit()
         from app.audit import register_audit_events
         register_audit_events()
 
