@@ -68,9 +68,9 @@ def list():
             student_subquery = db.session.query(student_courses.c.student_id).filter(
                 student_courses.c.course_id == course_filter
             ).distinct()
-            all_students = Student.query.filter(Student.id.in_(student_subquery)).all()
+            all_students = Student.query.filter(Student.id.in_(student_subquery)).order_by(Student.id).all()
         else:
-            all_students = Student.query.all()
+            all_students = Student.query.order_by(Student.id).all()
     
     all_courses = Course.query.all()
     return render_template('students.html', students=all_students, courses=all_courses, is_staff=(current_user.role == 'Staff'), selected_course_id=course_filter)

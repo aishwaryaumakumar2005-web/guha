@@ -256,9 +256,9 @@ def _restore_all():
     ]:
         try:
             max_id = db.session.query(db.func.max(model_cls.id)).scalar() or 0
-            db.session.execute(text(f"SELECT setval('{tbl}_id_seq', {max_id})"))
-        except Exception:
-            pass  # skip if sequence doesn't exist (e.g. SQLite)
+            db.session.execute(text(f"ALTER SEQUENCE {tbl}_id_seq RESTART WITH {max_id + 1}"))
+        except Exception as e:
+            print(f"  Sequence reset skipped for {tbl}: {e}")
     db.session.commit()
     print("All data committed (sequences reset).")
 
