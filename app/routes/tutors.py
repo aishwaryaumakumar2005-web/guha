@@ -25,7 +25,7 @@ def list():
         phone = form.data.get('phone', '').strip()
         specialization = form.data.get('specialization', '').strip()
         status = form.data.get('status', 'Active')
-        selected_courses = request.form.getlist('courses')
+        selected_courses = [c for c in request.form.getlist('courses') if c]
         exists = Tutor.query.filter_by(email=email).first()
         if exists:
             message = f"Tutor with email '{email}' already exists!"
@@ -73,8 +73,7 @@ def edit(id):
     tutor.specialization = form.data.get('specialization', '').strip()
     tutor.status = form.data.get('status', 'Active')
     tutor.courses = []
-    selected_courses = request.form.getlist('courses')
-    for c_id in selected_courses:
+    for c_id in (c for c in request.form.getlist('courses') if c):
         course = Course.query.get(int(c_id))
         if course:
             tutor.courses.append(course)

@@ -30,7 +30,7 @@ def list():
         email = form.data.get('email', '').strip()
         phone = form.data.get('phone', '').strip()
         status = form.data.get('status', 'Active')
-        selected_courses = request.form.getlist('courses')
+        selected_courses = [c for c in request.form.getlist('courses') if c]
         exists = Student.query.filter_by(email=email).first()
         if exists:
             message = f"Student with email '{email}' already exists!"
@@ -98,8 +98,7 @@ def edit(id):
     student.phone = form.data.get('phone', '').strip()
     student.status = form.data.get('status', 'Active')
     student.courses = []
-    selected_courses = request.form.getlist('courses')
-    for c_id in selected_courses:
+    for c_id in (c for c in request.form.getlist('courses') if c):
         course = Course.query.get(int(c_id))
         if course:
             student.courses.append(course)
