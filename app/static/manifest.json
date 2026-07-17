@@ -1,0 +1,21 @@
+{
+  "name": "GUHA Computer Institute",
+  "short_name": "GUHA",
+  "description": "Institute Management System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d2740",
+  "theme_color": "#0d2740",
+  "icons": [
+    {
+      "src": "/static/images/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/images/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
