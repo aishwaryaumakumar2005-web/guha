@@ -1312,6 +1312,33 @@ select.form-select option { background: #0d2740; color: #e8edf2; }
 body.modal-open { padding-right: 0 !important; }
 .modal-header { border-bottom: 1px solid var(--border-color) !important; }
 .modal-footer { border-top: 1px solid var(--border-color) !important; }
+/* Fix: TomSelect selected value invisible in modal */
+.modal .ts-control {
+    background-color: #1a314d !important;
+    border-color: var(--border-color) !important;
+    color: #ffffff !important;
+}
+.modal .ts-wrapper .ts-control .item {
+    color: #ffffff !important;
+}
+.modal .ts-control input {
+    color: #ffffff !important;
+}
+.modal .ts-dropdown {
+    background-color: #1a314d !important;
+}
+.modal .ts-dropdown .option.active {
+    background-color: #1b6ef3 !important;
+    color: #ffffff !important;
+}
+.modal .ts-dropdown .option {
+    color: #cccccc !important;
+}
+body.dark-mode .modal .ts-control,
+body.dark-mode .modal .ts-wrapper .ts-control .item,
+body.dark-mode .modal .ts-dropdown .option.active {
+    color: #ffffff !important;
+}
 /* Fix: Modal backdrop should not intercept pointer events */
 .modal-backdrop {
     pointer-events: none !important;
