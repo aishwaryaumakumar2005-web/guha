@@ -184,7 +184,7 @@ class FeeForm(Form):
     integer = ['student_id']
     float = ['amount_paid']
     date = ['payment_date']
-    choices = {'payment_method': ['Cash', 'UPI', 'Bank Transfer', 'Card', 'Cheque', 'Online']}
+    choices = {'payment_method': ['Cash', 'UPI', 'UPI - Guha India', 'UPI - Ejaj Sir', 'Bank Transfer', 'Card', 'Cheque', 'Online']}
     min_values = {'amount_paid': 0, 'student_id': 1}
     max_length = {'remarks': 200}
 
