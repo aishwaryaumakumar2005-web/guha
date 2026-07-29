@@ -12,7 +12,7 @@ class Course(db.Model):
     gst_applicable = db.Column(db.Boolean, default=False)
     syllabus = db.Column(db.Text)
 
-    enquiries = db.relationship('Enquiry', backref='course', lazy=True)
+    enquiries = db.relationship('Enquiry', backref='course', lazy=True, passive_deletes=True)
 
     def __repr__(self):
         return f"<Course {self.code}: {self.name}>"
