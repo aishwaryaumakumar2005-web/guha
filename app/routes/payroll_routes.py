@@ -314,6 +314,23 @@ def update_settings(tutor_id):
     settings.bank_name = form.data.get('bank_name', '').strip()
     settings.account_number = form.data.get('account_number', '').strip()
     settings.ifsc_code = form.data.get('ifsc_code', '').strip()
+    db.session.flush()
+    # Recalculate existing Draft payroll records for this tutor
+    draft_records = PayrollRecord.query.filter_by(tutor_id=tutor_id, status='Draft').all()
+    for rec in draft_records:
+        rec.base_amount = settings.base_salary or 0.0
+        rec.bonus_amount = settings.bonus or 0.0
+        rec.other_deductions = settings.other_deductions or 0.0
+        # Recalc commission from actual fees for this period
+        result = compute_tutor_payroll(tutor, rec.month, rec.year, rec.commission_pct_used)
+        rec.commission_amount = result['commission']
+        gross = rec.base_amount + rec.commission_amount + rec.bonus_amount
+        tds_pct = settings.tds_percentage or 0.0
+        rec.tds_amount = gross * (tds_pct / 100.0) if tds_pct > 0 else 0.0
+        rec.net_amount = gross - rec.tds_amount - rec.other_deductions
     db.session.commit()
-    flash(f"Payroll settings updated for {tutor.name}.", "success")
+    msg = f"Payroll settings updated for {tutor.name}."
+    if draft_records:
+        msg += f" {len(draft_records)} draft record(s) recalculated."
+    flash(msg, "success")
     return redirect(url_for('payroll.payroll_list'))
