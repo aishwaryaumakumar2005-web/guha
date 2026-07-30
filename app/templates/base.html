@@ -334,9 +334,17 @@ Class Reports</span>
                 <span>
 My Leaves</span>
             </a>
+            <a href="{{ url_for('tasks.list_tasks') }}" class="nav-item-link {% if request.path == '/tasks' %}active{% endif %}">
+                <span class="nav-icon"><i class="bi bi-check2-square"></i></span>
+                <span>Tasks</span>
+            </a>
             {% endif %}
             <div class="nav-spacer"></div>
             {% if current_user.role == 'Admin' %}
+            <a href="{{ url_for('tasks.list_tasks') }}" class="nav-item-link {% if request.path == '/tasks' %}active{% endif %}">
+                <span class="nav-icon"><i class="bi bi-check2-square"></i></span>
+                <span>Tasks</span>
+            </a>
             <div class="sidebar-divider"></div>
             <a href="{{ url_for('admin.admin_console') }}" class="nav-item-link nav-item-xl {% if request.path == '/admin' %}active{% endif %}">
                 <span class="nav-icon">

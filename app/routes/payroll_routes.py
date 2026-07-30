@@ -90,7 +90,8 @@ def process_payroll():
     record = PayrollRecord(tutor_id=tutor_id, month=month, year=year,
         base_amount=result['base'], commission_amount=result['commission'],
         bonus_amount=result['bonus'], tds_amount=result['tds'],
-        other_deductions=result['other_ded'], net_amount=result['net'], status='Draft')
+        other_deductions=result['other_ded'], net_amount=result['net'], status='Draft',
+        payment_method=request.form.get('payment_method', 'Cash'))
     db.session.add(record)
     db.session.commit()
     flash(f"Payroll processed for {tutor.name}: Rs.{result['net']:,.2f} net.", "success")
@@ -120,7 +121,8 @@ def process_all_payroll():
         record = PayrollRecord(tutor_id=tutor.id, month=month, year=year,
             base_amount=result['base'], commission_amount=result['commission'],
             bonus_amount=result['bonus'], tds_amount=result['tds'],
-            other_deductions=result['other_ded'], net_amount=result['net'], status='Draft')
+            other_deductions=result['other_ded'], net_amount=result['net'], status='Draft',
+            payment_method=request.form.get('payment_method', 'Cash'))
         db.session.add(record)
         count += 1
     db.session.commit()
@@ -142,7 +144,8 @@ def confirm_payroll(id):
         db.session.commit()
     desc = f"Salary: {record.tutor.name} - {record.month}/{record.year} (Base: Rs.{record.base_amount:,.2f}, Commission: Rs.{record.commission_amount:,.2f}, TDS: Rs.{record.tds_amount:,.2f})"
     expense = Expense(category_id=salary_cat.id, amount=record.net_amount, description=desc,
-        expense_date=date.today(), created_by=current_user.id)
+        expense_date=date.today(), created_by=current_user.id,
+        payment_method=record.payment_method or 'Cash')
     db.session.add(expense)
     db.session.flush()
     record.status = 'Paid'

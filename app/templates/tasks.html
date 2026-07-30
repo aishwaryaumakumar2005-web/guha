@@ -1,0 +1,212 @@
+{% extends 'base.html' %}{% block title %}Tasks{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item active" aria-current="page">Tasks</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold"><i class="bi bi-check2-square me-2"></i>Task Manager</h2>
+            <p class="text-white mb-0">{% if current_user.role == 'Admin' %}Assign and track tasks for tutors.{% else %}View and update your assigned tasks.{% endif %}</p>
+        </div>
+        {% if current_user.role == 'Admin' %}
+        <button class="btn btn-premium" data-bs-toggle="modal" data-bs-target="#assignTaskModal">
+            <i class="bi bi-plus-circle me-2"></i>Assign Task
+        </button>
+        {% endif %}
+    </div>
+    <!-- Tasks Table -->
+    <div class="glass-card p-4" data-aos="fade-up">
+        <h4 class="mb-4 text-dark fw-bold"><i class="bi bi-list-task me-2 text-dark"></i>Task Records</h4>
+        <div class="table-container">
+            <table class="table table-custom sortable" data-page-size="10">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        {% if current_user.role == 'Admin' %}<th>Assigned To</th>{% endif %}
+                        <th>Description</th>
+                        <th>Due Date</th>
+                        <th>Status</th>
+                        {% if current_user.role == 'Admin' %}<th>Remarks</th>{% endif %}
+                        <th>Assigned Date</th>
+                        {% if current_user.role == 'Admin' %}<th>Assigned By</th>{% endif %}
+                        <th class="text-end">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if tasks %} {% for t in tasks %}
+                    <tr>
+                        <td class="fw-medium text-dark">{{ t.title }}</td>
+                        {% if current_user.role == 'Admin' %}<td>{{ t.tutor.name }}</td>{% endif %}
+                        <td class="text-secondary small">{{ t.description or '-' }}</td>
+                        <td>{% if t.due_date %}<span class="badge badge-custom {% if t.due_date < today and t.status != 'Completed' %}badge-amber{% else %}badge-cyan{% endif %}">{{ t.due_date.strftime('%d %b %Y') }}</span>{% else %}-{% endif %}</td>
+                        <td>
+                            {% if t.status == 'Completed' %}<span class="badge badge-custom badge-emerald">Completed</span>
+                            {% elif t.status == 'In Progress' %}<span class="badge badge-custom badge-cyan">In Progress</span>
+                            {% else %}<span class="badge badge-custom badge-amber">Pending</span>{% endif %}
+                        </td>
+                        {% if current_user.role == 'Admin' %}<td class="small text-secondary" style="max-width:200px;white-space:normal">{{ t.notes or '-' }}</td>{% endif %}
+                        <td class="small text-secondary">{{ t.assigned_date.strftime('%d %b %Y') if t.assigned_date else '-' }}</td>
+                        {% if current_user.role == 'Admin' %}<td class="small text-secondary">{{ t.assigner.name if t.assigner else 'System' }}</td>{% endif %}
+                        <td class="text-end text-nowrap">
+                            {% if current_user.role == 'Admin' %}
+                            <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#editTaskModal{{ t.id }}">
+                                <i class="bi bi-pencil-square"></i>
+                            </button>
+                            {% elif tutor and t.tutor_id == tutor.id %}
+                            <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#updateStatusModal{{ t.id }}">
+                                <i class="bi bi-pencil-square"></i>
+                            </button>
+                            {% endif %}
+                            {% if current_user.role == 'Admin' %}
+                            <a href="javascript:void(0)" class="btn btn-sm btn-outline-danger" onclick="confirmAction('Delete this task?', function() { window.location.href = '{{ url_for('tasks.delete_task', id=t.id) }}'; })">
+                                <i class="bi bi-trash"></i>
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %} {% else %}
+                    <tr>
+                        <td colspan="{% if current_user.role == 'Admin' %}9{% else %}6{% endif %}">
+                            <div class="empty-state">
+                                <div class="empty-state-content">
+                                    <h4 class="empty-state-title">No tasks found</h4>
+                                    <p class="empty-state-subtitle">{% if current_user.role == 'Admin' %}Assign a task to get started.{% else %}You have no assigned tasks.{% endif %}</p>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<!-- Assign Task Modal (Admin only) -->
+{% if current_user.role == 'Admin' %}
+<div class="modal fade" id="assignTaskModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-white"><i class="bi bi-plus-circle me-2"></i>Assign Task</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('tasks.list_tasks') }}" hx-boost="false" data-no-ajax>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Assign To</label>
+                        <select class="form-select" name="tutor_id" required>
+                            <option value="">-- Select Tutor --</option>
+                            {% for t in tutors %}
+                            <option value="{{ t.id }}">{{ t.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Task Title</label>
+                        <input type="text" class="form-control" name="title" placeholder="e.g. Complete syllabus planning" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Description</label>
+                        <textarea class="form-control" name="description" rows="3" placeholder="Task details..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Due Date</label>
+                        <input type="date" class="form-control" name="due_date">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-premium"><i class="bi bi-send me-1"></i>Assign</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+<!-- Admin Edit Modals -->
+{% if current_user.role == 'Admin' %}
+{% for t in tasks %}
+<div class="modal fade" id="editTaskModal{{ t.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-white"><i class="bi bi-pencil-square me-2"></i>Edit Task</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('tasks.edit_task', id=t.id) }}" hx-boost="false" data-no-ajax>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Assigned To</label>
+                        <select class="form-select" name="tutor_id">
+                            {% for tu in tutors %}
+                            <option value="{{ tu.id }}" {% if tu.id == t.tutor_id %}selected{% endif %}>{{ tu.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Task Title</label>
+                        <input type="text" class="form-control" name="title" value="{{ t.title }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Description</label>
+                        <textarea class="form-control" name="description" rows="2">{{ t.description or '' }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Due Date</label>
+                        <input type="date" class="form-control" name="due_date" value="{{ t.due_date.strftime('%Y-%m-%d') if t.due_date else '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Status</label>
+                        <select class="form-select" name="status">
+                            <option value="Pending" {% if t.status == 'Pending' %}selected{% endif %}>Pending</option>
+                            <option value="In Progress" {% if t.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                            <option value="Completed" {% if t.status == 'Completed' %}selected{% endif %}>Completed</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Remarks</label>
+                        <textarea class="form-control" name="notes" rows="2">{{ t.notes or '' }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-premium"><i class="bi bi-check-lg me-1"></i>Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endif %}
+<!-- Update Status Modals (Staff) -->
+{% for t in tasks %}
+{% if tutor and t.tutor_id == tutor.id %}
+<div class="modal fade" id="updateStatusModal{{ t.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-white"><i class="bi bi-pencil-square me-2"></i>Update Task: {{ t.title }}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('tasks.update_status', id=t.id) }}" hx-boost="false" data-no-ajax>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Status</label>
+                        <select class="form-select" name="status" required>
+                            <option value="Pending" {% if t.status == 'Pending' %}selected{% endif %}>Pending</option>
+                            <option value="In Progress" {% if t.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                            <option value="Completed" {% if t.status == 'Completed' %}selected{% endif %}>Completed</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Remarks <span class="text-white-50">(optional)</span></label>
+                        <textarea class="form-control" name="notes" rows="3" placeholder="Add remarks...">{{ t.notes or '' }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-premium"><i class="bi bi-check-lg me-1"></i>Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+{% endblock %}

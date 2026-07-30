@@ -34,8 +34,9 @@ def list():
         category_id = form.cleaned_data.get('category_id')
         amount = form.cleaned_data.get('amount', 0)
         description = request.form.get('description', '').strip()
+        payment_method = request.form.get('payment_method', 'Cash').strip()
         expense_date = form.cleaned_data.get('expense_date', date.today())
-        new_expense = Expense(category_id=category_id, amount=amount, description=description, expense_date=expense_date, created_by=current_user.id)
+        new_expense = Expense(category_id=category_id, amount=amount, description=description, payment_method=payment_method, expense_date=expense_date, created_by=current_user.id)
         db.session.add(new_expense)
         db.session.commit()
         message = "Expense recorded successfully!"
@@ -90,6 +91,7 @@ def edit(id):
     expense.category_id = form.cleaned_data.get('category_id')
     expense.amount = form.cleaned_data.get('amount', 0)
     expense.description = request.form.get('description', '').strip()
+    expense.payment_method = request.form.get('payment_method', 'Cash').strip()
     expense.expense_date = form.cleaned_data.get('expense_date', expense.expense_date)
     db.session.commit()
     message = "Expense updated successfully!"

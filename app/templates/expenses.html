@@ -113,6 +113,8 @@ Category</th>
                         <th>
 Description</th>
                         <th>
+Payment Mode</th>
+                        <th>
 Amount</th>
                         <th>
 Recorded By</th>
@@ -132,6 +134,10 @@ Action</th>
                                 <div class="fw-medium text-dark">
 {{ exp.description }}</div>
                             </td>
+                            <td>
+<span class="badge badge-custom badge-cyan">
+{{ exp.payment_method or 'Cash' }}</span>
+</td>
                             <td class="fw-semibold text-white">
 ₹{{ "{:,.2f}".format(exp.amount) }}</td>
                             <td class="small text-secondary">
@@ -148,7 +154,7 @@ Action</th>
                             </td>
                         </tr>
                         {% endfor %}                    {% else %}                        <tr>
-                            {{ empty_state('No expense records found', "Record your first expense to start tracking institute spending", 'expenses', '#', 'Add Expense', 'bi-plus-circle-fill', 6, 'data-bs-toggle="modal" data-bs-target="#addExpenseModal"') }}
+                            {{ empty_state('No expense records found', "Record your first expense to start tracking institute spending", 'expenses', '#', 'Add Expense', 'bi-plus-circle-fill', 7, 'data-bs-toggle="modal" data-bs-target="#addExpenseModal"') }}
                         </tr>
                     {% endif %}                </tbody>
             </table>
@@ -191,7 +197,19 @@ Record New Expense</h5>
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">
- Description</label>
+  Payment Mode</label>
+                        <select class="form-select" name="payment_method">
+                            <option value="UPI - Guha India">UPI - Guha India</option>
+                            <option value="UPI - Ejaj Sir">UPI - Ejaj Sir</option>
+                            <option value="UPI">UPI / Digital Wallet</option>
+                            <option value="Cash" selected>Cash Handover</option>
+                            <option value="Card">Credit/Debit Card</option>
+                            <option value="Bank Transfer">Direct Bank Wire</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">
+  Description</label>
                         <textarea class="form-control" name="description" rows="2" placeholder="What was this expense for?" required>
 </textarea>
                     </div>
@@ -240,7 +258,19 @@ Edit Expense</h5>
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">
- Description</label>
+  Payment Mode</label>
+                        <select class="form-select" name="payment_method">
+                            <option value="UPI - Guha India" {% if exp.payment_method == 'UPI - Guha India' %}selected{% endif %}>UPI - Guha India</option>
+                            <option value="UPI - Ejaj Sir" {% if exp.payment_method == 'UPI - Ejaj Sir' %}selected{% endif %}>UPI - Ejaj Sir</option>
+                            <option value="UPI" {% if exp.payment_method == 'UPI' %}selected{% endif %}>UPI / Digital Wallet</option>
+                            <option value="Cash" {% if exp.payment_method == 'Cash' or not exp.payment_method %}selected{% endif %}>Cash Handover</option>
+                            <option value="Card" {% if exp.payment_method == 'Card' %}selected{% endif %}>Credit/Debit Card</option>
+                            <option value="Bank Transfer" {% if exp.payment_method == 'Bank Transfer' %}selected{% endif %}>Direct Bank Wire</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">
+  Description</label>
                         <textarea class="form-control" name="description" rows="2" required>
 {{ exp.description }}</textarea>
                     </div>

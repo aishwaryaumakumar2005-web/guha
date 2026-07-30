@@ -38,6 +38,7 @@ class PayrollRecord(db.Model):
     other_deductions = db.Column(db.Float, default=0.0)
     net_amount = db.Column(db.Float, default=0.0)
     status = db.Column(db.String(20), default='Draft')
+    payment_method = db.Column(db.String(50), default='Cash')
     expense_id = db.Column(db.Integer, db.ForeignKey('expense.id'))
     paid_date = db.Column(db.Date)
     notes = db.Column(db.Text)

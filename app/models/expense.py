@@ -21,6 +21,7 @@ class Expense(db.Model):
     amount = db.Column(db.Float, nullable=False)
     description = db.Column(db.Text, nullable=False)
     expense_date = db.Column(db.Date, default=datetime.utcnow().date, nullable=False)
+    payment_method = db.Column(db.String(50), default='Cash')
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 

@@ -111,6 +111,7 @@ def create_app(config_object=None):
     from .routes.exam_routes import exams_bp
     from .routes.chat import chat_bp
     from .routes.extras import extras_bp
+    from .routes.tasks import tasks_bp
 
     blueprints = [
         auth_bp, dashboard_bp, courses_bp, students_bp, tutors_bp,
@@ -119,6 +120,7 @@ def create_app(config_object=None):
         notifications_bp, whatsapp_bp, sms_bp, accounting_bp,         payroll_bp, exams_bp,
         chat_bp,
         extras_bp,
+        tasks_bp,
     ]
     for bp in blueprints:
         app.register_blueprint(bp)
@@ -202,6 +204,15 @@ def create_app(config_object=None):
             db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_leave_status ON leave_request(status)'))
             db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log(timestamp)'))
             db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id)'))
+            # Add payment_method column to expense table if missing
+            try:
+                db.session.execute(db.text("ALTER TABLE expense ADD COLUMN payment_method VARCHAR(50) DEFAULT 'Cash'"))
+            except Exception:
+                db.session.rollback()
+            try:
+                db.session.execute(db.text("ALTER TABLE payroll_record ADD COLUMN payment_method VARCHAR(50) DEFAULT 'Cash'"))
+            except Exception:
+                db.session.rollback()
             db.session.commit()
         except Exception:
             db.session.rollback()
