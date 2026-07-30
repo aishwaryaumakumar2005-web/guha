@@ -14,7 +14,6 @@ def compute_tutor_payroll(tutor, month, year, percentage=None):
     if not settings:
         settings = TutorPayrollSettings(tutor_id=tutor.id)
         db.session.add(settings)
-        db.session.commit()
     base = settings.base_salary or 0.0
     comm_pct = percentage if percentage is not None else (settings.commission_percentage or 0.0)
     bonus = settings.bonus or 0.0
@@ -27,15 +26,18 @@ def compute_tutor_payroll(tutor, month, year, percentage=None):
         end_date = date(year, month + 1, 1) - timedelta(days=1)
     from app.models import Student, Course, FeeRecord
     students = Student.query.join(Student.courses).join(Course.tutors).filter(Tutor.id == tutor.id).all()
-    student_ids = [s.id for s in students]
     commission = 0.0
-    if student_ids and comm_pct > 0:
-        total_collected = db.session.query(db.func.sum(FeeRecord.amount_paid)).filter(
-            FeeRecord.student_id.in_(student_ids),
-            FeeRecord.payment_date >= start_date,
-            FeeRecord.payment_date <= end_date
-        ).scalar() or 0.0
-        commission = total_collected * (comm_pct / 100.0)
+    if students and comm_pct > 0:
+        for student in students:
+            tutor_count = Tutor.query.join(Course.tutors).join(Student.courses).filter(Student.id == student.id).count()
+            if tutor_count == 0:
+                continue
+            student_fees = db.session.query(db.func.sum(FeeRecord.amount_paid)).filter(
+                FeeRecord.student_id == student.id,
+                FeeRecord.payment_date >= start_date,
+                FeeRecord.payment_date <= end_date
+            ).scalar() or 0.0
+            commission += (student_fees / tutor_count) * (comm_pct / 100.0)
     gross = base + commission + bonus
     tds = gross * (tds_pct / 100.0) if tds_pct > 0 else 0.0
     net = gross - tds - other_ded
@@ -91,7 +93,8 @@ def process_payroll():
         base_amount=result['base'], commission_amount=result['commission'],
         bonus_amount=result['bonus'], tds_amount=result['tds'],
         other_deductions=result['other_ded'], net_amount=result['net'], status='Draft',
-        payment_method=request.form.get('payment_method', 'Cash'))
+        payment_method=request.form.get('payment_method', 'Cash'),
+        commission_pct_used=result['commission_pct'])
     db.session.add(record)
     db.session.commit()
     flash(f"Payroll processed for {tutor.name}: Rs.{result['net']:,.2f} net.", "success")
@@ -122,7 +125,8 @@ def process_all_payroll():
             base_amount=result['base'], commission_amount=result['commission'],
             bonus_amount=result['bonus'], tds_amount=result['tds'],
             other_deductions=result['other_ded'], net_amount=result['net'], status='Draft',
-            payment_method=request.form.get('payment_method', 'Cash'))
+            payment_method=request.form.get('payment_method', 'Cash'),
+            commission_pct_used=result['commission_pct'])
         db.session.add(record)
         count += 1
     db.session.commit()
@@ -259,7 +263,7 @@ def payslip_pdf(id):
         pdf.ln()
     table_header()
     table_row(['Base Salary', f'Rs. {record.base_amount:,.2f}', '', ''])
-    table_row([f'Commission ({record.tutor.payroll_settings.commission_percentage if record.tutor.payroll_settings else 0}%)', f'Rs. {record.commission_amount:,.2f}', '', ''])
+    table_row([f'Commission ({record.commission_pct_used or 0}%)', f'Rs. {record.commission_amount:,.2f}', '', ''])
     if record.bonus_amount > 0:
         table_row(['Bonus', f'Rs. {record.bonus_amount:,.2f}', '', ''])
     if record.tds_amount > 0:

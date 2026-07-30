@@ -213,6 +213,10 @@ def create_app(config_object=None):
                 db.session.execute(db.text("ALTER TABLE payroll_record ADD COLUMN payment_method VARCHAR(50) DEFAULT 'Cash'"))
             except Exception:
                 db.session.rollback()
+            try:
+                db.session.execute(db.text("ALTER TABLE payroll_record ADD COLUMN commission_pct_used FLOAT DEFAULT 0"))
+            except Exception:
+                db.session.rollback()
             db.session.commit()
         except Exception:
             db.session.rollback()

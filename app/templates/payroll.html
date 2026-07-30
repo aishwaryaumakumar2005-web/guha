@@ -168,7 +168,7 @@
                 <h5 class="modal-title text-white"><i class="bi bi-person-gear me-2"></i>Process Individual Payroll</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" action="{{ url_for('payroll.process_payroll') }}">
+            <form method="POST" action="{{ url_for('payroll.process_payroll') }}" hx-boost="false" data-no-ajax>
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label text-white small">Tutor</label>
@@ -230,7 +230,7 @@
                 <h5 class="modal-title text-white"><i class="bi bi-people-gear me-2"></i>Process All Active Tutors</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" action="{{ url_for('payroll.process_all_payroll') }}">
+            <form method="POST" action="{{ url_for('payroll.process_all_payroll') }}" hx-boost="false" data-no-ajax>
                 <div class="modal-body">
                     <p class="text-white-50 small">This will create Draft payroll records for all active tutors for the selected period. Existing records will be skipped.</p>
                     <div class="row">
