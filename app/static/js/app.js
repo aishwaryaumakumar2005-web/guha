@@ -174,6 +174,10 @@ function setupEditModalFormHandlers() {
         if (form.hasAttribute('data-no-ajax')) {
             return; // allow normal full-page form submission for create flows
         }
+        if (form.hasAttribute('data-ajax-ready')) {
+            return; // already registered
+        }
+        form.setAttribute('data-ajax-ready', 'true');
         form.addEventListener('submit', function(e) {
             // Only intercept edit/form POST requests in modals
             const action = this.getAttribute('action');
