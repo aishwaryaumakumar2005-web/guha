@@ -179,6 +179,8 @@ function setupEditModalFormHandlers() {
         }
         form.setAttribute('data-ajax-ready', 'true');
         form.addEventListener('submit', function(e) {
+            if (this.hasAttribute('data-submitting')) return;
+            this.setAttribute('data-submitting', 'true');
             // Only intercept edit/form POST requests in modals
             const action = this.getAttribute('action');
             const method = this.getAttribute('method') || 'POST';
@@ -253,20 +255,22 @@ function setupEditModalFormHandlers() {
                         errorMsg = data.message;
                     }
                     showToast(errorMsg, 'error');
-                    // Restore button state
+                    // Restore button state and allow retry
                     if (submitBtn) {
                         submitBtn.disabled = originalBtnDisabled;
                         submitBtn.innerHTML = originalBtnText;
                     }
+                    form.removeAttribute('data-submitting');
                 }
             })
             .catch(error => {
                 console.error('Form submission error:', error);
-                // Restore button state
+                // Restore button state and allow retry
                 if (submitBtn) {
                     submitBtn.disabled = originalBtnDisabled;
                     submitBtn.innerHTML = originalBtnText;
                 }
+                form.removeAttribute('data-submitting');
                 // Show error toast
                 showToast('Error saving changes. Please check the form and try again.', 'error');
             });
