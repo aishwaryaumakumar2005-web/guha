@@ -185,6 +185,7 @@ function setupEditModalFormHandlers() {
             }
             
             e.preventDefault();
+            e.stopPropagation();
             
             // Get the modal that contains this form
             const modalEl = this.closest('.modal');
