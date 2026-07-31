@@ -8,6 +8,7 @@ from .enquiry import Enquiry
 from .expense import ExpenseCategory, Expense
 from .exam import Exam, ExamScore, McqQuestion, McqAttempt, McqAnswer, ExamAssignment
 from .payroll import TutorPayrollSettings, PayrollRecord
+from .funding import OwnerFunding
 from .task import Task
 from .settings import SystemSetting
 from .audit import AuditLog

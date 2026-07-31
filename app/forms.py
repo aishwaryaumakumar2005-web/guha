@@ -247,3 +247,11 @@ class PayrollSettingsForm(Form):
     float = ['base_salary', 'commission_percentage', 'tds_percentage', 'bonus', 'other_deductions']
     min_values = {'base_salary': 0, 'commission_percentage': 0, 'tds_percentage': 0, 'bonus': 0, 'other_deductions': 0}
     max_length = {'bank_name': 100, 'account_number': 50, 'ifsc_code': 20}
+
+
+class OwnerFundingForm(Form):
+    required = ['amount']
+    float = ['amount']
+    date = ['funding_date']
+    choices = {'method': ['Cash', 'UPI', 'UPI - Guha India', 'UPI - Ejaj Sir', 'Bank Transfer', 'Card']}
+    min_values = {'amount': 1}

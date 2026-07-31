@@ -3,7 +3,7 @@ from io import BytesIO
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, send_file, current_app
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import FeeRecord, Expense, ExpenseCategory, Course, Student, student_courses, Attendance, Tutor
+from app.models import FeeRecord, Expense, ExpenseCategory, Course, Student, student_courses, Attendance, Tutor, OwnerFunding
 from app.helpers import admin_required
 
 reports_bp = Blueprint('reports', __name__)
@@ -154,12 +154,23 @@ def reports():
     total_expense_filtered = db.session.query(db.func.sum(Expense.amount)).filter(
         Expense.expense_date >= start_date, Expense.expense_date <= end_date
     ).scalar() or 0.0
-    net_balance = float(total_income_filtered) - float(total_expense_filtered)
+    funding_monthly_rows = db.session.query(
+        db.extract('month', OwnerFunding.funding_date).label('m'),
+        db.func.sum(OwnerFunding.amount).label('total')
+    ).filter(db.extract('year', OwnerFunding.funding_date) == filter_year
+    ).group_by(db.extract('month', OwnerFunding.funding_date)).all()
+    funding_monthly_map = {int(r.m): float(r.total) for r in funding_monthly_rows}
+    funding_monthly = [funding_monthly_map.get(m, 0.0) for m in range(1, 13)]
+    total_funding_filtered = db.session.query(db.func.sum(OwnerFunding.amount)).filter(
+        OwnerFunding.funding_date >= start_date, OwnerFunding.funding_date <= end_date
+    ).scalar() or 0.0
+    net_balance = float(total_income_filtered) + float(total_funding_filtered) - float(total_expense_filtered)
     pl_monthly = []
     for m in range(1, 13):
         inc = fee_monthly_map.get(m, 0.0)
         exp = exp_monthly_map.get(m, 0.0)
-        pl_monthly.append({"month": months_names[m-1], "income": inc, "expense": exp, "net": inc - exp})
+        fund = funding_monthly_map.get(m, 0.0)
+        pl_monthly.append({"month": months_names[m-1], "income": inc, "expense": exp, "funding": fund, "net": inc + fund - exp})
     cumulative_income = []
     running = 0.0
     for v in income_monthly:
@@ -209,6 +220,7 @@ def reports():
         monthly_expense=monthly_expense, category_wise_expense=category_wise_expense, expense_summary=expense_summary,
         recent_expenses=recent_expenses, exp_chart_labels=exp_chart_labels, exp_chart_amounts=exp_chart_amounts,
         total_income_filtered=float(total_income_filtered), total_expense_filtered=float(total_expense_filtered),
+        total_funding_filtered=float(total_funding_filtered), funding_monthly=funding_monthly,
         net_balance=net_balance, pl_monthly=pl_monthly, net_trend=net_trend,
         payment_methods_report=payment_methods_report, total_collected_period=float(total_collected_period))
 
@@ -369,25 +381,31 @@ def report_pdf():
     elif tab == 'overall':
         total_income = db.session.query(db.func.sum(FeeRecord.amount_paid)).filter(FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date).scalar() or 0.0
         total_expense = db.session.query(db.func.sum(Expense.amount)).filter(Expense.expense_date >= start_date, Expense.expense_date <= end_date).scalar() or 0.0
-        net = float(total_income) - float(total_expense)
+        total_funding = db.session.query(db.func.sum(OwnerFunding.amount)).filter(OwnerFunding.funding_date >= start_date, OwnerFunding.funding_date <= end_date).scalar() or 0.0
+        net = float(total_income) + float(total_funding) - float(total_expense)
         pdf.section_title('Profit & Loss Summary')
         pdf.kpi_box('Total Income', f'Rs. {float(total_income):,.2f}', (107, 142, 35))
+        pdf.kpi_box('Owner Funding', f'Rs. {float(total_funding):,.2f}', (70, 130, 180))
         pdf.kpi_box('Total Expense', f'Rs. {float(total_expense):,.2f}', (192, 57, 43))
+        pdf.ln(3)
         pdf.kpi_box('Net Balance', f"{'+' if net >= 0 else ''}Rs. {net:,.2f}", (47, 72, 88) if net >= 0 else (192, 57, 43))
         pdf.ln(4)
         months_names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
         pdf.section_title(f'Monthly P&L - {filter_year}')
-        pdf.table_header(['Month', 'Income', 'Expense', 'Net', 'Status'], [30, 45, 45, 45, 35])
+        pdf.table_header(['Month', 'Income', 'Funding', 'Expense', 'Net', 'Status'], [30, 40, 40, 40, 40, 30])
         inc_rows = db.session.query(db.extract('month', FeeRecord.payment_date).label('m'), db.func.sum(FeeRecord.amount_paid).label('total')).filter(db.extract('year', FeeRecord.payment_date) == filter_year).group_by(db.extract('month', FeeRecord.payment_date)).all()
         inc_map = {int(r.m): float(r.total) for r in inc_rows}
         exp_rows_ov = db.session.query(db.extract('month', Expense.expense_date).label('m'), db.func.sum(Expense.amount).label('total')).filter(db.extract('year', Expense.expense_date) == filter_year).group_by(db.extract('month', Expense.expense_date)).all()
         exp_map_ov = {int(r.m): float(r.total) for r in exp_rows_ov}
+        fund_rows_ov = db.session.query(db.extract('month', OwnerFunding.funding_date).label('m'), db.func.sum(OwnerFunding.amount).label('total')).filter(db.extract('year', OwnerFunding.funding_date) == filter_year).group_by(db.extract('month', OwnerFunding.funding_date)).all()
+        fund_map_ov = {int(r.m): float(r.total) for r in fund_rows_ov}
         for m in range(1, 13):
             inc = inc_map.get(m, 0.0)
             exp = exp_map_ov.get(m, 0.0)
-            n = inc - exp
+            fund = fund_map_ov.get(m, 0.0)
+            n = inc + fund - exp
             status = 'Profit' if n > 0 else ('Loss' if n < 0 else 'Breakeven')
-            pdf.table_row([months_names[m-1], f'{inc:,.2f}', f'{exp:,.2f}', f"{'+' if n >= 0 else ''}{n:,.2f}", status], [30, 45, 45, 45, 35], ['C', 'R', 'R', 'R', 'C'])
+            pdf.table_row([months_names[m-1], f'{inc:,.2f}', f'{fund:,.2f}', f'{exp:,.2f}', f"{'+' if n >= 0 else ''}{n:,.2f}", status], [30, 40, 40, 40, 40, 30], ['C', 'R', 'R', 'R', 'R', 'C'])
     elif tab == 'payment_methods':
         all_records = FeeRecord.query.filter(FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date).order_by(FeeRecord.payment_date.desc()).all()
         total_period = sum(r.amount_paid for r in all_records)
@@ -512,18 +530,22 @@ def report_excel():
         ws = wb.active
         total_inc = db.session.query(db.func.sum(FeeRecord.amount_paid)).filter(FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date).scalar() or 0.0
         total_exp = db.session.query(db.func.sum(Expense.amount)).filter(Expense.expense_date >= start_date, Expense.expense_date <= end_date).scalar() or 0.0
-        write_sheet(ws, 'P&L Summary', ['Metric', 'Value'], [['Total Income', float(total_inc)], ['Total Expense', float(total_exp)], ['Net Balance', float(total_inc) - float(total_exp)]])
+        total_fund = db.session.query(db.func.sum(OwnerFunding.amount)).filter(OwnerFunding.funding_date >= start_date, OwnerFunding.funding_date <= end_date).scalar() or 0.0
+        write_sheet(ws, 'P&L Summary', ['Metric', 'Value'], [['Total Income', float(total_inc)], ['Owner Funding', float(total_fund)], ['Total Expense', float(total_exp)], ['Net Balance', float(total_inc) + float(total_fund) - float(total_exp)]])
         rows = []
         inc_rows_ov = db.session.query(db.extract('month', FeeRecord.payment_date).label('m'), db.func.sum(FeeRecord.amount_paid).label('total')).filter(db.extract('year', FeeRecord.payment_date) == filter_year).group_by(db.extract('month', FeeRecord.payment_date)).all()
         inc_map_ov = {int(r.m): float(r.total) for r in inc_rows_ov}
         exp_rows_ov = db.session.query(db.extract('month', Expense.expense_date).label('m'), db.func.sum(Expense.amount).label('total')).filter(db.extract('year', Expense.expense_date) == filter_year).group_by(db.extract('month', Expense.expense_date)).all()
         exp_map_ov = {int(r.m): float(r.total) for r in exp_rows_ov}
+        fund_rows_ov = db.session.query(db.extract('month', OwnerFunding.funding_date).label('m'), db.func.sum(OwnerFunding.amount).label('total')).filter(db.extract('year', OwnerFunding.funding_date) == filter_year).group_by(db.extract('month', OwnerFunding.funding_date)).all()
+        fund_map_ov = {int(r.m): float(r.total) for r in fund_rows_ov}
         for m in range(1, 13):
             inc = inc_map_ov.get(m, 0.0)
             exp = exp_map_ov.get(m, 0.0)
-            rows.append([months[m-1], inc, exp, inc - exp])
+            fund = fund_map_ov.get(m, 0.0)
+            rows.append([months[m-1], inc, fund, exp, inc + fund - exp])
         ws2 = wb.create_sheet('Monthly P&L')
-        write_sheet(ws2, 'Monthly P&L', ['Month', 'Income', 'Expense', 'Net'], rows)
+        write_sheet(ws2, 'Monthly P&L', ['Month', 'Income', 'Owner Funding', 'Expense', 'Net'], rows)
     elif tab == 'payment_methods':
         ws = wb.active
         ws.title = 'Summary'

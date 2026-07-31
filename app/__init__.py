@@ -112,6 +112,7 @@ def create_app(config_object=None):
     from .routes.chat import chat_bp
     from .routes.extras import extras_bp
     from .routes.tasks import tasks_bp
+    from .routes.funding import funding_bp
 
     blueprints = [
         auth_bp, dashboard_bp, courses_bp, students_bp, tutors_bp,
@@ -121,6 +122,7 @@ def create_app(config_object=None):
         chat_bp,
         extras_bp,
         tasks_bp,
+        funding_bp,
     ]
     for bp in blueprints:
         app.register_blueprint(bp)
@@ -225,12 +227,13 @@ def create_app(config_object=None):
             from sqlalchemy import text
             from .models import (User, Course, Tutor, Student, ExpenseCategory,
                                   Expense, FeeRecord, Enquiry, Attendance,
-                                  LeaveRequest, Exam)
+                                  LeaveRequest, Exam, OwnerFunding)
             for tbl, model_cls in [
                 ('user', User), ('course', Course), ('tutor', Tutor), ('student', Student),
                 ('expense_category', ExpenseCategory), ('expense', Expense),
                 ('fee_record', FeeRecord), ('enquiry', Enquiry), ('attendance', Attendance),
                 ('leave_request', LeaveRequest), ('exam', Exam),
+                ('owner_funding', OwnerFunding),
             ]:
                 try:
                     max_id = db.session.query(db.func.max(model_cls.id)).scalar() or 0

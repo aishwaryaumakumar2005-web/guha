@@ -458,7 +458,7 @@ Excel                </a>
             </div>
             <!-- KPI Cards -->
             <div class="row g-3 mb-4">
-                <div class="col-md-4">
+                <div class="col-md-3 col-6">
                     <div class="glass-card p-3 text-center" style="border-left: 4px solid #0033cc;">
                         <div class="text-secondary small fw-semibold text-uppercase">
 Total Income</div>
@@ -466,7 +466,15 @@ Total Income</div>
 ₹{{ "{:,.2f}".format(total_income_filtered) }}</div>
                     </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3 col-6">
+                    <div class="glass-card p-3 text-center" style="border-left: 4px solid var(--accent-emerald);">
+                        <div class="text-secondary small fw-semibold text-uppercase">
+Owner Funding</div>
+                        <div class="fw-bold fs-3" style="color: var(--accent-emerald);">
+₹{{ "{:,.2f}".format(total_funding_filtered) }}</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
                     <div class="glass-card p-3 text-center" style="border-left: 4px solid var(--accent-rose);">
                         <div class="text-secondary small fw-semibold text-uppercase">
 Total Expense</div>
@@ -474,7 +482,7 @@ Total Expense</div>
 ₹{{ "{:,.2f}".format(total_expense_filtered) }}</div>
                     </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3 col-6">
                     <div class="glass-card p-3 text-center" style="border-left: 4px solid {% if net_balance >= 0 %}var(--accent-cyan){% else %}var(--accent-rose){% endif %};">
                         <div class="text-secondary small fw-semibold text-uppercase">
 Net Balance</div>
@@ -520,6 +528,8 @@ Month</th>
                                 <th class="text-end">
 Income</th>
                                 <th class="text-end">
+Owner Funding</th>
+                                <th class="text-end">
 Expense</th>
                                 <th class="text-end">
 Net</th>
@@ -533,6 +543,8 @@ Status</th>
 {{ p.month }}</td>
                                 <td class="text-end" style="color: var(--accent-emerald);">
 ₹{{ "{:,.2f}".format(p.income) }}</td>
+                                <td class="text-end" style="color: #0033cc;">
+₹{{ "{:,.2f}".format(p.funding) }}</td>
                                 <td class="text-end" style="color: var(--accent-rose);">
 ₹{{ "{:,.2f}".format(p.expense) }}</td>
                                 <td class="text-end fw-semibold {% if p.net < 0 %}text-danger{% endif %}">
@@ -645,7 +657,7 @@ function toggleDateRange(val) {    document.getElementById('monthPicker').style.
                 plugins: { legend: { labels: { color: '#ffffff' } } }
             }};{% endif %}{% if course_wise_income %}chartConfigs['courseIncomeChart'] = {    type: 'doughnut',    data: {        labels: {{ course_wise_income|map(attribute='name')|list|tojson }},        datasets: [{            data: {{ course_wise_income|map(attribute='total')|list|tojson }},            backgroundColor: ['rgba(107,142,35,0.7)','rgba(217,93,57,0.7)','rgba(70,130,180,0.7)','rgba(204,160,0,0.7)','rgba(192,57,43,0.7)'],            borderWidth: 0        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};{% endif %}{% if daily_labels %}chartConfigs['dailySparkline'] = {    type: 'line',    data: {        labels: {{ daily_labels|tojson }},        datasets: [{            label: 'Daily Collection (₹)',            data: {{ daily_amounts|tojson }},            backgroundColor: 'rgba(107, 142, 35, 0.08)',            borderColor: 'rgba(107, 142, 35, 1)',            borderWidth: 1.5,            fill: true,            tension: 0.4,            pointRadius: 0        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};{% endif %}chartConfigs['expenseMonthlyChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Expense (₹)',            data: {{ monthly_expense|map(attribute='total')|list|tojson }},            backgroundColor: 'rgba(192, 57, 43, 0.5)',            borderColor: 'rgba(192, 57, 43, 1)',            borderWidth: 2,            borderRadius: 6        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};{% if category_wise_expense %}chartConfigs['categoryExpenseChart'] = {    type: 'doughnut',    data: {        labels: {{ category_wise_expense|map(attribute='name')|list|tojson }},        datasets: [{            data: {{ category_wise_expense|map(attribute='total')|list|tojson }},            backgroundColor: ['rgba(217,93,57,0.7)','rgba(70,130,180,0.7)','rgba(204,160,0,0.7)','rgba(107,142,35,0.7)','rgba(192,57,43,0.7)','rgba(100,100,100,0.7)','rgba(150,100,50,0.7)'],            borderWidth: 0        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } ,
                 plugins: { legend: { labels: { color: '#ffffff' } } }
-            }};{% endif %}{% if exp_chart_labels %}chartConfigs['expenseTrendChart'] = {    type: 'line',    data: {        labels: {{ exp_chart_labels|tojson }},        datasets: [{            label: 'Expense (₹)',            data: {{ exp_chart_amounts|tojson }},            backgroundColor: 'rgba(192, 57, 43, 0.08)',            borderColor: 'rgba(192, 57, 43, 0.8)',            borderWidth: 1.5,            fill: true,            tension: 0.4,            pointRadius: 2,            pointBackgroundColor: 'rgba(192, 57, 43, 1)'        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};{% endif %}chartConfigs['plChart'] = {    type: 'bar',    data: {        labels: {{ pl_monthly|map(attribute='month')|list|tojson }},        datasets: [            {                label: 'Income',                data: {{ pl_monthly|map(attribute='income')|list|tojson }},                backgroundColor: 'rgba(107, 142, 35, 0.6)',                borderColor: 'rgba(107, 142, 35, 1)',                borderWidth: 2,                borderRadius: 6            },            {                label: 'Expense',                data: {{ pl_monthly|map(attribute='expense')|list|tojson }},                backgroundColor: 'rgba(192, 57, 43, 0.6)',                borderColor: 'rgba(192, 57, 43, 1)',                borderWidth: 2,                borderRadius: 6            }        ]    },    options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: false, ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};chartConfigs['netTrendChart'] = {    type: 'line',    data: {        labels: {{ pl_monthly|map(attribute='month')|list|tojson }},        datasets: [{            label: 'Net Balance (₹)',            data: {{ net_trend|tojson }},            borderColor: 'rgba(47, 72, 88, 1)',            backgroundColor: 'rgba(47, 72, 88, 0.1)',            borderWidth: 2,            fill: true,            tension: 0.3,            pointRadius: 4,            pointBackgroundColor: function(ctx) {                var val = ctx.dataset.data[ctx.dataIndex];                return val >= 0 ? 'rgba(107, 142, 35, 1)' : 'rgba(192, 57, 43, 1)';            }        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};var activeTab = document.querySelector('#reportTabs .nav-link.active');if (activeTab) initTabCharts(activeTab.id.replace('-tab', ''));document.querySelectorAll('#reportTabs button').forEach(function(tab) {    tab.addEventListener('shown.bs.tab', function(e) {        initTabCharts(e.target.id.replace('-tab', ''));        const params = new URLSearchParams(window.location.search);        params.set('tab', e.target.id.replace('-tab', ''));        window.history.replaceState({}, '', '?' + params.toString());    });});</script>
+            }};{% endif %}{% if exp_chart_labels %}chartConfigs['expenseTrendChart'] = {    type: 'line',    data: {        labels: {{ exp_chart_labels|tojson }},        datasets: [{            label: 'Expense (₹)',            data: {{ exp_chart_amounts|tojson }},            backgroundColor: 'rgba(192, 57, 43, 0.08)',            borderColor: 'rgba(192, 57, 43, 0.8)',            borderWidth: 1.5,            fill: true,            tension: 0.4,            pointRadius: 2,            pointBackgroundColor: 'rgba(192, 57, 43, 1)'        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};{% endif %}chartConfigs['plChart'] = {    type: 'bar',    data: {        labels: {{ pl_monthly|map(attribute='month')|list|tojson }},        datasets: [            {                label: 'Income',                data: {{ pl_monthly|map(attribute='income')|list|tojson }},                backgroundColor: 'rgba(107, 142, 35, 0.6)',                borderColor: 'rgba(107, 142, 35, 1)',                borderWidth: 2,                borderRadius: 6            },            {                label: 'Owner Funding',                data: {{ pl_monthly|map(attribute='funding')|list|tojson }},                backgroundColor: 'rgba(0, 51, 204, 0.5)',                borderColor: 'rgba(0, 51, 204, 1)',                borderWidth: 2,                borderRadius: 6            },            {                label: 'Expense',                data: {{ pl_monthly|map(attribute='expense')|list|tojson }},                backgroundColor: 'rgba(192, 57, 43, 0.6)',                borderColor: 'rgba(192, 57, 43, 1)',                borderWidth: 2,                borderRadius: 6            }        ]    },    options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: false, ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};chartConfigs['netTrendChart'] = {    type: 'line',    data: {        labels: {{ pl_monthly|map(attribute='month')|list|tojson }},        datasets: [{            label: 'Net Balance (₹)',            data: {{ net_trend|tojson }},            borderColor: 'rgba(47, 72, 88, 1)',            backgroundColor: 'rgba(47, 72, 88, 0.1)',            borderWidth: 2,            fill: true,            tension: 0.3,            pointRadius: 4,            pointBackgroundColor: function(ctx) {                var val = ctx.dataset.data[ctx.dataIndex];                return val >= 0 ? 'rgba(107, 142, 35, 1)' : 'rgba(192, 57, 43, 1)';            }        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};var activeTab = document.querySelector('#reportTabs .nav-link.active');if (activeTab) initTabCharts(activeTab.id.replace('-tab', ''));document.querySelectorAll('#reportTabs button').forEach(function(tab) {    tab.addEventListener('shown.bs.tab', function(e) {        initTabCharts(e.target.id.replace('-tab', ''));        const params = new URLSearchParams(window.location.search);        params.set('tab', e.target.id.replace('-tab', ''));        window.history.replaceState({}, '', '?' + params.toString());    });});</script>
 {% endif %}{% endblock %}
 
 

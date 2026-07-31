@@ -150,7 +150,7 @@ Leaves</span>
             </div>
             <!-- Accordion: Finance -->
             <div class="accord-section">
-                <div class="accord-trigger {% if request.path in ['/fees','/expenses','/enquiries','/salary-calculator','/payroll'] %}expanded{% endif %}">
+                <div class="accord-trigger {% if request.path in ['/fees','/expenses','/enquiries','/salary-calculator','/payroll','/funding'] %}expanded{% endif %}">
                     <span class="nav-icon">
 <i class="bi bi-coin">
 </i>
@@ -160,7 +160,7 @@ Finance</span>
                     <i class="bi bi-chevron-down accord-arrow">
 </i>
                 </div>
-                <div class="accord-body {% if request.path in ['/fees','/expenses','/enquiries','/salary-calculator'] %}open{% endif %}">
+                <div class="accord-body {% if request.path in ['/fees','/expenses','/enquiries','/salary-calculator','/funding'] %}open{% endif %}">
                     <a href="{{ url_for('fees.list') }}" class="nav-item-link {% if request.path == '/fees' %}active{% endif %}">
                         <span class="nav-icon">
 <i class="bi bi-wallet2">
@@ -180,6 +180,10 @@ Expenses</span>
                     <a href="{{ url_for('payroll.payroll_list') }}" class="nav-item-link {% if request.path == '/payroll' %}active{% endif %}">
                         <span class="nav-icon"><i class="bi bi-cash-stack"></i></span>
                         <span>Payroll</span>
+                    </a>
+                    <a href="{{ url_for('funding.list') }}" class="nav-item-link {% if request.path == '/funding' %}active{% endif %}">
+                        <span class="nav-icon"><i class="bi bi-piggy-bank-fill"></i></span>
+                        <span>Owner Funding</span>
                     </a>
                     <a href="{{ url_for('enquiries.list') }}" class="nav-item-link {% if request.path == '/enquiries' %}active{% endif %}">
                         <span class="nav-icon">
