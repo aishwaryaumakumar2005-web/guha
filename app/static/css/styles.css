@@ -1393,6 +1393,8 @@ body.dark-mode .modal .ts-dropdown .option.active {
 .badge-cyan { background: #1b6ef3 !important; color: #000000 !important; border: 1px solid #1b6ef3 !important; font-weight: 700 !important; }
 .badge-danger { background: #ff3366 !important; color: #ffffff !important; border: 1px solid #ff3366 !important; font-weight: 700 !important; }
 .badge-amber { background: #FFB347 !important; color: #000000 !important; border: 1px solid #FFB347 !important; font-weight: 700 !important; }
+.badge-pill-count { background: #ffffff !important; color: #0d2740 !important; border: 1px solid rgba(13, 39, 64, 0.25); }
+body.dark-mode .badge-pill-count { background: rgba(255,255,255,0.15) !important; color: #ffffff !important; border: 1px solid rgba(255,255,255,0.25); }
 
 /* ===== AI ADVISOR ===== */
 .ai-advisor-panel { border: 1px solid #1b6ef3; background: #0d2740; box-shadow: 0 0 12px rgba(27, 110, 243,0.12); }
