@@ -5,7 +5,11 @@ from app.extensions import db
 
 student_courses = db.Table('student_courses',
     db.Column('student_id', db.Integer, db.ForeignKey('student.id', ondelete='CASCADE'), primary_key=True),
-    db.Column('course_id', db.Integer, db.ForeignKey('course.id', ondelete='CASCADE'), primary_key=True)
+    db.Column('course_id', db.Integer, db.ForeignKey('course.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('status', db.String(20), default='Enrolled'),
+    db.Column('enrolled_on', db.Date),
+    db.Column('completed_on', db.Date),
+    db.Column('drop_reason', db.String(200))
 )
 
 

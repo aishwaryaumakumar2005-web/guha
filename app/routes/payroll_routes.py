@@ -4,7 +4,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required, current_user
 from fpdf import FPDF
 from app.extensions import db
-from app.models import Tutor, PayrollRecord, TutorPayrollSettings, Expense, ExpenseCategory
+from app.models import Tutor, PayrollRecord, TutorPayrollSettings, Expense, ExpenseCategory, tutor_courses, student_courses
 from app.helpers import admin_required
 
 payroll_bp = Blueprint('payroll', __name__)
@@ -28,8 +28,13 @@ def compute_tutor_payroll(tutor, month, year, percentage=None):
     students = Student.query.join(Student.courses).join(Course.tutors).filter(Tutor.id == tutor.id).all()
     commission = 0.0
     if students and comm_pct > 0:
+        from sqlalchemy import distinct
         for student in students:
-            tutor_count = Tutor.query.join(Course.tutors).join(Student.courses).filter(Student.id == student.id).count()
+            tutor_count = db.session.query(db.func.count(distinct(Tutor.id))).select_from(Tutor).join(
+                tutor_courses, Tutor.id == tutor_courses.c.tutor_id
+            ).join(Course, Course.id == tutor_courses.c.course_id).join(
+                student_courses, student_courses.c.course_id == Course.id
+            ).filter(student_courses.c.student_id == student.id).scalar() or 0
             if tutor_count == 0:
                 continue
             student_fees = db.session.query(db.func.sum(FeeRecord.amount_paid)).filter(

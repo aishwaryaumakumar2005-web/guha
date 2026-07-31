@@ -113,6 +113,7 @@ def create_app(config_object=None):
     from .routes.extras import extras_bp
     from .routes.tasks import tasks_bp
     from .routes.funding import funding_bp
+    from .routes.student_lifecycle import student_lifecycle_bp
 
     blueprints = [
         auth_bp, dashboard_bp, courses_bp, students_bp, tutors_bp,
@@ -123,6 +124,7 @@ def create_app(config_object=None):
         extras_bp,
         tasks_bp,
         funding_bp,
+        student_lifecycle_bp,
     ]
     for bp in blueprints:
         app.register_blueprint(bp)
@@ -217,6 +219,22 @@ def create_app(config_object=None):
                 db.session.rollback()
             try:
                 db.session.execute(db.text("ALTER TABLE payroll_record ADD COLUMN commission_pct_used FLOAT DEFAULT 0"))
+            except Exception:
+                db.session.rollback()
+            try:
+                db.session.execute(db.text("ALTER TABLE student_courses ADD COLUMN status VARCHAR(20) DEFAULT 'Enrolled'"))
+            except Exception:
+                db.session.rollback()
+            try:
+                db.session.execute(db.text("ALTER TABLE student_courses ADD COLUMN enrolled_on DATE"))
+            except Exception:
+                db.session.rollback()
+            try:
+                db.session.execute(db.text("ALTER TABLE student_courses ADD COLUMN completed_on DATE"))
+            except Exception:
+                db.session.rollback()
+            try:
+                db.session.execute(db.text("ALTER TABLE student_courses ADD COLUMN drop_reason VARCHAR(200)"))
             except Exception:
                 db.session.rollback()
             db.session.commit()

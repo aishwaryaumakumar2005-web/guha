@@ -81,7 +81,7 @@ Dashboard</span>
             </a>
             {% if current_user.role == 'Admin' %}            <!-- Accordion: Academic -->
             <div class="accord-section">
-                    <div class="accord-trigger {% if request.path in ['/students','/courses','/tutors','/attendance','/leaves','/exams'] %}expanded{% endif %}">
+                    <div class="accord-trigger {% if request.path in ['/students','/courses','/tutors','/attendance','/leaves','/exams','/students/lifecycle'] %}expanded{% endif %}">
                     <span class="nav-icon">
 <i class="bi bi-book-fill">
 </i>
@@ -91,7 +91,7 @@ Academic</span>
                     <i class="bi bi-chevron-down accord-arrow">
 </i>
                 </div>
-                <div class="accord-body {% if request.path in ['/students','/courses','/tutors','/attendance','/leaves'] or request.path.startswith('/exams') %}open{% endif %}">
+                <div class="accord-body {% if request.path in ['/students','/courses','/tutors','/attendance','/leaves','/students/lifecycle'] or request.path.startswith('/exams') %}open{% endif %}">
                     <a href="{{ url_for('students.list') }}" class="nav-item-link {% if request.path == '/students' %}active{% endif %}">
                         <span class="nav-icon">
 <i class="bi bi-people-fill">
@@ -101,6 +101,14 @@ Academic</span>
 Students</span>
                         <span class="nav-badge">
 {{ student_count }}</span>
+                    </a>
+                    <a href="{{ url_for('student_lifecycle.lifecycle') }}" class="nav-item-link {% if request.path == '/students/lifecycle' %}active{% endif %}">
+                        <span class="nav-icon">
+<i class="bi bi-arrow-repeat">
+</i>
+</span>
+                        <span>
+Student Lifecycle</span>
                     </a>
                     <a href="{{ url_for('courses.list') }}" class="nav-item-link {% if request.path == '/courses' %}active{% endif %}">
                         <span class="nav-icon">

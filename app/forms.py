@@ -20,8 +20,8 @@ class Form:
         float_fields = getattr(self, 'float', [])
         date_fields = getattr(self, 'date', [])
         choice_fields = getattr(self, 'choices', {})
-        min_values = getattr(self, 'min', {})
-        max_values = getattr(self, 'max', {})
+        min_values = getattr(self, 'min_values', getattr(self, 'min', {}))
+        max_values = getattr(self, 'max_values', getattr(self, 'max', {}))
         max_lengths = getattr(self, 'max_length', {})
         regex_patterns = getattr(self, 'regex', {})
 
