@@ -55,12 +55,12 @@ def list():
             ).distinct()
             all_students = Student.query.filter(Student.id.in_(student_subquery), Student.status == 'Active').all()
             student_ids = [s.id for s in all_students]
-            all_records = FeeRecord.query.filter(FeeRecord.student_id.in_(student_ids)).order_by(FeeRecord.payment_date.desc()).all()
+            all_records = FeeRecord.query.filter(FeeRecord.student_id.in_(student_ids)).order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).all()
         else:
             all_students = []
             all_records = []
     else:
-        all_records = FeeRecord.query.order_by(FeeRecord.payment_date.desc()).all()
+        all_records = FeeRecord.query.order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).all()
         all_students = Student.query.filter_by(status='Active').all()
     
     cgst_pct = float((SystemSetting.query.filter_by(key='CGST_PCT').first()).value or '9') if SystemSetting.query.filter_by(key='CGST_PCT').first() else 9.0
