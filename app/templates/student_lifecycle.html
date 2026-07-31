@@ -11,22 +11,22 @@ Track course completion, dropouts and long-absent students. <span class="text-in
     <div class="glass-card p-3 mb-4">
         <div class="d-flex flex-wrap gap-2">
             <a href="{{ url_for('student_lifecycle.lifecycle', filter='all') }}" class="btn btn-sm {% if filter_key == 'all' %}btn-premium{% else %}btn-outline-premium{% endif %}">
-                All Students <span class="ms-1 badge rounded-pill bg-white text-dark">{{ total }}</span>
+                All Students <span class="ms-1 badge rounded-pill badge-pill-count">{{ total }}</span>
             </a>
             <a href="{{ url_for('student_lifecycle.lifecycle', filter='enrolled') }}" class="btn btn-sm {% if filter_key == 'enrolled' %}btn-premium{% else %}btn-outline-premium{% endif %}">
-                <i class="bi bi-check2-circle me-1"></i>Enrolled <span class="ms-1 badge rounded-pill bg-white text-dark">{{ counts.get('Enrolled', 0) }}</span>
+                <i class="bi bi-check2-circle me-1"></i>Enrolled <span class="ms-1 badge rounded-pill badge-pill-count">{{ counts.get('Enrolled', 0) }}</span>
             </a>
             <a href="{{ url_for('student_lifecycle.lifecycle', filter='completed') }}" class="btn btn-sm {% if filter_key == 'completed' %}btn-premium{% else %}btn-outline-premium{% endif %}">
-                <i class="bi bi-award me-1"></i>Completed <span class="ms-1 badge rounded-pill bg-white text-dark">{{ counts.get('Completed', 0) }}</span>
+                <i class="bi bi-award me-1"></i>Completed <span class="ms-1 badge rounded-pill badge-pill-count">{{ counts.get('Completed', 0) }}</span>
             </a>
             <a href="{{ url_for('student_lifecycle.lifecycle', filter='dropped') }}" class="btn btn-sm {% if filter_key == 'dropped' %}btn-premium{% else %}btn-outline-premium{% endif %}">
-                <i class="bi bi-x-octagon me-1"></i>Dropped Out <span class="ms-1 badge rounded-pill bg-white text-dark">{{ counts.get('Dropped', 0) }}</span>
+                <i class="bi bi-x-octagon me-1"></i>Dropped Out <span class="ms-1 badge rounded-pill badge-pill-count">{{ counts.get('Dropped', 0) }}</span>
             </a>
             <a href="{{ url_for('student_lifecycle.lifecycle', filter='long_absent') }}" class="btn btn-sm {% if filter_key == 'long_absent' %}btn-premium{% else %}btn-outline-premium{% endif %}">
-                <i class="bi bi-exclamation-triangle me-1"></i>Long Absent <span class="ms-1 badge rounded-pill bg-white text-dark">{{ counts.get('Long Absent', 0) }}</span>
+                <i class="bi bi-exclamation-triangle me-1"></i>Long Absent <span class="ms-1 badge rounded-pill badge-pill-count">{{ counts.get('Long Absent', 0) }}</span>
             </a>
             <a href="{{ url_for('student_lifecycle.lifecycle', filter='inactive') }}" class="btn btn-sm {% if filter_key == 'inactive' %}btn-premium{% else %}btn-outline-premium{% endif %}">
-                <i class="bi bi-person-slash me-1"></i>Inactive / Archived <span class="ms-1 badge rounded-pill bg-white text-dark">{{ counts.get('Inactive', 0) + counts.get('Archived', 0) }}</span>
+                <i class="bi bi-person-slash me-1"></i>Inactive / Archived <span class="ms-1 badge rounded-pill badge-pill-count">{{ counts.get('Inactive', 0) + counts.get('Archived', 0) }}</span>
             </a>
         </div>
         <p class="small text-white mt-3 mb-0" style="opacity:0.75;">
