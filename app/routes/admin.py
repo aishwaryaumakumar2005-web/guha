@@ -157,7 +157,7 @@ def admin_console():
                             db.session.add(tutor)
                     db.session.commit()
                     flash(f"Role for user {user_to_change.username} updated to {user_to_change.role}.", "success")
-            return redirect(url_for('admin.admin_console'))
+            return redirect(url_for('admin.admin_console', _anchor='users'))
         elif action == 'delete_user':
             user_id = request.form.get('user_id')
             user_to_delete = User.query.get(user_id)
@@ -168,7 +168,7 @@ def admin_console():
                     db.session.delete(user_to_delete)
                     db.session.commit()
                     flash(f"User account {user_to_delete.username} deleted.", "success")
-            return redirect(url_for('admin.admin_console'))
+            return redirect(url_for('admin.admin_console', _anchor='users'))
         elif action == 'save_org':
             org_keys = ['ORG_NAME', 'ORG_ADDRESS', 'ORG_GSTIN', 'ORG_HSN', 'ORG_STATE', 'ORG_STATE_CODE', 'CGST_PCT', 'SGST_PCT', 'INVOICE_PREFIX']
             for key in org_keys:

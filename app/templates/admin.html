@@ -458,5 +458,17 @@
         </div>
     </div>
 </div>
+<script>
+(function() {
+    var hash = window.location.hash;
+    if (hash && document.querySelector(hash)) {
+        var tabBtn = document.querySelector('[data-bs-target="' + hash + '"]');
+        if (tabBtn) {
+            var tab = new bootstrap.Tab(tabBtn);
+            tab.show();
+        }
+    }
+})();
+</script>
 {% endblock %}
 
