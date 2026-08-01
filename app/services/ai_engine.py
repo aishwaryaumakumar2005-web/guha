@@ -85,12 +85,12 @@ class AIEngine:
                 break
         greeting = f"Dear {student_name},"
         body = (
-            f"Thank you for reaching out to us regarding your interest in our **{course_name}** program! "
+            f"Thank you for reaching out to us regarding your interest in our {course_name} program! "
             f"We noticed you discovered us via {source}. It's wonderful to connect with you.\n\n"
             f"Our {course_name} course is specifically structured to take you from a beginner level to industry readiness. "
             f"In this program, you will work on deep, hands-on assignments covering {highlight} "
             f"All our batches are led by senior industry developers who guide you step-by-step through a robust curriculum.\n\n"
-            f"Based on your interest in our course, we would love to invite you for an exclusive **Free Interactive Demo Session & Campus Tour**. "
+            f"Based on your interest in our course, we would love to invite you for an exclusive Free Interactive Demo Session & Campus Tour. "
             f"This will give you a chance to see our labs, review the syllabus in detail, and chat with our senior tutors.\n\n"
             f"Would you be available for a quick 15-minute call or campus visit this week? "
             f"Please let us know your preferred time so we can reserve a slot for you."
@@ -98,7 +98,7 @@ class AIEngine:
         signoff = (
             f"Best regards,\n\n"
             f"Admissions & Career Advisory Team\n"
-            f"Premium Computer Institute"
+            f"Guha Academy"
         )
         return f"{greeting}\n\n{body}\n\n{signoff}"
 

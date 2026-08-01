@@ -354,6 +354,24 @@ Save Changes</button>
 </div>
 {% endfor %}{% endif %}<!-- Trigger initial setup -->
 <script>
-    // Hide placeholder and show textarea when dynamic loading fires    const observer = new MutationObserver(function(mutations) {        mutations.forEach(function(mutation) {            if (mutation.attributeName === "class") {                const isHidden = document.getElementById('ai-followup-box').classList.contains('d-none');                const isSpinning = document.getElementById('ai-followup-loading').classList.contains('d-none');                const placeholder = document.getElementById('ai-followup-placeholder');                                if (!isHidden || !isSpinning) {                    placeholder.classList.add('d-none');                } else {                    placeholder.classList.remove('d-none');                }            }        });    });        document.addEventListener('DOMContentLoaded', () =>
- {        observer.observe(document.getElementById('ai-followup-box'), { attributes: true });        observer.observe(document.getElementById('ai-followup-loading'), { attributes: true });    });</script>
+    // Hide placeholder and show textarea when dynamic loading fires
+    const followupObserver = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.attributeName === "class") {
+                const isHidden = document.getElementById('ai-followup-box').classList.contains('d-none');
+                const isSpinning = document.getElementById('ai-followup-loading').classList.contains('d-none');
+                const placeholder = document.getElementById('ai-followup-placeholder');
+                if (!isHidden || !isSpinning) {
+                    placeholder.classList.add('d-none');
+                } else {
+                    placeholder.classList.remove('d-none');
+                }
+            }
+        });
+    });
+    document.addEventListener('DOMContentLoaded', function() {
+        followupObserver.observe(document.getElementById('ai-followup-box'), { attributes: true });
+        followupObserver.observe(document.getElementById('ai-followup-loading'), { attributes: true });
+    });
+</script>
 {% endblock %}
