@@ -2,12 +2,17 @@ import os
 import json
 import uuid
 import sqlite3
-from datetime import datetime, date
+from datetime import datetime, date, timezone, timedelta
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import User, Course, Student, Tutor, Enquiry, FeeRecord, Attendance, SystemSetting, ExpenseCategory, Expense, Exam, ExamScore, ExamAssignment, AuditLog
 from app.helpers import admin_required, get_backup_dir
+
+IST = timezone(timedelta(hours=5, minutes=30))
+
+def ist_now():
+    return datetime.now(IST)
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -226,7 +231,7 @@ def admin_console():
 def create_backup():
     backup_dir = get_backup_dir(current_app._get_current_object())
     os.makedirs(backup_dir, exist_ok=True)
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    timestamp = ist_now().strftime('%Y%m%d_%H%M%S')
 
     if _db_is_sqlite():
         import shutil
@@ -310,7 +315,7 @@ def list_backups():
     for b in backups:
         fp = os.path.join(backup_dir, b)
         size = os.path.getsize(fp)
-        modified = datetime.fromtimestamp(os.path.getmtime(fp)).strftime('%d %b %Y %I:%M %p')
+        modified = datetime.fromtimestamp(os.path.getmtime(fp), IST).strftime('%d %b %Y %I:%M %p')
         backup_files.append({"name": b, "size": f"{size/1024:.1f} KB", "modified": modified})
     return jsonify(backup_files)
 
