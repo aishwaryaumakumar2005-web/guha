@@ -385,7 +385,7 @@ def report_pdf():
         net = float(total_income) + float(total_funding) - float(total_expense)
         pdf.section_title('Profit & Loss Summary')
         pdf.kpi_box('Total Income', f'Rs. {float(total_income):,.2f}', (107, 142, 35))
-        pdf.kpi_box('Owner Funding', f'Rs. {float(total_funding):,.2f}', (70, 130, 180))
+        pdf.kpi_box('Capital Injection', f'Rs. {float(total_funding):,.2f}', (70, 130, 180))
         pdf.kpi_box('Total Expense', f'Rs. {float(total_expense):,.2f}', (192, 57, 43))
         pdf.ln(3)
         pdf.kpi_box('Net Balance', f"{'+' if net >= 0 else ''}Rs. {net:,.2f}", (47, 72, 88) if net >= 0 else (192, 57, 43))
@@ -531,7 +531,7 @@ def report_excel():
         total_inc = db.session.query(db.func.sum(FeeRecord.amount_paid)).filter(FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date).scalar() or 0.0
         total_exp = db.session.query(db.func.sum(Expense.amount)).filter(Expense.expense_date >= start_date, Expense.expense_date <= end_date).scalar() or 0.0
         total_fund = db.session.query(db.func.sum(OwnerFunding.amount)).filter(OwnerFunding.funding_date >= start_date, OwnerFunding.funding_date <= end_date).scalar() or 0.0
-        write_sheet(ws, 'P&L Summary', ['Metric', 'Value'], [['Total Income', float(total_inc)], ['Owner Funding', float(total_fund)], ['Total Expense', float(total_exp)], ['Net Balance', float(total_inc) + float(total_fund) - float(total_exp)]])
+        write_sheet(ws, 'P&L Summary', ['Metric', 'Value'], [['Total Income', float(total_inc)], ['Capital Injection', float(total_fund)], ['Total Expense', float(total_exp)], ['Net Balance', float(total_inc) + float(total_fund) - float(total_exp)]])
         rows = []
         inc_rows_ov = db.session.query(db.extract('month', FeeRecord.payment_date).label('m'), db.func.sum(FeeRecord.amount_paid).label('total')).filter(db.extract('year', FeeRecord.payment_date) == filter_year).group_by(db.extract('month', FeeRecord.payment_date)).all()
         inc_map_ov = {int(r.m): float(r.total) for r in inc_rows_ov}
@@ -545,7 +545,7 @@ def report_excel():
             fund = fund_map_ov.get(m, 0.0)
             rows.append([months[m-1], inc, fund, exp, inc + fund - exp])
         ws2 = wb.create_sheet('Monthly P&L')
-        write_sheet(ws2, 'Monthly P&L', ['Month', 'Income', 'Owner Funding', 'Expense', 'Net'], rows)
+        write_sheet(ws2, 'Monthly P&L', ['Month', 'Income', 'Capital Injection', 'Expense', 'Net'], rows)
     elif tab == 'payment_methods':
         ws = wb.active
         ws.title = 'Summary'
