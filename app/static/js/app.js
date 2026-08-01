@@ -590,8 +590,8 @@ function initializeTablePagination() {
                 return;
             }
             const tableId = table.id || 'data';
-            const filename = (tableId || 'data') + '_export.csv';
-            exportTableToCSV(table, filename);
+            const filename = (tableId || 'data') + '_export';
+            exportTableToExcel(table, filename);
         });
 
         right.appendChild(info);
@@ -744,6 +744,38 @@ function createPaginationButton(label, enabled, onClick, active) {
         btn.addEventListener('click', onClick);
     }
     return btn;
+}
+
+/**
+ * Export table to Excel (.xls)
+ * Uses the classic Excel-HTML table format so any table downloads a real Excel file.
+ */
+function exportTableToExcel(tableId, filename) {
+    const table = typeof tableId === 'string' ? document.getElementById(tableId) : tableId;
+    if (!table) {
+        console.error('Table not found:', tableId);
+        return;
+    }
+
+    const clone = table.cloneNode(true);
+    const html =
+        '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">' +
+        '<head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>' +
+        '<x:Name>Export</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets>' +
+        '</x:ExcelWorkbook></xml><![endif]--></head><body>' + clone.outerHTML + '</body></html>';
+
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute('href', url);
+    link.setAttribute('download', (filename || 'export') + '.xls');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    showToast('Table exported successfully!', 'success');
 }
 
 /**
