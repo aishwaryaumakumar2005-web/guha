@@ -51,7 +51,7 @@ Upload Excel File                </button>
     <!-- Student Table Grid -->
     <div class="glass-card p-4" data-aos="fade-up">
         <div class="table-container">
-            <table id="studentsTable" class="table table-custom sortable" data-page-size="10">
+            <table id="studentsTable" class="table table-custom sortable" data-page-size="10" data-export-url="{{ url_for('students.export_excel') }}{% if selected_course_id %}?course_id={{ selected_course_id }}{% endif %}">
                 <thead>
                     <tr>
                         <th>

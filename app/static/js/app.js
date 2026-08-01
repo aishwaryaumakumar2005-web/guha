@@ -579,6 +579,16 @@ function initializeTablePagination() {
         exportBtn.className = 'btn btn-sm btn-outline-premium ms-2';
         exportBtn.innerHTML = '<i class="bi bi-download me-1"></i>Export';
         exportBtn.addEventListener('click', function() {
+            const exportUrl = table.dataset.exportUrl;
+            if (exportUrl) {
+                const link = document.createElement('a');
+                link.href = exportUrl;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                return;
+            }
             const tableId = table.id || 'data';
             const filename = (tableId || 'data') + '_export.csv';
             exportTableToCSV(table, filename);

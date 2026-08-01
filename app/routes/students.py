@@ -1,10 +1,11 @@
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app, send_file
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import Student, Course, Tutor, student_courses
 from app.helpers import admin_required, is_ajax_request
 from app.forms import StudentForm
 import tempfile
+import io
 
 students_bp = Blueprint('students', __name__)
 
@@ -74,6 +75,76 @@ def list():
     
     all_courses = Course.query.all()
     return render_template('students.html', students=all_students, courses=all_courses, is_staff=(current_user.role == 'Staff'), selected_course_id=course_filter)
+
+
+@students_bp.route('/api/students/export-excel')
+@login_required
+def export_excel():
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    course_filter = request.args.get('course_id', type=int)
+    if current_user.role == 'Staff':
+        tutor = Tutor.query.filter_by(email=current_user.email).first()
+        if tutor:
+            course_ids = [c.id for c in tutor.courses]
+            student_subquery = db.session.query(student_courses.c.student_id).filter(
+                student_courses.c.course_id.in_(course_ids)
+            ).distinct()
+            students = Student.query.filter(Student.id.in_(student_subquery)).order_by(Student.id).all()
+        else:
+            students = []
+    else:
+        if course_filter:
+            student_subquery = db.session.query(student_courses.c.student_id).filter(
+                student_courses.c.course_id == course_filter
+            ).distinct()
+            students = Student.query.filter(Student.id.in_(student_subquery)).order_by(Student.id).all()
+        else:
+            students = Student.query.order_by(Student.id).all()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Students"
+    headers = ['ID', 'Full Name', 'Email', 'Phone', 'Courses Enrolled', 'Enrollment Date', 'Status']
+    header_fill = PatternFill(start_color="0D2740", end_color="0D2740", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True)
+    for col, h in enumerate(headers, start=1):
+        c = ws.cell(row=1, column=col, value=h)
+        c.fill = header_fill
+        c.font = header_font
+        c.alignment = Alignment(horizontal="center")
+
+    for r, s in enumerate(students, start=2):
+        course_names = ', '.join([c.name for c in s.courses]) if s.courses else ''
+        enrolled = s.enrollment_date.strftime('%d %b %Y') if s.enrollment_date else ''
+        ws.cell(row=r, column=1, value=s.id)
+        ws.cell(row=r, column=2, value=s.name)
+        ws.cell(row=r, column=3, value=s.email or '')
+        ws.cell(row=r, column=4, value=s.phone or '')
+        ws.cell(row=r, column=5, value=course_names)
+        ws.cell(row=r, column=6, value=enrolled)
+        ws.cell(row=r, column=7, value=s.status or 'Active')
+
+    for col in range(1, len(headers) + 1):
+        ws.column_dimensions[chr(64 + col)].width = 18 if col != 5 else 32
+
+    ws.freeze_panes = "A2"
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    filename = 'students_export.xlsx'
+    if course_filter:
+        course = Course.query.get(course_filter)
+        if course:
+            filename = "students_{0}.xlsx".format(course.code or course.name).replace(' ', '_')
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
 
 @students_bp.route('/students/edit/<int:id>', methods=['POST'])
 @login_required
