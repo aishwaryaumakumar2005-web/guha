@@ -224,16 +224,80 @@ def admin_console():
 @login_required
 @admin_required
 def create_backup():
-    import shutil
     backup_dir = get_backup_dir(current_app._get_current_object())
     os.makedirs(backup_dir, exist_ok=True)
-    db_path = os.path.join(os.path.dirname(os.path.abspath(current_app.root_path)), 'instance', 'institute.db')
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    backup_name = f'institute_backup_{timestamp}.db'
+
+    if _db_is_sqlite():
+        import shutil
+        db_path = os.path.join(os.path.dirname(os.path.abspath(current_app.root_path)), 'instance', 'institute.db')
+        if not os.path.exists(db_path):
+            flash("Database file not found for backup.", "danger")
+            return redirect(url_for('admin.admin_console'))
+        backup_name = f'institute_backup_{timestamp}.db'
+        backup_path = os.path.join(backup_dir, backup_name)
+        shutil.copy2(db_path, backup_path)
+        flash(f"Database backup created: {backup_name}", "success")
+        return redirect(url_for('admin.admin_console'))
+
+    # Postgres (Render) - pg_dump preferred, JSON dump as fallback
+    backup_name = f'institute_backup_{timestamp}.json'
     backup_path = os.path.join(backup_dir, backup_name)
-    shutil.copy2(db_path, backup_path)
+    ok, msg = _dump_postgres(backup_path)
+    if not ok:
+        flash(f"Backup failed: {msg}", "danger")
+        return redirect(url_for('admin.admin_console'))
     flash(f"Database backup created: {backup_name}", "success")
     return redirect(url_for('admin.admin_console'))
+
+
+def _db_is_sqlite():
+    uri = current_app.config.get('SQLALCHEMY_DATABASE_URI') or ''
+    return uri.startswith('sqlite')
+
+
+def _json_safe(value):
+    from decimal import Decimal
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, bytes):
+        return value.decode('utf-8', errors='replace')
+    if isinstance(value, (int, float, str, bool)) or value is None:
+        return value
+    return str(value)
+
+
+def _dump_postgres(backup_path):
+    """Create a Postgres backup. Tries pg_dump first, falls back to a JSON dump."""
+    db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI') or ''
+    try:
+        import subprocess
+        env = dict(os.environ)
+        result = subprocess.run(
+            ['pg_dump', db_uri, '-f', backup_path],
+            capture_output=True, text=True, timeout=180, env=env
+        )
+        if result.returncode == 0 and os.path.exists(backup_path) and os.path.getsize(backup_path) > 0:
+            return True, None
+        fallback_err = (result.stderr or 'pg_dump failed').strip()[-500:]
+    except Exception as e:
+        fallback_err = f'pg_dump unavailable: {e}'
+    try:
+        from sqlalchemy import inspect
+        insp = inspect(db.engine)
+        tables = insp.get_table_names()
+        data = {}
+        for t in tables:
+            cols = [c['name'] for c in insp.get_columns(t)]
+            rows = db.session.execute(db.text(f'SELECT * FROM "{t}"')).fetchall()
+            data[t] = [dict(zip(cols, [_json_safe(v) for v in row])) for row in rows]
+        with open(backup_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=1)
+        return True, None
+    except Exception as e:
+        return False, f'{fallback_err}; JSON dump also failed: {e}'
 
 @admin_bp.route('/admin/backups')
 @login_required
@@ -254,16 +318,57 @@ def list_backups():
 @login_required
 @admin_required
 def restore_backup(filename):
-    import shutil
     backup_dir = get_backup_dir(current_app._get_current_object())
     backup_path = os.path.join(backup_dir, filename)
     if not os.path.exists(backup_path):
         flash("Backup file not found.", "danger")
         return redirect(url_for('admin.admin_console'))
+    if filename.endswith('.json'):
+        ok, msg = _restore_from_json(backup_path)
+        if ok:
+            flash(f"Database restored from: {filename}.", "success")
+        else:
+            flash(f"Restore failed: {msg}", "danger")
+        return redirect(url_for('admin.admin_console'))
+    import shutil
     db_path = os.path.join(os.path.dirname(os.path.abspath(current_app.root_path)), 'instance', 'institute.db')
     shutil.copy2(backup_path, db_path)
     flash(f"Database restored from: {filename}. Restarting app...", "success")
     return redirect(url_for('admin.admin_console'))
+
+
+def _restore_from_json(backup_path):
+    """Restore a JSON dump. Deletes existing rows and re-inserts the snapshot."""
+    try:
+        from sqlalchemy import inspect, text
+        with open(backup_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        insp = inspect(db.engine)
+        tables = insp.get_table_names()
+        with db.engine.begin() as conn:
+            # Disable FK checks for a clean replace
+            if _db_is_sqlite():
+                conn.execute(text('PRAGMA foreign_keys = OFF'))
+            else:
+                conn.execute(text('SET session_replication_role = replica'))
+            for t in tables:
+                if t in data:
+                    conn.execute(text(f'DELETE FROM "{t}"'))
+            for t, rows in data.items():
+                if t not in tables or not rows:
+                    continue
+                cols = list(rows[0].keys())
+                placeholders = ', '.join([':' + c for c in cols])
+                stmt = text(f'INSERT INTO "{t}" ({", ".join(cols)}) VALUES ({placeholders})')
+                for row in rows:
+                    conn.execute(stmt, row)
+            if _db_is_sqlite():
+                conn.execute(text('PRAGMA foreign_keys = ON'))
+            else:
+                conn.execute(text('SET session_replication_role = default'))
+        return True, None
+    except Exception as e:
+        return False, str(e)
 
 # ---------------------------------------------------------------------------
 # Database Import (merge from another instance)
