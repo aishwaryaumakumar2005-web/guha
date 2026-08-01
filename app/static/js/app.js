@@ -579,9 +579,9 @@ function initializeTablePagination() {
         exportBtn.className = 'btn btn-sm btn-outline-premium ms-2';
         exportBtn.innerHTML = '<i class="bi bi-download me-1"></i>Export';
         exportBtn.addEventListener('click', function() {
-            const tableId = table.id || table.getAttribute('id');
+            const tableId = table.id || 'data';
             const filename = (tableId || 'data') + '_export.csv';
-            exportTableToCSV(tableId, filename);
+            exportTableToCSV(table, filename);
         });
 
         right.appendChild(info);
@@ -740,7 +740,7 @@ function createPaginationButton(label, enabled, onClick, active) {
  * Export table to CSV
  */
 function exportTableToCSV(tableId, filename) {
-    const table = document.getElementById(tableId);
+    const table = typeof tableId === 'string' ? document.getElementById(tableId) : tableId;
     if (!table) {
         console.error('Table not found:', tableId);
         return;
