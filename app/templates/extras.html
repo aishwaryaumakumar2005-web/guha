@@ -10,7 +10,7 @@
             <div class="glass-card p-4 mb-4">
                 <h4 class="mb-4 text-white fw-bold"><i class="bi bi-database-fill me-2"></i>Database Backup & Restore</h4>
                 <div class="d-flex gap-2 mb-4">
-                    <a href="{{ url_for('admin.create_backup') }}" class="btn btn-premium"><i class="bi bi-cloud-arrow-down me-2"></i>Create Backup</a>
+                    <button id="create-backup-btn" class="btn btn-premium" onclick="createBackup()"><i class="bi bi-cloud-arrow-down me-2"></i>Create Backup</button>
                 </div>
                 <div class="table-container" style="max-height: 400px; overflow-y: auto;">
                     <table class="table table-custom" id="backup-table">
@@ -33,6 +33,52 @@
 var backupData = [];
 var backupPage = 0;
 var backupPerPage = 5;
+
+function createBackup() {
+    var btn = document.getElementById('create-backup-btn');
+    var original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating...';
+    fetch('/admin/backup')
+    .then(function(r) {
+        if (!r.redirected && r.ok) {
+            return r.text();
+        }
+        return Promise.reject(new Error('Backup request failed'));
+    })
+    .then(function() {
+        return fetch('/admin/backups');
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        backupData = data;
+        backupPage = 0;
+        renderBackupPage();
+        showToast('Database backup created successfully.', 'success');
+    })
+    .catch(function() {
+        showToast('Failed to create backup. Please try again.', 'danger');
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btn.innerHTML = original;
+    });
+}
+
+function showToast(message, type) {
+    var container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.style.cssText = 'position:fixed;top:80px;right:20px;z-index:1080;';
+        document.body.appendChild(container);
+    }
+    var toast = document.createElement('div');
+    toast.className = 'alert alert-' + type + ' alert-dismissible fade show';
+    toast.innerHTML = message + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+    container.appendChild(toast);
+    setTimeout(function() { toast.remove(); }, 5000);
+}
 
 function renderBackupPage() {
     var tbody = document.querySelector('#backup-table tbody');
