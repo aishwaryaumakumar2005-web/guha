@@ -81,7 +81,8 @@ def list():
 @login_required
 def export_excel():
     from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
 
     course_filter = request.args.get('course_id', type=int)
     if current_user.role == 'Staff':
@@ -108,28 +109,50 @@ def export_excel():
     ws.title = "Students"
     headers = ['ID', 'Full Name', 'Email', 'Phone', 'Courses Enrolled', 'Enrollment Date', 'Status']
     header_fill = PatternFill(start_color="0D2740", end_color="0D2740", fill_type="solid")
-    header_font = Font(color="FFFFFF", bold=True)
+    header_font = Font(color="FFFFFF", bold=True, size=11)
+    thin = Side(style='thin', color='B0C4DE')
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    banded_fill = PatternFill(start_color="EAF2FB", end_color="EAF2FB", fill_type="solid")
+
     for col, h in enumerate(headers, start=1):
         c = ws.cell(row=1, column=col, value=h)
         c.fill = header_fill
         c.font = header_font
-        c.alignment = Alignment(horizontal="center")
+        c.alignment = Alignment(horizontal="center", vertical="center")
+        c.border = border
 
     for r, s in enumerate(students, start=2):
         course_names = ', '.join([c.name for c in s.courses]) if s.courses else ''
-        enrolled = s.enrollment_date.strftime('%d %b %Y') if s.enrollment_date else ''
-        ws.cell(row=r, column=1, value=s.id)
+        status = s.status or 'Active'
+        ws.cell(row=r, column=1, value=s.id).number_format = '0'
         ws.cell(row=r, column=2, value=s.name)
         ws.cell(row=r, column=3, value=s.email or '')
-        ws.cell(row=r, column=4, value=s.phone or '')
+        phone = ws.cell(row=r, column=4, value=(s.phone or ''))
+        phone.number_format = '@'
         ws.cell(row=r, column=5, value=course_names)
-        ws.cell(row=r, column=6, value=enrolled)
-        ws.cell(row=r, column=7, value=s.status or 'Active')
+        if s.enrollment_date:
+            dc = ws.cell(row=r, column=6, value=s.enrollment_date)
+            dc.number_format = 'DD MMM YYYY'
+        else:
+            ws.cell(row=r, column=6, value='')
+        ws.cell(row=r, column=7, value=status)
+        if r % 2 == 0:
+            for col in range(1, len(headers) + 1):
+                ws.cell(row=r, column=col).fill = banded_fill
+        for col in range(1, len(headers) + 1):
+            cell = ws.cell(row=r, column=col)
+            cell.border = border
+            if col != 6:
+                cell.alignment = Alignment(vertical="center")
 
     for col in range(1, len(headers) + 1):
-        ws.column_dimensions[chr(64 + col)].width = 18 if col != 5 else 32
+        letter = get_column_letter(col)
+        ws.column_dimensions[letter].width = 18 if col != 5 else 32
+        ws.column_dimensions[letter].bestFit = True
 
+    ws.row_dimensions[1].height = 20
     ws.freeze_panes = "A2"
+    ws.auto_filter.ref = "A1:{0}{1}".format(get_column_letter(len(headers)), max(ws.max_row, 1))
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
