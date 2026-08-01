@@ -1395,6 +1395,12 @@ body.dark-mode .modal .ts-dropdown .option.active {
 .badge-amber { background: #FFB347 !important; color: #000000 !important; border: 1px solid #FFB347 !important; font-weight: 700 !important; }
 .badge-pill-count { background: #ffffff !important; color: #0d2740 !important; border: 1px solid rgba(13, 39, 64, 0.25); }
 body.dark-mode .badge-pill-count { background: rgba(255,255,255,0.15) !important; color: #ffffff !important; border: 1px solid rgba(255,255,255,0.25); }
+.btn-action-success { background: #00BFA6 !important; color: #041b17 !important; border: 2px solid #7dffe8 !important; font-weight: 700 !important; box-shadow: 0 0 8px rgba(0, 191, 166, 0.5) !important; }
+.btn-action-success:hover { background: #00d4b8 !important; color: #000000 !important; box-shadow: 0 0 12px rgba(0, 191, 166, 0.8) !important; }
+.btn-action-danger { background: #ff3366 !important; color: #ffffff !important; border: 2px solid #ffb3c6 !important; font-weight: 700 !important; box-shadow: 0 0 8px rgba(255, 51, 102, 0.5) !important; }
+.btn-action-danger:hover { background: #ff4d79 !important; color: #ffffff !important; box-shadow: 0 0 12px rgba(255, 51, 102, 0.8) !important; }
+.btn-action-reenroll { background: #FFB347 !important; color: #241200 !important; border: 2px solid #ffd9a3 !important; font-weight: 700 !important; box-shadow: 0 0 8px rgba(255, 179, 71, 0.5) !important; }
+.btn-action-reenroll:hover { background: #ffbf66 !important; color: #241200 !important; box-shadow: 0 0 12px rgba(255, 179, 71, 0.8) !important; }
 
 /* ===== AI ADVISOR ===== */
 .ai-advisor-panel { border: 1px solid #1b6ef3; background: #0d2740; box-shadow: 0 0 12px rgba(27, 110, 243,0.12); }

@@ -80,20 +80,20 @@ Last Activity</th>
                                         <div class="mt-1">
                                         {% if e.status == 'Enrolled' %}                                            <form method="POST" action="{{ url_for('student_lifecycle.complete', sid=d.student.id, cid=e.course.id) }}" class="d-inline" hx-boost="false" data-no-ajax>
                                                 <input type="hidden" name="filter" value="{{ filter_key }}">
-                                                <button type="submit" class="btn btn-sm btn-outline-success py-0" title="Mark course completed">
-<i class="bi bi-check2"></i>
+                                                <button type="submit" class="btn btn-sm btn-action-success py-1 px-2" title="Mark course completed">
+<i class="bi bi-check2 me-1"></i>Complete
 </button>
                                             </form>
-                                            <button type="button" class="btn btn-sm btn-outline-danger py-0" title="Drop student from this course"
+                                            <button type="button" class="btn btn-sm btn-action-danger py-1 px-2" title="Drop student from this course"
                                                 onclick="dropEnrollment(this)"
                                                 data-sid="{{ d.student.id }}" data-cid="{{ e.course.id }}"
                                                 data-name="{{ d.student.name }}" data-course="{{ e.course.name }}">
-<i class="bi bi-x"></i>
+<i class="bi bi-x me-1"></i>Drop
 </button>
                                         {% else %}                                            <form method="POST" action="{{ url_for('student_lifecycle.reactivate', sid=d.student.id, cid=e.course.id) }}" class="d-inline" hx-boost="false" data-no-ajax>
                                                 <input type="hidden" name="filter" value="{{ filter_key }}">
-                                                <button type="submit" class="btn btn-sm btn-outline-secondary py-0" title="Re-enroll">
-<i class="bi bi-arrow-counterclockwise"></i>
+                                                <button type="submit" class="btn btn-sm btn-action-reenroll py-1 px-2" title="Re-enroll">
+<i class="bi bi-arrow-counterclockwise me-1"></i>Re-enroll
 </button>
                                             </form>
                                         {% endif %}                                        </div>
