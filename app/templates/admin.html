@@ -461,12 +461,17 @@
 <script>
 (function() {
     var hash = window.location.hash;
-    if (hash && document.querySelector(hash)) {
+    if (!hash) return;
+    function activate() {
         var tabBtn = document.querySelector('[data-bs-target="' + hash + '"]');
-        if (tabBtn) {
-            var tab = new bootstrap.Tab(tabBtn);
-            tab.show();
+        if (tabBtn && window.bootstrap) {
+            new bootstrap.Tab(tabBtn).show();
         }
+    }
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(activate, 0);
+    } else {
+        document.addEventListener('DOMContentLoaded', activate);
     }
 })();
 </script>
