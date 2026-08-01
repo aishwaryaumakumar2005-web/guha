@@ -8,10 +8,6 @@ Attendance Console</h2>
 Track student and instructor daily attendances. Support manual rosters and live webcam QR scanning.</p>
         </div>
         <div class="d-flex gap-2">
-            <button class="btn btn-outline-premium" onclick="loadAttendanceAnalysis()">
-                <i class="bi bi-graph-up-arrow me-2">
-</i>
-AI Analysis            </button>
             <!-- Tutor filter dropdown -->
             <form class="d-flex align-items-center" method="GET" action="{{ url_for('attendance.attendance') }}">
                 <label for="tutor-select" class="text-white me-2 mb-0">
