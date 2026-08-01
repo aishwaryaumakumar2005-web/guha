@@ -747,8 +747,7 @@ function createPaginationButton(label, enabled, onClick, active) {
 }
 
 /**
- * Export table to Excel (.xls)
- * Uses the classic Excel-HTML table format so any table downloads a real Excel file.
+ * Export table to a real Excel (.xlsx) file using SheetJS.
  */
 function exportTableToExcel(tableId, filename) {
     const table = typeof tableId === 'string' ? document.getElementById(tableId) : tableId;
@@ -756,25 +755,12 @@ function exportTableToExcel(tableId, filename) {
         console.error('Table not found:', tableId);
         return;
     }
-
-    const clone = table.cloneNode(true);
-    const html =
-        '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">' +
-        '<head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>' +
-        '<x:Name>Export</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets>' +
-        '</x:ExcelWorkbook></xml><![endif]--></head><body>' + clone.outerHTML + '</body></html>';
-
-    const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-
-    link.setAttribute('href', url);
-    link.setAttribute('download', (filename || 'export') + '.xls');
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
+    if (typeof XLSX === 'undefined') {
+        showToast('Excel library not loaded. Please refresh the page and try again.', 'danger');
+        return;
+    }
+    const wb = XLSX.utils.table_to_book(table, { raw: false });
+    XLSX.writeFile(wb, (filename || 'export') + '.xlsx');
     showToast('Table exported successfully!', 'success');
 }
 
