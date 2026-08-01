@@ -153,43 +153,43 @@ Actions</th>
             </table>
         </div>
     </div>
-    <!-- AI Follow-up Advisor (below table) -->
-    <div class="glass-card p-4 border border-success border-opacity-25 mb-4" style="border-left: 4px solid #10b981;">
-        <div class="row align-items-center mb-3">
-            <div class="col">
-                <h4 class="mb-0 text-dark fw-bold">
-<i class="bi bi-cpu text-dark me-2">
+<!-- AI FOLLOW-UP DRAFT MODAL -->
+<div class="modal fade" id="aiFollowupModal" tabindex="-1" aria-labelledby="aiFollowupModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-white" id="aiFollowupModalLabel">
+<i class="bi bi-magic text-white me-2">
 </i>
-AI Follow-up Advisor</h4>
+AI Follow-up Draft</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close">
+</button>
             </div>
-        </div>
-        <p class="text-secondary small mb-4">
-Click the AI magic button (<i class="bi bi-magic text-dark">
-</i>
-) on any lead to dynamically generate personalized templates based on their context and course choice.</p>
-                <hr class="border-color">
-                <div id="ai-followup-loading" class="text-center d-none p-5">
-            <div class="spinner-border text-dark mb-3" role="status">
+            <div class="modal-body p-4">
+                <div id="ai-followup-loading" class="text-center p-5">
+                    <div class="spinner-border text-primary mb-3" role="status">
 </div>
-            <p class="text-secondary small">
+                    <p class="text-secondary small">
 Synthesizing messaging copywriting draft...</p>
-        </div>
+                </div>
                 <div id="ai-followup-box" class="d-none">
-            <label class="form-label text-secondary small fw-bold">
+                    <label class="form-label text-secondary small fw-bold">
 <i class="bi bi-file-earmark-text text-dark me-1">
 </i>
 Copywriting Pitch Draft:</label>
-            <textarea class="form-control mb-3 text-secondary" id="ai-followup-textarea" rows="8" style="font-size: 0.85rem; line-height: 1.6;">
+                    <textarea class="form-control mb-3" id="ai-followup-textarea" rows="10" style="font-size: 0.85rem; line-height: 1.6;">
 </textarea>
-                        <button class="btn btn-outline-premium w-100" id="btn-copy-followup" onclick="copyFollowUpToClipboard()">
-                <i class="bi bi-clipboard2-check me-2">
+                    <button class="btn btn-outline-premium w-100" id="btn-copy-followup" onclick="copyFollowUpToClipboard()">
+<i class="bi bi-clipboard2-check me-2">
 </i>
 Copy Draft to Clipboard            </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+ Close</button>
+            </div>
         </div>
-                <div id="ai-followup-placeholder" class="text-center text-dark py-5">
-            <i class="bi bi-envelope-exclamation fs-1 d-block mb-3 text-dark">
-</i>
-            Advisor logs waiting for selection.        </div>
     </div>
 </div>
 <!-- ADD ENQUIRY MODAL -->
@@ -352,26 +352,4 @@ Save Changes</button>
         </div>
     </div>
 </div>
-{% endfor %}{% endif %}<!-- Trigger initial setup -->
-<script>
-    // Hide placeholder and show textarea when dynamic loading fires
-    const followupObserver = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-            if (mutation.attributeName === "class") {
-                const isHidden = document.getElementById('ai-followup-box').classList.contains('d-none');
-                const isSpinning = document.getElementById('ai-followup-loading').classList.contains('d-none');
-                const placeholder = document.getElementById('ai-followup-placeholder');
-                if (!isHidden || !isSpinning) {
-                    placeholder.classList.add('d-none');
-                } else {
-                    placeholder.classList.remove('d-none');
-                }
-            }
-        });
-    });
-    document.addEventListener('DOMContentLoaded', function() {
-        followupObserver.observe(document.getElementById('ai-followup-box'), { attributes: true });
-        followupObserver.observe(document.getElementById('ai-followup-loading'), { attributes: true });
-    });
-</script>
-{% endblock %}
+{% endfor %}{% endif %}{% endblock %}

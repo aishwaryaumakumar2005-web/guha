@@ -341,6 +341,13 @@ function generateEnquiryFollowUp(enquiryId) {
     
     if (!textContainer) return;
     
+    // Show modal immediately so the user sees feedback at the click
+    const modalEl = document.getElementById('aiFollowupModal');
+    if (modalEl) {
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+    }
+    
     // Toggle displays
     loadingSpinner.classList.remove('d-none');
     displayBox.classList.add('d-none');
