@@ -144,10 +144,12 @@ def admin_console():
             return redirect(url_for('admin.admin_console'))
         elif action == 'toggle_role':
             user_id = request.form.get('user_id')
+            is_ajax = request.headers.get('X-Requested-With') == 'fetch'
             user_to_change = User.query.get(user_id)
             if user_to_change:
                 if user_to_change.id == current_user.id:
-                    flash("You cannot change your own role.", "danger")
+                    msg = "You cannot change your own role."
+                    cat = 'danger'
                 else:
                     user_to_change.role = 'Admin' if user_to_change.role == 'Staff' else 'Staff'
                     if user_to_change.role == 'Staff':
@@ -156,7 +158,14 @@ def admin_console():
                             tutor = Tutor(name=user_to_change.name, email=user_to_change.email, phone='', specialization='', status='Active')
                             db.session.add(tutor)
                     db.session.commit()
-                    flash(f"Role for user {user_to_change.username} updated to {user_to_change.role}.", "success")
+                    msg = f"Role for user {user_to_change.username} updated to {user_to_change.role}."
+                    cat = 'success'
+            else:
+                msg = "User not found."
+                cat = 'danger'
+            if is_ajax:
+                return jsonify({'success': cat == 'success', 'message': msg, 'role': user_to_change.role if user_to_change else None})
+            flash(msg, cat)
             return redirect(url_for('admin.admin_console', _anchor='users'))
         elif action == 'delete_user':
             user_id = request.form.get('user_id')

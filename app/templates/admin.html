@@ -317,11 +317,7 @@
                                         <td class="text-end">
                                             <div class="d-flex gap-2 justify-content-end">
                                                 {% if u.id != current_user.id %}
-                                                <form action="{{ url_for('admin.admin_console') }}" method="POST" class="d-inline">
-                                                    <input type="hidden" name="action" value="toggle_role">
-                                                    <input type="hidden" name="user_id" value="{{ u.id }}">
-                                                    <button type="submit" class="btn btn-outline-premium btn-sm py-1"><i class="bi bi-arrow-left-right me-1"></i>Toggle Role</button>
-                                                </form>
+                                                <button type="button" class="btn btn-outline-premium btn-sm py-1" onclick="toggleRole({{ u.id }}, this)"><i class="bi bi-arrow-left-right me-1"></i>Toggle Role</button>
                                                 <form action="{{ url_for('admin.admin_console') }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete user account: {{ u.username }}?')">
                                                     <input type="hidden" name="action" value="delete_user">
                                                     <input type="hidden" name="user_id" value="{{ u.id }}">
@@ -459,6 +455,49 @@
     </div>
 </div>
 <script>
+function toggleRole(userId, btn) {
+    var original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>';
+    var fd = new FormData();
+    fd.append('action', 'toggle_role');
+    fd.append('user_id', userId);
+    fetch('{{ url_for("admin.admin_console") }}', {
+        method: 'POST',
+        body: fd,
+        headers: { 'X-Requested-With': 'fetch' }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (res.success) {
+            var row = btn.closest('tr');
+            var badge = row.querySelector('.badge');
+            badge.textContent = res.role;
+            badge.className = 'badge badge-custom ' + (res.role === 'Admin' ? 'badge-cyan' : 'badge-active');
+            showToast(res.message, 'success');
+        } else {
+            showToast(res.message, 'danger');
+        }
+    })
+    .catch(function() { showToast('Failed to toggle role. Please try again.', 'danger'); })
+    .finally(function() { btn.disabled = false; btn.innerHTML = original; });
+}
+
+function showToast(message, type) {
+    var container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.style.cssText = 'position:fixed;top:80px;right:20px;z-index:1080;';
+        document.body.appendChild(container);
+    }
+    var toast = document.createElement('div');
+    toast.className = 'alert alert-' + type + ' alert-dismissible fade show';
+    toast.innerHTML = message + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+    container.appendChild(toast);
+    setTimeout(function() { toast.remove(); }, 5000);
+}
+
 (function() {
     var hash = window.location.hash;
     if (!hash) return;
