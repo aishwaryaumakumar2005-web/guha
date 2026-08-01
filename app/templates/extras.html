@@ -39,14 +39,13 @@ function createBackup() {
     var original = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating...';
-    fetch('/admin/backup')
-    .then(function(r) {
-        if (!r.redirected && r.ok) {
-            return r.text();
+    fetch('/admin/backup', { headers: { 'X-Requested-With': 'fetch' } })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (!res.success) {
+            showToast(res.message || 'Failed to create backup. Please try again.', 'danger');
+            return;
         }
-        return Promise.reject(new Error('Backup request failed'));
-    })
-    .then(function() {
         return fetch('/admin/backups');
     })
     .then(function(r) { return r.json(); })

@@ -231,29 +231,32 @@ def admin_console():
 def create_backup():
     backup_dir = get_backup_dir(current_app._get_current_object())
     os.makedirs(backup_dir, exist_ok=True)
+    is_ajax = request.headers.get('X-Requested-With') == 'fetch'
     timestamp = ist_now().strftime('%Y%m%d_%H%M%S')
+
+    def finish(success, msg):
+        if is_ajax:
+            return jsonify({'success': success, 'message': msg})
+        flash(msg, 'success' if success else 'danger')
+        return redirect(url_for('admin.admin_console'))
 
     if _db_is_sqlite():
         import shutil
         db_path = os.path.join(os.path.dirname(os.path.abspath(current_app.root_path)), 'instance', 'institute.db')
         if not os.path.exists(db_path):
-            flash("Database file not found for backup.", "danger")
-            return redirect(url_for('admin.admin_console'))
+            return finish(False, 'Database file not found for backup.')
         backup_name = f'institute_backup_{timestamp}.db'
         backup_path = os.path.join(backup_dir, backup_name)
         shutil.copy2(db_path, backup_path)
-        flash(f"Database backup created: {backup_name}", "success")
-        return redirect(url_for('admin.admin_console'))
+        return finish(True, f'Database backup created: {backup_name}')
 
     # Postgres (Render) - pg_dump preferred, JSON dump as fallback
     backup_name = f'institute_backup_{timestamp}.json'
     backup_path = os.path.join(backup_dir, backup_name)
     ok, msg = _dump_postgres(backup_path)
     if not ok:
-        flash(f"Backup failed: {msg}", "danger")
-        return redirect(url_for('admin.admin_console'))
-    flash(f"Database backup created: {backup_name}", "success")
-    return redirect(url_for('admin.admin_console'))
+        return finish(False, f'Backup failed: {msg}')
+    return finish(True, f'Database backup created: {backup_name}')
 
 
 def _db_is_sqlite():
