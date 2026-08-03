@@ -66,7 +66,35 @@ def reports():
     filter_year = request.args.get('year', type=int) or today.year
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
-    if filter_mode == 'custom' and start_date_str and end_date_str:
+    quick = request.args.get('quick', '').strip().lower()
+
+    def _quick_range(key):
+        if key == 'today':
+            return today, today
+        if key == 'this_week':
+            return today - timedelta(days=today.weekday()), today
+        if key == 'this_month':
+            return date(today.year, today.month, 1), today
+        if key == 'last_month':
+            end = date(today.year, today.month, 1) - timedelta(days=1)
+            return date(end.year, end.month, 1), end
+        if key == 'this_quarter':
+            q = (today.month - 1) // 3 + 1
+            qs = (q - 1) * 3 + 1
+            return date(today.year, qs, 1), today
+        if key == 'ytd':
+            return date(today.year, 1, 1), today
+        if key == 'all':
+            return date(2000, 1, 1), date(2100, 12, 31)
+        return None
+
+    qrange = _quick_range(quick) if quick else None
+    if qrange:
+        start_date, end_date = qrange
+        filter_mode = 'custom'
+        start_date_str = start_date.strftime('%Y-%m-%d')
+        end_date_str = end_date.strftime('%Y-%m-%d')
+    elif filter_mode == 'custom' and start_date_str and end_date_str:
         start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
         end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
     else:
@@ -212,6 +240,7 @@ def reports():
         filter_month=filter_month, filter_year=filter_year,
         start_date_str=start_date_str or start_date.strftime('%Y-%m-%d'),
         end_date_str=end_date_str or end_date.strftime('%Y-%m-%d'),
+        active_quick=quick,
         total_income=float(total_income), income_monthly=income_monthly, cumulative_income=cumulative_income,
         fees_monthly=fees_monthly, course_wise_income=course_wise_income, daily_collections=daily_collections,
         payment_labels=payment_labels, payment_data=payment_data, daily_labels=daily_labels, daily_amounts=daily_amounts,
