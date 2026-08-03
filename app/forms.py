@@ -1,6 +1,8 @@
 import re
 from datetime import datetime
 
+from .services.payment_methods import PAYMENT_METHODS
+
 
 class Form:
     _fields = []
@@ -184,7 +186,7 @@ class FeeForm(Form):
     integer = ['student_id']
     float = ['amount_paid']
     date = ['payment_date']
-    choices = {'payment_method': ['Cash', 'UPI', 'UPI - Guha India', 'UPI - Ejaj Sir', 'Bank Transfer', 'Card', 'Cheque', 'Online']}
+    choices = {'payment_method': list(PAYMENT_METHODS)}
     min_values = {'amount_paid': 0, 'student_id': 1}
     max_length = {'remarks': 200}
 
@@ -253,5 +255,5 @@ class OwnerFundingForm(Form):
     required = ['amount']
     float = ['amount']
     date = ['funding_date']
-    choices = {'method': ['Cash', 'UPI', 'UPI - Guha India', 'UPI - Ejaj Sir', 'Bank Transfer', 'Card']}
+    choices = {'method': list(PAYMENT_METHODS)}
     min_values = {'amount': 1}

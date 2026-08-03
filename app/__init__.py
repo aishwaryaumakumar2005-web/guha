@@ -183,6 +183,15 @@ def create_app(config_object=None):
             return Markup(html)
         return dict(empty_state=empty_state)
 
+    @app.context_processor
+    def inject_payment_methods():
+        from .services.payment_methods import PAYMENT_METHODS, METHOD_LABELS, DEFAULT_PAYMENT_METHOD
+        return {
+            'payment_methods': list(PAYMENT_METHODS),
+            'method_labels': dict(METHOD_LABELS),
+            'default_payment_method': DEFAULT_PAYMENT_METHOD,
+        }
+
     if app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
         from sqlalchemy import event
         with app.app_context():

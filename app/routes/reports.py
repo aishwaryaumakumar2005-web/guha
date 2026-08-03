@@ -6,6 +6,7 @@ from app.extensions import db
 from app.models import FeeRecord, Expense, ExpenseCategory, Course, Student, student_courses, Attendance, Tutor, OwnerFunding
 from app.helpers import admin_required
 from app.services.account_service import compute_account_summary
+from app.services.payment_methods import PAYMENT_METHODS, classify_method
 
 reports_bp = Blueprint('reports', __name__)
 
@@ -187,27 +188,23 @@ def reports():
     daily_labels = [d[0].strftime('%d %b') for d in daily_totals]
     daily_amounts = [float(d[1]) for d in daily_totals]
     net_trend = [p['net'] for p in pl_monthly]
-    def get_payment_method_data(method_pattern):
-        records = FeeRecord.query.filter(
-            FeeRecord.payment_method.ilike(f'%{method_pattern}%'),
-            FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date
-        ).order_by(FeeRecord.payment_date.desc()).all()
-        total = sum(r.amount_paid for r in records)
-        return {'total': total, 'records': records}
-    payment_methods_report = {
-        'Cash': get_payment_method_data('Cash'),
-        'UPI - Guha India': get_payment_method_data('Guha India'),
-        'UPI - Ejaj Sir': get_payment_method_data('Ejaj Sir'),
-    }
-    other_records = FeeRecord.query.filter(
-        ~FeeRecord.payment_method.ilike('%Cash%'),
-        ~FeeRecord.payment_method.ilike('%Guha India%'),
-        ~FeeRecord.payment_method.ilike('%Ejaj Sir%'),
+    period_fee_records = FeeRecord.query.filter(
         FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date
     ).order_by(FeeRecord.payment_date.desc()).all()
-    other_total = sum(r.amount_paid for r in other_records)
-    if other_records:
-        payment_methods_report['Others'] = {'total': other_total, 'records': other_records}
+
+    def get_payment_method_data(account_name):
+        records = [r for r in period_fee_records if classify_method(r.payment_method) == account_name]
+        total = sum(r.amount_paid for r in records)
+        return {'total': total, 'records': records}
+
+    payment_methods_report = {}
+    for m in PAYMENT_METHODS:
+        d = get_payment_method_data(m)
+        if d['records']:
+            payment_methods_report[m] = d
+    other = get_payment_method_data('Others')
+    if other['records']:
+        payment_methods_report['Others'] = other
     total_collected_period = db.session.query(db.func.sum(FeeRecord.amount_paid)).filter(
         FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date
     ).scalar() or 0.0
@@ -411,15 +408,16 @@ def report_pdf():
     elif tab == 'payment_methods':
         all_records = FeeRecord.query.filter(FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date).order_by(FeeRecord.payment_date.desc()).all()
         total_period = sum(r.amount_paid for r in all_records)
-        def filter_pm(records, pattern):
-            matched = [r for r in records if pattern.lower() in (r.payment_method or '').lower()]
+        def filter_pm(records, account_name):
+            matched = [r for r in records if classify_method(r.payment_method) == account_name]
             return sum(r.amount_paid for r in matched), matched
-        pm_methods = [('Cash', 'Cash'), ('UPI - Guha India', 'Guha India'), ('UPI - Ejaj Sir', 'Ejaj Sir')]
         pdf.section_title('Payment Methods Report')
         pdf.kpi_box('Total Collected', f'Rs. {total_period:,.2f}', (47, 72, 88))
         pdf.ln(4)
-        for label, pattern in pm_methods:
-            total, records = filter_pm(all_records, pattern)
+        for label in PAYMENT_METHODS + ['Others']:
+            total, records = filter_pm(all_records, label)
+            if not records and label != 'Others':
+                continue
             pdf.section_title(f'{label} - Rs. {total:,.2f}')
             if records:
                 pdf.table_header(['Date', 'Student', 'Amount', 'Remarks'], [30, 55, 35, 70])
@@ -553,15 +551,17 @@ def report_excel():
         ws.title = 'Summary'
         all_records = FeeRecord.query.filter(FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date).order_by(FeeRecord.payment_date.desc()).all()
         total_period = sum(r.amount_paid for r in all_records)
-        write_sheet(ws, 'Payment Summary', ['Method', 'Total (Rs.)'], [])
-        def filter_pm(records, pattern):
-            matched = [r for r in records if pattern.lower() in (r.payment_method or '').lower()]
+        def filter_pm(records, account_name):
+            matched = [r for r in records if classify_method(r.payment_method) == account_name]
             return sum(r.amount_paid for r in matched), matched
-        pm_methods = [('Cash', 'Cash'), ('UPI - Guha India', 'Guha India'), ('UPI - Ejaj Sir', 'Ejaj Sir')]
-        for label, pattern in pm_methods:
-            total, records = filter_pm(all_records, pattern)
-            ws2 = wb.create_sheet(label[:20])
-            write_sheet(ws2, label, ['Date', 'Student', 'Amount', 'Remarks'], [[r.payment_date.strftime('%d-%b-%Y'), r.student.name, r.amount_paid, (r.remarks or '')] for r in records])
+        summary_rows = []
+        for label in PAYMENT_METHODS + ['Others']:
+            total, records = filter_pm(all_records, label)
+            if records:
+                summary_rows.append([label, total])
+                ws2 = wb.create_sheet(label[:20])
+                write_sheet(ws2, label, ['Date', 'Student', 'Amount', 'Remarks'], [[r.payment_date.strftime('%d-%b-%Y'), r.student.name, r.amount_paid, (r.remarks or '')] for r in records])
+        write_sheet(ws, 'Payment Summary', ['Method', 'Total (Rs.)'], summary_rows)
     buf = BytesIO()
     wb.save(buf)
     buf.seek(0)

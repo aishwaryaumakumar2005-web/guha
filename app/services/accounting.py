@@ -2,6 +2,7 @@ from datetime import datetime, date
 from io import BytesIO
 from fpdf import FPDF
 from app.extensions import db
+from .payment_methods import TALLY_ACCOUNT_FOR_METHOD, classify_method
 
 
 class AccountingService:
@@ -248,7 +249,7 @@ class AccountingService:
 
             # Debit: Bank/Cash
             all_ledgers = SubElement(voucher, 'ALLLEDGERENTRIES.LIST')
-            SubElement(all_ledgers, 'LEDGERNAME').text = fr.payment_method if fr.payment_method in ('Cash', 'Bank') else 'Bank'
+            SubElement(all_ledgers, 'LEDGERNAME').text = TALLY_ACCOUNT_FOR_METHOD.get(classify_method(fr.payment_method), 'Bank')
             SubElement(all_ledgers, 'ISDEEMEDPOSITIVE').text = 'Yes'
             SubElement(all_ledgers, 'AMOUNT').text = f'{fr.amount_paid:,.2f}'
 

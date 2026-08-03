@@ -1,17 +1,6 @@
 from app.extensions import db
 from app.models import Account, FeeRecord, Expense, OwnerFunding
-
-
-# Default accounts seeded on startup when the account table is empty.
-DEFAULT_ACCOUNTS = [
-    ('Cash', 'Cash'),
-    ('UPI - Guha India', 'UPI'),
-    ('UPI - Ejaj Sir', 'UPI'),
-    ('UPI', 'UPI'),
-    ('Bank Transfer', 'Bank'),
-    ('Card', 'Card'),
-    ('Others', 'Other'),
-]
+from .payment_methods import DEFAULT_ACCOUNTS, classify_method
 
 
 def normalize_method(method):
@@ -29,21 +18,9 @@ def ensure_default_accounts():
 
 
 def account_for_payment_method(payment_method):
-    """Resolve a payment-method string to an Account (substring match)."""
-    key = normalize_method(payment_method)
-    if not key:
-        return None
-    accounts = Account.query.filter_by(is_active=True).all()
-    for acc in accounts:
-        if normalize_method(acc.name) == key:
-            return acc
-    for acc in accounts:
-        aname = normalize_method(acc.name)
-        if aname in ('others', 'upi'):
-            continue
-        if key.startswith(aname) or aname in key:
-            return acc
-    return Account.query.filter_by(name='Others', is_active=True).first()
+    """Resolve a payment-method string to an Account via the shared classifier."""
+    name = classify_method(payment_method)
+    return Account.query.filter_by(name=name, is_active=True).first()
 
 
 def _raw_balances():
@@ -91,22 +68,8 @@ def compute_account_summary():
     assigned = {acc.name: {'income': 0.0, 'expense': 0.0, 'count': 0} for acc in accounts}
     used_methods = set()
 
-    def match_account(method):
-        if not method:
-            return 'Others'
-        for acc in accounts:
-            if normalize_method(acc.name) == method:
-                return acc.name
-        for acc in accounts:
-            aname = normalize_method(acc.name)
-            if aname in ('others', 'upi'):
-                continue
-            if method.startswith(aname) or aname in method:
-                return acc.name
-        return 'Others'
-
     for method, b in raw.items():
-        aname = match_account(method)
+        aname = classify_method(method)
         used_methods.add(aname)
         assigned[aname]['income'] += b['income']
         assigned[aname]['expense'] += b['expense']
@@ -138,18 +101,7 @@ def matching_methods(account_name):
     accounts = Account.query.order_by(Account.id).all()
 
     def match_account(method):
-        if not method:
-            return 'Others'
-        for acc in accounts:
-            if normalize_method(acc.name) == method:
-                return acc.name
-        for acc in accounts:
-            aname = normalize_method(acc.name)
-            if aname in ('others', 'upi'):
-                continue
-            if method.startswith(aname) or aname in method:
-                return acc.name
-        return 'Others'
+        return classify_method(method)
 
     observed = set()
     for (m,) in db.session.query(FeeRecord.payment_method).all():

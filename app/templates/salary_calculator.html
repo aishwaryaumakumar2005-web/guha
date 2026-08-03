@@ -1,4 +1,4 @@
-{% extends 'base.html' %}{% block title %}Salary Calculator{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('expenses.list') }}">Finance</a></li><li class="breadcrumb-item active" aria-current="page">Salary Calculator</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+{% extends 'base.html' %}{% block title %}Salary Calculator{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('expenses.list') }}">Finance</a></li><li class="breadcrumb-item active" aria-current="page">Salary Calculator</li>{% endblock %}{% block content %}{% from '_payment_methods.html' import payment_method_options %}<div class="container-fluid p-0">
     <!-- Header Row -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
@@ -133,7 +133,11 @@ Calculated Staff Salary</div>
                     <input type="hidden" name="year" value="{{ filter_year }}">
                     <input type="hidden" name="start_date" value="{{ start_date.strftime('%Y-%m-%d') }}">
                     <input type="hidden" name="end_date" value="{{ end_date.strftime('%Y-%m-%d') }}">
-                                        <button type="submit" class="btn btn-premium btn-sm w-100 py-2">
+                    <div class="mb-2 text-start">
+                        <label class="form-label text-white-50 small mb-1">Payment Mode</label>
+                        {{ payment_method_options(selected='Cash', name='payment_method', methods=payment_methods, labels=method_labels, default=default_payment_method) }}
+                    </div>
+                    <button type="submit" class="btn btn-premium btn-sm w-100 py-2">
                         <i class="bi bi-wallet2 me-1">
 </i>
 Record & Log Salary as Expense                    </button>

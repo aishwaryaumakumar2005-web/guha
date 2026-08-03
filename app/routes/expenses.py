@@ -168,12 +168,23 @@ def salary_calculator():
         if not selected_tutor or calculated_salary <= 0:
             flash("Cannot record zero or invalid salary calculation.", "danger")
         else:
-            date_label = f"{start_date.strftime('%d %b %Y')} to {end_date.strftime('%d %b %Y')}" if filter_type == 'range' else f"{start_date.strftime('%B %Y')}"
-            desc = f"Salary for Tutor: {selected_tutor.name} - calculated from collection: Rs.{total_collected:,.2f} ({percentage}%) for period {date_label}"
-            salary_expense = Expense(category_id=salary_cat.id, amount=calculated_salary, description=desc, expense_date=today, created_by=current_user.id)
-            db.session.add(salary_expense)
-            db.session.commit()
-            flash(f"Recorded salary of Rs.{calculated_salary:,.2f} for {selected_tutor.name} in Expenses!", "success")
+            from app.models import PayrollRecord
+            existing_paid = PayrollRecord.query.filter(
+                PayrollRecord.tutor_id == selected_tutor.id,
+                PayrollRecord.month == start_date.month,
+                PayrollRecord.year == start_date.year,
+                PayrollRecord.status == 'Paid'
+            ).first()
+            if existing_paid:
+                flash(f"Payroll for {selected_tutor.name} is already finalized for {start_date.strftime('%B %Y')} (recorded via the Payroll module). Record salaries through Payroll to avoid double counting.", "danger")
+            else:
+                date_label = f"{start_date.strftime('%d %b %Y')} to {end_date.strftime('%d %b %Y')}" if filter_type == 'range' else f"{start_date.strftime('%B %Y')}"
+                desc = f"Salary for Tutor: {selected_tutor.name} - calculated from collection: Rs.{total_collected:,.2f} ({percentage}%) for period {date_label}"
+                payment_method = request.form.get('payment_method', 'Cash').strip() or 'Cash'
+                salary_expense = Expense(category_id=salary_cat.id, amount=calculated_salary, description=desc, expense_date=today, payment_method=payment_method, created_by=current_user.id)
+                db.session.add(salary_expense)
+                db.session.commit()
+                flash(f"Recorded salary of Rs.{calculated_salary:,.2f} for {selected_tutor.name} in Expenses!", "success")
             return redirect(url_for('expenses.list'))
     return render_template('salary_calculator.html', tutors=tutors, selected_tutor=selected_tutor,
         selected_tutor_id=selected_tutor_id, percentage=percentage, filter_type=filter_type,

@@ -1,4 +1,4 @@
-{% extends 'base.html' %}{% block title %}Capital Injection{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('expenses.list') }}">Finance</a></li><li class="breadcrumb-item active" aria-current="page">Capital Injection</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+{% extends 'base.html' %}{% block title %}Capital Injection{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('expenses.list') }}">Finance</a></li><li class="breadcrumb-item active" aria-current="page">Capital Injection</li>{% endblock %}{% block content %}{% from '_payment_methods.html' import payment_method_options %}<div class="container-fluid p-0">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h2 class="text-white fw-bold">
@@ -122,14 +122,7 @@ Record Capital Investment</h5>
                     <div class="mb-3">
                         <label class="form-label text-white small">
   Mode of Investment</label>
-                        <select class="form-select" name="method">
-                            <option value="UPI - Guha India">UPI - Guha India</option>
-                            <option value="UPI - Ejaj Sir">UPI - Ejaj Sir</option>
-                            <option value="UPI">UPI / Digital Wallet</option>
-                            <option value="Cash" selected>Cash Handover</option>
-                            <option value="Card">Credit/Debit Card</option>
-                            <option value="Bank Transfer">Direct Bank Wire</option>
-                        </select>
+                        {{ payment_method_options(selected='Cash', name='method', methods=payment_methods, labels=method_labels, default=default_payment_method) }}
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">

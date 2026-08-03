@@ -1,4 +1,4 @@
-{% extends 'base.html' %}{% block title %}Expenses{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('expenses.list') }}">Finance</a></li><li class="breadcrumb-item active" aria-current="page">Expenses</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+{% extends 'base.html' %}{% block title %}Expenses{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('expenses.list') }}">Finance</a></li><li class="breadcrumb-item active" aria-current="page">Expenses</li>{% endblock %}{% block content %}{% from '_payment_methods.html' import payment_method_options %}<div class="container-fluid p-0">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h2 class="text-white fw-bold">
@@ -194,14 +194,7 @@ Record New Expense</h5>
                     <div class="mb-3">
                         <label class="form-label text-white small">
   Payment Mode</label>
-                        <select class="form-select" name="payment_method" id="add-payment-method">
-                            <option value="UPI - Guha India">UPI - Guha India</option>
-                            <option value="UPI - Ejaj Sir">UPI - Ejaj Sir</option>
-                            <option value="UPI">UPI / Digital Wallet</option>
-                            <option value="Cash" selected>Cash Handover</option>
-                            <option value="Card">Credit/Debit Card</option>
-                            <option value="Bank Transfer">Direct Bank Wire</option>
-                        </select>
+                        {{ payment_method_options(selected='Cash', id='add-payment-method', methods=payment_methods, labels=method_labels, default=default_payment_method) }}
                         <div class="form-text mt-1" id="add-balance-hint" style="color: var(--accent-cyan); opacity: 0.85;"></div>
                     </div>
                     <div class="mb-3">
@@ -256,14 +249,7 @@ Edit Expense</h5>
                     <div class="mb-3">
                         <label class="form-label text-white small">
   Payment Mode</label>
-                        <select class="form-select" name="payment_method" id="edit-payment-method-{{ exp.id }}">
-                            <option value="UPI - Guha India" {% if exp.payment_method == 'UPI - Guha India' %}selected{% endif %}>UPI - Guha India</option>
-                            <option value="UPI - Ejaj Sir" {% if exp.payment_method == 'UPI - Ejaj Sir' %}selected{% endif %}>UPI - Ejaj Sir</option>
-                            <option value="UPI" {% if exp.payment_method == 'UPI' %}selected{% endif %}>UPI / Digital Wallet</option>
-                            <option value="Cash" {% if exp.payment_method == 'Cash' or not exp.payment_method %}selected{% endif %}>Cash Handover</option>
-                            <option value="Card" {% if exp.payment_method == 'Card' %}selected{% endif %}>Credit/Debit Card</option>
-                            <option value="Bank Transfer" {% if exp.payment_method == 'Bank Transfer' %}selected{% endif %}>Direct Bank Wire</option>
-                        </select>
+                        {{ payment_method_options(selected=exp.payment_method, id='edit-payment-method-' ~ exp.id, methods=payment_methods, labels=method_labels, default=default_payment_method) }}
                         <div class="form-text mt-1" id="edit-balance-hint-{{ exp.id }}" style="color: var(--accent-cyan); opacity: 0.85;"></div>
                     </div>
                     <div class="mb-3">

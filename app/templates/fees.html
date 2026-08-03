@@ -208,20 +208,8 @@ Payment Transaction Date</label>
                     <div class="mb-3">
                         <label class="form-label small">
 Payment Mode</label>
-                        <select class="form-select" name="payment_method" id="fee-payment-method">
-                            <option value="UPI - Guha India">
-UPI - Guha India</option>
-                            <option value="UPI - Ejaj Sir">
-UPI - Ejaj Sir</option>
-                            <option value="UPI">
-UPI / Digital Wallet</option>
-                            <option value="Cash">
-Cash Handover</option>
-                            <option value="Card">
-Credit/Debit Card</option>
-                            <option value="Bank Transfer">
-Direct Bank Wire</option>
-                        </select>
+                        {% from '_payment_methods.html' import payment_method_options %}
+                        {{ payment_method_options(selected='Cash', id='fee-payment-method', methods=payment_methods, labels=method_labels, default=default_payment_method) }}
                         {% if account_balances %}<div class="form-text mt-1" id="fee-balance-hint" style="color: var(--accent-emerald); opacity: 0.85;"></div>{% endif %}
                     </div>
                     <div class="mb-3">

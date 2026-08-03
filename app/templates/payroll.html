@@ -1,4 +1,4 @@
-{% extends 'base.html' %}{% block title %}Payroll{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('expenses.list') }}">Finance</a></li><li class="breadcrumb-item active" aria-current="page">Payroll</li>{% endblock %}{% block content %}
+{% extends 'base.html' %}{% block title %}Payroll{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('expenses.list') }}">Finance</a></li><li class="breadcrumb-item active" aria-current="page">Payroll</li>{% endblock %}{% block content %}{% from '_payment_methods.html' import payment_method_options %}
 <style>
 .payslip-table th { background: #0d2740; color: white; font-size: 0.8rem; padding: 8px; }
 .payslip-table td { padding: 8px; font-size: 0.85rem; }
@@ -199,14 +199,7 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">Payment Mode</label>
-                        <select class="form-select" name="payment_method">
-                            <option value="UPI - Guha India">UPI - Guha India</option>
-                            <option value="UPI - Ejaj Sir">UPI - Ejaj Sir</option>
-                            <option value="UPI">UPI / Digital Wallet</option>
-                            <option value="Cash" selected>Cash Handover</option>
-                            <option value="Card">Credit/Debit Card</option>
-                            <option value="Bank Transfer">Direct Bank Wire</option>
-                        </select>
+                        {{ payment_method_options(selected='Cash', methods=payment_methods, labels=method_labels, default=default_payment_method) }}
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">Commission % <span class="text-white-50">(leave blank for default)</span></label>
@@ -253,14 +246,7 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">Payment Mode</label>
-                        <select class="form-select" name="payment_method">
-                            <option value="UPI - Guha India">UPI - Guha India</option>
-                            <option value="UPI - Ejaj Sir">UPI - Ejaj Sir</option>
-                            <option value="UPI">UPI / Digital Wallet</option>
-                            <option value="Cash" selected>Cash Handover</option>
-                            <option value="Card">Credit/Debit Card</option>
-                            <option value="Bank Transfer">Direct Bank Wire</option>
-                        </select>
+                        {{ payment_method_options(selected='Cash', methods=payment_methods, labels=method_labels, default=default_payment_method) }}
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">Commission % <span class="text-white-50">(overrides individual settings)</span></label>
