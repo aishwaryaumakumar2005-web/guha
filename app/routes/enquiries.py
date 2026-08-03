@@ -1,11 +1,21 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
 from flask_login import login_required
+from datetime import datetime, date as date_cls
 from app.extensions import db
 from app.models import Enquiry, Course, Student
 from app.helpers import admin_required, is_ajax_request
 from app.forms import EnquiryForm
 
 enquiries_bp = Blueprint('enquiries', __name__)
+
+
+def _parse_follow_up(raw):
+    if not raw:
+        return None
+    try:
+        return date_cls.fromisoformat(str(raw).strip())
+    except (ValueError, TypeError):
+        return None
 
 @enquiries_bp.route('/enquiries', methods=['GET', 'POST'])
 @login_required
@@ -28,7 +38,8 @@ def list():
         notes = request.form.get('notes', '').strip()
         new_enq = Enquiry(
             student_name=student_name, email=email, phone=phone,
-            course_id=course_id, source=source, status=enquiry_status, notes=notes
+            course_id=course_id, source=source, status=enquiry_status, notes=notes,
+            follow_up_date=_parse_follow_up(request.form.get('follow_up_date'))
         )
         db.session.add(new_enq)
         db.session.commit()
@@ -39,7 +50,7 @@ def list():
         return redirect(url_for('enquiries.list'))
     all_enquiries = Enquiry.query.all()
     all_courses = Course.query.all()
-    return render_template('enquiries.html', enquiries=all_enquiries, courses=all_courses)
+    return render_template('enquiries.html', enquiries=all_enquiries, courses=all_courses, today=date_cls.today())
 
 @enquiries_bp.route('/enquiries/edit/<int:id>', methods=['POST'])
 @login_required
@@ -60,6 +71,7 @@ def edit(id):
     enquiry.source = request.form.get('source', 'Walk-in')
     enquiry.status = request.form.get('status', 'New')
     enquiry.notes = request.form.get('notes', '').strip()
+    enquiry.follow_up_date = _parse_follow_up(request.form.get('follow_up_date'))
     db.session.commit()
     message = "Enquiry details updated!"
     if is_ajax_request():

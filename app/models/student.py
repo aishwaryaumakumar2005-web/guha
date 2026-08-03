@@ -21,7 +21,7 @@ class Student(db.Model):
     enrollment_date = db.Column(db.Date, default=lambda: datetime.utcnow().date())
     status = db.Column(db.String(20), default='Active')
     qr_code_uuid = db.Column(db.String(36), unique=True, default=lambda: str(uuid.uuid4()))
-
+    photo = db.Column(db.String(255))
     courses = db.relationship('Course', secondary=student_courses, backref=db.backref('students', lazy='dynamic'))
     fee_records = db.relationship('FeeRecord', backref='student', cascade="all, delete-orphan", lazy=True)
 

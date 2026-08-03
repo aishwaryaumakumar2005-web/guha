@@ -93,6 +93,8 @@ Interested In</th>
 Source</th>
                         <th>
 Status</th>
+                        <th>
+Follow Up</th>
                         <th class="text-end">
 Actions</th>
                     </tr>
@@ -118,6 +120,19 @@ Actions</th>
                                 <td>
                                     <span class="badge badge-custom                                         {% if enq.status == 'New' %}badge-inactive                                        {% elif enq.status == 'Contacted' %}badge-amber                                        {% elif enq.status == 'Converted' %}badge-active                                        {% else %}badge-cyan{% endif %}">
                                         {{ enq.status }}                                    </span>
+                                </td>
+                                <td>
+                                    {% if enq.follow_up_date %}
+                                        {% set overdue = enq.follow_up_date < today and enq.status != 'Converted' %}
+                                        <span class="small text-white {{ 'text-warning fw-semibold' if overdue }}">
+                                            {{ enq.follow_up_date.strftime('%d %b %Y') }}
+                                        </span>
+                                        {% if overdue %}
+                                            <span class="badge badge-custom badge-amber ms-1">Overdue</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-white small" style="opacity: 0.6;">—</span>
+                                    {% endif %}
                                 </td>
                                 <td class="text-end">
                                     <div class="d-flex justify-content-end gap-2">
@@ -261,6 +276,11 @@ Advisor notes / Background Context</label>
                         <textarea class="form-control" name="notes" rows="3" placeholder="e.g. Looking for evening batches. Focuses on automation...">
 </textarea>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Follow-up Date (Optional)</label>
+                        <input type="date" class="form-control" name="follow_up_date">
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
@@ -340,6 +360,11 @@ Lost</option>
 Advisor notes / Background Context</label>
                         <textarea class="form-control" name="notes" rows="3">
 {{ enq.notes }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Follow-up Date</label>
+                        <input type="date" class="form-control" name="follow_up_date" value="{{ enq.follow_up_date.strftime('%Y-%m-%d') if enq.follow_up_date else '' }}">
                     </div>
                 </div>
                 <div class="modal-footer">

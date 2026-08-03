@@ -1,13 +1,14 @@
-const CACHE = 'guha-static-v1';
+const CACHE = 'guha-static-v2';
+const STATIC_ASSETS = [
+  '/static/css/styles.css?v=60',
+  '/static/js/app.js?v=12',
+  '/static/images/logo.png'
+];
 
 self.addEventListener('install', function(e) {
   e.waitUntil(
     caches.open(CACHE).then(function(cache) {
-      return cache.addAll([
-        '/static/css/styles.css?v=56',
-        '/static/js/app.js?v=6',
-        '/static/images/logo.png'
-      ]);
+      return cache.addAll(STATIC_ASSETS);
     })
   );
   self.skipWaiting();
@@ -26,7 +27,7 @@ self.addEventListener('fetch', function(e) {
   var url = new URL(e.request.url);
   if (url.pathname.startsWith('/static/')) {
     e.respondWith(
-      caches.match(e.request).then(function(r) { return r || fetch(e.request); })
+      caches.match(e.request, { ignoreSearch: true }).then(function(r) { return r || fetch(e.request); })
     );
   }
 });

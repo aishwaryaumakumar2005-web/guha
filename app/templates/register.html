@@ -39,7 +39,7 @@ Full Name</label>
 <i class="bi bi-person-badge text-muted">
 </i>
 </span>
-                    <input type="text" class="form-control border-start-0 ps-0" id="name" name="name" placeholder="Enter your full name" maxlength="100" required>
+                    <input type="text" class="form-control border-start-0 ps-0" id="name" name="name" placeholder="Enter your full name" maxlength="100" autocomplete="name" required>
                 </div>
             </div>
             <div class="mb-3">
@@ -50,7 +50,7 @@ Email Address</label>
 <i class="bi bi-envelope text-muted">
 </i>
 </span>
-                    <input type="email" class="form-control border-start-0 ps-0" id="email" name="email" placeholder="name@example.com" maxlength="100" required>
+                    <input type="email" class="form-control border-start-0 ps-0" id="email" name="email" placeholder="name@example.com" maxlength="100" autocomplete="email" required>
                 </div>
             </div>
             <div class="mb-3">
@@ -61,7 +61,7 @@ Username</label>
 <i class="bi bi-person text-muted">
 </i>
 </span>
-                    <input type="text" class="form-control border-start-0 ps-0" id="username" name="username" placeholder="Choose a username" required>
+                    <input type="text" class="form-control border-start-0 ps-0" id="username" name="username" placeholder="Choose a username" autocomplete="username" required>
                 </div>
             </div>
                         <div class="mb-3">
@@ -72,7 +72,8 @@ Password</label>
 <i class="bi bi-lock text-muted">
 </i>
 </span>
-                    <input type="password" class="form-control border-start-0 ps-0" id="password" name="password" placeholder="Create password" required>
+                    <input type="password" class="form-control border-start-0 ps-0" id="password" name="password" placeholder="Create password" autocomplete="new-password" required>
+                    <button type="button" class="btn btn-outline-secondary border-start-0" aria-label="Show password" onclick="togglePassword(this)"><i class="bi bi-eye"></i></button>
                 </div>
             </div>
             <div class="mb-4">
@@ -83,7 +84,8 @@ Confirm Password</label>
 <i class="bi bi-shield-lock text-muted">
 </i>
 </span>
-                    <input type="password" class="form-control border-start-0 ps-0" id="confirm_password" name="confirm_password" placeholder="Repeat password" required>
+                    <input type="password" class="form-control border-start-0 ps-0" id="confirm_password" name="confirm_password" placeholder="Repeat password" autocomplete="new-password" required>
+                    <button type="button" class="btn btn-outline-secondary border-start-0" aria-label="Show password" onclick="togglePassword(this)"><i class="bi bi-eye"></i></button>
                 </div>
             </div>
             <button type="submit" class="btn btn-premium w-100 py-2 fs-6 mb-3">
@@ -102,6 +104,13 @@ Sign In</a>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
 </script>
 <script>
+function togglePassword(btn) {
+    var input = btn.previousElementSibling;
+    if (!input || input.type !== 'password' && input.type !== 'text') return;
+    var show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    btn.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+}
 document.addEventListener('DOMContentLoaded', function() {
     var pw = document.querySelector('input[name="password"]');
     var cpw = document.querySelector('input[name="confirm_password"]');

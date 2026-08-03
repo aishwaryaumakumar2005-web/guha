@@ -256,6 +256,22 @@ def create_app(config_object=None):
                 db.session.execute(db.text("ALTER TABLE student_courses ADD COLUMN drop_reason VARCHAR(200)"))
             except Exception:
                 db.session.rollback()
+            try:
+                db.session.execute(db.text("ALTER TABLE student ADD COLUMN photo VARCHAR(255)"))
+            except Exception:
+                db.session.rollback()
+            try:
+                db.session.execute(db.text("ALTER TABLE tutor ADD COLUMN photo VARCHAR(255)"))
+            except Exception:
+                db.session.rollback()
+            try:
+                db.session.execute(db.text("ALTER TABLE enquiry ADD COLUMN follow_up_date DATE"))
+            except Exception:
+                db.session.rollback()
+            try:
+                db.session.execute(db.text("CREATE INDEX IF NOT EXISTS idx_enquiry_followup ON enquiry(follow_up_date)"))
+            except Exception:
+                db.session.rollback()
             db.session.commit()
         except Exception:
             db.session.rollback()
@@ -291,6 +307,10 @@ def create_app(config_object=None):
     @app.errorhandler(404)
     def not_found(e):
         return render_template('errors/404.html'), 404
+
+    @app.errorhandler(403)
+    def forbidden(e):
+        return render_template('errors/403.html'), 403
 
     @app.errorhandler(500)
     def server_error(e):

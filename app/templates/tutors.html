@@ -55,8 +55,13 @@ Actions</th>
 #{{ tutor.id }}</td>
                                 <td>
                                     <div class="d-flex align-items-center">
-                                        <div class="avatar-stub me-2 d-flex align-items-center justify-content-center bg-cyan bg-opacity-10 text-white rounded-circle fw-bold" style="width: 32px; height: 32px; font-size: 0.85rem">
-                                            {{ tutor.name[:2].upper() }}                                        </div>
+                                        {% if tutor.photo %}
+                                            <img src="{{ url_for('static', filename='uploads/' ~ tutor.photo) }}" alt="Photo of {{ tutor.name }}" class="rounded-circle object-fit-cover me-2" style="width: 32px; height: 32px;" loading="lazy">
+                                        {% else %}
+                                            <div class="avatar-stub me-2 d-flex align-items-center justify-content-center bg-cyan bg-opacity-10 text-white rounded-circle fw-bold" style="width: 32px; height: 32px; font-size: 0.85rem">
+                                                {{ tutor.name[:2].upper() }}
+                                            </div>
+                                        {% endif %}
                                         <span class="fw-medium text-white">
 {{ tutor.name }}</span>
                                     </div>
@@ -122,7 +127,7 @@ Add New Instructor</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close">
 </button>
             </div>
-            <form action="{{ url_for('tutors.list') }}" method="POST" hx-boost="false" data-no-ajax>
+            <form action="{{ url_for('tutors.list') }}" method="POST" hx-boost="false" enctype="multipart/form-data" data-no-ajax>
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label small">
@@ -152,6 +157,11 @@ Phone Number</label>
                                 {% endfor %}                            {% else %}                                <option disabled>No active courses. Create courses first!</option>
                             {% endif %}                        </select>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label small d-block">Photo (Optional)</label>
+                        <input type="file" class="form-control" name="photo" accept="image/png,image/jpeg,image/gif,image/webp">
+                        <div class="form-text" style="opacity:0.7;">PNG, JPG, GIF or WebP up to 4MB.</div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
@@ -174,7 +184,7 @@ Modify Instructor Info</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close">
 </button>
             </div>
-            <form action="{{ url_for('tutors.edit', id=tutor.id) }}" method="POST">
+            <form action="{{ url_for('tutors.edit', id=tutor.id) }}" method="POST" enctype="multipart/form-data">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label text-white small">
@@ -212,6 +222,23 @@ Inactive</option>
                         <select class="form-select ts-select" name="courses" multiple placeholder="Search courses...">
                             {% for course in courses %}                                <option value="{{ course.id }}" {% if course in tutor.courses %}selected{% endif %}>{{ course.code }}: {{ course.name }}</option>
                             {% endfor %}                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small d-block">Photo</label>
+                        <div class="d-flex align-items-center gap-3">
+                            {% if tutor.photo %}
+                                <img src="{{ url_for('static', filename='uploads/' ~ tutor.photo) }}" alt="Current photo of {{ tutor.name }}" class="rounded-circle object-fit-cover" style="width: 48px; height: 48px;">
+                            {% else %}
+                                <div class="avatar-stub d-flex align-items-center justify-content-center bg-cyan bg-opacity-10 text-white rounded-circle fw-bold" style="width: 48px; height: 48px;">{{ tutor.name[:2].upper() }}</div>
+                            {% endif %}
+                            <div class="flex-grow-1">
+                                <input type="file" class="form-control" name="photo" accept="image/png,image/jpeg,image/gif,image/webp">
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" name="remove_photo" id="removeTutorPhoto{{ tutor.id }}" {% if not tutor.photo %}disabled{% endif %}>
+                                    <label class="form-check-label small text-white-50" for="removeTutorPhoto{{ tutor.id }}" style="opacity:0.8;">Remove current photo</label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -263,8 +290,24 @@ Courses</code>
                                 <form id="uploadTutorsForm" enctype="multipart/form-data">
                     <div class="mb-3">
                         <label class="form-label small text-white">
-Select Excel File (.xlsx, .xls)</label>
-                        <input type="file" class="form-control" name="excel_file" accept=".xlsx,.xls" required autofocus>
+Excel File (.xlsx, .xls)</label>
+                        <div id="tutorDropZone" class="drop-zone" onclick="document.getElementById('tutorExcelInput').click()">
+                            <i class="bi bi-cloud-arrow-up-fill drop-zone-icon"></i>
+                            <p class="drop-zone-title mb-1">Drag &amp; drop your Excel file here, or <span class="text-primary fw-semibold">browse</span></p>
+                            <p id="tutorFileChosen" class="small mb-0 d-none text-success fw-semibold"></p>
+                        </div>
+                        <input type="file" class="d-none" id="tutorExcelInput" name="excel_file" accept=".xlsx,.xls" required>
+                    </div>
+                                        <div id="tutorUploadProgressWrap" class="d-none mb-3">
+                        <div class="d-flex justify-content-between small text-white mb-1">
+                            <span>
+Uploading &amp; validating...</span>
+                            <span id="tutorUploadProgressPct">
+0%</span>
+                        </div>
+                        <div class="progress" style="height: 8px;">
+                            <div id="tutorUploadProgressBar" class="progress-bar" style="width: 0%;" role="progressbar"></div>
+                        </div>
                     </div>
                                         <div class="mb-3 form-check">
                         <input class="form-check-input" type="checkbox" name="ai_validation" id="aiValidationCheckTutor" checked>
@@ -292,68 +335,63 @@ AI Validation Results</h6>
                 <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
 Cancel</button>
                 <button type="button" class="btn btn-premium" id="btnUploadExcelTutor" onclick="uploadTutorExcel()">
-                    <i class="bi bi-upload me-2">
-</i>
-Validate & Import                </button>
+                    <i class="bi bi-upload me-2"></i>Validate & Import                </button>
             </div>
         </div>
     </div>
 </div>
 <script>
-function uploadTutorExcel() {    const form = document.getElementById('uploadTutorsForm');    const formData = new FormData(form);    const aiValidation = document.getElementById('aiValidationCheckTutor').checked;    const autoCourseMapping = document.getElementById('autoCourseMappingCheckTutor').checked;        formData.append('ai_validation', aiValidation);    formData.append('auto_course_mapping', autoCourseMapping);        const btn = document.getElementById('btnUploadExcelTutor');    btn.disabled = true;    btn.innerHTML = '<i class="bi bi-hourglass-split me-2">
-</i>
-Processing...';        fetch('/api/tutors/import-excel', {        method: 'POST',        body: formData    })    .then(response =>
- response.json())    .then(data =>
- {        const validationDiv = document.getElementById('validationResultsTutor');        const validationContent = document.getElementById('validationContentTutor');                validationDiv.classList.remove('d-none');                if (data.success) {            validationContent.innerHTML = `                <div class="alert alert-success">
-                    <i class="bi bi-check-circle me-2">
-</i>
-                    <strong>
+(function () {
+    var zone = document.getElementById('tutorDropZone');
+    var input = document.getElementById('tutorExcelInput');
+    var chosen = document.getElementById('tutorFileChosen');
+    if (!zone || !input) return;
+    function showFile(f) {
+        if (!f) return;
+        chosen.textContent = 'Selected: ' + f.name + ' (' + (f.size / 1024).toFixed(1) + ' KB)';
+        chosen.classList.remove('d-none');
+        zone.classList.add('drop-zone-active');
+    }
+    ['dragenter', 'dragover'].forEach(function (ev) {
+        zone.addEventListener(ev, function (e) { e.preventDefault(); e.stopPropagation(); zone.classList.add('drop-zone-active'); });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+        zone.addEventListener(ev, function (e) { e.preventDefault(); e.stopPropagation(); zone.classList.remove('drop-zone-active'); });
+    });
+    zone.addEventListener('drop', function (e) {
+        var files = e.dataTransfer.files;
+        if (files && files.length) {
+            input.files = files;
+            showFile(files[0]);
+        }
+    });
+    input.addEventListener('change', function () { showFile(input.files && input.files[0]); });
+})();
+function uploadTutorExcel() {    const form = document.getElementById('uploadTutorsForm');    const formData = new FormData(form);    const aiValidation = document.getElementById('aiValidationCheckTutor').checked;    const autoCourseMapping = document.getElementById('autoCourseMappingCheckTutor').checked;        formData.append('ai_validation', aiValidation);    formData.append('auto_course_mapping', autoCourseMapping);        const btn = document.getElementById('btnUploadExcelTutor');    btn.disabled = true;    btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Processing...';        const progressWrap = document.getElementById('tutorUploadProgressWrap');    const progressBar = document.getElementById('tutorUploadProgressBar');    const progressPct = document.getElementById('tutorUploadProgressPct');    progressWrap.classList.remove('d-none');    progressBar.style.width = '0%';    progressPct.textContent = '0%';        const xhr = new XMLHttpRequest();    xhr.open('POST', '/api/tutors/import-excel');    xhr.upload.addEventListener('progress', function (e) {        if (e.lengthComputable) {            const pct = Math.round((e.loaded / e.total) * 100);            progressBar.style.width = pct + '%';            progressPct.textContent = pct + '%';        }    });    xhr.addEventListener('load', function () {        progressBar.style.width = '100%';        progressPct.textContent = '100%';        let data = {};        try { data = JSON.parse(xhr.responseText); } catch (err) { data = {}; }        const validationDiv = document.getElementById('validationResultsTutor');        const validationContent = document.getElementById('validationContentTutor');                validationDiv.classList.remove('d-none');                if (data.success) {            validationContent.innerHTML = `                <div class="alert alert-success">
+                    <i class="bi bi-check-circle me-2"></i>                    <strong>
 Import Successful!</strong>
 <br>
                     ${data.message}                </div>
             `;            setTimeout(() =>
- {                location.reload();            }, 2000);        } else {            let errorHtml = '<div class="alert alert-danger">
-';            errorHtml += `<i class="bi bi-exclamation-triangle me-2">
-</i>
-<strong>
+ {                location.reload();            }, 2000);        } else {            let errorHtml = '<div class="alert alert-danger"> ';            errorHtml += `<i class="bi bi-exclamation-triangle me-2"></i><strong>
 Validation Failed</strong>
 <br>
 `;                        if (data.errors && data.errors.length >
- 0) {                errorHtml += '<ul class="mb-0 mt-2">
-';                data.errors.forEach(err =>
- {                    errorHtml += `<li>
+ 0) {                errorHtml += '<ul class="mb-0 mt-2"> ';                data.errors.forEach(err =>
+ { errorHtml += `<li>
 ${err}</li>
-`;                });                errorHtml += '</ul>
-';            }                        if (data.warnings && data.warnings.length >
- 0) {                errorHtml += '<strong>
-Warnings:</strong>
-<ul class="mb-0 mt-2">
-';                data.warnings.forEach(warn =>
- {                    errorHtml += `<li>
-${warn}</li>
-`;                });                errorHtml += '</ul>
-';            }                        if (data.suggestions && data.suggestions.length >
- 0) {                errorHtml += '<strong>
-AI Suggestions:</strong>
-<ul class="mb-0 mt-2">
-';                data.suggestions.forEach(sugg =>
- {                    errorHtml += `<li>
-${sugg}</li>
-`;                });                errorHtml += '</ul>
-';            }                        errorHtml += '</div>
-';            validationContent.innerHTML = errorHtml;        }                btn.disabled = false;        btn.innerHTML = '<i class="bi bi-upload me-2">
-</i>
-Validate & Import';    })    .catch(error =>
- {        console.error('Error:', error);        const validationDiv = document.getElementById('validationResultsTutor');        const validationContent = document.getElementById('validationContentTutor');                validationDiv.classList.remove('d-none');        validationContent.innerHTML = `            <div class="alert alert-danger">
-                <i class="bi bi-exclamation-triangle me-2">
-</i>
-                <strong>
+`; });                errorHtml += '</ul> ';            }                        if (data.warnings && data.warnings.length >
+ 0) {                errorHtml += '<strong> Warnings:</strong> <ul class="mb-0 mt-2"> ';                data.warnings.forEach(warn =>
+ { errorHtml += `<li>${warn}</li>
+`; });                errorHtml += '</ul> ';            }                        if (data.suggestions && data.suggestions.length >
+ 0) {                errorHtml += '<strong> AI Suggestions:</strong> <ul class="mb-0 mt-2"> ';                data.suggestions.forEach(sugg =>
+ { errorHtml += `<li>${sugg}</li>
+`; });                errorHtml += '</ul> ';            }                        errorHtml += '</div> ';            validationContent.innerHTML = errorHtml;        }                btn.disabled = false;        btn.innerHTML = '<i class="bi bi-upload me-2"></i>Validate & Import';    });    xhr.addEventListener('error', function () {        progressBar.style.width = '100%';        progressPct.textContent = 'Failed';        const validationDiv = document.getElementById('validationResultsTutor');        const validationContent = document.getElementById('validationContentTutor');                validationDiv.classList.remove('d-none');        validationContent.innerHTML = `            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle me-2"></i>                <strong>
 Error uploading file</strong>
 <br>
-                ${error.message}            </div>
-        `;                btn.disabled = false;        btn.innerHTML = '<i class="bi bi-upload me-2">
-</i>
-Validate & Import';    });}</script>
+                Network error while uploading. Please try again.            </div>
+        `;                btn.disabled = false;        btn.innerHTML = '<i class="bi bi-upload me-2"></i>Validate & Import';    });    xhr.send(formData);}</script>
 <!-- Tutor Full Details Modal -->
 <div class="modal fade" id="tutorDetailsModal" tabindex="-1" aria-labelledby="tutorDetailsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-xl">

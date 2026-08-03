@@ -6,6 +6,7 @@ class Enquiry(db.Model):
     __table_args__ = (
         db.Index('idx_enquiry_status', 'status'),
         db.Index('idx_enquiry_course', 'course_id'),
+        db.Index('idx_enquiry_followup', 'follow_up_date'),
     )
     id = db.Column(db.Integer, primary_key=True)
     student_name = db.Column(db.String(100), nullable=False)
@@ -15,6 +16,7 @@ class Enquiry(db.Model):
     source = db.Column(db.String(50), default='Walk-in')
     status = db.Column(db.String(20), default='New')
     notes = db.Column(db.Text)
+    follow_up_date = db.Column(db.Date)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):

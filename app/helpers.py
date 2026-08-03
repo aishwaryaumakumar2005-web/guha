@@ -1,6 +1,30 @@
+import os
+import uuid
 from functools import wraps
-from flask import request, redirect, url_for, flash
+from flask import request, redirect, url_for, flash, current_app
 from flask_login import current_user
+
+ALLOWED_PHOTO_EXT = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+
+
+def save_photo(file_storage, max_mb=4):
+    """Persist an uploaded photo into static/uploads and return its filename, or None."""
+    if not file_storage or not getattr(file_storage, 'filename', None):
+        return None
+    name = file_storage.filename
+    ext = name.rsplit('.', 1)[-1].lower() if '.' in name else ''
+    if ext not in ALLOWED_PHOTO_EXT:
+        raise ValueError(f"Unsupported photo format: .{ext or 'unknown'}")
+    file_storage.stream.seek(0, os.SEEK_END)
+    size = file_storage.stream.tell()
+    file_storage.stream.seek(0)
+    if size > max_mb * 1024 * 1024:
+        raise ValueError(f"Photo exceeds {max_mb}MB limit")
+    filename = 'u' + uuid.uuid4().hex[:12] + '.' + ext
+    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads')
+    os.makedirs(upload_dir, exist_ok=True)
+    file_storage.save(os.path.join(upload_dir, filename))
+    return filename
 
 
 def admin_required(f):

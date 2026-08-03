@@ -2257,3 +2257,33 @@ body.theme-transitioning ::after {
                 border-color 0.6s cubic-bezier(0.16, 1, 0.3, 1) !important,
                 box-shadow 0.6s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
+
+/* Drag-and-drop file upload zones */
+.drop-zone {
+    border: 2px dashed rgba(27, 110, 243, 0.5);
+    border-radius: 14px;
+    background: rgba(27, 110, 243, 0.06);
+    padding: 28px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+    color: #cfd8e6;
+}
+.drop-zone:hover,
+.drop-zone-active {
+    border-color: var(--accent-cyan, #1b6ef3);
+    background: rgba(27, 110, 243, 0.12);
+    transform: scale(1.01);
+}
+.drop-zone-icon {
+    font-size: 2.2rem;
+    color: var(--accent-cyan, #1b6ef3);
+    display: block;
+    margin-bottom: 8px;
+}
+.drop-zone-title {
+    font-size: 0.9rem;
+}
+.drop-zone .text-primary {
+    color: var(--accent-cyan, #1b6ef3) !important;
+}

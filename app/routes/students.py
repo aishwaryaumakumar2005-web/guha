@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import Student, Course, Tutor, student_courses
-from app.helpers import admin_required, is_ajax_request
+from app.helpers import admin_required, is_ajax_request, save_photo
 from app.forms import StudentForm
 import tempfile
 import io
@@ -39,7 +39,15 @@ def list():
                 return jsonify({"success": False, "message": message}), 400
             flash(message, 'danger')
         else:
-            new_student = Student(name=name, email=email, phone=phone, status=status)
+            photo_filename = None
+            if 'photo' in request.files and request.files['photo'].filename:
+                try:
+                    photo_filename = save_photo(request.files['photo'])
+                except ValueError as e:
+                    if is_ajax_request():
+                        return jsonify({"success": False, "errors": [str(e)]}), 400
+                    flash(str(e), 'warning')
+            new_student = Student(name=name, email=email, phone=phone, status=status, photo=photo_filename)
             for c_id in selected_courses:
                 course = Course.query.get(int(c_id))
                 if course:
@@ -191,6 +199,15 @@ def edit(id):
     student.email = new_email
     student.phone = form.data.get('phone', '').strip()
     student.status = form.data.get('status', 'Active')
+    if request.form.get('remove_photo'):
+        student.photo = None
+    elif 'photo' in request.files and request.files['photo'].filename:
+        try:
+            student.photo = save_photo(request.files['photo'])
+        except ValueError as e:
+            if is_ajax_request():
+                return jsonify({"success": False, "errors": [str(e)]}), 400
+            flash(str(e), 'danger')
     student.courses = []
     for c_id in (c for c in request.form.getlist('courses') if c):
         course = Course.query.get(int(c_id))
@@ -215,6 +232,26 @@ def delete(id):
         return jsonify({"success": True, "message": message}), 200
     flash(message, "success")
     return redirect(url_for('students.list'))
+
+@students_bp.route('/api/students/check-duplicate')
+@login_required
+def check_duplicate():
+    email = request.args.get('email', '').strip().lower()
+    phone = request.args.get('phone', '').strip()
+    exclude_id = request.args.get('exclude_id', type=int)
+    matches = []
+    q = Student.query
+    if exclude_id:
+        q = q.filter(Student.id != exclude_id)
+    if email:
+        other = q.filter(db.func.lower(Student.email) == email).first()
+        if other:
+            matches.append({'field': 'email', 'value': other.email, 'name': other.name})
+    if phone:
+        other = q.filter(Student.phone == phone).first()
+        if other:
+            matches.append({'field': 'phone', 'value': other.phone, 'name': other.name})
+    return jsonify({'duplicates': matches})
 
 @students_bp.route('/api/students/import-excel', methods=['POST'])
 @login_required

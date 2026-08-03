@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required
 from app.extensions import db
 from app.models import Tutor, Course
-from app.helpers import admin_required, is_ajax_request
+from app.helpers import admin_required, is_ajax_request, save_photo
 from app.forms import TutorForm
 import tempfile
 
@@ -33,7 +33,15 @@ def list():
                 return jsonify({"success": False, "message": message}), 400
             flash(message, 'danger')
         else:
-            new_tutor = Tutor(name=name, email=email, phone=phone, specialization=specialization, status=status)
+            photo_filename = None
+            if 'photo' in request.files and request.files['photo'].filename:
+                try:
+                    photo_filename = save_photo(request.files['photo'])
+                except ValueError as e:
+                    if is_ajax_request():
+                        return jsonify({"success": False, "errors": [str(e)]}), 400
+                    flash(str(e), 'warning')
+            new_tutor = Tutor(name=name, email=email, phone=phone, specialization=specialization, status=status, photo=photo_filename)
             for c_id in selected_courses:
                 course = Course.query.get(int(c_id))
                 if course:
@@ -72,6 +80,15 @@ def edit(id):
     tutor.phone = form.data.get('phone', '').strip()
     tutor.specialization = form.data.get('specialization', '').strip()
     tutor.status = form.data.get('status', 'Active')
+    if request.form.get('remove_photo'):
+        tutor.photo = None
+    elif 'photo' in request.files and request.files['photo'].filename:
+        try:
+            tutor.photo = save_photo(request.files['photo'])
+        except ValueError as e:
+            if is_ajax_request():
+                return jsonify({"success": False, "errors": [str(e)]}), 400
+            flash(str(e), 'danger')
     tutor.courses = []
     for c_id in (c for c in request.form.getlist('courses') if c):
         course = Course.query.get(int(c_id))

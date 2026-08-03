@@ -47,14 +47,25 @@ code{color:#aaa;font-size:.8rem}
 {% endwith %}
 <form action="{{ url_for('auth.login') }}{% if request.args.get('next') %}?next={{ request.args.get('next') }}{% endif %}" method="POST">
 <label for="username">Username</label>
-<input type="text" id="username" name="username" placeholder="Enter username" required>
+<input type="text" id="username" name="username" placeholder="Enter username" autocomplete="username" required autofocus>
 <label for="password">Password</label>
-<input type="password" id="password" name="password" placeholder="Enter password" required>
+<div style="position:relative">
+<input type="password" id="password" name="password" placeholder="Enter password" autocomplete="current-password" required style="padding-right:44px">
+<button type="button" aria-label="Show password" onclick="togglePassword(this)" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:#aaa;cursor:pointer;font-size:1rem;"><i class="bi bi-eye"></i></button>
+</div>
 <div class="flex">
 <a href="{{ url_for('auth.forgot_password') }}">Forgot Password?</a>
 </div>
 <button type="submit" class="btn">Sign In &#x2192;</button>
 </form>
+<script>
+function togglePassword(btn) {
+    var input = btn.previousElementSibling;
+    var show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    btn.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+}
+</script>
 <div class="footer">
 <p>Don't have an account? <a href="{{ url_for('auth.register') }}">Sign Up</a></p>
 </div>
