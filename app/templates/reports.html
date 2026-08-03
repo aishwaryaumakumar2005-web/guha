@@ -228,22 +228,12 @@ Monthly Avg ({{ filter_year }})</div>
                 </div>
             </div>
             <div class="row g-4">
-                <div class="col-lg-6">
+                <div class="col-lg-12">
                     <div class="glass-card p-4">
                         <h5 class="fw-bold mb-3">
 Monthly Income ({{ filter_year }})</h5>
-                        <div style="position:relative;height:200px;">
+                        <div style="position:relative;height:240px;">
 <canvas id="incomeChart">
-</canvas>
-</div>
-                    </div>
-                </div>
-                <div class="col-lg-6">
-                    <div class="glass-card p-4">
-                        <h5 class="fw-bold mb-3">
-Cumulative Income Growth ({{ filter_year }})</h5>
-                        <div style="position:relative;height:200px;">
-<canvas id="cumulativeChart">
 </canvas>
 </div>
                     </div>
@@ -263,44 +253,12 @@ PDF                </a>
 Excel                </a>
             </div>
             <div class="row g-4 mb-4">
-                <div class="col-lg-6">
+                <div class="col-lg-12">
                     <div class="glass-card p-4">
                         <h5 class="fw-bold mb-3">
 Monthly Fees Collection ({{ filter_year }})</h5>
-                        <div style="position:relative;height:200px;">
+                        <div style="position:relative;height:240px;">
 <canvas id="feesMonthlyChart">
-</canvas>
-</div>
-                    </div>
-                </div>
-                <div class="col-lg-6">
-                    <div class="glass-card p-4">
-                        <h5 class="fw-bold mb-3">
-Payment Methods</h5>
-                        <div style="position:relative;height:200px;">
-<canvas id="paymentMethodChart">
-</canvas>
-</div>
-                    </div>
-                </div>
-            </div>
-            <div class="row g-4 mb-4">
-                <div class="col-lg-6">
-                    <div class="glass-card p-4">
-                        <h5 class="fw-bold mb-3">
-Course-wise Income</h5>
-                        <div style="position:relative;height:200px;">
-<canvas id="courseIncomeChart">
-</canvas>
-</div>
-                    </div>
-                </div>
-                <div class="col-lg-6">
-                    <div class="glass-card p-4">
-                        <h5 class="fw-bold mb-3">
-Daily Collections (Last 30 Days)</h5>
-                        <div style="position:relative;height:200px;">
-<canvas id="dailySparkline">
 </canvas>
 </div>
                     </div>
@@ -388,39 +346,19 @@ PDF                </a>
 Excel                </a>
             </div>
             <div class="row g-4 mb-4">
-                <div class="col-lg-6">
+                <div class="col-lg-12">
                     <div class="glass-card p-4">
                         <h5 class="fw-bold mb-3">
 Monthly Expense ({{ filter_year }})</h5>
-                        <div style="position:relative;height:200px;">
+                        <div style="position:relative;height:240px;">
 <canvas id="expenseMonthlyChart">
-</canvas>
-</div>
-                    </div>
-                </div>
-                <div class="col-lg-6">
-                    <div class="glass-card p-4">
-                        <h5 class="fw-bold mb-3">
-Category-wise Expense (Period)</h5>
-                        <div style="position:relative;height:200px;">
-<canvas id="categoryExpenseChart">
 </canvas>
 </div>
                     </div>
                 </div>
             </div>
             <div class="row g-4 mb-4">
-                <div class="col-lg-6">
-                    <div class="glass-card p-4">
-                        <h5 class="fw-bold mb-3">
-Expense Trend</h5>
-                        <div style="position:relative;height:200px;">
-<canvas id="expenseTrendChart">
-</canvas>
-</div>
-                    </div>
-                </div>
-                <div class="col-lg-6">
+                <div class="col-lg-12">
                     <div class="glass-card p-4">
                         <h5 class="fw-bold mb-3">
 Category-wise Table</h5>
@@ -500,22 +438,12 @@ Net Balance</div>
                 </div>
             </div>
             <div class="row g-4 mb-4">
-                <div class="col-lg-6">
+                <div class="col-lg-12">
                     <div class="glass-card p-4">
                         <h5 class="fw-bold mb-3">
 Monthly Profit & Loss ({{ filter_year }})</h5>
-                        <div style="position:relative;height:200px;">
+                        <div style="position:relative;height:240px;">
 <canvas id="plChart">
-</canvas>
-</div>
-                    </div>
-                </div>
-                <div class="col-lg-6">
-                    <div class="glass-card p-4">
-                        <h5 class="fw-bold mb-3">
-Net Balance Trend ({{ filter_year }})</h5>
-                        <div style="position:relative;height:200px;">
-<canvas id="netTrendChart">
 </canvas>
 </div>
                     </div>
@@ -694,16 +622,12 @@ Open Accounts            </a>
 <script>
 function toggleDateRange(val) {    document.getElementById('monthPicker').style.display = (val === 'custom') ? 'none' : 'block';    document.getElementById('dateRangePicker').style.display = (val === 'custom') ? 'block' : 'none';    document.querySelectorAll('.month-option').forEach(o =>
  o.style.display = (val === 'quarterly') ? 'none' : '');    document.querySelectorAll('.quarter-option').forEach(o =>
- o.style.display = (val === 'quarterly') ? '' : 'none');    document.getElementById('monthLabel').textContent = (val === 'quarterly') ? 'Quarter' : 'Month';    var sel = document.getElementById('monthSelect');    if (val === 'quarterly' && !sel.value.match(/^[147]0?$/)) {        sel.value = sel.querySelector('.quarter-option').value;    }}toggleDateRange('{{ filter_mode }}');var _charts = {};var _created = {};function makeChart(id, config) {    var el = document.getElementById(id);    if (!el || _created[id]) return;    _charts[id] = new Chart(el, config);    _created[id] = true;}function initTabCharts(tabId) {    var tabChartMap = {        'income':  ['incomeChart','cumulativeChart'],        'fees':    ['feesMonthlyChart','paymentMethodChart','courseIncomeChart','dailySparkline'],        'expense': ['expenseMonthlyChart','categoryExpenseChart','expenseTrendChart'],        'overall': ['plChart','netTrendChart']    };    var ids = tabChartMap[tabId] || [];    ids.forEach(function(id) {        var cfg = chartConfigs[id];        if (cfg) makeChart(id, cfg);    });    Object.keys(_charts).forEach(function(k) {        if (_charts[k] && _charts[k].resize) _charts[k].resize();    });}var chartConfigs = {};chartConfigs['incomeChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Income (₹)',            data: {{ income_monthly|tojson }},            backgroundColor: 'rgba(107, 142, 35, 0.6)',            borderColor: 'rgba(107, 142, 35, 1)',            borderWidth: 2,            borderRadius: 6        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } ,
+ o.style.display = (val === 'quarterly') ? '' : 'none');    document.getElementById('monthLabel').textContent = (val === 'quarterly') ? 'Quarter' : 'Month';    var sel = document.getElementById('monthSelect');    if (val === 'quarterly' && !sel.value.match(/^[147]0?$/)) {        sel.value = sel.querySelector('.quarter-option').value;    }}toggleDateRange('{{ filter_mode }}');var _charts = {};var _created = {};function makeChart(id, config) {    var el = document.getElementById(id);    if (!el || _created[id]) return;    _charts[id] = new Chart(el, config);    _created[id] = true;}function initTabCharts(tabId) {    var tabChartMap = {        'income':  ['incomeChart'],        'fees':    ['feesMonthlyChart'],        'expense': ['expenseMonthlyChart'],        'overall': ['plChart']    };    var ids = tabChartMap[tabId] || [];    ids.forEach(function(id) {        var cfg = chartConfigs[id];        if (cfg) makeChart(id, cfg);    });    Object.keys(_charts).forEach(function(k) {        if (_charts[k] && _charts[k].resize) _charts[k].resize();    });}var chartConfigs = {};chartConfigs['incomeChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Income (₹)',            data: {{ income_monthly|tojson }},            backgroundColor: 'rgba(107, 142, 35, 0.6)',            borderColor: 'rgba(107, 142, 35, 1)',            borderWidth: 2,            borderRadius: 6        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } ,
                 scales: {
                     x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#ffffff' } },
                     y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#ffffff', beginAtZero: true } }
                 }
-            }};chartConfigs['cumulativeChart'] = {    type: 'line',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Cumulative Income (₹)',            data: {{ cumulative_income|tojson }},            backgroundColor: 'rgba(70, 130, 180, 0.1)',            borderColor: 'rgba(70, 130, 180, 1)',            borderWidth: 2,            fill: true,            tension: 0.3,            pointBackgroundColor: 'rgba(70, 130, 180, 1)',            pointRadius: 3        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};chartConfigs['feesMonthlyChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Collected (₹)',            data: {{ fees_monthly|map(attribute='total')|list|tojson }},            backgroundColor: 'rgba(107, 142, 35, 0.6)',            borderColor: 'rgba(107, 142, 35, 1)',            borderWidth: 2,            borderRadius: 6        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};{% if payment_labels %}chartConfigs['paymentMethodChart'] = {    type: 'doughnut',    data: {        labels: {{ payment_labels|tojson }},        datasets: [{            data: {{ payment_data|tojson }},            backgroundColor: ['rgba(107,142,35,0.7)','rgba(217,93,57,0.7)','rgba(70,130,180,0.7)','rgba(204,160,0,0.7)'],            borderWidth: 0        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } ,
-                plugins: { legend: { labels: { color: '#ffffff' } } }
-            }};{% endif %}{% if course_wise_income %}chartConfigs['courseIncomeChart'] = {    type: 'doughnut',    data: {        labels: {{ course_wise_income|map(attribute='name')|list|tojson }},        datasets: [{            data: {{ course_wise_income|map(attribute='total')|list|tojson }},            backgroundColor: ['rgba(107,142,35,0.7)','rgba(217,93,57,0.7)','rgba(70,130,180,0.7)','rgba(204,160,0,0.7)','rgba(192,57,43,0.7)'],            borderWidth: 0        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};{% endif %}{% if daily_labels %}chartConfigs['dailySparkline'] = {    type: 'line',    data: {        labels: {{ daily_labels|tojson }},        datasets: [{            label: 'Daily Collection (₹)',            data: {{ daily_amounts|tojson }},            backgroundColor: 'rgba(107, 142, 35, 0.08)',            borderColor: 'rgba(107, 142, 35, 1)',            borderWidth: 1.5,            fill: true,            tension: 0.4,            pointRadius: 0        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};{% endif %}chartConfigs['expenseMonthlyChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Expense (₹)',            data: {{ monthly_expense|map(attribute='total')|list|tojson }},            backgroundColor: 'rgba(192, 57, 43, 0.5)',            borderColor: 'rgba(192, 57, 43, 1)',            borderWidth: 2,            borderRadius: 6        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};{% if category_wise_expense %}chartConfigs['categoryExpenseChart'] = {    type: 'doughnut',    data: {        labels: {{ category_wise_expense|map(attribute='name')|list|tojson }},        datasets: [{            data: {{ category_wise_expense|map(attribute='total')|list|tojson }},            backgroundColor: ['rgba(217,93,57,0.7)','rgba(70,130,180,0.7)','rgba(204,160,0,0.7)','rgba(107,142,35,0.7)','rgba(192,57,43,0.7)','rgba(100,100,100,0.7)','rgba(150,100,50,0.7)'],            borderWidth: 0        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } ,
-                plugins: { legend: { labels: { color: '#ffffff' } } }
-            }};{% endif %}{% if exp_chart_labels %}chartConfigs['expenseTrendChart'] = {    type: 'line',    data: {        labels: {{ exp_chart_labels|tojson }},        datasets: [{            label: 'Expense (₹)',            data: {{ exp_chart_amounts|tojson }},            backgroundColor: 'rgba(192, 57, 43, 0.08)',            borderColor: 'rgba(192, 57, 43, 0.8)',            borderWidth: 1.5,            fill: true,            tension: 0.4,            pointRadius: 2,            pointBackgroundColor: 'rgba(192, 57, 43, 1)'        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};{% endif %}chartConfigs['plChart'] = {    type: 'bar',    data: {        labels: {{ pl_monthly|map(attribute='month')|list|tojson }},        datasets: [            {                label: 'Income',                data: {{ pl_monthly|map(attribute='income')|list|tojson }},                backgroundColor: 'rgba(107, 142, 35, 0.6)',                borderColor: 'rgba(107, 142, 35, 1)',                borderWidth: 2,                borderRadius: 6            },            {                label: 'Capital Injection',                data: {{ pl_monthly|map(attribute='funding')|list|tojson }},                backgroundColor: 'rgba(0, 51, 204, 0.5)',                borderColor: 'rgba(0, 51, 204, 1)',                borderWidth: 2,                borderRadius: 6            },            {                label: 'Expense',                data: {{ pl_monthly|map(attribute='expense')|list|tojson }},                backgroundColor: 'rgba(192, 57, 43, 0.6)',                borderColor: 'rgba(192, 57, 43, 1)',                borderWidth: 2,                borderRadius: 6            }        ]    },    options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: false, ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};chartConfigs['netTrendChart'] = {    type: 'line',    data: {        labels: {{ pl_monthly|map(attribute='month')|list|tojson }},        datasets: [{            label: 'Net Balance (₹)',            data: {{ net_trend|tojson }},            borderColor: 'rgba(47, 72, 88, 1)',            backgroundColor: 'rgba(47, 72, 88, 0.1)',            borderWidth: 2,            fill: true,            tension: 0.3,            pointRadius: 4,            pointBackgroundColor: function(ctx) {                var val = ctx.dataset.data[ctx.dataIndex];                return val >= 0 ? 'rgba(107, 142, 35, 1)' : 'rgba(192, 57, 43, 1)';            }        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};var activeTab = document.querySelector('#reportTabs .nav-link.active');if (activeTab) initTabCharts(activeTab.id.replace('-tab', ''));document.querySelectorAll('#reportTabs button').forEach(function(tab) {    tab.addEventListener('shown.bs.tab', function(e) {        initTabCharts(e.target.id.replace('-tab', ''));        const params = new URLSearchParams(window.location.search);        params.set('tab', e.target.id.replace('-tab', ''));        window.history.replaceState({}, '', '?' + params.toString());    });});</script>
+            }};chartConfigs['feesMonthlyChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Collected (₹)',            data: {{ fees_monthly|map(attribute='total')|list|tojson }},            backgroundColor: 'rgba(107, 142, 35, 0.6)',            borderColor: 'rgba(107, 142, 35, 1)',            borderWidth: 2,            borderRadius: 6        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};chartConfigs['expenseMonthlyChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Expense (₹)',            data: {{ monthly_expense|map(attribute='total')|list|tojson }},            backgroundColor: 'rgba(192, 57, 43, 0.5)',            borderColor: 'rgba(192, 57, 43, 1)',            borderWidth: 2,            borderRadius: 6        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};chartConfigs['plChart'] = {    type: 'bar',    data: {        labels: {{ pl_monthly|map(attribute='month')|list|tojson }},        datasets: [            {                label: 'Income',                data: {{ pl_monthly|map(attribute='income')|list|tojson }},                backgroundColor: 'rgba(107, 142, 35, 0.6)',                borderColor: 'rgba(107, 142, 35, 1)',                borderWidth: 2,                borderRadius: 6            },            {                label: 'Capital Injection',                data: {{ pl_monthly|map(attribute='funding')|list|tojson }},                backgroundColor: 'rgba(0, 51, 204, 0.5)',                borderColor: 'rgba(0, 51, 204, 1)',                borderWidth: 2,                borderRadius: 6            },            {                label: 'Expense',                data: {{ pl_monthly|map(attribute='expense')|list|tojson }},                backgroundColor: 'rgba(192, 57, 43, 0.6)',                borderColor: 'rgba(192, 57, 43, 1)',                borderWidth: 2,                borderRadius: 6            }        ]    },    options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: false, ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};var activeTab = document.querySelector('#reportTabs .nav-link.active');if (activeTab) initTabCharts(activeTab.id.replace('-tab', ''));document.querySelectorAll('#reportTabs button').forEach(function(tab) {    tab.addEventListener('shown.bs.tab', function(e) {        initTabCharts(e.target.id.replace('-tab', ''));        const params = new URLSearchParams(window.location.search);        params.set('tab', e.target.id.replace('-tab', ''));        window.history.replaceState({}, '', '?' + params.toString());    });});</script>
 {% endif %}{% endblock %}
 
 
