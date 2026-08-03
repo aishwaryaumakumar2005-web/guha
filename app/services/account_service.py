@@ -49,29 +49,34 @@ def account_for_payment_method(payment_method):
 def _raw_balances():
     """Compute live income/expense totals keyed by normalized payment method."""
     fees = db.session.query(
-        FeeRecord.payment_method, db.func.sum(FeeRecord.amount_paid)
+        FeeRecord.payment_method, db.func.sum(FeeRecord.amount_paid), db.func.count(FeeRecord.id)
     ).group_by(FeeRecord.payment_method).all()
     exp = db.session.query(
-        Expense.payment_method, db.func.sum(Expense.amount)
+        Expense.payment_method, db.func.sum(Expense.amount), db.func.count(Expense.id)
     ).group_by(Expense.payment_method).all()
     fund = db.session.query(
-        OwnerFunding.method, db.func.sum(OwnerFunding.amount)
+        OwnerFunding.method, db.func.sum(OwnerFunding.amount), db.func.count(OwnerFunding.id)
     ).group_by(OwnerFunding.method).all()
 
     balances = {}
-    fees_total = fees + fund
-    for method, total in fees_total:
+    for method, total, cnt in fees:
         k = normalize_method(method)
         if k:
             bucket = balances.setdefault(k, {'income': 0.0, 'expense': 0.0, 'count': 0})
             bucket['income'] += float(total or 0)
-            bucket['count'] += 1
-    for method, total in exp:
+            bucket['count'] += int(cnt or 0)
+    for method, total, cnt in fund:
+        k = normalize_method(method)
+        if k:
+            bucket = balances.setdefault(k, {'income': 0.0, 'expense': 0.0, 'count': 0})
+            bucket['income'] += float(total or 0)
+            bucket['count'] += int(cnt or 0)
+    for method, total, cnt in exp:
         k = normalize_method(method)
         if k:
             bucket = balances.setdefault(k, {'income': 0.0, 'expense': 0.0, 'count': 0})
             bucket['expense'] += float(total or 0)
-            bucket['count'] += 1
+            bucket['count'] += int(cnt or 0)
     return balances
 
 
