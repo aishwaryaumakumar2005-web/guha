@@ -651,8 +651,9 @@ Print/Download ID Card                    </button>
             });
         }
         document.addEventListener('htmx:afterSettle', updateSidebarActive);
-        // Clean up modal state on HTMX navigation to prevent scroll lock
+        // Clean up modal + sidebar state on HTMX navigation to prevent stuck UI
         document.addEventListener('htmx:beforeSwap', function() {
+            document.body.classList.remove('sidebar-open');
             document.querySelectorAll('.modal.show').forEach(function(m) {
                 var modal = bootstrap.Modal.getInstance(m);
                 if (modal) modal.hide();
@@ -661,6 +662,20 @@ Print/Download ID Card                    </button>
             document.querySelectorAll('.modal-backdrop').forEach(function(b) { b.remove(); });
             document.body.style.removeProperty('overflow');
             document.body.style.removeProperty('padding-right');
+        });
+        // Never allow the off-canvas sidebar state to persist on desktop
+        window.addEventListener('resize', function() {
+            if (window.innerWidth >= 992) document.body.classList.remove('sidebar-open');
+        });
+        // Escape key closes the mobile sidebar
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') document.body.classList.remove('sidebar-open');
+        });
+        // Guard: if the overlay is stuck but the sidebar class vanished, or vice-versa
+        document.addEventListener('click', function(e) {
+            if (window.innerWidth < 992 && !e.target.closest('#sidebar') && !e.target.closest('#sidebarToggle') && document.body.classList.contains('sidebar-open')) {
+                document.body.classList.remove('sidebar-open');
+            }
         });
     })();
     </script>
