@@ -4,6 +4,7 @@ from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import User, Student, Tutor, Course, Enquiry, FeeRecord, Attendance, LeaveRequest, Exam, student_courses
 from app.helpers import admin_required, is_ajax_request
+from app.services.account_service import compute_account_summary
 from sqlalchemy import func, case
 from time import time
 
@@ -136,7 +137,8 @@ def dashboard():
     return render_template('dashboard.html', stats=stats, recent_enquiries=recent_enquiries,
         recent_fees=recent_fees, chart_months=chart_months, chart_data=chart_data,
         weekly_chart_labels=weekly_chart_labels, weekly_chart_data=weekly_chart_data,
-        top_courses=top_courses)
+        top_courses=top_courses,
+        account_balances=(compute_account_summary() if current_user.role == 'Admin' else []))
 
 @dashboard_bp.route('/api/dashboard/ai-insights')
 @login_required

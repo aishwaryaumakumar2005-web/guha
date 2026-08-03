@@ -168,7 +168,7 @@ Finance</span>
                     <i class="bi bi-chevron-down accord-arrow">
 </i>
                 </div>
-                <div class="accord-body {% if request.path in ['/fees','/expenses','/enquiries','/salary-calculator','/funding'] %}open{% endif %}">
+                <div class="accord-body {% if request.path in ['/fees','/expenses','/enquiries','/salary-calculator','/funding','/accounts'] %}open{% endif %}">
                     <a href="{{ url_for('fees.list') }}" class="nav-item-link {% if request.path == '/fees' %}active{% endif %}">
                         <span class="nav-icon">
 <i class="bi bi-wallet2">
@@ -184,6 +184,10 @@ Fees & Ledger</span>
 </span>
                         <span>
 Expenses</span>
+                    </a>
+                    <a href="{{ url_for('accounts.index') }}" class="nav-item-link {% if request.path.startswith('/accounts') %}active{% endif %}">
+                        <span class="nav-icon"><i class="bi bi-wallet-fill"></i></span>
+                        <span>Account Balances</span>
                     </a>
                     <a href="{{ url_for('payroll.payroll_list') }}" class="nav-item-link {% if request.path == '/payroll' %}active{% endif %}">
                         <span class="nav-icon"><i class="bi bi-cash-stack"></i></span>

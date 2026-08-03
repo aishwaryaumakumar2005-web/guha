@@ -208,7 +208,7 @@ Payment Transaction Date</label>
                     <div class="mb-3">
                         <label class="form-label small">
 Payment Mode</label>
-                        <select class="form-select" name="payment_method">
+                        <select class="form-select" name="payment_method" id="fee-payment-method">
                             <option value="UPI - Guha India">
 UPI - Guha India</option>
                             <option value="UPI - Ejaj Sir">
@@ -222,6 +222,7 @@ Credit/Debit Card</option>
                             <option value="Bank Transfer">
 Direct Bank Wire</option>
                         </select>
+                        {% if account_balances %}<div class="form-text mt-1" id="fee-balance-hint" style="color: var(--accent-emerald); opacity: 0.85;"></div>{% endif %}
                     </div>
                     <div class="mb-3">
                         <label class="form-label small">
@@ -385,6 +386,29 @@ ${student.risk_level}</span>
                 });
             }
         });
-}</script>
+}
+{% if account_balances %}
+(function () {
+    var balances = {{ account_balances|tojson }};
+    var map = {};
+    balances.forEach(function (a) { map[a.name] = a.balance; });
+    function updateFeeHint() {
+        var sel = document.getElementById('fee-payment-method');
+        var hint = document.getElementById('fee-balance-hint');
+        if (!sel || !hint) return;
+        var b = map[sel.value];
+        if (b === undefined) { hint.textContent = ''; return; }
+        var sign = b < 0 ? '-' : '';
+        hint.textContent = 'Current balance: ' + sign + '₹' + Math.abs(b).toFixed(2);
+        hint.style.color = b < 0 ? '#e74c3c' : 'var(--accent-emerald)';
+        hint.style.opacity = '0.9';
+    }
+    var sel = document.getElementById('fee-payment-method');
+    if (sel) {
+        sel.addEventListener('change', updateFeeHint);
+        updateFeeHint();
+    }
+})();
+{% endif %}</script>
 {% endblock %}
 

@@ -12,3 +12,4 @@ from .funding import OwnerFunding
 from .task import Task
 from .settings import SystemSetting
 from .audit import AuditLog
+from .account import Account

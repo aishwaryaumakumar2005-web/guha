@@ -5,6 +5,7 @@ from app.extensions import db
 from app.models import Expense, ExpenseCategory, Tutor, Student, Course, FeeRecord
 from app.helpers import admin_required, is_ajax_request
 from app.forms import ExpenseForm
+from app.services.account_service import compute_account_summary
 from sqlalchemy.orm import joinedload
 
 expenses_bp = Blueprint('expenses', __name__)
@@ -74,7 +75,7 @@ def list():
     return render_template('expenses.html', expenses=all_expenses, categories=categories,
         category_totals=category_totals, grand_total=grand_total, today=today,
         filter_category=filter_category, filter_month=filter_month or today.month,
-        filter_year=filter_year or today.year)
+        filter_year=filter_year or today.year, account_balances=compute_account_summary())
 
 @expenses_bp.route('/expenses/edit/<int:id>', methods=['POST'])
 @login_required

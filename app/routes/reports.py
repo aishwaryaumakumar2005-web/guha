@@ -5,6 +5,7 @@ from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import FeeRecord, Expense, ExpenseCategory, Course, Student, student_courses, Attendance, Tutor, OwnerFunding
 from app.helpers import admin_required
+from app.services.account_service import compute_account_summary
 
 reports_bp = Blueprint('reports', __name__)
 
@@ -222,7 +223,8 @@ def reports():
         total_income_filtered=float(total_income_filtered), total_expense_filtered=float(total_expense_filtered),
         total_funding_filtered=float(total_funding_filtered), funding_monthly=funding_monthly,
         net_balance=net_balance, pl_monthly=pl_monthly, net_trend=net_trend,
-        payment_methods_report=payment_methods_report, total_collected_period=float(total_collected_period))
+        payment_methods_report=payment_methods_report, total_collected_period=float(total_collected_period),
+        account_balances=(compute_account_summary() if current_user.role == 'Admin' else []))
 
 @reports_bp.route('/reports/pdf')
 @login_required

@@ -114,6 +114,7 @@ def create_app(config_object=None):
     from .routes.tasks import tasks_bp
     from .routes.funding import funding_bp
     from .routes.student_lifecycle import student_lifecycle_bp
+    from .routes.accounts import accounts_bp
 
     blueprints = [
         auth_bp, dashboard_bp, courses_bp, students_bp, tutors_bp,
@@ -125,6 +126,7 @@ def create_app(config_object=None):
         tasks_bp,
         funding_bp,
         student_lifecycle_bp,
+        accounts_bp,
     ]
     for bp in blueprints:
         app.register_blueprint(bp)
@@ -261,6 +263,8 @@ def create_app(config_object=None):
             db.session.commit()
         from app.audit import register_audit_events
         register_audit_events()
+        from app.services.account_service import ensure_default_accounts
+        ensure_default_accounts()
 
     @app.before_request
     def _set_audit_user():

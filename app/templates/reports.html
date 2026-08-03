@@ -96,6 +96,14 @@ Overall Report            </button>
 </i>
 Payment Methods            </button>
         </li>
+        {% if current_user.role == 'Admin' %}
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {% if tab == 'accounts' %}active{% endif %}" id="accounts-tab" data-bs-toggle="tab" data-bs-target="#accounts" type="button" role="tab">
+                <i class="bi bi-wallet2 me-1">
+</i>
+Account Balances            </button>
+        </li>
+        {% endif %}
     </ul>
     {% endif %}
     <!-- Tab Content -->
@@ -640,6 +648,44 @@ No {{ method }} transactions in this period.</div>
                     </div>
                 </div>
                 {% endfor %}            </div>
+        </div>
+        {% endif %}
+        {% if current_user.role == 'Admin' %}
+        <div class="tab-pane fade {% if tab == 'accounts' %}show active{% endif %}" id="accounts" role="tabpanel">
+            <div class="d-flex justify-content-end mb-3">
+                <a href="{{ url_for('accounts.index') }}" class="btn btn-premium btn-sm">
+                    <i class="bi bi-box-arrow-up-right me-1">
+</i>
+Open Accounts            </a>
+            </div>
+            <div class="row g-3">
+                {% for acc in account_balances %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="glass-card p-4 h-100">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <div class="fw-bold h5 mb-0">
+<i class="bi bi-{% if acc.account_type == 'Cash' %}cash{% elif acc.account_type == 'UPI' %}phone{% elif acc.account_type == 'Bank' %}bank{% else %}credit-card{% endif %} me-2"></i>
+{{ acc.name }}</div>
+                                <div class="text-secondary small" style="opacity: 0.6;">
+{{ acc.account_type }}{% if acc.opening_balance %} &middot; Opening ₹{{ "{:,.0f}".format(acc.opening_balance) }}{% endif %}</div>
+                            </div>
+                            <span class="badge {% if acc.balance < 0 %}bg-danger{% else %}bg-success{% endif %}">
+₹{{ "{:,.2f}".format(acc.balance) }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between text-small">
+                            <span class="text-secondary small" style="opacity: 0.7;">In: <span class="text-success">₹{{ "{:,.2f}".format(acc.income) }}</span></span>
+                            <span class="text-secondary small" style="opacity: 0.7;">Out: <span class="text-danger">₹{{ "{:,.2f}".format(acc.expense) }}</span></span>
+                            <span class="text-secondary small" style="opacity: 0.7;">Txn: <span class="text-white">{{ acc.txn_count }}</span></span>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="col-12">
+                    <div class="text-center text-muted py-4">No accounts found.</div>
+                </div>
+                {% endfor %}
+            </div>
         </div>
         {% endif %}
     </div>

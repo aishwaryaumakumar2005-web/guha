@@ -5,6 +5,7 @@ from app.extensions import db
 from app.models import FeeRecord, Student, Course, SystemSetting, Tutor, student_courses
 from app.helpers import admin_required, is_ajax_request
 from app.forms import FeeForm
+from app.services.account_service import compute_account_summary
 from sqlalchemy.orm import subqueryload
 
 fees_bp = Blueprint('fees', __name__)
@@ -81,7 +82,7 @@ def list():
             "total_paid": total_paid, "balance": balance,
             "gst_amount": gst_amount, "gst_applicable": any(c.gst_applicable for c in student.courses)
         })
-    return render_template('fees.html', records=all_records, students=all_students, balances=student_balances, today=date.today(), is_staff=(current_user.role == 'Staff'))
+    return render_template('fees.html', records=all_records, students=all_students, balances=student_balances, today=date.today(), is_staff=(current_user.role == 'Staff'), account_balances=(compute_account_summary() if current_user.role == 'Admin' else []))
 
 @fees_bp.route('/fees/delete/<int:id>')
 @login_required
