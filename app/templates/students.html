@@ -99,28 +99,28 @@ Actions</th>
                                 <td data-label="Actions" class="text-end">
                                     <div class="d-flex justify-content-end gap-2">
                                         <!-- View Details Button -->
-                                        <button class="btn btn-sm btn-outline-info"                                                 onclick="viewStudentDetails({{ student.id }})"                                                title="View Full Details">
+                                        <button class="btn btn-sm btn-outline-info"                                                 onclick="viewStudentDetails({{ student.id }})"                                                title="View Full Details" aria-label="View details for {{ student.name }}">
                                             <i class="bi bi-eye-fill">
 </i>
                                         </button>
                                         <!-- AI Performance Insights Button -->
-                                        <button class="btn btn-sm btn-outline-premium"                                                 onclick="loadStudentPerformanceInsights({{ student.id }}, '{{ student.name }}')"                                                title="AI Performance Insights">
+                                        <button class="btn btn-sm btn-outline-premium"                                                 onclick="loadStudentPerformanceInsights({{ student.id }}, '{{ student.name }}')"                                                title="AI Performance Insights" aria-label="AI performance insights for {{ student.name }}">
                                             <i class="bi bi-graph-up-arrow">
 </i>
                                         </button>
                                         <!-- ID Card Generator Button -->
-                                        {% set course_list = student.courses|map(attribute='name')|join(', ') %}                                        <button class="btn btn-sm btn-outline-premium"                                                 onclick="showIDCard('{{ student.name }}', 'STUDENT', '{{ student.email }}', '{{ student.phone }}', '{{ student.qr_code_uuid }}', 'Enrolled Course(s)', '{{ course_list or 'Not Assigned' }}')"                                                title="Print ID Card">
+                                        {% set course_list = student.courses|map(attribute='name')|join(', ') %}                                        <button class="btn btn-sm btn-outline-premium"                                                 onclick="showIDCard('{{ student.name }}', 'STUDENT', '{{ student.email }}', '{{ student.phone }}', '{{ student.qr_code_uuid }}', 'Enrolled Course(s)', '{{ course_list or 'Not Assigned' }}')"                                                title="Print ID Card" aria-label="Print ID card for {{ student.name }}">
                                             <i class="bi bi-qr-code-scan">
 </i>
                                         </button>
                                         {% if not is_staff %}
                                         <!-- Edit button -->
-                                        <button class="btn btn-sm btn-outline-info"                                                 data-bs-toggle="modal"                                                 data-bs-target="#editStudentModal{{ student.id }}"                                                title="Edit Student">
+                                        <button class="btn btn-sm btn-outline-info"                                                 data-bs-toggle="modal"                                                 data-bs-target="#editStudentModal{{ student.id }}"                                                title="Edit Student" aria-label="Edit student {{ student.name }}">
                                             <i class="bi bi-pencil-square">
 </i>
                                         </button>
                                         <!-- Delete button -->
-                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Are you sure you want to completely remove this student record? This action cannot be undone.', function() { window.location.href = '{{ url_for('students.delete', id=student.id) }}'; })" title="Delete Student">
+                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Are you sure you want to completely remove this student record? This action cannot be undone.', function() { window.location.href = '{{ url_for('students.delete', id=student.id) }}'; })" title="Delete Student" aria-label="Delete student {{ student.name }}">
                                             <i class="bi bi-trash3-fill">
 </i>
                                         </button>

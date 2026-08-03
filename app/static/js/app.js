@@ -113,8 +113,9 @@ function initApp() {
     // Initialize table pagination for all data tables
     initializeTablePagination();
 
-    // Initialize global search autocomplete
+    // Initialize global search autocomplete (desktop + mobile)
     initGlobalSearch();
+    initGlobalSearch('globalSearchMobile', 'globalSearchMobileDropdown');
 
     // Initialize scroll-driven entry animations
     initScrollAnimations();
@@ -1053,12 +1054,12 @@ function renderEmptyState(message, subtitle, type) {
   return '<div class="empty-state py-3"><div class="empty-state-illustration" style="width:100px;height:80px;">' + svg + '</div><div class="empty-state-content"><h4 class="empty-state-title" style="font-size:0.95rem;">' + message + '</h4>' + (subtitle ? '<p class="empty-state-subtitle" style="font-size:0.8rem;margin:2px 0 0;">' + subtitle + '</p>' : '') + '</div></div>';
 }
 
-function initGlobalSearch() {
-    const input = document.getElementById('globalSearch');
+function initGlobalSearch(inputId, dropdownId) {
+    const input = document.getElementById(inputId || 'globalSearch');
     if (!input || input.dataset.searchInitialized) return;
     input.dataset.searchInitialized = '1';
 
-    const dropdown = document.getElementById('globalSearchDropdown');
+    const dropdown = document.getElementById(dropdownId || 'globalSearchDropdown');
     let debounceTimer = null;
 
     function renderResults(data) {

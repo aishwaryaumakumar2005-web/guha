@@ -4,6 +4,11 @@
         <div>
             <h2 class="mb-1 fw-bold text-white">Dashboard</h2>
             <p class="text-white mb-0" style="opacity: 0.7;">{{ stats.active_students }} active students &middot; {{ stats.courses }} courses</p>
+            <div class="d-flex flex-wrap gap-2 mt-2">
+                <span class="badge badge-custom badge-cyan"><i class="bi bi-calendar3 me-1"></i>{{ today.strftime("%d %b %Y") }}</span>
+                <span class="badge badge-custom badge-active"><i class="bi bi-currency-rupee me-1"></i>₹{{ "{:,.0f}".format(today_fees) }} collected today</span>
+                <span class="badge badge-custom badge-amber"><i class="bi bi-calendar2-check me-1"></i>{{ today_attendance }} attendance logged today</span>
+            </div>
         </div>
     </div>
 
@@ -219,7 +224,7 @@
                                     <div class="fw-semibold small text-white text-truncate">{{ course.name }}</div>
                                     <div class="text-white small" style="opacity:0.5;font-size:0.75rem;">{{ course.enrolled }} enrolled</div>
                                 </div>
-                                <div class="small fw-bold" style="color:hsl(200,100%,50%);">{{ (course.enrolled / stats.active_students * 100)|round|int if stats.active_students else 0 }}%</div>
+                                <div class="small fw-bold" style="color:hsl(200,100%,50%);">{{ (course.enrolled / stats.active_students * 100)|round|int if stats.active_students else '—' }}%</div>
                             </div>
                         {% endfor %}
                     {% else %}
@@ -239,7 +244,7 @@
                         <span><i class="bi bi-calendar2-check-fill me-2"></i>Log Attendance</span>
                         <i class="bi bi-arrow-right-short fs-4"></i>
                     </a>
-                    <a href="{{ url_for('leaves.leaves') }}" class="btn" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:12px;padding:14px 20px;text-align:start;" class="d-flex justify-content-between align-items-center">
+                    <a href="{{ url_for('leaves.leaves') }}" class="btn btn-outline-premium py-3 text-start d-flex justify-content-between align-items-center">
                         <span><i class="bi bi-calendar-range-fill me-2"></i>Request Leave</span>
                         <i class="bi bi-arrow-right-short fs-4"></i>
                     </a>
@@ -262,6 +267,13 @@
     </div>
 </div>
 <script>
+function fetchWithTimeout(url, opts) {
+    opts = opts || {};
+    var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var timer = setTimeout(function() { if (ctrl) ctrl.abort(); }, 15000);
+    return fetch(url, Object.assign({}, opts, ctrl ? { signal: ctrl.signal } : {}))
+        .then(function(res) { clearTimeout(timer); return res; });
+}
 (function() {
     // Quick Stats
     var qsContainer = document.getElementById('quick-stats-container');
@@ -295,7 +307,7 @@
     // Predictive Analytics
     var paContainer = document.getElementById('predictive-analytics-container');
     if (paContainer) {
-        fetch('/api/dashboard/predictive-analytics')
+        fetchWithTimeout('/api/dashboard/predictive-analytics')
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 var html = '<div class="row">';
@@ -329,7 +341,7 @@
         var container = document.getElementById('todays-tasks-container');
         var badge = document.getElementById('tasks-count-badge');
         if (!container) return;
-        fetch('/api/dashboard/todays-activities')
+        fetchWithTimeout('/api/dashboard/todays-activities')
             .then(function(r) { return r.json(); })
             .then(function(resp) {
                 var tasks = resp.tasks || [];

@@ -27,6 +27,7 @@
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 </head>
 <body hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="innerHTML">
+    <a class="skip-link" href="#main-content">Skip to main content</a>
     <script>
         if (localStorage.getItem('darkMode') === 'enabled') {
             document.body.classList.add('dark-mode');
@@ -41,13 +42,28 @@
             <img src="{{ url_for('static', filename='images/logo.png') }}" alt="GUHA" class="brand-logo-img" style="height:44px;width:auto">
             <span style="background:linear-gradient(90deg,#FFD700,#FFA500);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-size:1.1rem">GUHA</span>
         </span>
-        <div class="ms-auto d-flex gap-2">
+        <div class="ms-auto d-flex gap-2 align-items-center">
+            <button class="btn btn-link text-white p-0" id="mobileSearchToggle" type="button" aria-label="Open Global Search" title="Search" style="font-size: 1.2rem; text-decoration: none; line-height: 1;">
+                <i class="bi bi-search"></i>
+            </button>
             <a href="#" id="darkModeToggleMobile" class="text-white theme-toggle-btn" title="Toggle Dark Mode" style="font-size: 1.2rem; text-decoration: none;">
                 <i class="bi bi-moon-fill"></i>
             </a>
             <a href="/logged-out" onclick="window.location.href='/logged-out'; return false;" class="text-white logout-btn" title="Logout" style="font-size: 1.2rem; text-decoration: none;">
                 <i class="bi bi-box-arrow-right"></i>
             </a>
+        </div>
+    </div>
+    <!-- Mobile Global Search Bar (toggled by topbar search icon) -->
+    <div class="mobile-search-bar d-lg-none" id="mobileSearchBar">
+        <div class="global-search-wrap" style="position:relative;width:100%;">
+            <div class="input-group input-group-sm gs-input-group">
+                <span class="input-group-text gs-input-prepend border-end-0">
+                    <i class="bi bi-search"></i>
+                </span>
+                <input type="text" class="form-control border-start-0 gs-input" id="globalSearchMobile" placeholder="Search students, tutors, courses, enquiries..." autocomplete="off">
+            </div>
+            <div id="globalSearchMobileDropdown" class="global-search-dropdown d-none"></div>
         </div>
     </div>
     <!-- Sidebar Overlay -->
@@ -546,6 +562,18 @@ Print/Download ID Card                    </button>
         if (sbToggle) sbToggle.addEventListener('click', openSidebar);
         if (sbClose) sbClose.addEventListener('click', closeSidebar);
         if (overlay) overlay.addEventListener('click', closeSidebar);
+        var mobileSearchToggle = document.getElementById('mobileSearchToggle');
+        var mobileSearchBar = document.getElementById('mobileSearchBar');
+        if (mobileSearchToggle && mobileSearchBar) {
+            mobileSearchToggle.addEventListener('click', function() {
+                var hidden = mobileSearchBar.style.display === 'none';
+                mobileSearchBar.style.display = hidden ? 'block' : 'none';
+                if (hidden) {
+                    var mInput = document.getElementById('globalSearchMobile');
+                    if (mInput) setTimeout(function() { mInput.focus(); }, 60);
+                }
+            });
+        }
         function initAccordion() {
             document.querySelectorAll('.accord-trigger').forEach(function(tr) {
                 var body = tr.nextElementSibling;
@@ -787,6 +815,8 @@ Print/Download ID Card                    </button>
         document.addEventListener('DOMContentLoaded', function() {
             var forms = document.querySelectorAll('form:not([data-no-loading])');
             forms.forEach(function(form) {
+                var method = (form.getAttribute('method') || 'GET').toUpperCase();
+                if (method === 'GET') return;
                 form.addEventListener('submit', function(e) {
                     var submitBtn = form.querySelector('button[type="submit"]');
                     if (submitBtn && !submitBtn.disabled) {
@@ -830,11 +860,14 @@ Print/Download ID Card                    </button>
             }
 
             // Update UI
-            var feedbackEl = input.parentElement.querySelector('.invalid-feedback');
+            var host = input.parentElement && input.parentElement.classList.contains('input-group')
+                ? input.parentElement.parentElement
+                : input.parentElement;
+            var feedbackEl = host.querySelector('.invalid-feedback');
             if (!feedbackEl) {
                 feedbackEl = document.createElement('div');
                 feedbackEl.className = 'invalid-feedback';
-                input.parentElement.appendChild(feedbackEl);
+                host.appendChild(feedbackEl);
             }
 
             if (isValid) {

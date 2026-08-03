@@ -71,6 +71,12 @@ def get_dashboard_stats():
 def dashboard():
     stats = get_dashboard_stats()
     today = date.today()
+    today_fees = db.session.query(db.func.sum(FeeRecord.amount_paid)).filter(
+        FeeRecord.payment_date == today
+    ).scalar() or 0.0
+    today_attendance = db.session.query(db.func.count(Attendance.id)).filter(
+        Attendance.date == today, Attendance.person_type == 'student'
+    ).scalar() or 0
 
     # Weekly attendance chart — last 7 days with real data
     week_dates = [today - timedelta(days=i) for i in range(6, -1, -1)]
@@ -138,6 +144,7 @@ def dashboard():
         recent_fees=recent_fees, chart_months=chart_months, chart_data=chart_data,
         weekly_chart_labels=weekly_chart_labels, weekly_chart_data=weekly_chart_data,
         top_courses=top_courses,
+        today=today, today_fees=float(today_fees), today_attendance=int(today_attendance),
         account_balances=(compute_account_summary() if current_user.role == 'Admin' else []))
 
 @dashboard_bp.route('/api/dashboard/ai-insights')
