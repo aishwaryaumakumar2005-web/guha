@@ -6,6 +6,7 @@ from fpdf import FPDF
 from app.extensions import db
 from app.models import Tutor, PayrollRecord, TutorPayrollSettings, Expense, ExpenseCategory, tutor_courses, student_courses
 from app.helpers import admin_required
+from app.services.account_service import compute_account_summary
 
 payroll_bp = Blueprint('payroll', __name__)
 
@@ -71,7 +72,7 @@ def payroll_list():
     }
     return render_template('payroll.html', records=records, tutors=tutors,
         filter_month=filter_month, filter_year=filter_year, filter_status=filter_status,
-        totals=totals, today=date.today())
+        totals=totals, today=date.today(), account_balances=compute_account_summary())
 
 @payroll_bp.route('/payroll/process', methods=['POST'])
 @login_required

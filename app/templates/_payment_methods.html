@@ -1,11 +1,18 @@
-{% macro payment_method_options(selected=None, name='payment_method', id=None, extra_attrs='', methods=None, labels=None, default=None) -%}
+{% macro payment_method_options(selected=None, name='payment_method', id=None, extra_attrs='', methods=None, labels=None, default=None, groups=None, type_map=None) -%}
+{% set groups = groups or [('Cash', methods if methods is not none else ['Cash'])] %}
+{% set labels = labels or {} %}
+{% set default = default or 'Cash' %}
 <select class="form-select" name="{{ name }}"{% if id %} id="{{ id }}"{% endif %} {{ extra_attrs }}>
-  {% for m in methods %}
-    {% if m == (selected or default) %}
-      <option value="{{ m }}" selected>{{ labels.get(m, m) }}</option>
-    {% else %}
-      <option value="{{ m }}">{{ labels.get(m, m) }}</option>
-    {% endif %}
+  {% for group_label, group_methods in groups %}
+    <optgroup label="{{ group_label }}">
+      {% for m in group_methods %}
+        {% if m == (selected or default) %}
+          <option value="{{ m }}" selected>{{ labels.get(m, m) }}</option>
+        {% else %}
+          <option value="{{ m }}">{{ labels.get(m, m) }}</option>
+        {% endif %}
+      {% endfor %}
+    </optgroup>
   {% endfor %}
 </select>
 {%- endmacro %}

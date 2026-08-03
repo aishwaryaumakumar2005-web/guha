@@ -194,7 +194,8 @@ Record New Expense</h5>
                     <div class="mb-3">
                         <label class="form-label text-white small">
   Payment Mode</label>
-                        {{ payment_method_options(selected='Cash', id='add-payment-method', methods=payment_methods, labels=method_labels, default=default_payment_method) }}
+                        {{ payment_method_options(selected='Cash', id='add-payment-method', methods=payment_methods, labels=method_labels, default=default_payment_method, groups=method_groups, extra_attrs='data-method-indicator="add-payment-method-type"') }}
+                        <span id="add-payment-method-type" class="d-inline-flex align-items-center gap-1 mt-1" style="color:rgba(255,255,255,0.55);font-size:0.72rem;"></span>
                         <div class="form-text mt-1" id="add-balance-hint" style="color: var(--accent-cyan); opacity: 0.85;"></div>
                     </div>
                     <div class="mb-3">
@@ -249,7 +250,8 @@ Edit Expense</h5>
                     <div class="mb-3">
                         <label class="form-label text-white small">
   Payment Mode</label>
-                        {{ payment_method_options(selected=exp.payment_method, id='edit-payment-method-' ~ exp.id, methods=payment_methods, labels=method_labels, default=default_payment_method) }}
+                        {{ payment_method_options(selected=exp.payment_method, id='edit-payment-method-' ~ exp.id, methods=payment_methods, labels=method_labels, default=default_payment_method, groups=method_groups, extra_attrs='data-method-indicator="edit-payment-method-' ~ exp.id ~ '-type"') }}
+                        <span id="edit-payment-method-{{ exp.id }}-type" class="d-inline-flex align-items-center gap-1 mt-1" style="color:rgba(255,255,255,0.55);font-size:0.72rem;"></span>
                         <div class="form-text mt-1" id="edit-balance-hint-{{ exp.id }}" style="color: var(--accent-cyan); opacity: 0.85;"></div>
                     </div>
                     <div class="mb-3">

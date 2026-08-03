@@ -199,7 +199,9 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">Payment Mode</label>
-                        {{ payment_method_options(selected='Cash', methods=payment_methods, labels=method_labels, default=default_payment_method) }}
+                        {{ payment_method_options(selected='Cash', id='payroll-method', methods=payment_methods, labels=method_labels, default=default_payment_method, groups=method_groups, extra_attrs='data-method-indicator="payroll-method-type"') }}
+                        <span id="payroll-method-type" class="d-inline-flex align-items-center gap-1 mt-1" style="color:rgba(255,255,255,0.55);font-size:0.72rem;"></span>
+                        {% if account_balances %}<div class="form-text mt-1" id="payroll-balance-hint" style="color:var(--accent-cyan);opacity:0.85;"></div>{% endif %}
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">Commission % <span class="text-white-50">(leave blank for default)</span></label>
@@ -246,7 +248,9 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">Payment Mode</label>
-                        {{ payment_method_options(selected='Cash', methods=payment_methods, labels=method_labels, default=default_payment_method) }}
+                        {{ payment_method_options(selected='Cash', id='payroll-method-all', methods=payment_methods, labels=method_labels, default=default_payment_method, groups=method_groups, extra_attrs='data-method-indicator="payroll-method-all-type"') }}
+                        <span id="payroll-method-all-type" class="d-inline-flex align-items-center gap-1 mt-1" style="color:rgba(255,255,255,0.55);font-size:0.72rem;"></span>
+                        {% if account_balances %}<div class="form-text mt-1" id="payroll-all-balance-hint" style="color:var(--accent-cyan);opacity:0.85;"></div>{% endif %}
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">Commission % <span class="text-white-50">(overrides individual settings)</span></label>
@@ -323,4 +327,29 @@
     </div>
 </div>
 {% endfor %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+    var balances = {{ account_balances|tojson }};
+    var map = {};
+    balances.forEach(function (a) { map[a.name] = a.balance; });
+    function fmt(v) { var s = v < 0 ? '-' : ''; return s + '₹' + Math.abs(v).toFixed(2); }
+    function wire(selId, hintId) {
+        var sel = document.getElementById(selId);
+        var hint = document.getElementById(hintId);
+        if (!sel || !hint) return;
+        function update() {
+            var b = map[sel.value];
+            if (b === undefined) { hint.textContent = ''; return; }
+            hint.textContent = 'Available balance: ' + fmt(b);
+            hint.style.color = b < 0 ? '#e74c3c' : 'var(--accent-cyan)';
+        }
+        update();
+        sel.addEventListener('change', update);
+    }
+    wire('payroll-method', 'payroll-balance-hint');
+    wire('payroll-method-all', 'payroll-all-balance-hint');
+})();
+</script>
 {% endblock %}

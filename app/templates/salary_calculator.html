@@ -135,7 +135,8 @@ Calculated Staff Salary</div>
                     <input type="hidden" name="end_date" value="{{ end_date.strftime('%Y-%m-%d') }}">
                     <div class="mb-2 text-start">
                         <label class="form-label text-white-50 small mb-1">Payment Mode</label>
-                        {{ payment_method_options(selected='Cash', name='payment_method', methods=payment_methods, labels=method_labels, default=default_payment_method) }}
+                        {{ payment_method_options(selected='Cash', name='payment_method', id='salary-payment-method', methods=payment_methods, labels=method_labels, default=default_payment_method, groups=method_groups, extra_attrs='data-method-indicator="salary-payment-method-type"') }}
+                        <span id="salary-payment-method-type" class="d-inline-flex align-items-center gap-1 mt-1" style="color:rgba(255,255,255,0.55);font-size:0.72rem;"></span>
                     </div>
                     <button type="submit" class="btn btn-premium btn-sm w-100 py-2">
                         <i class="bi bi-wallet2 me-1">

@@ -122,7 +122,9 @@ Record Capital Investment</h5>
                     <div class="mb-3">
                         <label class="form-label text-white small">
   Mode of Investment</label>
-                        {{ payment_method_options(selected='Cash', name='method', methods=payment_methods, labels=method_labels, default=default_payment_method) }}
+                        {{ payment_method_options(selected='Cash', name='method', id='funding-method', methods=payment_methods, labels=method_labels, default=default_payment_method, groups=method_groups, extra_attrs='data-method-indicator="funding-method-type"') }}
+                        <span id="funding-method-type" class="d-inline-flex align-items-center gap-1 mt-1" style="color:rgba(255,255,255,0.55);font-size:0.72rem;"></span>
+                        {% if account_balances %}<div class="form-text mt-1" id="funding-balance-hint" style="color:var(--accent-cyan);opacity:0.85;"></div>{% endif %}
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">
@@ -141,4 +143,26 @@ Record Capital Investment</h5>
         </div>
     </div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+    var balances = {{ account_balances|tojson }};
+    var map = {};
+    balances.forEach(function (a) { map[a.name] = a.balance; });
+    var sel = document.getElementById('funding-method');
+    var hint = document.getElementById('funding-balance-hint');
+    if (sel && hint) {
+        function update() {
+            var b = map[sel.value];
+            if (b === undefined) { hint.textContent = ''; return; }
+            var s = b < 0 ? '-' : '';
+            hint.textContent = 'Available balance: ' + s + '₹' + Math.abs(b).toFixed(2);
+            hint.style.color = b < 0 ? '#e74c3c' : 'var(--accent-cyan)';
+        }
+        update();
+        sel.addEventListener('change', update);
+    }
+})();
+</script>
 {% endblock %}

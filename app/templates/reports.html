@@ -526,7 +526,7 @@ Total Collected</div>
                     <div class="glass-card p-3 text-center">
                         <div class="text-secondary small fw-semibold text-uppercase">
 {{ method }}</div>
-                        <div class="fw-bold fs-3" style="color: {% if method == 'Cash' %}var(--accent-emerald){% elif method == 'UPI - Guha India' %}var(--accent-cyan){% elif method == 'UPI - Ejaj Sir' %}var(--accent-rose){% else %}#ffc107{% endif %};">
+                        <div class="fw-bold fs-3" style="color: {{ method_colors.get(method, '#FFC107') }};">
 ₹{{ "{:,.2f}".format(data.total) }}</div>
                         <div class="small text-white" style="opacity: 0.6;">
 {{ data.records|length }} transactions</div>
@@ -538,7 +538,7 @@ Total Collected</div>
                 {% for method, data in payment_methods_report.items() %}                <div class="col-lg-6">
                     <div class="glass-card p-4 h-100">
                         <h5 class="fw-bold mb-3">
-                            <i class="bi bi-{% if method == 'Cash' %}cash{% elif 'UPI' in method %}phone{% else %}credit-card{% endif %} me-2">
+                            <i class="bi bi-{{ method_icon(method) }} me-2">
 </i>
                             {{ method }} Transactions                            <span class="badge badge-custom badge-cyan ms-2">
 ₹{{ "{:,.2f}".format(data.total) }}</span>
@@ -593,7 +593,7 @@ Open Accounts            </a>
                         <div class="d-flex justify-content-between align-items-start mb-3">
                             <div>
                                 <div class="fw-bold h5 mb-0">
-<i class="bi bi-{% if acc.account_type == 'Cash' %}cash{% elif acc.account_type == 'UPI' %}phone{% elif acc.account_type == 'Bank' %}bank{% else %}credit-card{% endif %} me-2"></i>
+<i class="bi bi-{% if acc.account_type == 'Cash' %}cash{% elif acc.account_type == 'UPI' %}phone{% elif acc.account_type == 'Bank' %}bank{% else %}credit-card{% endif %} me-2" style="color: {{ method_colors.get(acc.name, '#DDD') }};"></i>
 {{ acc.name }}</div>
                                 <div class="text-secondary small" style="opacity: 0.6;">
 {{ acc.account_type }}{% if acc.opening_balance %} &middot; Opening ₹{{ "{:,.0f}".format(acc.opening_balance) }}{% endif %}</div>

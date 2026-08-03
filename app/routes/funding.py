@@ -5,6 +5,7 @@ from app.extensions import db
 from app.models import OwnerFunding
 from app.helpers import admin_required, is_ajax_request
 from app.forms import OwnerFundingForm
+from app.services.account_service import compute_account_summary
 
 funding_bp = Blueprint('funding', __name__)
 
@@ -46,7 +47,8 @@ def list():
         if f.funding_date.year == today.year and f.funding_date.month == today.month
     )
     return render_template('funding.html', fundings=all_fundings,
-        total_invested=total_invested, month_total=month_total, today=today)
+        total_invested=total_invested, month_total=month_total, today=today,
+        account_balances=compute_account_summary())
 
 
 @funding_bp.route('/funding/delete/<int:id>')

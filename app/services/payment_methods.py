@@ -40,6 +40,51 @@ DEFAULT_ACCOUNTS = [
 # everything else is booked through the bank.
 TALLY_ACCOUNT_FOR_METHOD = {m: ('Cash' if m == 'Cash' else 'Bank') for m in PAYMENT_METHODS}
 
+# Grouping (order) used to render every payment-mode dropdown into optgroups.
+METHOD_GROUPS = [
+    ('Cash', ['Cash']),
+    ('UPI Accounts', ['UPI - Guha India', 'UPI - Ejaj Sir', 'UPI']),
+    ('Bank', ['Bank Transfer']),
+    ('Cards', ['Card']),
+]
+
+# Bootstrap icon name per account type (shared by dropdowns, cards, reports).
+ACCOUNT_TYPE_ICONS = {
+    'Cash': 'cash',
+    'UPI': 'phone',
+    'Bank': 'bank',
+    'Card': 'credit-card',
+    'Other': 'wallet-fill',
+}
+
+# Consistent, accent-safe colors per canonical method. Used by Reports and
+# Accounts so a given method always renders the same color across the app.
+METHOD_COLORS = {
+    'Cash': '#00BFA6',
+    'UPI - Guha India': '#29B6F6',
+    'UPI - Ejaj Sir': '#F06292',
+    'UPI': '#7986CB',
+    'Bank Transfer': '#FFA726',
+    'Card': '#AB47BC',
+    'Others': '#FFC107',
+}
+
+# Map canonical method -> account type (drives icon/color in UI).
+METHOD_TYPE = {
+    'Cash': 'Cash',
+    'UPI - Guha India': 'UPI',
+    'UPI - Ejaj Sir': 'UPI',
+    'UPI': 'UPI',
+    'Bank Transfer': 'Bank',
+    'Card': 'Card',
+    'Others': 'Other',
+}
+
+
+def method_icon(method):
+    """Bootstrap icon name for a canonical method (falls back to Other)."""
+    return ACCOUNT_TYPE_ICONS.get(METHOD_TYPE.get(method, 'Other'), 'wallet-fill')
+
 
 def normalize_method(method):
     return (method or '').strip().lower()

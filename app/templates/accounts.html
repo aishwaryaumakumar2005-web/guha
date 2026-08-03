@@ -13,17 +13,18 @@
             <div class="glass-card p-3 {% if acc.name == active_name %}border border-info border-opacity-50{% endif %}" style="cursor:pointer;" onclick="window.location.href='{{ url_for('accounts.detail', account_name=acc.name) }}'">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <div class="fw-semibold text-white small">
-                        <i class="bi bi-{% if acc.account_type == 'Cash' %}cash{% elif acc.account_type == 'UPI' %}phone{% elif acc.account_type == 'Bank' %}bank{% else %}credit-card{% endif %} me-1"></i>
+                        <i class="bi bi-{% if acc.account_type == 'Cash' %}cash{% elif acc.account_type == 'UPI' %}phone{% elif acc.account_type == 'Bank' %}bank{% else %}credit-card{% endif %} me-1" style="color: {{ method_colors.get(acc.name, '#DDD') }};"></i>
                         {{ acc.name }}
                     </div>
                     <span class="badge badge-custom {% if acc.account_type == 'UPI' %}badge-active{% else %}badge-cyan{% endif %}">{{ acc.account_type }}</span>
                 </div>
-                <div class="fw-bold fs-4 {% if acc.balance < 0 %}text-danger{% else %}" style="color: {{ 'var(--accent-emerald)' if acc.account_type == 'Cash' else '#fff' }}{% endif %}">
+                <div class="fw-bold fs-4 {% if acc.balance < 0 %}text-danger{% else %}" style="color: {{ method_colors.get(acc.name, 'var(--accent-emerald)') }}{% endif %}">
                     ₹{{ "{:,.2f}".format(acc.balance) }}
                 </div>
                 <div class="d-flex justify-content-between small text-secondary mt-2">
                     <span title="Income (fees + capital)">In: <span style="color:var(--accent-emerald);">+{{ "{:,.2f}".format(acc.income) }}</span></span>
                     <span title="Expenses">Out: <span class="text-danger">-{{ "{:,.2f}".format(acc.expense) }}</span></span>
+                    <span title="Transactions">{{ acc.txn_count }} txns</span>
                 </div>
                 <div class="small text-muted mt-1">Opening: ₹{{ "{:,.2f}".format(acc.opening_balance) }}</div>
             </div>
@@ -38,6 +39,21 @@
 
         {% set total_in = breakdown.income|sum(attribute='amount_paid') + breakdown.funding|sum(attribute='amount') %}
         {% set total_out = breakdown.expenses|sum(attribute='amount') %}
+        {% set active_acc = accounts|selectattr('name', 'equalto', active_name)|first %}
+        <div class="row g-3 mb-3">
+            <div class="col-6 col-lg-3"><div class="glass-card p-3 text-center"><div class="text-secondary small text-uppercase">Opening</div><div class="fw-bold fs-5" style="color:{{ method_colors.get(active_name, '#DDD') }};">₹{{ "{:,.2f}".format(active_acc.opening_balance if active_acc else 0) }}</div></div></div>
+            <div class="col-6 col-lg-3"><div class="glass-card p-3 text-center"><div class="text-secondary small text-uppercase">Income</div><div class="fw-bold fs-5" style="color:var(--accent-emerald);">+₹{{ "{:,.2f}".format(total_in) }}</div></div></div>
+            <div class="col-6 col-lg-3"><div class="glass-card p-3 text-center"><div class="text-secondary small text-uppercase">Expense</div><div class="fw-bold fs-5 text-danger">-₹{{ "{:,.2f}".format(total_out) }}</div></div></div>
+            <div class="col-6 col-lg-3"><div class="glass-card p-3 text-center"><div class="text-secondary small text-uppercase">Balance</div><div class="fw-bold fs-5 {% if (total_in - total_out) < 0 %}text-danger{% endif %}" style="color:{% if (total_in - total_out) >= 0 %}{{ method_colors.get(active_name, '#00BFA6') }}{% endif %};">₹{{ "{:,.2f}".format(total_in - total_out) }}</div></div></div>
+        </div>
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            <span class="small text-secondary align-self-center me-1">Recorded modes:</span>
+            {% if active_methods %}
+                {% for m in active_methods %}<span class="badge badge-custom badge-cyan">{{ m }}</span>{% endfor %}
+            {% else %}
+                <span class="badge badge-custom badge-danger">None yet</span>
+            {% endif %}
+        </div>
         <div class="d-flex flex-wrap gap-3 mb-3">
             <span class="badge badge-custom badge-cyan">Inflow: ₹{{ "{:,.2f}".format(total_in) }}</span>
             <span class="badge badge-custom badge-danger">Outflow: ₹{{ "{:,.2f}".format(total_out) }}</span>

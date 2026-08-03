@@ -209,7 +209,8 @@ Payment Transaction Date</label>
                         <label class="form-label small">
 Payment Mode</label>
                         {% from '_payment_methods.html' import payment_method_options %}
-                        {{ payment_method_options(selected='Cash', id='fee-payment-method', methods=payment_methods, labels=method_labels, default=default_payment_method) }}
+                        {{ payment_method_options(selected='Cash', id='fee-payment-method', methods=payment_methods, labels=method_labels, default=default_payment_method, groups=method_groups, extra_attrs='data-method-indicator="fee-payment-method-type"') }}
+                        <span id="fee-payment-method-type" class="d-inline-flex align-items-center gap-1 mt-1" style="color:rgba(255,255,255,0.55);font-size:0.72rem;"></span>
                         {% if account_balances %}<div class="form-text mt-1" id="fee-balance-hint" style="color: var(--accent-emerald); opacity: 0.85;"></div>{% endif %}
                     </div>
                     <div class="mb-3">

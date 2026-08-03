@@ -185,11 +185,19 @@ def create_app(config_object=None):
 
     @app.context_processor
     def inject_payment_methods():
-        from .services.payment_methods import PAYMENT_METHODS, METHOD_LABELS, DEFAULT_PAYMENT_METHOD
+        from .services.payment_methods import (
+            PAYMENT_METHODS, METHOD_LABELS, DEFAULT_PAYMENT_METHOD,
+            METHOD_GROUPS, METHOD_COLORS, METHOD_TYPE, method_icon,
+        )
         return {
             'payment_methods': list(PAYMENT_METHODS),
             'method_labels': dict(METHOD_LABELS),
             'default_payment_method': DEFAULT_PAYMENT_METHOD,
+            'method_groups': list(METHOD_GROUPS),
+            'method_colors': dict(METHOD_COLORS),
+            'method_type': dict(METHOD_TYPE),
+            'method_icon': method_icon,
+            'method_icon_map': {m: method_icon(m) for m in list(PAYMENT_METHODS) + ['Others']},
         }
 
     if app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):

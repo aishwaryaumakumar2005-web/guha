@@ -917,6 +917,32 @@ Print/Download ID Card                    </button>
             navigator.serviceWorker.register('/static/sw.js');
         }
     </script>
+    <script>
+        (function () {
+            function initPaymentMethodIndicators() {
+                var icons = {{ method_icon_map|tojson }};
+                var types = {{ method_type|tojson }};
+                var selects = document.querySelectorAll('select[data-method-indicator]');
+                selects.forEach(function (sel) {
+                    var target = document.getElementById(sel.getAttribute('data-method-indicator'));
+                    if (!target) return;
+                    function render() {
+                        var m = sel.value;
+                        var icon = icons[m] || 'wallet-fill';
+                        var t = types[m] || 'Other';
+                        target.innerHTML = '<i class="bi bi-' + icon + '"></i>&nbsp;' + t;
+                    }
+                    render();
+                    sel.addEventListener('change', render);
+                });
+            }
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initPaymentMethodIndicators);
+            } else {
+                initPaymentMethodIndicators();
+            }
+        })();
+    </script>
 </body>
 </html>
 
