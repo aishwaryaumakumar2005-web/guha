@@ -580,43 +580,42 @@ Print/Download ID Card                    </button>
                 if (!body || !body.classList.contains('accord-body')) return;
                 if (body.classList.contains('open')) {
                     body.style.maxHeight = body.scrollHeight + 'px';
-                    var fin = function() {
-                        if (body.classList.contains('open')) body.style.maxHeight = 'none';
-                        body.removeEventListener('transitionend', fin);
-                    };
-                    body.addEventListener('transitionend', fin);
                 }
                 tr.addEventListener('click', function() {
                     var b = this.nextElementSibling;
                     if (!b || !b.classList.contains('accord-body')) return;
                     var isOpen = b.classList.contains('open');
-                    // close all other accordions
-                    document.querySelectorAll('.accord-body').forEach(function(other) {
-                        if (other !== b && other.classList.contains('open')) {
-                            other.style.maxHeight = other.scrollHeight + 'px';
-                            requestAnimationFrame(function() {
-                                other.classList.remove('open');
-                                other.style.maxHeight = '0';
-                            });
-                            if (other.previousElementSibling) other.previousElementSibling.classList.remove('expanded');
+                    // Close every other open accordion deterministically (no rAF dependency)
+                    document.querySelectorAll('.accord-trigger').forEach(function(o) {
+                        if (o === tr) return;
+                        var ob = o.nextElementSibling;
+                        if (ob && ob.classList.contains('accord-body') && ob.classList.contains('open')) {
+                            ob.classList.remove('open');
+                            ob.style.maxHeight = '0';
+                            o.classList.remove('expanded');
                         }
                     });
                     if (isOpen) {
+                        b.classList.remove('open');
+                        this.classList.remove('expanded');
                         b.style.maxHeight = b.scrollHeight + 'px';
-                        requestAnimationFrame(function() {
-                            b.classList.remove('open');
-                            b.style.maxHeight = '0';
-                        });
+                        b.style.maxHeight = '0';
                     } else {
                         b.classList.add('open');
+                        this.classList.add('expanded');
                         b.style.maxHeight = b.scrollHeight + 'px';
-                        var finishOpen = function() {
+                        // Settle to 'none' once the transition ends, with a timeout fallback
+                        // so the section can never be left stuck on the user's browser.
+                        var settled = false;
+                        var fin = function() {
+                            if (settled) return;
+                            settled = true;
+                            b.removeEventListener('transitionend', fin);
                             if (b.classList.contains('open')) b.style.maxHeight = 'none';
-                            b.removeEventListener('transitionend', finishOpen);
                         };
-                        b.addEventListener('transitionend', finishOpen);
+                        b.addEventListener('transitionend', fin);
+                        setTimeout(fin, 450);
                     }
-                    this.classList.toggle('expanded', !isOpen);
                 });
             });
         }
