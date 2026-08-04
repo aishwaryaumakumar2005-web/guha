@@ -99,7 +99,7 @@ Remove                                </a>
                 {% if not is_staff %}
                 {{ empty_state('No courses added yet', "Create your first course to start building the curriculum", 'courses', '#', 'Create Course', 'bi-journal-plus') }}
                 {% else %}
-                <div class="text-center text-muted small py-5">No courses assigned to you yet.</div>
+                {{ empty_state('No courses assigned to you yet', 'Courses you teach will appear here once assigned', 'courses', none, none, none) }}
                 {% endif %}
             </div>
         {% endif %}    </div>

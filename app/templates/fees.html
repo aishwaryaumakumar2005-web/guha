@@ -71,6 +71,8 @@ Student Balances Matrix</h4>
                         Outstanding</th>
                         <th>
                         Status</th>
+                        <th class="text-end">
+                        Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -106,9 +108,16 @@ Unpaid Full</span>
                                     {% else %}                                        <span class="text-muted small">
 -</span>
                                     {% endif %}                                </td>
+                                <td class="text-end">
+                                    {% if current_user.role == 'Admin' and item.balance > 0 %}
+                                    <button class="btn btn-sm btn-outline-premium" onclick="quickCollect({{ item.student.id }}, '{{ item.student.name }}')" title="Record payment for {{ item.student.name }}">
+                                        <i class="bi bi-cash-coin me-1"></i>Collect
+                                    </button>
+                                    {% endif %}
+                                </td>
                             </tr>
                         {% endfor %}                    {% else %}                        <tr>
-                            <td colspan="6" class="text-center text-white py-4">
+                            <td colspan="7" class="text-center text-white py-4">
                             No enrolled student balance structures registered.</td>
                         </tr>
                     {% endif %}                </tbody>
@@ -188,7 +197,7 @@ Action</th>
                     <div class="mb-3">
                         <label class="form-label small">
 Select Enrolled Student</label>
-                        <select class="form-select ts-select" name="student_id" placeholder="Search student..." required autofocus>
+                        <select class="form-select ts-select" name="student_id" id="fee-student-select" placeholder="Search student..." required autofocus>
                             <option value="">
 -- Choose Student --</option>
                             {% for student in students %}                                <option value="{{ student.id }}">
@@ -258,6 +267,17 @@ Close</button>
     </div>
 </div>
 <script>
+function quickCollect(studentId, studentName) {
+    var sel = document.getElementById('fee-student-select');
+    if (sel) {
+        sel.value = String(studentId);
+        if (sel.tomselect) sel.tomselect.setValue(String(studentId));
+    }
+    var modalEl = document.getElementById('recordPaymentModal');
+    if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    var amount = document.querySelector('#recordPaymentModal input[name="amount_paid"]');
+    if (amount) { amount.value = ''; amount.focus(); }
+}
 function loadFeeAnalysis() {    const modal = new bootstrap.Modal(document.getElementById('aiFeeAnalysisModal'));    const contentDiv = document.getElementById('feeAnalysisContent');        contentDiv.innerHTML = `        <div class="d-flex align-items-center text-secondary">
             <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true">
 </span>
