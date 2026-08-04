@@ -304,6 +304,14 @@ def create_app(config_object=None):
         from flask_login import current_user
         g.audit_user = current_user if current_user.is_authenticated else None
 
+    @app.after_request
+    def _prevent_html_cache(resp):
+        if resp.content_type and resp.content_type.startswith('text/html'):
+            resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, private'
+            resp.headers['Pragma'] = 'no-cache'
+            resp.headers['Expires'] = '0'
+        return resp
+
     @app.errorhandler(404)
     def not_found(e):
         return render_template('errors/404.html'), 404
