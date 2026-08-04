@@ -1358,6 +1358,11 @@ body.modal-open { padding-right: 0 !important; }
 }
 .modal .ts-wrapper .ts-control .item {
     color: #ffffff !important;
+    background-color: #1b6ef3 !important;
+    border-color: #1b6ef3 !important;
+}
+.modal .ts-wrapper .ts-control .item .remove {
+    color: rgba(255, 255, 255, 0.85) !important;
 }
 .modal .ts-control input {
     color: #ffffff !important;
