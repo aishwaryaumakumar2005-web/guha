@@ -13,7 +13,7 @@
     <!-- Bootstrap Icons CDN -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <!-- Core Customized Stylesheet -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=62">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=64">
 
     <!-- CDNs for QR and Scanning -->
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -358,7 +358,7 @@ Class Reports</span>
                 </div>
             </div>
             <!-- Staff: Leave Management -->
-            <a href="{{ url_for('leaves.leaves') }}" class="nav-item-link {% if request.path == '/leaves' %}active{% endif %}">
+            <a href="{{ url_for('leaves.leaves') }}" class="nav-item-link sidebar-heading {% if request.path == '/leaves' %}active{% endif %}">
                 <span class="nav-icon">
 <i class="bi bi-calendar-range-fill">
 </i>
@@ -366,26 +366,26 @@ Class Reports</span>
                 <span>
 My Leaves</span>
             </a>
-            <a href="{{ url_for('tasks.list_tasks') }}" class="nav-item-link {% if request.path == '/tasks' %}active{% endif %}">
+            <a href="{{ url_for('tasks.list_tasks') }}" class="nav-item-link sidebar-heading {% if request.path == '/tasks' %}active{% endif %}">
                 <span class="nav-icon"><i class="bi bi-check2-square"></i></span>
                 <span>Tasks</span>
             </a>
             {% endif %}
             <div class="nav-spacer"></div>
             {% if current_user.role == 'Admin' %}
-            <a href="{{ url_for('tasks.list_tasks') }}" class="nav-item-link {% if request.path == '/tasks' %}active{% endif %}">
+            <a href="{{ url_for('tasks.list_tasks') }}" class="nav-item-link sidebar-heading {% if request.path == '/tasks' %}active{% endif %}">
                 <span class="nav-icon"><i class="bi bi-check2-square"></i></span>
                 <span>Tasks</span>
             </a>
             <div class="sidebar-divider"></div>
-            <a href="{{ url_for('admin.admin_console') }}" class="nav-item-link nav-item-xl {% if request.path == '/admin' %}active{% endif %}">
+            <a href="{{ url_for('admin.admin_console') }}" class="nav-item-link nav-item-xl sidebar-heading {% if request.path == '/admin' %}active{% endif %}">
                 <span class="nav-icon">
                     <i class="bi bi-shield-lock-fill"></i>
                 </span>
                 <span>Admin Console</span>
                 <span class="nav-badge">{{ admin_count }}</span>
             </a>
-            <a href="{{ url_for('extras.extras') }}" class="nav-item-link {% if request.path == '/extras' %}active{% endif %}">
+            <a href="{{ url_for('extras.extras') }}" class="nav-item-link sidebar-heading {% if request.path == '/extras' %}active{% endif %}">
                 <span class="nav-icon">
                     <i class="bi bi-tools"></i>
                 </span>
