@@ -385,13 +385,25 @@ My Leaves</span>
             <div class="nav-spacer"></div>
             {% if current_user.role == 'Admin' %}
             <div class="sidebar-divider"></div>
-            <a href="{{ url_for('admin.admin_console') }}" class="nav-item-link nav-item-xl sidebar-heading {% if request.path == '/admin' %}active{% endif %}">
-                <span class="nav-icon">
-                    <i class="bi bi-shield-lock-fill"></i>
-                </span>
-                <span>Admin Console</span>
-                <span class="nav-badge">{{ admin_count }}</span>
-            </a>
+            <!-- Accordion: Admin Console -->
+            <div class="accord-section">
+                <div class="accord-trigger {% if request.path in ['/admin', '/google-sync'] %}expanded{% endif %}">
+                    <span class="nav-icon"><i class="bi bi-shield-lock-fill"></i></span>
+                    <span>Admin Console</span>
+                    <i class="bi bi-chevron-down accord-arrow"></i>
+                </div>
+                <div class="accord-body {% if request.path in ['/admin', '/google-sync'] %}open{% endif %}">
+                    <a href="{{ url_for('admin.admin_console') }}" class="nav-item-link {% if request.path == '/admin' %}active{% endif %}">
+                        <span class="nav-icon"><i class="bi bi-shield-lock-fill"></i></span>
+                        <span>Admin Console</span>
+                        <span class="nav-badge">{{ admin_count }}</span>
+                    </a>
+                    <a href="{{ url_for('google_sync.google_sync') }}" class="nav-item-link {% if request.path == '/google-sync' %}active{% endif %}">
+                        <span class="nav-icon"><i class="bi bi-google"></i></span>
+                        <span>Google Sync</span>
+                    </a>
+                </div>
+            </div>
             {% endif %}
         </nav>
         {% if current_user.is_authenticated %}
