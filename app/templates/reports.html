@@ -14,60 +14,57 @@ Income, fees, expense and overall financial reports.</p>
             <span class="small text-secondary me-1">Quick:</span>
             {% set quick_chips = [('today','Today'),('this_week','This Week'),('this_month','This Month'),('last_month','Last Month'),('this_quarter','This Quarter'),('ytd','YTD'),('all','All Time')] %}
             {% for key, label in quick_chips %}
-            <a href="{{ url_for('reports.reports', tab=tab, quick=key) }}" class="btn btn-sm {% if active_quick == key %}btn-premium{% else %}btn-outline-premium{% endif %}" style="border-radius:999px;padding:2px 14px;font-size:0.78rem;">{{ label }}</a>
+            <a href="{{ url_for('reports.reports', tab=tab, quick=key, company_id=selected_company_id) }}" class="btn btn-sm {% if active_quick == key %}btn-premium{% else %}btn-outline-premium{% endif %}" style="border-radius:999px;padding:2px 14px;font-size:0.78rem;">{{ label }}</a>
             {% endfor %}
         </div>
         <form method="GET" action="{{ url_for('reports.reports') }}" class="row g-2 align-items-end">
             <input type="hidden" name="tab" value="{{ tab }}">
             <div class="col-auto">
-                <label class="form-label small text-secondary mb-1">
-Period</label>
-                <select name="filter_mode" class="form-select form-select-sm" onchange="toggleDateRange(this.value)">
-                    <option value="monthly" {% if filter_mode == 'monthly' %}selected{% endif %}>
-Monthly</option>
-                    <option value="quarterly" {% if filter_mode == 'quarterly' %}selected{% endif %}>
-Quarterly</option>
-                    <option value="custom" {% if filter_mode == 'custom' %}selected{% endif %}>
-Custom Range</option>
-                </select>
-            </div>
-            <div class="col-auto" id="monthPicker">
-                <label class="form-label small text-secondary mb-1" id="monthLabel">
-Month</label>
-                <select name="month" class="form-select form-select-sm" id="monthSelect">
-                    {% for m in range(1, 13) %}                        <option value="{{ m }}" class="month-option" {% if filter_month == m %}selected{% endif %}>
-{{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m-1] }}</option>
-                    {% endfor %}                    <option value="1" class="quarter-option" {% if filter_month == 1 %}selected{% endif %}>
-Q1 (Jan-Mar)</option>
-                    <option value="4" class="quarter-option" {% if filter_month == 4 %}selected{% endif %}>
-Q2 (Apr-Jun)</option>
-                    <option value="7" class="quarter-option" {% if filter_month == 7 %}selected{% endif %}>
-Q3 (Jul-Sep)</option>
-                    <option value="10" class="quarter-option" {% if filter_month == 10 %}selected{% endif %}>
-Q4 (Oct-Dec)</option>
+                <label class="form-label small text-secondary mb-1">Company</label>
+                <select name="company_id" class="form-select form-select-sm">
+                    <option value="">All Companies</option>
+                    {% for comp in companies %}
+                    <option value="{{ comp.id }}" {% if selected_company_id == comp.id %}selected{% endif %}>{{ comp.name }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div class="col-auto">
-                <label class="form-label small text-secondary mb-1">
-Year</label>
+                <label class="form-label small text-secondary mb-1">Period</label>
+                <select name="filter_mode" class="form-select form-select-sm" onchange="toggleDateRange(this.value)">
+                    <option value="monthly" {% if filter_mode == 'monthly' %}selected{% endif %}>Monthly</option>
+                    <option value="quarterly" {% if filter_mode == 'quarterly' %}selected{% endif %}>Quarterly</option>
+                    <option value="custom" {% if filter_mode == 'custom' %}selected{% endif %}>Custom Range</option>
+                </select>
+            </div>
+            <div class="col-auto" id="monthPicker">
+                <label class="form-label small text-secondary mb-1" id="monthLabel">Month</label>
+                <select name="month" class="form-select form-select-sm" id="monthSelect">
+                    {% for m in range(1, 13) %}
+                    <option value="{{ m }}" class="month-option" {% if filter_month == m %}selected{% endif %}>{{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m-1] }}</option>
+                    {% endfor %}
+                    <option value="1" class="quarter-option" {% if filter_month == 1 %}selected{% endif %}>Q1 (Jan-Mar)</option>
+                    <option value="4" class="quarter-option" {% if filter_month == 4 %}selected{% endif %}>Q2 (Apr-Jun)</option>
+                    <option value="7" class="quarter-option" {% if filter_month == 7 %}selected{% endif %}>Q3 (Jul-Sep)</option>
+                    <option value="10" class="quarter-option" {% if filter_month == 10 %}selected{% endif %}>Q4 (Oct-Dec)</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small text-secondary mb-1">Year</label>
                 <select name="year" class="form-select form-select-sm">
-                    {% for y in range(today.year - 3, today.year + 2) %}                        <option value="{{ y }}" {% if filter_year == y %}selected{% endif %}>
-{{ y }}</option>
-                    {% endfor %}                </select>
+                    {% for y in range(today.year - 3, today.year + 2) %}
+                    <option value="{{ y }}" {% if filter_year == y %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
             </div>
             <div class="col-auto" id="dateRangePicker" style="display: none;">
-                <label class="form-label small text-secondary mb-1">
-From - To</label>
+                <label class="form-label small text-secondary mb-1">From - To</label>
                 <div class="d-flex gap-1">
                     <input type="date" name="start_date" class="form-control form-control-sm" value="{{ start_date_str }}" min="2000-01-01" max="{{ today.strftime('%Y-%m-%d') }}">
                     <input type="date" name="end_date" class="form-control form-control-sm" value="{{ end_date_str }}" min="2000-01-01" max="{{ today.strftime('%Y-%m-%d') }}">
                 </div>
             </div>
             <div class="col-auto">
-                <button type="submit" class="btn btn-premium btn-sm">
-<i class="bi bi-funnel me-1">
-</i>
-Apply</button>
+                <button type="submit" class="btn btn-premium btn-sm"><i class="bi bi-funnel me-1"></i>Apply</button>
             </div>
         </form>
     </div>
@@ -199,50 +196,80 @@ Account Balances            </button>
         <!-- === TAB 1: INCOME REPORT === -->
         <div class="tab-pane fade {% if tab == 'income' %}show active{% endif %}" id="income" role="tabpanel">
             <div class="d-flex justify-content-end mb-3">
-                <a href="{{ url_for('reports.report_pdf', tab='income', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str) }}" class="btn btn-premium btn-sm" target="_blank">
-                    <i class="bi bi-filetype-pdf me-1">
-</i>
-PDF                </a>
-                <a href="{{ url_for('reports.report_excel', tab='income', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str) }}" class="btn btn-outline-premium btn-sm" target="_blank">
-                    <i class="bi bi-file-earmark-spreadsheet me-1">
-</i>
-Excel                </a>
+                <a href="{{ url_for('reports.report_pdf', tab='income', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id) }}" class="btn btn-premium btn-sm me-2" target="_blank">
+                    <i class="bi bi-filetype-pdf me-1"></i>PDF
+                </a>
+                <a href="{{ url_for('reports.report_excel', tab='income', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id) }}" class="btn btn-outline-premium btn-sm" target="_blank">
+                    <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
+                </a>
             </div>
             <div class="row g-3 mb-4">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <div class="glass-card p-3 text-center">
-                        <div class="text-secondary small fw-semibold text-uppercase">
-Total Income (All Time)</div>
-                        <div class="fw-bold fs-3" style="color: #dc3545;">
-₹{{ "{:,.2f}".format(total_income) }}</div>
+                        <div class="text-secondary small fw-semibold text-uppercase">Total Income (All Time)</div>
+                        <div class="fw-bold fs-3" style="color: var(--accent-emerald);">₹{{ "{:,.2f}".format(total_income) }}</div>
                     </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <div class="glass-card p-3 text-center">
-                        <div class="text-secondary small fw-semibold text-uppercase">
-Year {{ filter_year }}</div>
-                        <div class="fw-bold fs-3 text-dark">
-₹{{ "{:,.2f}".format(income_monthly|sum) }}</div>
+                        <div class="text-secondary small fw-semibold text-uppercase">Period Total Income</div>
+                        <div class="fw-bold fs-3 text-dark">₹{{ "{:,.2f}".format(total_income_filtered) }}</div>
                     </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <div class="glass-card p-3 text-center">
-                        <div class="text-secondary small fw-semibold text-uppercase">
-Monthly Avg ({{ filter_year }})</div>
-                        <div class="fw-bold fs-3 text-dark">
-₹{{ "{:,.2f}".format(income_monthly|sum / 12) }}</div>
+                        <div class="text-secondary small fw-semibold text-uppercase">Period Taxable Amount</div>
+                        <div class="fw-bold fs-3 text-info">₹{{ "{:,.2f}".format(total_taxable_filtered) }}</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="glass-card p-3 text-center">
+                        <div class="text-secondary small fw-semibold text-uppercase">Period GST Collected</div>
+                        <div class="fw-bold fs-3 text-primary">₹{{ "{:,.2f}".format(total_gst_filtered) }}</div>
                     </div>
                 </div>
             </div>
+
+            <!-- Company Income Split Card -->
+            <div class="glass-card p-4 mb-4">
+                <h5 class="fw-bold mb-3"><i class="bi bi-building me-2"></i>Company-wise Income Breakdown</h5>
+                <div class="row g-3">
+                    {% for citem in company_pl %}
+                    <div class="col-md-6">
+                        <div class="p-3 border rounded bg-light">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-bold text-dark h6 mb-0">{{ citem.company.name }}</span>
+                                <span class="badge {% if citem.company.is_gst_registered %}bg-primary{% else %}bg-success{% endif %}">
+                                    {% if citem.company.is_gst_registered %}GST Registered{% else %}Non-GST{% endif %}
+                                </span>
+                            </div>
+                            <div class="row text-center g-2 mt-2">
+                                <div class="col-4">
+                                    <div class="small text-muted">Gross Fee</div>
+                                    <div class="fw-bold text-dark">₹{{ "{:,.2f}".format(citem.income) }}</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="small text-muted">Taxable</div>
+                                    <div class="fw-bold text-info">₹{{ "{:,.2f}".format(citem.taxable) }}</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="small text-muted">GST</div>
+                                    <div class="fw-bold text-primary">₹{{ "{:,.2f}".format(citem.gst) }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
             <div class="row g-4">
                 <div class="col-lg-12">
                     <div class="glass-card p-4">
-                        <h5 class="fw-bold mb-3">
-Monthly Income ({{ filter_year }})</h5>
+                        <h5 class="fw-bold mb-3">Monthly Income ({{ filter_year }})</h5>
                         <div style="position:relative;height:240px;">
-<canvas id="incomeChart">
-</canvas>
-</div>
+                            <canvas id="incomeChart"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -250,90 +277,84 @@ Monthly Income ({{ filter_year }})</h5>
         <!-- === TAB 2: STUDENT FEES REPORT === -->
         <div class="tab-pane fade {% if tab == 'fees' %}show active{% endif %}" id="fees" role="tabpanel">
             <div class="d-flex justify-content-end mb-3">
-                <a href="{{ url_for('reports.report_pdf', tab='fees', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str) }}" class="btn btn-premium btn-sm" target="_blank">
-                    <i class="bi bi-filetype-pdf me-1">
-</i>
-PDF                </a>
-                <a href="{{ url_for('reports.report_excel', tab='fees', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str) }}" class="btn btn-outline-premium btn-sm" target="_blank">
-                    <i class="bi bi-file-earmark-spreadsheet me-1">
-</i>
-Excel                </a>
+                <a href="{{ url_for('reports.report_pdf', tab='fees', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id) }}" class="btn btn-premium btn-sm me-2" target="_blank">
+                    <i class="bi bi-filetype-pdf me-1"></i>PDF
+                </a>
+                <a href="{{ url_for('reports.report_excel', tab='fees', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id) }}" class="btn btn-outline-premium btn-sm" target="_blank">
+                    <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
+                </a>
             </div>
             <div class="row g-4 mb-4">
                 <div class="col-lg-12">
                     <div class="glass-card p-4">
-                        <h5 class="fw-bold mb-3">
-Monthly Fees Collection ({{ filter_year }})</h5>
+                        <h5 class="fw-bold mb-3">Monthly Fees Collection ({{ filter_year }})</h5>
                         <div style="position:relative;height:240px;">
-<canvas id="feesMonthlyChart">
-</canvas>
-</div>
+                            <canvas id="feesMonthlyChart"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="row g-4">
-                <div class="col-lg-6">
+                <div class="col-lg-5">
                     <div class="glass-card p-4" data-aos="fade-up" data-aos-delay="0"><h5 class="fw-bold mb-3">Course-wise Table</h5>
-                        <div class="table-container" style="max-height: 260px; overflow-y: auto;">
+                        <div class="table-container" style="max-height: 300px; overflow-y: auto;">
                             <table class="table table-custom sortable" data-page-size="10">
                                 <thead>
                                     <tr>
-<th>
-Course</th>
-<th class="text-end">
-Collected</th>
-</tr>
+                                        <th>Course</th>
+                                        <th class="text-end">Collected</th>
+                                    </tr>
                                 </thead>
                                 <tbody>
-                                    {% if course_wise_income %}                                        {% for c in course_wise_income %}                                        <tr>
-                                            <td>
-{{ c.name }} ({{ c.code }})</td>
-                                            <td class="text-end fw-semibold">
-₹{{ "{:,.2f}".format(c.total) }}</td>
+                                    {% if course_wise_income %}
+                                        {% for c in course_wise_income %}
+                                        <tr>
+                                            <td>{{ c.name }} ({{ c.code }})</td>
+                                            <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(c.total) }}</td>
                                         </tr>
-                                        {% endfor %}                                    {% else %}                                        <tr>
-<td colspan="2" class="text-center text-muted py-3">
-No data</td>
-</tr>
-                                    {% endif %}                                </tbody>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr><td colspan="2" class="text-center text-muted py-3">No data</td></tr>
+                                    {% endif %}
+                                </tbody>
                             </table>
                         </div>
                     </div>
                 </div>
-                <div class="col-lg-6">
+                <div class="col-lg-7">
                     <div class="glass-card p-4" data-aos="fade-up" data-aos-delay="100"><h5 class="fw-bold mb-3">Daily Collections Table</h5>
-                        <div class="table-container" style="max-height: 260px; overflow-y: auto;">
+                        <div class="table-container" style="max-height: 300px; overflow-y: auto;">
                             <table class="table table-custom sortable" data-page-size="10">
                                 <thead>
                                     <tr>
-<th>
-Date</th>
-<th>
-Student</th>
-<th>
-Amount</th>
-<th>
-Method</th>
-</tr>
+                                        <th>Date</th>
+                                        <th>Student</th>
+                                        <th>Company</th>
+                                        <th>Amount</th>
+                                        <th>GST</th>
+                                        <th>Method</th>
+                                    </tr>
                                 </thead>
                                 <tbody>
-                                    {% if daily_collections[:15] %}                                        {% for r in daily_collections[:15] %}                                        <tr>
-                                            <td class="small">
-{{ r.payment_date.strftime("%d %b") }}</td>
+                                    {% if daily_collections[:25] %}
+                                        {% for r in daily_collections[:25] %}
+                                        <tr>
+                                            <td class="small">{{ r.payment_date.strftime("%d %b") }}</td>
+                                            <td>{{ r.student.name[:16] }}</td>
                                             <td>
-{{ r.student.name[:18] }}</td>
-                                            <td class="fw-semibold">
-₹{{ "{:,.0f}".format(r.amount_paid) }}</td>
-                                            <td>
-<span class="badge badge-custom badge-cyan">
-{{ r.payment_method }}</span>
-</td>
+                                                <span class="badge {% if r.company and r.company.is_gst_registered %}bg-primary{% else %}bg-success{% endif %}" style="font-size:0.68rem;">
+                                                    {{ r.company.code if r.company else 'Unassigned' }}
+                                                </span>
+                                            </td>
+                                            <td class="fw-semibold">₹{{ "{:,.0f}".format(r.amount_paid) }}</td>
+                                            <td class="small text-primary">₹{{ "{:,.0f}".format(r.gst_amount) }}</td>
+                                            <td><span class="badge badge-custom badge-cyan">{{ r.payment_method }}</span></td>
                                         </tr>
-                                        {% endfor %}                                    {% else %}                                        <tr>
-<td colspan="4" class="text-center text-muted py-4">
-No collections</td>
-</tr>
-                                    {% endif %}                                </tbody>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr><td colspan="6" class="text-center text-muted py-4">No collections</td></tr>
+                                    {% endif %}
+                                </tbody>
                             </table>
                         </div>
                     </div>
@@ -343,54 +364,47 @@ No collections</td>
         <!-- === TAB 3: EXPENSE REPORT === -->
         <div class="tab-pane fade {% if tab == 'expense' %}show active{% endif %}" id="expense" role="tabpanel">
             <div class="d-flex justify-content-end mb-3">
-                <a href="{{ url_for('reports.report_pdf', tab='expense', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str) }}" class="btn btn-premium btn-sm" target="_blank">
-                    <i class="bi bi-filetype-pdf me-1">
-</i>
-PDF                </a>
-                <a href="{{ url_for('reports.report_excel', tab='expense', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str) }}" class="btn btn-outline-premium btn-sm" target="_blank">
-                    <i class="bi bi-file-earmark-spreadsheet me-1">
-</i>
-Excel                </a>
+                <a href="{{ url_for('reports.report_pdf', tab='expense', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id) }}" class="btn btn-premium btn-sm me-2" target="_blank">
+                    <i class="bi bi-filetype-pdf me-1"></i>PDF
+                </a>
+                <a href="{{ url_for('reports.report_excel', tab='expense', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id) }}" class="btn btn-outline-premium btn-sm" target="_blank">
+                    <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
+                </a>
             </div>
             <div class="row g-4 mb-4">
                 <div class="col-lg-12">
                     <div class="glass-card p-4">
-                        <h5 class="fw-bold mb-3">
-Monthly Expense ({{ filter_year }})</h5>
+                        <h5 class="fw-bold mb-3">Monthly Expense ({{ filter_year }})</h5>
                         <div style="position:relative;height:240px;">
-<canvas id="expenseMonthlyChart">
-</canvas>
-</div>
+                            <canvas id="expenseMonthlyChart"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="row g-4 mb-4">
                 <div class="col-lg-12">
                     <div class="glass-card p-4">
-                        <h5 class="fw-bold mb-3">
-Category-wise Table</h5>
+                        <h5 class="fw-bold mb-3">Category-wise Table</h5>
                         <div class="table-container" style="max-height: 300px; overflow-y: auto;">
                             <table class="table table-custom sortable" data-page-size="10">
                                 <thead>
                                     <tr>
-<th>
-Category</th>
-<th class="text-end">
-Count</th>
-<th class="text-end">
-Total</th>
-</tr>
+                                        <th>Category</th>
+                                        <th class="text-end">Count</th>
+                                        <th class="text-end">Total</th>
+                                    </tr>
                                 </thead>
                                 <tbody>
-                                    {% for s in expense_summary %}                                    <tr>
-                                        <td>
-{{ s.name }}</td>
-                                        <td class="text-end">
-{{ s.count }}</td>
-                                        <td class="text-end fw-semibold">
-₹{{ "{:,.2f}".format(s.total) }}</td>
+                                    {% for s in category_wise_expense %}
+                                    <tr>
+                                        <td>{{ s.name }}</td>
+                                        <td class="text-end">{{ s.count }}</td>
+                                        <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(s.total) }}</td>
                                     </tr>
-                                    {% endfor %}                                </tbody>
+                                    {% else %}
+                                    <tr><td colspan="3" class="text-center text-muted py-3">No expenses in this period</td></tr>
+                                    {% endfor %}
+                                </tbody>
                             </table>
                         </div>
                     </div>
@@ -400,109 +414,120 @@ Total</th>
         <!-- === TAB 4: OVERALL REPORT === -->
         <div class="tab-pane fade {% if tab == 'overall' %}show active{% endif %}" id="overall" role="tabpanel">
             <div class="d-flex justify-content-end mb-3">
-                <a href="{{ url_for('reports.report_pdf', tab='overall', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str) }}" class="btn btn-premium btn-sm" target="_blank">
-                    <i class="bi bi-filetype-pdf me-1">
-</i>
-PDF                </a>
-                <a href="{{ url_for('reports.report_excel', tab='overall', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str) }}" class="btn btn-outline-premium btn-sm" target="_blank">
-                    <i class="bi bi-file-earmark-spreadsheet me-1">
-</i>
-Excel                </a>
+                <a href="{{ url_for('reports.report_pdf', tab='overall', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id) }}" class="btn btn-premium btn-sm me-2" target="_blank">
+                    <i class="bi bi-filetype-pdf me-1"></i>PDF
+                </a>
+                <a href="{{ url_for('reports.report_excel', tab='overall', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id) }}" class="btn btn-outline-premium btn-sm" target="_blank">
+                    <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
+                </a>
             </div>
             <!-- KPI Cards -->
             <div class="row g-3 mb-4">
                 <div class="col-md-3 col-6">
                     <div class="glass-card p-3 text-center" style="border-left: 4px solid #0033cc;">
-                        <div class="text-secondary small fw-semibold text-uppercase">
-Total Income</div>
-                        <div class="fw-bold fs-3" style="color: #0033cc;">
-₹{{ "{:,.2f}".format(total_income_filtered) }}</div>
+                        <div class="text-secondary small fw-semibold text-uppercase">Total Income</div>
+                        <div class="fw-bold fs-3" style="color: #0033cc;">₹{{ "{:,.2f}".format(total_income_filtered) }}</div>
                     </div>
                 </div>
                 <div class="col-md-3 col-6">
                     <div class="glass-card p-3 text-center" style="border-left: 4px solid var(--accent-emerald);">
-                        <div class="text-secondary small fw-semibold text-uppercase">
-Capital Injection</div>
-                        <div class="fw-bold fs-3" style="color: var(--accent-emerald);">
-₹{{ "{:,.2f}".format(total_funding_filtered) }}</div>
+                        <div class="text-secondary small fw-semibold text-uppercase">Capital Injection</div>
+                        <div class="fw-bold fs-3" style="color: var(--accent-emerald);">₹{{ "{:,.2f}".format(total_funding_filtered) }}</div>
                     </div>
                 </div>
                 <div class="col-md-3 col-6">
                     <div class="glass-card p-3 text-center" style="border-left: 4px solid var(--accent-rose);">
-                        <div class="text-secondary small fw-semibold text-uppercase">
-Total Expense</div>
-                        <div class="fw-bold fs-3" style="color: var(--accent-rose);">
-₹{{ "{:,.2f}".format(total_expense_filtered) }}</div>
+                        <div class="text-secondary small fw-semibold text-uppercase">Total Expense</div>
+                        <div class="fw-bold fs-3" style="color: var(--accent-rose);">₹{{ "{:,.2f}".format(total_expense_filtered) }}</div>
                     </div>
                 </div>
                 <div class="col-md-3 col-6">
                     <div class="glass-card p-3 text-center" style="border-left: 4px solid {% if net_balance >= 0 %}var(--accent-cyan){% else %}var(--accent-rose){% endif %};">
-                        <div class="text-secondary small fw-semibold text-uppercase">
-Net Balance</div>
+                        <div class="text-secondary small fw-semibold text-uppercase">Net Balance</div>
                         <div class="fw-bold fs-3 {% if net_balance >= 0 %}text-dark{% else %}text-danger{% endif %}">
-                            {% if net_balance >= 0 %}+{% endif %}₹{{ "{:,.2f}".format(net_balance) }}                        </div>
+                            {% if net_balance >= 0 %}+{% endif %}₹{{ "{:,.2f}".format(net_balance) }}
+                        </div>
                     </div>
                 </div>
             </div>
+            
+            <!-- Company P&L Breakdown -->
+            <div class="glass-card p-4 mb-4">
+                <h5 class="fw-bold mb-3"><i class="bi bi-building-fill me-2"></i>Company-wise Profit Breakdown</h5>
+                <p class="text-secondary small">Income and tax details per company. (Note: Capital Injection and Expenses are shared/unassigned across companies.)</p>
+                <div class="row g-3">
+                    {% for citem in company_pl %}
+                    <div class="col-md-6">
+                        <div class="p-3 border rounded bg-light">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-bold text-dark h6 mb-0">{{ citem.company.name }}</span>
+                                <span class="badge {% if citem.company.is_gst_registered %}bg-primary{% else %}bg-success{% endif %}">
+                                    {% if citem.company.is_gst_registered %}GST Registered{% else %}Non-GST{% endif %}
+                                </span>
+                            </div>
+                            <div class="row text-center g-2 mt-2">
+                                <div class="col-6">
+                                    <div class="small text-muted">Total Income</div>
+                                    <div class="fw-bold text-dark">₹{{ "{:,.2f}".format(citem.income) }}</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="small text-muted">GST Collected</div>
+                                    <div class="fw-bold text-primary">₹{{ "{:,.2f}".format(citem.gst) }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
             <div class="row g-4 mb-4">
                 <div class="col-lg-12">
                     <div class="glass-card p-4">
-                        <h5 class="fw-bold mb-3">
-Monthly Profit & Loss ({{ filter_year }})</h5>
+                        <h5 class="fw-bold mb-3">Monthly Profit & Loss ({{ filter_year }})</h5>
                         <div style="position:relative;height:240px;">
-<canvas id="plChart">
-</canvas>
-</div>
+                            <canvas id="plChart"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>
             <!-- P&L Table -->
-            <div class="glass-card p-4">
-                <h5 class="fw-bold mb-3">
-<i class="bi bi-table me-2">
-</i>
-Profit & Loss Details ({{ filter_year }})</h5>
+            <div class="glass-card p-4 mb-4">
+                <h5 class="fw-bold mb-3"><i class="bi bi-table me-2"></i>Profit & Loss Details ({{ filter_year }})</h5>
                 <div class="table-container" style="max-height: 500px; overflow-y: auto;">
                     <table class="table table-custom sortable" data-page-size="10">
                         <thead>
                             <tr>
-                                <th>
-Month</th>
-                                <th class="text-end">
-Income</th>
-                                <th class="text-end">
-Capital Injection</th>
-                                <th class="text-end">
-Expense</th>
-                                <th class="text-end">
-Net</th>
-                                <th class="text-center">
-Status</th>
+                                <th>Month</th>
+                                <th class="text-end">Income</th>
+                                <th class="text-end">Capital Injection</th>
+                                <th class="text-end">Expense</th>
+                                <th class="text-end">Net</th>
+                                <th class="text-center">Status</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for p in pl_monthly %}                            <tr>
-                                <td class="fw-medium">
-{{ p.month }}</td>
-                                <td class="text-end" style="color: var(--accent-emerald);">
-₹{{ "{:,.2f}".format(p.income) }}</td>
-                                <td class="text-end" style="color: #0033cc;">
-₹{{ "{:,.2f}".format(p.funding) }}</td>
-                                <td class="text-end" style="color: var(--accent-rose);">
-₹{{ "{:,.2f}".format(p.expense) }}</td>
+                            {% for p in pl_monthly %}
+                            <tr>
+                                <td class="fw-medium">{{ p.month }}</td>
+                                <td class="text-end" style="color: var(--accent-emerald);">₹{{ "{:,.2f}".format(p.income) }}</td>
+                                <td class="text-end" style="color: #0033cc;">₹{{ "{:,.2f}".format(p.funding) }}</td>
+                                <td class="text-end" style="color: var(--accent-rose);">₹{{ "{:,.2f}".format(p.expense) }}</td>
                                 <td class="text-end fw-semibold {% if p.net < 0 %}text-danger{% endif %}">
-                                    {% if p.net >= 0 %}+{% endif %}₹{{ "{:,.2f}".format(p.net) }}                                </td>
+                                    {% if p.net >= 0 %}+{% endif %}₹{{ "{:,.2f}".format(p.net) }}
+                                </td>
                                 <td class="text-center">
-                                    {% if p.net >
- 0 %}                                        <span class="badge badge-custom badge-active">
-Profit</span>
-                                    {% elif p.net < 0 %}                                        <span class="badge badge-custom badge-inactive">
-Loss</span>
-                                    {% else %}                                        <span class="badge badge-custom badge-amber">
-Breakeven</span>
-                                    {% endif %}                                </td>
+                                    {% if p.net > 0 %}
+                                        <span class="badge badge-custom badge-active">Profit</span>
+                                    {% elif p.net < 0 %}
+                                        <span class="badge badge-custom badge-inactive">Loss</span>
+                                    {% else %}
+                                        <span class="badge badge-custom badge-amber">Breakeven</span>
+                                    {% endif %}
+                                </td>
                             </tr>
-                            {% endfor %}                        </tbody>
+                            {% endfor %}
+                        </tbody>
                     </table>
                 </div>
             </div>
@@ -510,14 +535,12 @@ Breakeven</span>
         <!-- === TAB 5: PAYMENT METHODS REPORT === -->
         <div class="tab-pane fade {% if tab == 'payment_methods' %}show active{% endif %}" id="payment_methods" role="tabpanel">
             <div class="d-flex justify-content-end mb-3">
-                <a href="{{ url_for('reports.report_pdf', tab='payment_methods', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str) }}" class="btn btn-premium btn-sm" target="_blank">
-                    <i class="bi bi-filetype-pdf me-1">
-</i>
-PDF                </a>
-                <a href="{{ url_for('reports.report_excel', tab='payment_methods', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str) }}" class="btn btn-outline-premium btn-sm" target="_blank">
-                    <i class="bi bi-file-earmark-spreadsheet me-1">
-</i>
-Excel                </a>
+                <a href="{{ url_for('reports.report_pdf', tab='payment_methods', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id) }}" class="btn btn-premium btn-sm me-2" target="_blank">
+                    <i class="bi bi-filetype-pdf me-1"></i>PDF
+                </a>
+                <a href="{{ url_for('reports.report_excel', tab='payment_methods', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id) }}" class="btn btn-outline-premium btn-sm" target="_blank">
+                    <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
+                </a>
             </div>
             <!-- Summary Cards -->
             <div class="row g-3 mb-4">

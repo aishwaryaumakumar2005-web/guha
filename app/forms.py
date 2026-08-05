@@ -183,7 +183,7 @@ class ForgotPasswordForm(Form):
 
 class FeeForm(Form):
     required = ['student_id', 'amount_paid']
-    integer = ['student_id']
+    integer = ['student_id', 'company_id']
     float = ['amount_paid']
     date = ['payment_date']
     choices = {'payment_method': list(PAYMENT_METHODS)}

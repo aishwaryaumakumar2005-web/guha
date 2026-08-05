@@ -1,5 +1,5 @@
 from app.extensions import db
-from app.models import Account, FeeRecord, Expense, OwnerFunding
+from app.models import Account, FeeRecord, Expense, OwnerFunding, Company
 from .payment_methods import DEFAULT_ACCOUNTS, classify_method
 
 
@@ -7,14 +7,57 @@ def normalize_method(method):
     return (method or '').strip().lower()
 
 
-def ensure_default_accounts():
-    if db.session.query(Account).first():
-        return
-    db.session.add_all(
-        Account(name=name, account_type=atype, opening_balance=0.0)
-        for name, atype in DEFAULT_ACCOUNTS
-    )
+def ensure_default_companies():
+    c1 = Company.query.filter_by(code='COMP-GST').first()
+    if not c1:
+        c1 = Company(
+            name='Guha Tech Solutions (GST)',
+            code='COMP-GST',
+            is_gst_registered=True,
+            gstin='33ABCDE1234F1Z5',
+            address='123 Tech Park, Anna Salai, Chennai, TN',
+            phone='9876543210',
+            email='billing@guhatech.com',
+            invoice_prefix='GTS-GST/'
+        )
+        db.session.add(c1)
+    
+    c2 = Company.query.filter_by(code='COMP-NGST').first()
+    if not c2:
+        c2 = Company(
+            name='Guha Tech Institute (Non-GST)',
+            code='COMP-NGST',
+            is_gst_registered=False,
+            gstin=None,
+            address='456 Academy Road, Anna Salai, Chennai, TN',
+            phone='9876543211',
+            email='info@guhainstitute.com',
+            invoice_prefix='GTS-NGST/'
+        )
+        db.session.add(c2)
     db.session.commit()
+    return c1, c2
+
+
+def ensure_default_accounts():
+    try:
+        ensure_default_companies()
+        c1 = Company.query.filter_by(code='COMP-GST').first()
+        c2 = Company.query.filter_by(code='COMP-NGST').first()
+        
+        if not db.session.query(Account).first():
+            db.session.add_all(
+                Account(name=name, account_type=atype, opening_balance=0.0, company_id=c1.id if 'Bank' in name or 'Card' in name else c2.id)
+                for name, atype in DEFAULT_ACCOUNTS
+            )
+            db.session.commit()
+        else:
+            for acc in Account.query.filter(Account.company_id.is_(None)).all():
+                acc.company_id = c1.id if 'Bank' in acc.name or 'Card' in acc.name else c2.id
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
+
 
 
 def account_for_payment_method(payment_method):
@@ -84,6 +127,8 @@ def compute_account_summary():
             'id': acc.id,
             'name': acc.name,
             'account_type': acc.account_type,
+            'company_id': acc.company_id,
+            'company_name': acc.company.name if acc.company else 'Unassigned',
             'opening_balance': round(acc.opening_balance, 2),
             'income': round(income, 2),
             'expense': round(expense, 2),

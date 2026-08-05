@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import Course, student_courses, SystemSetting, Tutor, tutor_courses
+from app.models import Course, student_courses, SystemSetting, Tutor, tutor_courses, Company
 from app.helpers import admin_required, is_ajax_request
 from app.forms import CourseForm
 
@@ -33,6 +33,8 @@ def list():
         fees = form.cleaned_data.get('fees', 0.0)
         gst_applicable = request.form.get('gst_applicable') == 'on'
         syllabus = request.form.get('syllabus', '').strip()
+        company_id_raw = request.form.get('company_id', '').strip()
+        company_id = int(company_id_raw) if company_id_raw.isdigit() else None
         exists = Course.query.filter_by(code=code).first()
         if exists:
             message = f"Course code '{code}' already exists!"
@@ -43,7 +45,8 @@ def list():
             new_course = Course(
                 name=name, code=code, description=description,
                 duration_weeks=duration, duration_unit=duration_unit,
-                fees=fees, gst_applicable=gst_applicable, syllabus=syllabus
+                fees=fees, gst_applicable=gst_applicable, syllabus=syllabus,
+                company_id=company_id
             )
             db.session.add(new_course)
             db.session.commit()
@@ -54,6 +57,7 @@ def list():
         return redirect(url_for('courses.list'))
     
     # GET request - filter courses based on user role
+    companies = Company.query.filter_by(is_active=True).all()
     if current_user.role == 'Staff':
         # Find the tutor record for this staff user
         tutor = Tutor.query.filter_by(email=current_user.email).first()
@@ -80,7 +84,8 @@ def list():
         courses_without_enrollment=courses_without_enrollment,
         total_enrollments=total_enrollments,
         gst_rates={'cgst': cgst_pct, 'sgst': sgst_pct},
-        is_staff=(current_user.role == 'Staff')
+        is_staff=(current_user.role == 'Staff'),
+        companies=companies
     )
 
 @courses_bp.route('/courses/edit/<int:id>', methods=['POST'])
@@ -109,6 +114,8 @@ def edit(id):
     course.fees = form.cleaned_data.get('fees', 0.0)
     course.gst_applicable = request.form.get('gst_applicable') == 'on'
     course.syllabus = request.form.get('syllabus', '').strip()
+    company_id_raw = request.form.get('company_id', '').strip()
+    course.company_id = int(company_id_raw) if company_id_raw.isdigit() else None
     db.session.commit()
     message = "Course details updated!"
     if is_ajax_request():

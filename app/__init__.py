@@ -275,6 +275,26 @@ def create_app(config_object=None):
             db.session.commit()
         except Exception:
             db.session.rollback()
+        # Public IDs (STU/TUT) — add columns on legacy DBs and backfill existing rows
+        try:
+            from app.models import Student as _Student, Tutor as _Tutor
+            for _tbl, _col in [('student', 'roll_no'), ('tutor', 'emp_code')]:
+                try:
+                    db.session.execute(db.text(f"ALTER TABLE {_tbl} ADD COLUMN {_col} VARCHAR(20)"))
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+            _n = 0
+            for _s in _Student.query.filter(_Student.roll_no.is_(None)).order_by(_Student.id).all():
+                _n += 1
+                _s.roll_no = f'STU{_n:04d}'
+            _n = 0
+            for _t in _Tutor.query.filter(_Tutor.emp_code.is_(None)).order_by(_Tutor.id).all():
+                _n += 1
+                _t.emp_code = f'TUT{_n:04d}'
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
         # Reset PostgreSQL sequences on every startup so inserted IDs never collide
         if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
             from sqlalchemy import text

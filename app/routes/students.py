@@ -132,7 +132,7 @@ def export_excel():
     for r, s in enumerate(students, start=2):
         course_names = ', '.join([c.name for c in s.courses]) if s.courses else ''
         status = s.status or 'Active'
-        ws.cell(row=r, column=1, value=s.id).number_format = '0'
+        ws.cell(row=r, column=1, value=s.roll_no or s.id).number_format = '@'
         ws.cell(row=r, column=2, value=s.name)
         ws.cell(row=r, column=3, value=s.email or '')
         phone = ws.cell(row=r, column=4, value=(s.phone or ''))

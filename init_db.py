@@ -4,7 +4,8 @@ from app import create_app
 from app.extensions import db
 from app.models import (Course, Student, Tutor, Attendance, FeeRecord,
                          Enquiry, User, LeaveRequest, ExpenseCategory,
-                         Expense, Exam)
+                         Expense, Exam, Company)
+from app.services.account_service import ensure_default_companies, ensure_default_accounts
 from werkzeug.security import generate_password_hash
 
 BACKUP_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backup_data.db')
@@ -30,16 +31,25 @@ def seed_database():
 
 
 def seed_if_empty():
-    if Course.query.first():
-        print("Database already has data, skipping seed.")
-        return
-    print("Empty database — restoring from backup...")
+    try:
+        if Course.query.first():
+            print("Database already has data, skipping seed.")
+            return
+    except Exception as e:
+        print("Existing database schema outdated, re-creating database...", e)
+        db.session.rollback()
+    print("Database needs initialization / re-creation — restoring from backup...")
+    db.drop_all()
     db.create_all()
     _restore_all()
     print("Database restored successfully!")
 
 
+
 def _restore_all():
+    c1, c2 = ensure_default_companies()
+    ensure_default_accounts()
+
     users = fetch_backup('user')
     courses = fetch_backup('course')
     tutors = fetch_backup('tutor')
@@ -80,13 +90,15 @@ def _restore_all():
     # Courses
     _courses = {}
     for c in courses:
+        is_gst = bool(c.get('gst_applicable', False))
         obj = Course(
             id=c['id'], name=c['name'], code=c['code'],
             description=c.get('description', ''),
             duration_weeks=c['duration_weeks'],
             duration_unit=c.get('duration_unit', 'weeks'),
             fees=c['fees'],
-            gst_applicable=bool(c.get('gst_applicable', False)),
+            gst_applicable=is_gst,
+            company_id=c1.id if is_gst else c2.id,
             syllabus=c.get('syllabus', '')
         )
         db.session.add(obj)
@@ -102,7 +114,8 @@ def _restore_all():
             id=t['id'], name=t['name'], email=t['email'],
             phone=t['phone'], specialization=t.get('specialization', ''),
             status=t.get('status', 'Active'),
-            qr_code_uuid=t.get('qr_code_uuid')
+            qr_code_uuid=t.get('qr_code_uuid'),
+            emp_code=t.get('emp_code') or f'TUT{int(t["id"]):04d}'
         )
         db.session.add(obj)
         _tutors[t['id']] = obj
@@ -127,7 +140,8 @@ def _restore_all():
                 datetime.strptime(s['enrollment_date'], '%Y-%m-%d').date()
                 if s.get('enrollment_date') else None
             ),
-            qr_code_uuid=s.get('qr_code_uuid')
+            qr_code_uuid=s.get('qr_code_uuid'),
+            roll_no=s.get('roll_no') or f'STU{int(s["id"]):04d}'
         )
         db.session.add(obj)
         _students[s['id']] = obj
@@ -168,16 +182,29 @@ def _restore_all():
 
     # Fee Records
     for f in fees:
+        student = _students.get(f['student_id'])
+        has_gst = student and any(c.gst_applicable for c in student.courses)
+        comp = c1 if has_gst else c2
+        paid = float(f['amount_paid'])
+        pdate = datetime.strptime(f['payment_date'], '%Y-%m-%d').date()
+        taxable = round(paid / 1.18, 2) if has_gst else paid
+        gst = round(paid - taxable, 2) if has_gst else 0.0
+        rec_num = f"{comp.invoice_prefix}{pdate.strftime('%Y%m')}-{f['id']:04d}"
+
         obj = FeeRecord(
             id=f['id'], student_id=f['student_id'],
-            amount_paid=f['amount_paid'],
-            payment_date=datetime.strptime(f['payment_date'], '%Y-%m-%d').date(),
+            company_id=comp.id,
+            receipt_number=rec_num,
+            amount_paid=paid,
+            taxable_amount=taxable,
+            gst_amount=gst,
+            payment_date=pdate,
             payment_method=f.get('payment_method', ''),
             remarks=f.get('remarks', '')
         )
         db.session.add(obj)
     db.session.flush()
-    print(f"Restored {len(fees)} fee records")
+    print(f"Restored {len(fees)} fee records with company tags")
 
     # Enquiries
     for eq in enquiries:

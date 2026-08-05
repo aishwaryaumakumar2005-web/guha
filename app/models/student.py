@@ -1,6 +1,8 @@
 import uuid
 from datetime import datetime
+from sqlalchemy import event
 from app.extensions import db
+from app.helpers import next_code
 
 
 student_courses = db.Table('student_courses',
@@ -15,6 +17,7 @@ student_courses = db.Table('student_courses',
 
 class Student(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    roll_no = db.Column(db.String(20), unique=True)
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
     phone = db.Column(db.String(20), nullable=False)
@@ -27,3 +30,9 @@ class Student(db.Model):
 
     def __repr__(self):
         return f"<Student {self.name}>"
+
+
+@event.listens_for(Student, 'before_insert')
+def _assign_roll_no(mapper, connection, target):
+    if not target.roll_no:
+        target.roll_no = next_code('STU', Student, 'roll_no')

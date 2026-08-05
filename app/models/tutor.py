@@ -1,5 +1,7 @@
 import uuid
+from sqlalchemy import event
 from app.extensions import db
+from app.helpers import next_code
 
 
 tutor_courses = db.Table('tutor_courses',
@@ -10,6 +12,7 @@ tutor_courses = db.Table('tutor_courses',
 
 class Tutor(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    emp_code = db.Column(db.String(20), unique=True)
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
     phone = db.Column(db.String(20), nullable=False)
@@ -21,3 +24,9 @@ class Tutor(db.Model):
 
     def __repr__(self):
         return f"<Tutor {self.name}>"
+
+
+@event.listens_for(Tutor, 'before_insert')
+def _assign_emp_code(mapper, connection, target):
+    if not target.emp_code:
+        target.emp_code = next_code('TUT', Tutor, 'emp_code')

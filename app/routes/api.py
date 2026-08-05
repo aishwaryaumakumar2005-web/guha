@@ -75,7 +75,7 @@ def api_student_details(student_id):
     days_absent = sum(1 for r in attendance_records if r.status == 'Absent')
     days_late = sum(1 for r in attendance_records if r.status == 'Late')
     return jsonify({
-        'id': student.id, 'name': student.name, 'email': student.email, 'phone': student.phone,
+        'id': student.id, 'roll_no': student.roll_no, 'name': student.name, 'email': student.email, 'phone': student.phone,
         'enrollment_date': student.enrollment_date.strftime('%d %b %Y'), 'status': student.status,
         'qr_code_uuid': student.qr_code_uuid,
         'courses': [{'id': c.id, 'name': c.name, 'code': c.code, 'fees': c.fees, 'duration': f'{c.duration_weeks} {c.duration_unit or "weeks"}'} for c in student.courses],
@@ -98,7 +98,7 @@ def api_tutor_details(tutor_id):
     ).order_by(Expense.expense_date.desc()).all() if salary_cat else []
     total_salary_paid = sum(s.amount for s in salary_payments)
     return jsonify({
-        'id': tutor.id, 'name': tutor.name, 'email': tutor.email, 'phone': tutor.phone,
+        'id': tutor.id, 'emp_code': tutor.emp_code, 'name': tutor.name, 'email': tutor.email, 'phone': tutor.phone,
         'specialization': tutor.specialization or 'N/A', 'status': tutor.status, 'qr_code_uuid': tutor.qr_code_uuid,
         'courses': [{'id': c.id, 'name': c.name, 'code': c.code, 'duration': f'{c.duration_weeks} {c.duration_unit or "weeks"}'} for c in tutor.courses],
         'attendance': {'total_days': total_days, 'present': days_present, 'absent': days_absent, 'late': days_late},
@@ -128,11 +128,13 @@ def api_search():
     like = f'%{q}%'
     results = {'students': [], 'tutors': [], 'courses': [], 'enquiries': []}
     for s in Student.query.filter(
-        db.or_(Student.name.ilike(like), Student.email.ilike(like), Student.phone.ilike(like))
+        db.or_(Student.name.ilike(like), Student.email.ilike(like), Student.phone.ilike(like),
+               Student.roll_no.ilike(like))
     ).limit(5).all():
         results['students'].append({'id': s.id, 'name': s.name, 'subtitle': s.email or s.phone, 'url': url_for('students.list'), 'badge': s.status})
     for t in Tutor.query.filter(
-        db.or_(Tutor.name.ilike(like), Tutor.email.ilike(like), Tutor.phone.ilike(like))
+        db.or_(Tutor.name.ilike(like), Tutor.email.ilike(like), Tutor.phone.ilike(like),
+               Tutor.emp_code.ilike(like))
     ).limit(5).all():
         results['tutors'].append({'id': t.id, 'name': t.name, 'subtitle': t.specialization or t.email, 'url': url_for('tutors.list'), 'badge': t.status})
     for c in Course.query.filter(

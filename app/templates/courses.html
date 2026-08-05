@@ -40,8 +40,12 @@ Total Enrollments: {{ total_enrollments }}</span>
                             <div class="d-flex justify-content-between align-items-start mb-3">
                                 <div>
                                     {% set enrolled_count = course.students.count() %}                                    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-                                        <span class="badge badge-custom badge-cyan">
-{{ course.code }}</span>
+                                        <span class="badge badge-custom badge-cyan">{{ course.code }}</span>
+                                        {% if course.company %}
+                                        <span class="badge badge-custom" style="background: {% if course.company.is_gst_registered %}#1e40af{% else %}#065f46{% endif %}; font-size:0.65rem;" title="{{ course.company.name }}">
+                                            <i class="bi bi-building me-1"></i>{{ course.company.code }}
+                                        </span>
+                                        {% endif %}
                                         {% if course.gst_applicable %}<span class="badge badge-custom" style="background: #d97706;">GST</span>{% endif %}
                                         <span class="badge badge-custom {% if enrolled_count == 0 %}badge-inactive{% elif enrolled_count <= 5 %}badge-amber{% else %}badge-active{% endif %}">
                                             {{ enrolled_count }} Learner{{ 's' if enrolled_count != 1 else '' }}                                        </span>
@@ -153,6 +157,18 @@ Days</option>
                         </div>
                     </div>
                     <div class="mb-3">
+                        <label class="form-label small">Billing Company <span class="text-muted fw-normal">(determines GST treatment)</span></label>
+                        <select class="form-select" name="company_id" id="edit_company_{{ course.id }}" onchange="syncCompanyGst('edit', {{ course.id }})">
+                            <option value="">— No company assigned —</option>
+                            {% for co in companies %}
+                            <option value="{{ co.id }}" {% if course.company_id == co.id %}selected{% endif %}
+                                data-gst="{{ 'true' if co.is_gst_registered else 'false' }}">
+                                {{ co.name }}{% if co.is_gst_registered %} (GST){% else %} (Non-GST){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
                         <div class="form-check">
                             <input type="checkbox" class="form-check-input" name="gst_applicable" id="edit_gst_{{ course.id }}" {% if course.gst_applicable %}checked{% endif %} onchange="updateGstPreview('edit', {{ course.id }})">
                             <label class="form-check-label" for="edit_gst_{{ course.id }}">18% GST Applicable (GST added on top of fee)</label>
@@ -230,6 +246,17 @@ Days</option>
 Tuition Course Fee (₹)</label>
                             <input type="number" step="0.01" class="form-control" name="fees" placeholder="e.g. 450.00" min="0" required>
                         </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Billing Company <span class="text-muted fw-normal">(determines GST treatment)</span></label>
+                        <select class="form-select" name="company_id" id="add_company_select" onchange="syncCompanyGst('add')">
+                            <option value="">— No company assigned —</option>
+                            {% for co in companies %}
+                            <option value="{{ co.id }}" data-gst="{{ 'true' if co.is_gst_registered else 'false' }}">
+                                {{ co.name }}{% if co.is_gst_registered %} (GST){% else %} (Non-GST){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
                     </div>
                     <div class="mb-3">
                         <div class="form-check">
@@ -350,6 +377,24 @@ ${data.difficulty_adjustment}</p>
 </i>
                     Error generating syllabus optimization. Please try again.                </div>
             `;        });}
+
+// Sync GST checkbox when company is changed
+function syncCompanyGst(mode, id) {
+    let select, cb;
+    if (mode === 'add') {
+        select = document.getElementById('add_company_select');
+        cb = document.getElementById('add_gst');
+    } else {
+        select = document.getElementById('edit_company_' + id);
+        cb = document.getElementById('edit_gst_' + id);
+    }
+    if (!select || !cb) return;
+    const chosen = select.options[select.selectedIndex];
+    if (chosen && chosen.dataset.gst !== undefined) {
+        cb.checked = chosen.dataset.gst === 'true';
+        updateGstPreview(mode, id);
+    }
+}
 
 function updateGstPreview(mode, id) {
     const cb = document.getElementById(mode === 'edit' ? 'edit_gst_' + id : 'add_gst');

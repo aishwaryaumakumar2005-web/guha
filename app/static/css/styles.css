@@ -1686,6 +1686,10 @@ body:not(.dark-mode) .glass-card .text-dark,
 body:not(.dark-mode) .glass-card .text-secondary,
 body:not(.dark-mode) .glass-card .text-muted { color: #ffffff !important; }
 body:not(.dark-mode) .glass-card { background: rgba(15, 40, 65, 0.80); }
+/* Keep text readable on light inner cards nested inside dark glass-cards */
+body:not(.dark-mode) .glass-card .bg-light .text-dark,
+body:not(.dark-mode) .glass-card .bg-light .text-secondary,
+body:not(.dark-mode) .glass-card .bg-light .text-muted { color: #000000 !important; }
 
 /* Flash alert — works in dark and light mode */
 .flash-alert { background: rgba(15, 40, 65, 0.92); color: #ffffff !important; }

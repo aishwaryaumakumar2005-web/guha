@@ -10,6 +10,7 @@ class Course(db.Model):
     duration_unit = db.Column(db.String(10), nullable=False, default='weeks')
     fees = db.Column(db.Float, nullable=False)
     gst_applicable = db.Column(db.Boolean, default=False)
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id', ondelete='SET NULL'), nullable=True)
     syllabus = db.Column(db.Text)
 
     enquiries = db.relationship('Enquiry', backref='course', lazy=True, passive_deletes=True)

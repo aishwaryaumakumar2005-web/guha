@@ -3,6 +3,7 @@ import uuid
 from functools import wraps
 from flask import request, redirect, url_for, flash, current_app
 from flask_login import current_user
+from app.extensions import db
 
 ALLOWED_PHOTO_EXT = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
@@ -52,3 +53,16 @@ def get_backup_dir(app):
         import os
         BACKUP_DIR = os.path.join(os.path.dirname(os.path.abspath(app.root_path)), 'backups')
     return BACKUP_DIR
+
+
+def next_code(prefix, model, column):
+    """Return the next sequential public code (e.g. STU0004) for model.column."""
+    max_num = 0
+    for row in db.session.query(model).all():
+        val = getattr(row, column, None)
+        if val and val.startswith(prefix):
+            try:
+                max_num = max(max_num, int(val[len(prefix):]))
+            except (ValueError, TypeError):
+                continue
+    return f'{prefix}{max_num + 1:04d}'
