@@ -35,16 +35,6 @@
                 </ul>
             </div>
             {% endif %}
-            <div class="dropdown">
-                <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-download me-1"></i>Export</button>
-                <ul class="dropdown-menu dropdown-menu-dark">
-                    <li><a class="dropdown-item" href="{{ url_for('accounting.export_tally') }}"><i class="bi bi-filetype-xml me-2"></i>Tally XML</a></li>
-                    <li><a class="dropdown-item" href="{{ url_for('accounting.export_zoho') }}"><i class="bi bi-filetype-csv me-2"></i>Zoho Books CSV</a></li>
-                </ul>
-            </div>
-            <button class="btn btn-outline-premium" onclick="loadFeeAnalysis()">
-                <i class="bi bi-graph-up-arrow me-2"></i>AI Analysis
-            </button>
             {% if current_user.role == 'Admin' %}
                 <button class="btn btn-premium" data-bs-toggle="modal" data-bs-target="#recordPaymentModal">
                     <i class="bi bi-wallet2 me-2"></i>Record Payment
