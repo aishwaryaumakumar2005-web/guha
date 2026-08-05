@@ -464,11 +464,12 @@ body.dark-mode ::-webkit-scrollbar-thumb { background: #3A3A5C; }
 /* ===== SIDEBAR HEADINGS — Brand accent (cyan → blue) ===== */
 .sidebar-container .accord-trigger > span:not(.nav-icon),
 .sidebar-container .nav-item-link.sidebar-heading > span:not(.nav-icon):not(.nav-badge) {
-    color: #00d4ff;
-    background: linear-gradient(90deg, #00d4ff, #1b6ef3);
+    color: #7cf7ff;
+    background: linear-gradient(90deg, #8efaff, #6db3ff);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 6px rgba(124, 247, 255, 0.45));
 }
 
 /* Sidebar divider */
