@@ -374,13 +374,6 @@ My Leaves</span>
             <div class="nav-spacer"></div>
             {% if current_user.role == 'Admin' %}
             <div class="sidebar-divider"></div>
-            <a href="{{ url_for('admin.admin_console') }}" class="nav-item-link nav-item-xl sidebar-heading {% if request.path == '/admin' %}active{% endif %}">
-                <span class="nav-icon">
-                    <i class="bi bi-shield-lock-fill"></i>
-                </span>
-                <span>Admin Console</span>
-                <span class="nav-badge">{{ admin_count }}</span>
-            </a>
             <!-- Accordion: Extra Features -->
             <div class="accord-section">
                 <div class="accord-trigger {% if request.path in ['/tasks', '/extras'] %}expanded{% endif %}">
@@ -399,6 +392,13 @@ My Leaves</span>
                     </a>
                 </div>
             </div>
+            <a href="{{ url_for('admin.admin_console') }}" class="nav-item-link nav-item-xl sidebar-heading {% if request.path == '/admin' %}active{% endif %}">
+                <span class="nav-icon">
+                    <i class="bi bi-shield-lock-fill"></i>
+                </span>
+                <span>Admin Console</span>
+                <span class="nav-badge">{{ admin_count }}</span>
+            </a>
             {% endif %}
         </nav>
         {% if current_user.is_authenticated %}
