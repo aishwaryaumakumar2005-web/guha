@@ -373,10 +373,6 @@ My Leaves</span>
             {% endif %}
             <div class="nav-spacer"></div>
             {% if current_user.role == 'Admin' %}
-            <a href="{{ url_for('tasks.list_tasks') }}" class="nav-item-link sidebar-heading {% if request.path == '/tasks' %}active{% endif %}">
-                <span class="nav-icon"><i class="bi bi-check2-square"></i></span>
-                <span>Tasks</span>
-            </a>
             <div class="sidebar-divider"></div>
             <a href="{{ url_for('admin.admin_console') }}" class="nav-item-link nav-item-xl sidebar-heading {% if request.path == '/admin' %}active{% endif %}">
                 <span class="nav-icon">
@@ -385,12 +381,24 @@ My Leaves</span>
                 <span>Admin Console</span>
                 <span class="nav-badge">{{ admin_count }}</span>
             </a>
-            <a href="{{ url_for('extras.extras') }}" class="nav-item-link sidebar-heading {% if request.path == '/extras' %}active{% endif %}">
-                <span class="nav-icon">
-                    <i class="bi bi-tools"></i>
-                </span>
-                <span>Extra Features</span>
-            </a>
+            <!-- Accordion: Extra Features -->
+            <div class="accord-section">
+                <div class="accord-trigger {% if request.path in ['/tasks', '/extras'] %}expanded{% endif %}">
+                    <span class="nav-icon"><i class="bi bi-tools"></i></span>
+                    <span>Extra Features</span>
+                    <i class="bi bi-chevron-down accord-arrow"></i>
+                </div>
+                <div class="accord-body {% if request.path in ['/tasks', '/extras'] %}open{% endif %}">
+                    <a href="{{ url_for('tasks.list_tasks') }}" class="nav-item-link {% if request.path == '/tasks' %}active{% endif %}">
+                        <span class="nav-icon"><i class="bi bi-check2-square"></i></span>
+                        <span>Tasks</span>
+                    </a>
+                    <a href="{{ url_for('extras.extras') }}" class="nav-item-link {% if request.path == '/extras' %}active{% endif %}">
+                        <span class="nav-icon"><i class="bi bi-database-fill"></i></span>
+                        <span>Extras</span>
+                    </a>
+                </div>
+            </div>
             {% endif %}
         </nav>
         {% if current_user.is_authenticated %}
