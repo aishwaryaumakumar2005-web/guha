@@ -2311,3 +2311,5 @@ body.theme-transitioning ::after {
 .drop-zone .text-primary {
     color: var(--accent-cyan, #1b6ef3) !important;
 }
+/* Gap tuning: reduce main-content horizontal padding to 10px (temp, revertible) */
+.main-content { padding-left: 10px !important; padding-right: 10px !important; }
