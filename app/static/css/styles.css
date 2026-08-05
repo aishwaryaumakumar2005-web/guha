@@ -399,7 +399,7 @@ body.dark-mode ::-webkit-scrollbar-thumb { background: #3A3A5C; }
     margin-left: auto;
     font-size: 0.7rem;
     color: rgba(255, 255, 255, 0.7);
-    transition: transform 0.3s ease;
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .accord-trigger.expanded .accord-arrow { transform: rotate(180deg); }
 
