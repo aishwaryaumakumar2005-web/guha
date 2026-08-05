@@ -66,3 +66,4 @@ def next_code(prefix, model, column):
             except (ValueError, TypeError):
                 continue
     return f'{prefix}{max_num + 1:04d}'
+
