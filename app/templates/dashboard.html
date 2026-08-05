@@ -186,32 +186,6 @@
                 </div>
             </div>
         </div>
-        {% if current_user.role == 'Admin' and account_balances %}
-        <div class="bento-card bento-xl-5 bento-md-12 animate-on-scroll stagger-1">
-            <div class="glass-card p-4 h-100">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h5 class="mb-0 fw-bold"><i class="bi bi-wallet-fill me-2" style="color:hsl(150,70%,50%);"></i>Account Balances</h5>
-                    <a href="{{ url_for('accounts.index') }}" class="btn btn-sm" style="background:transparent;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);border-radius:8px;padding:4px 14px;font-size:0.8rem;">View All</a>
-                </div>
-                <div class="d-flex flex-column gap-2">
-                    {% for acc in account_balances[:5] %}
-                    <div class="d-flex justify-content-between align-items-center" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:10px 14px;">
-                        <div>
-                            <div class="fw-medium text-white small"><i class="bi bi-{% if acc.account_type == 'Cash' %}cash{% elif acc.account_type == 'UPI' %}phone{% elif acc.account_type == 'Bank' %}bank{% else %}credit-card{% endif %} me-1" style="color:{{ method_colors.get(acc.name, '#DDD') }};"></i>{{ acc.name }}</div>
-                            <div class="text-secondary small" style="font-size:0.7rem;">In +{{ "{:,.2f}".format(acc.income) }} / Out -{{ "{:,.2f}".format(acc.expense) }} &middot; {{ acc.txn_count }} txns</div>
-                        </div>
-                        <div class="fw-bold small {% if acc.balance < 0 %}text-danger{% endif %}" style="color:{% if acc.balance >= 0 %}{{ method_colors.get(acc.name, 'var(--accent-emerald)') }}{% endif %}">₹{{ "{:,.2f}".format(acc.balance) }}</div>
-                    </div>
-                    {% endfor %}
-                </div>
-                <div class="d-flex flex-wrap gap-2 mt-3 pt-2" style="border-top:1px solid rgba(255,255,255,0.07);">
-                    {% for t, lbl, color in [('Cash','Cash','#00BFA6'), ('UPI','UPI','#29B6F6'), ('Bank','Bank','#FFA726'), ('Card','Card','#AB47BC')] %}
-                    <span class="d-inline-flex align-items-center gap-1 small" style="color:rgba(255,255,255,0.55);font-size:0.68rem;"><span class="rounded-circle" style="width:8px;height:8px;background:{{ color }};display:inline-block;"></span>{{ lbl }}</span>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-        {% endif %}
         <div class="bento-card bento-xl-5 bento-md-12 animate-on-scroll stagger-1">
             <div class="glass-card p-4 h-100">
                 <h5 class="mb-4 fw-bold"><i class="bi bi-trophy me-2" style="color:hsl(200,100%,50%);"></i>Top Courses</h5>
