@@ -1358,6 +1358,10 @@ select.form-select option { background: #0d2740; color: #e8edf2; }
     color: var(--text-primary);
 }
 .modal .glass-card:hover { transform: none !important; box-shadow: none !important; }
+/* AI Syllabus modal: force light text on dark background */
+#aiSyllabusModal .modal-body { color: #ffffff; }
+#aiSyllabusModal .modal-body li { color: #ffffff; }
+#aiSyllabusModal .modal-body .text-secondary { color: rgba(255,255,255,0.65) !important; }
 body.modal-open { padding-right: 0 !important; }
 .modal-header { border-bottom: 1px solid var(--border-color) !important; }
 .modal-footer { border-top: 1px solid var(--border-color) !important; }
