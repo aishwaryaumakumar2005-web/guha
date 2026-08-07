@@ -783,3 +783,18 @@ def audit_log():
     return render_template('admin_audit.html', logs=logs, page=page, per_page=per_page, total=total,
                            entity_filter=entity_filter, action_filter=action_filter,
                            entity_types=entity_types, label=_audit_entity_label)
+
+
+@admin_bp.route('/admin/_diag-accounts')
+@login_required
+@admin_required
+def diag_accounts():
+    rows = db.session.execute(db.text(
+        "SELECT id, name, account_type, is_active FROM account ORDER BY id"
+    )).fetchall()
+    return jsonify({
+        'uri': current_app.config.get('SQLALCHEMY_DATABASE_URI', ''),
+        'accounts': [{'id': r[0], 'name': r[1], 'account_type': r[2], 'is_active': r[3]} for r in rows],
+        'payment_methods': [r[0] for r in db.session.execute(db.text(
+            "SELECT DISTINCT payment_method FROM fee_record WHERE payment_method IS NOT NULL ORDER BY 1")).fetchall()],
+    })
