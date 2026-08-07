@@ -45,11 +45,26 @@ def _rename_json(changes):
     return changes
 
 
+def _table_exists(table):
+    return db.session.execute(
+        db.text("SELECT name FROM sqlite_master WHERE type='table' AND name = :n"), {'n': table}
+    ).fetchone() is not None
+
+
+def _column_exists(table, column):
+    try:
+        cols = db.session.execute(db.text("PRAGMA table_info([%s])" % table)).fetchall()
+    except Exception:
+        return False
+    return any(col[1] == column for col in cols)
+
+
 def migrate_renames():
     """Rename old account names to their new canonical names in all persisted data.
 
     Idempotent: safe to run on every startup. Covers account rows, payment-method
     columns on fee/expense/payroll/funding records, and JSON inside audit_log.
+    Tables/columns that do not exist are skipped without rolling back other work.
     """
     for old, new in RENAMES.items():
         # account table (name is unique; drop the newly-created duplicate first so
@@ -61,19 +76,17 @@ def migrate_renames():
                 db.session.execute(db.text("DELETE FROM account WHERE id = :id"), {'id': new_row.id})
             db.session.execute(db.text("UPDATE account SET name = :new WHERE name = :old"), {'new': new, 'old': old})
 
-        # payment-method columns
+        # payment-method columns (skip missing tables/columns silently)
         for table, col in [('fee_record', 'payment_method'),
                            ('expense', 'payment_method'),
                            ('payroll_record', 'payment_method'),
                            ('owner_funding', 'method')]:
-            try:
+            if _table_exists(table) and _column_exists(table, col):
                 db.session.execute(db.text("UPDATE [%s] SET [%s] = :new WHERE [%s] = :old" % (table, col, col)),
                                    {'new': new, 'old': old})
-            except Exception:
-                db.session.rollback()
 
-        # audit_log JSON
-        try:
+        # audit_log JSON (skip if table missing)
+        if _table_exists('audit_log'):
             rows = db.session.execute(
                 db.text("SELECT id, changes FROM audit_log WHERE changes LIKE :pat"),
                 {'pat': '%' + old + '%'}
@@ -83,7 +96,5 @@ def migrate_renames():
                 if updated != changes:
                     db.session.execute(db.text("UPDATE audit_log SET changes = :c WHERE id = :id"),
                                        {'c': updated, 'id': rid})
-        except Exception:
-            db.session.rollback()
 
     db.session.commit()
