@@ -213,7 +213,7 @@ Expenses</span>
                     </a>
                     <a href="{{ url_for('accounts.index') }}" class="nav-item-link {% if request.path.startswith('/accounts') %}active{% endif %}">
                         <span class="nav-icon"><i class="bi bi-wallet-fill"></i></span>
-                        <span>Account Balances</span>
+                        <span>Current Standing</span>
                     </a>
                     <a href="{{ url_for('payroll.payroll_list') }}" class="nav-item-link {% if request.path == '/payroll' %}active{% endif %}">
                         <span class="nav-icon"><i class="bi bi-cash-stack"></i></span>
