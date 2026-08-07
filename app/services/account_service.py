@@ -41,6 +41,11 @@ def ensure_default_companies():
 
 def ensure_default_accounts():
     try:
+        from .db_migration import migrate_renames
+        migrate_renames()
+    except Exception:
+        db.session.rollback()
+    try:
         ensure_default_companies()
         c1 = Company.query.filter_by(code='COMP-GST').first()
         c2 = Company.query.filter_by(code='COMP-NGST').first()
