@@ -76,10 +76,6 @@ Actions</th>
                                     <div class="d-flex align-items-center">
                                         {% if student.photo %}
                                             <img src="{{ url_for('static', filename='uploads/' ~ student.photo) }}" alt="Photo of {{ student.name }}" class="rounded-circle object-fit-cover me-2" style="width: 32px; height: 32px;" loading="lazy">
-                                        {% else %}
-                                            <div class="avatar-stub me-2 d-flex align-items-center justify-content-center bg-cyan bg-opacity-10 text-white rounded-circle fw-bold" style="width: 32px; height: 32px; font-size: 0.85rem">
-                                                {{ student.name[:2].upper() }}
-                                            </div>
                                         {% endif %}
                                         <span class="fw-medium text-white">
 {{ student.name }}</span>
