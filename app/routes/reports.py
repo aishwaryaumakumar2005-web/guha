@@ -13,7 +13,7 @@ reports_bp = Blueprint('reports', __name__)
 def filter_by_company_methods(query, model_attr, company_id):
     """Filter Expense/OwnerFunding query by payment methods belonging to the given company.
     
-    Account names are the canonical payment method names (Cash, UPI - Ejaj Sir, etc.).
+    Account names are the canonical payment method names (Cash, Savings Account, etc.).
     We check if classify_method(record.payment_method) matches any account name 
     belonging to the selected company.
     """
@@ -23,7 +23,7 @@ def filter_by_company_methods(query, model_attr, company_id):
     accounts = Account.query.filter_by(company_id=company_id, is_active=True).all()
     if not accounts:
         return query.filter(False)
-    canonical_names = {acc.name for acc in accounts}  # e.g. {'Cash', 'UPI - Ejaj Sir', ...}
+    canonical_names = {acc.name for acc in accounts}  # e.g. {'Cash', 'Savings Account', ...}
     # Get all distinct payment methods actually used in the DB
     observed = set()
     for (m,) in db.session.query(FeeRecord.payment_method).distinct().all():

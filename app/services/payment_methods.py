@@ -5,8 +5,8 @@
 
 PAYMENT_METHODS = [
     'Cash',
-    'UPI - Guha India',
-    'UPI - Ejaj Sir',
+    'Current Account',
+    'Savings Account',
     'UPI',
     'Bank Transfer',
     'Card',
@@ -17,8 +17,8 @@ DEFAULT_PAYMENT_METHOD = 'Cash'
 # Human-friendly labels shown in dropdowns.
 METHOD_LABELS = {
     'Cash': 'Cash Handover',
-    'UPI - Guha India': 'UPI - Guha India',
-    'UPI - Ejaj Sir': 'UPI - Ejaj Sir',
+    'Current Account': 'Current Account',
+    'Savings Account': 'Savings Account',
     'UPI': 'UPI / Digital Wallet',
     'Bank Transfer': 'Direct Bank Wire',
     'Card': 'Credit/Debit Card',
@@ -28,8 +28,8 @@ METHOD_LABELS = {
 # names are exactly the canonical PAYMENT_METHODS plus the Others fallback.
 DEFAULT_ACCOUNTS = [
     ('Cash', 'Cash'),
-    ('UPI - Guha India', 'UPI'),
-    ('UPI - Ejaj Sir', 'UPI'),
+    ('Current Account', 'UPI'),
+    ('Savings Account', 'UPI'),
     ('UPI', 'UPI'),
     ('Bank Transfer', 'Bank'),
     ('Card', 'Card'),
@@ -43,7 +43,7 @@ TALLY_ACCOUNT_FOR_METHOD = {m: ('Cash' if m == 'Cash' else 'Bank') for m in PAYM
 # Grouping (order) used to render every payment-mode dropdown into optgroups.
 METHOD_GROUPS = [
     ('Cash', ['Cash']),
-    ('UPI Accounts', ['UPI - Guha India', 'UPI - Ejaj Sir', 'UPI']),
+    ('UPI Accounts', ['Current Account', 'Savings Account', 'UPI']),
     ('Bank', ['Bank Transfer']),
     ('Cards', ['Card']),
 ]
@@ -61,8 +61,8 @@ ACCOUNT_TYPE_ICONS = {
 # Accounts so a given method always renders the same color across the app.
 METHOD_COLORS = {
     'Cash': '#00BFA6',
-    'UPI - Guha India': '#29B6F6',
-    'UPI - Ejaj Sir': '#F06292',
+    'Current Account': '#29B6F6',
+    'Savings Account': '#F06292',
     'UPI': '#7986CB',
     'Bank Transfer': '#FFA726',
     'Card': '#AB47BC',
@@ -72,8 +72,8 @@ METHOD_COLORS = {
 # Map canonical method -> account type (drives icon/color in UI).
 METHOD_TYPE = {
     'Cash': 'Cash',
-    'UPI - Guha India': 'UPI',
-    'UPI - Ejaj Sir': 'UPI',
+    'Current Account': 'UPI',
+    'Savings Account': 'UPI',
     'UPI': 'UPI',
     'Bank Transfer': 'Bank',
     'Card': 'Card',
