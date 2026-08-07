@@ -1723,6 +1723,27 @@ body:not(.dark-mode) .glass-card .bg-light .text-dark,
 body:not(.dark-mode) .glass-card .bg-light .text-secondary,
 body:not(.dark-mode) .glass-card .bg-light .text-muted { color: #000000 !important; }
 
+/* Company-wise income/profit breakdown cards — follow the card background in both themes */
+.company-split-card {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+.company-split-card .company-split-title,
+.company-split-card .company-split-val { color: #ffffff; }
+body:not(.dark-mode) .company-split-card {
+    background: hsla(var(--h-bg-card), var(--s-bg-card), var(--l-bg-card), 0.90);
+    border-color: rgba(255, 255, 255, 0.10);
+}
+body:not(.dark-mode) .company-split-card .company-split-title,
+body:not(.dark-mode) .company-split-card .company-split-val { color: #ffffff; }
+body:not(.dark-mode) .company-split-card .text-secondary,
+body:not(.dark-mode) .company-split-card .text-muted { color: rgba(255, 255, 255, 0.75) !important; }
+body.dark-mode .company-split-card { background: var(--bg-hover); border-color: var(--border-color); }
+body.dark-mode .company-split-card .company-split-title,
+body.dark-mode .company-split-card .company-split-val { color: #ffffff; }
+body.dark-mode .company-split-card .text-secondary,
+body.dark-mode .company-split-card .text-muted { color: var(--text-secondary); }
+
 /* Flash alert — works in dark and light mode */
 .flash-alert { background: rgba(15, 40, 65, 0.92); color: #ffffff !important; }
 .flash-alert .fw-medium { color: #ffffff !important; }

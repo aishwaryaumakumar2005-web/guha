@@ -228,17 +228,17 @@ Payment Methods            </button>
                 <div class="row g-3">
                     {% for citem in company_pl %}
                     <div class="col-md-6">
-                        <div class="p-3 border rounded bg-light">
+                        <div class="company-split-card p-3 border rounded">
                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                <span class="fw-bold text-dark h6 mb-0">{{ citem.company.name }}</span>
+                                <span class="fw-bold company-split-title h6 mb-0">{{ citem.company.name }}</span>
                                 <span class="badge {% if citem.company.is_gst_registered %}bg-primary{% else %}bg-success{% endif %}">
                                     {% if citem.company.is_gst_registered %}GST Registered{% else %}Non-GST{% endif %}
                                 </span>
                             </div>
                             <div class="row text-center g-2 mt-2">
                                 <div class="col-4">
-                                    <div class="small text-muted">Gross Fee</div>
-                                    <div class="fw-bold text-dark">₹{{ "{:,.2f}".format(citem.income) }}</div>
+                                    <div class="small text-secondary">Gross Fee</div>
+                                    <div class="fw-bold company-split-val">₹{{ "{:,.2f}".format(citem.income) }}</div>
                                 </div>
                                 <div class="col-4">
                                     <div class="small text-muted">Taxable</div>
@@ -450,17 +450,17 @@ Payment Methods            </button>
                 <div class="row g-3">
                     {% for citem in company_pl %}
                     <div class="col-md-6">
-                        <div class="p-3 border rounded bg-light">
+                        <div class="company-split-card p-3 border rounded">
                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                <span class="fw-bold text-dark h6 mb-0">{{ citem.company.name }}</span>
+                                <span class="fw-bold company-split-title h6 mb-0">{{ citem.company.name }}</span>
                                 <span class="badge {% if citem.company.is_gst_registered %}bg-primary{% else %}bg-success{% endif %}">
                                     {% if citem.company.is_gst_registered %}GST Registered{% else %}Non-GST{% endif %}
                                 </span>
                             </div>
                             <div class="row text-center g-2 mt-2">
                                 <div class="col-6">
-                                    <div class="small text-muted">Total Income</div>
-                                    <div class="fw-bold text-dark">₹{{ "{:,.2f}".format(citem.income) }}</div>
+                                    <div class="small text-secondary">Total Income</div>
+                                    <div class="fw-bold company-split-val">₹{{ "{:,.2f}".format(citem.income) }}</div>
                                 </div>
                                 <div class="col-6">
                                     <div class="small text-muted">GST Collected</div>
