@@ -215,6 +215,11 @@ def create_app(config_object=None):
     with app.app_context():
         db.create_all()
         try:
+            from app.services.db_migration import migrate_renames
+            migrate_renames()
+        except Exception:
+            db.session.rollback()
+        try:
             db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_date ON expense(expense_date)'))
             db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_category ON expense(category_id)'))
             db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_fee_date ON fee_record(payment_date)'))
