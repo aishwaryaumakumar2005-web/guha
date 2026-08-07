@@ -1,4 +1,5 @@
 import json
+from sqlalchemy import inspect, text
 from app.extensions import db
 
 RENAMES = {
@@ -45,56 +46,63 @@ def _rename_json(changes):
     return changes
 
 
-def _table_exists(table):
-    return db.session.execute(
-        db.text("SELECT name FROM sqlite_master WHERE type='table' AND name = :n"), {'n': table}
-    ).fetchone() is not None
-
-
-def _column_exists(table, column):
+def _has_column(table, column):
+    """Return True if `table` exists and has `column` (works on SQLite and Postgres)."""
     try:
-        cols = db.session.execute(db.text("PRAGMA table_info([%s])" % table)).fetchall()
+        insp = inspect(db.engine)
+        if table not in insp.get_table_names():
+            return False
+        return any(c['name'] == column for c in insp.get_columns(table))
     except Exception:
         return False
-    return any(col[1] == column for col in cols)
+
+
+def _table_exists(table):
+    try:
+        return table in inspect(db.engine).get_table_names()
+    except Exception:
+        return False
 
 
 def migrate_renames():
     """Rename old account names to their new canonical names in all persisted data.
 
-    Idempotent: safe to run on every startup. Covers account rows, payment-method
-    columns on fee/expense/payroll/funding records, and JSON inside audit_log.
-    Tables/columns that do not exist are skipped without rolling back other work.
+    Idempotent: safe to run on every startup. Ports to SQLite and PostgreSQL.
+    Covers account rows, payment-method columns on fee/expense/payroll/funding
+    records, and JSON inside audit_log. Tables/columns that do not exist are
+    skipped without rolling back other work.
     """
     for old, new in RENAMES.items():
         # account table (name is unique; drop the newly-created duplicate first so
         # the old row can be renamed into place without a uniqueness conflict)
-        old_row = db.session.execute(db.text("SELECT id FROM account WHERE name = :n"), {'n': old}).fetchone()
-        new_row = db.session.execute(db.text("SELECT id FROM account WHERE name = :n"), {'n': new}).fetchone()
+        old_row = db.session.execute(text("SELECT id FROM account WHERE name = :n"), {'n': old}).fetchone()
+        new_row = db.session.execute(text("SELECT id FROM account WHERE name = :n"), {'n': new}).fetchone()
         if old_row:
             if new_row:
-                db.session.execute(db.text("DELETE FROM account WHERE id = :id"), {'id': new_row.id})
-            db.session.execute(db.text("UPDATE account SET name = :new WHERE name = :old"), {'new': new, 'old': old})
+                db.session.execute(text("DELETE FROM account WHERE id = :id"), {'id': new_row.id})
+            db.session.execute(text("UPDATE account SET name = :new WHERE name = :old"),
+                               {'new': new, 'old': old})
 
         # payment-method columns (skip missing tables/columns silently)
         for table, col in [('fee_record', 'payment_method'),
                            ('expense', 'payment_method'),
                            ('payroll_record', 'payment_method'),
                            ('owner_funding', 'method')]:
-            if _table_exists(table) and _column_exists(table, col):
-                db.session.execute(db.text("UPDATE [%s] SET [%s] = :new WHERE [%s] = :old" % (table, col, col)),
-                                   {'new': new, 'old': old})
+            if _has_column(table, col):
+                db.session.execute(
+                    text('UPDATE "%s" SET "%s" = :new WHERE "%s" = :old' % (table, col, col)),
+                    {'new': new, 'old': old})
 
-        # audit_log JSON (skip if table missing)
-        if _table_exists('audit_log'):
+        # audit_log JSON (skip if table/column missing)
+        if _has_column('audit_log', 'changes'):
             rows = db.session.execute(
-                db.text("SELECT id, changes FROM audit_log WHERE changes LIKE :pat"),
+                text("SELECT id, changes FROM audit_log WHERE changes LIKE :pat"),
                 {'pat': '%' + old + '%'}
             ).fetchall()
             for rid, changes in rows:
                 updated = _rename_json(changes)
                 if updated != changes:
-                    db.session.execute(db.text("UPDATE audit_log SET changes = :c WHERE id = :id"),
+                    db.session.execute(text("UPDATE audit_log SET changes = :c WHERE id = :id"),
                                        {'c': updated, 'id': rid})
 
     db.session.commit()
