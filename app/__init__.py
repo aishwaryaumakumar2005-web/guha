@@ -217,7 +217,9 @@ def create_app(config_object=None):
         try:
             from app.services.db_migration import migrate_renames
             migrate_renames()
-        except Exception:
+            print("Migration migrate_renames completed OK", flush=True)
+        except Exception as e:
+            print("Migration migrate_renames FAILED:", e, flush=True)
             db.session.rollback()
         try:
             db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_date ON expense(expense_date)'))
