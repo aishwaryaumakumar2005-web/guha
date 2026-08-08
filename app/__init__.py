@@ -222,6 +222,13 @@ def create_app(config_object=None):
             print("Migration migrate_renames FAILED:", e, flush=True)
             db.session.rollback()
         try:
+            from app.services.db_migration import migrate_photos_to_db
+            n = migrate_photos_to_db()
+            print(f"Migration migrate_photos_to_db completed OK ({n} photos)", flush=True)
+        except Exception as e:
+            print("Migration migrate_photos_to_db FAILED:", e, flush=True)
+            db.session.rollback()
+        try:
             db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_date ON expense(expense_date)'))
             db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_category ON expense(category_id)'))
             db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_fee_date ON fee_record(payment_date)'))

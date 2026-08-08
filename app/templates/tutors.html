@@ -55,12 +55,8 @@ Actions</th>
 {{ tutor.emp_code or ('#' ~ tutor.id) }}</td>
                                 <td>
                                     <div class="d-flex align-items-center">
-                                        {% if tutor.photo %}
-                                            <img src="{{ url_for('static', filename='uploads/' ~ tutor.photo) }}" alt="Photo of {{ tutor.name }}" class="rounded-circle object-fit-cover me-2" style="width: 32px; height: 32px;" loading="lazy">
-                                        {% else %}
-                                            <div class="avatar-stub me-2 d-flex align-items-center justify-content-center bg-cyan bg-opacity-10 text-white rounded-circle fw-bold" style="width: 32px; height: 32px; font-size: 0.85rem">
-                                                {{ tutor.name[:2].upper() }}
-                                            </div>
+                                        {% if tutor.photo_data %}
+                                            <img src="{{ url_for('tutors.tutor_photo', tutor_id=tutor.id) }}" alt="Photo of {{ tutor.name }}" class="rounded-circle object-fit-cover me-2" style="width: 32px; height: 32px;" loading="lazy">
                                         {% endif %}
                                         <span class="fw-medium text-white">
 {{ tutor.name }}</span>
@@ -90,7 +86,7 @@ No courses mapped</span>
 </i>
                                         </button>
                                         <!-- ID Card Generator Button -->
-                                        <button class="btn btn-sm btn-outline-premium"                                                 onclick="showIDCard('{{ tutor.name }}', 'INSTRUCTOR', '{{ tutor.email }}', '{{ tutor.phone }}', '{{ tutor.qr_code_uuid }}', 'Syllabus Focus', '{{ tutor.specialization or 'All Systems' }}', '{{ url_for('static', filename='uploads/' ~ tutor.photo) if tutor.photo else '' }}')"                                                title="View QR ID Card">
+                                        <button class="btn btn-sm btn-outline-premium"                                                 onclick="showIDCard('{{ tutor.name }}', 'INSTRUCTOR', '{{ tutor.email }}', '{{ tutor.phone }}', '{{ tutor.qr_code_uuid }}', 'Syllabus Focus', '{{ tutor.specialization or 'All Systems' }}', '{{ url_for('tutors.tutor_photo', tutor_id=tutor.id) if tutor.photo_data else '' }}')"                                                title="View QR ID Card">
                                             <i class="bi bi-qr-code-scan">
 </i>
                                         </button>
@@ -226,15 +222,13 @@ Inactive</option>
                     <div class="mb-3">
                         <label class="form-label text-white small d-block">Photo</label>
                         <div class="d-flex align-items-center gap-3">
-                            {% if tutor.photo %}
-                                <img src="{{ url_for('static', filename='uploads/' ~ tutor.photo) }}" alt="Current photo of {{ tutor.name }}" class="rounded-circle object-fit-cover" style="width: 48px; height: 48px;">
-                            {% else %}
-                                <div class="avatar-stub d-flex align-items-center justify-content-center bg-cyan bg-opacity-10 text-white rounded-circle fw-bold" style="width: 48px; height: 48px;">{{ tutor.name[:2].upper() }}</div>
+                            {% if tutor.photo_data %}
+                                <img src="{{ url_for('tutors.tutor_photo', tutor_id=tutor.id) }}" alt="Current photo of {{ tutor.name }}" class="rounded-circle object-fit-cover" style="width: 48px; height: 48px;">
                             {% endif %}
                             <div class="flex-grow-1">
                                 <input type="file" class="form-control" name="photo" accept="image/png,image/jpeg,image/gif,image/webp">
                                 <div class="form-check mt-2">
-                                    <input class="form-check-input" type="checkbox" name="remove_photo" id="removeTutorPhoto{{ tutor.id }}" {% if not tutor.photo %}disabled{% endif %}>
+                                    <input class="form-check-input" type="checkbox" name="remove_photo" id="removeTutorPhoto{{ tutor.id }}" {% if not tutor.photo_data %}disabled{% endif %}>
                                     <label class="form-check-label small text-white-50" for="removeTutorPhoto{{ tutor.id }}" style="opacity:0.8;">Remove current photo</label>
                                 </div>
                             </div>

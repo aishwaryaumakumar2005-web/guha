@@ -8,8 +8,28 @@ from app.extensions import db
 ALLOWED_PHOTO_EXT = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
 
+def save_photo_data(file_storage, max_mb=4):
+    """Validate an uploaded photo and return (raw_bytes, mime) for DB storage, or None."""
+    if not file_storage or not getattr(file_storage, 'filename', None):
+        return None
+    name = file_storage.filename
+    ext = name.rsplit('.', 1)[-1].lower() if '.' in name else ''
+    if ext not in ALLOWED_PHOTO_EXT:
+        raise ValueError(f"Unsupported photo format: .{ext or 'unknown'}")
+    file_storage.stream.seek(0, os.SEEK_END)
+    size = file_storage.stream.tell()
+    file_storage.stream.seek(0)
+    if size > max_mb * 1024 * 1024:
+        raise ValueError(f"Photo exceeds {max_mb}MB limit")
+    data = file_storage.read()
+    mime = getattr(file_storage, 'mimetype', None) or f'image/{ext if ext != "jpg" else "jpeg"}'
+    if mime.startswith('application/octet-stream') or '/' not in mime:
+        mime = f'image/{ext if ext != "jpg" else "jpeg"}'
+    return data, mime
+
+
 def save_photo(file_storage, max_mb=4):
-    """Persist an uploaded photo into static/uploads and return its filename, or None."""
+    """Legacy: persist an uploaded photo into static/uploads and return its filename, or None."""
     if not file_storage or not getattr(file_storage, 'filename', None):
         return None
     name = file_storage.filename

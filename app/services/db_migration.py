@@ -1,4 +1,5 @@
 import json
+import os
 from sqlalchemy import inspect, text
 from app.extensions import db
 
@@ -106,3 +107,44 @@ def migrate_renames():
                                        {'c': updated, 'id': rid})
 
     db.session.commit()
+
+
+def migrate_photos_to_db():
+    """Copy any file-based photos (photo filename set, photo_data empty) into the DB.
+
+    One-time backfill for photos uploaded before DB storage was introduced. Skips
+    rows that already have photo_data, and ignores files that no longer exist.
+    """
+    from flask import current_app
+    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads')
+    migrated = 0
+    for table in ('student', 'tutor'):
+        # Ensure the new DB-storage columns exist (create_all does not ALTER existing tables)
+        if _has_column(table, 'photo') and not _has_column(table, 'photo_data'):
+            bin_type = 'BYTEA' if db.engine.dialect.name == 'postgresql' else 'BLOB'
+            db.session.execute(text('ALTER TABLE "%s" ADD COLUMN photo_data %s' % (table, bin_type)))
+            db.session.execute(text('ALTER TABLE "%s" ADD COLUMN photo_mime VARCHAR(50)' % table))
+            db.session.commit()
+        if not _has_column(table, 'photo') or not _has_column(table, 'photo_data'):
+            continue
+        rows = db.session.execute(
+            text('SELECT id, photo FROM "%s" WHERE photo IS NOT NULL AND photo != \'\' AND photo_data IS NULL' % table)
+        ).fetchall()
+        for rid, filename in rows:
+            if not filename:
+                continue
+            path = os.path.join(upload_dir, filename)
+            if not os.path.exists(path):
+                continue
+            with open(path, 'rb') as fh:
+                data = fh.read()
+            ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+            mime = f'image/{ext if ext != "jpg" else "jpeg"}'
+            db.session.execute(
+                text('UPDATE "%s" SET photo_data = :d, photo_mime = :m WHERE id = :id' % table),
+                {'d': data, 'm': mime, 'id': rid}
+            )
+            migrated += 1
+    if migrated:
+        db.session.commit()
+    return migrated

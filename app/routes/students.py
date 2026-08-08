@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import Student, Course, Tutor, student_courses
-from app.helpers import admin_required, is_ajax_request, save_photo
+from app.helpers import admin_required, is_ajax_request, save_photo_data
 from app.forms import StudentForm
 import tempfile
 import io
@@ -39,15 +39,16 @@ def list():
                 return jsonify({"success": False, "message": message}), 400
             flash(message, 'danger')
         else:
-            photo_filename = None
+            photo_data = None
+            photo_mime = None
             if 'photo' in request.files and request.files['photo'].filename:
                 try:
-                    photo_filename = save_photo(request.files['photo'])
+                    photo_data, photo_mime = save_photo_data(request.files['photo'])
                 except ValueError as e:
                     if is_ajax_request():
                         return jsonify({"success": False, "errors": [str(e)]}), 400
                     flash(str(e), 'warning')
-            new_student = Student(name=name, email=email, phone=phone, status=status, photo=photo_filename)
+            new_student = Student(name=name, email=email, phone=phone, status=status, photo_data=photo_data, photo_mime=photo_mime)
             for c_id in selected_courses:
                 course = Course.query.get(int(c_id))
                 if course:
@@ -200,10 +201,11 @@ def edit(id):
     student.phone = form.data.get('phone', '').strip()
     student.status = form.data.get('status', 'Active')
     if request.form.get('remove_photo'):
-        student.photo = None
+        student.photo_data = None
+        student.photo_mime = None
     elif 'photo' in request.files and request.files['photo'].filename:
         try:
-            student.photo = save_photo(request.files['photo'])
+            student.photo_data, student.photo_mime = save_photo_data(request.files['photo'])
         except ValueError as e:
             if is_ajax_request():
                 return jsonify({"success": False, "errors": [str(e)]}), 400
@@ -361,3 +363,12 @@ def import_excel():
         }), 200
     except Exception as e:
         return jsonify({"success": False, "errors": [f"Error processing file: {str(e)}"]}), 500
+
+
+@students_bp.route('/students/photo/<int:student_id>')
+@login_required
+def student_photo(student_id):
+    student = Student.query.get_or_404(student_id)
+    if not student.photo_data:
+        return '', 404
+    return send_file(io.BytesIO(student.photo_data), mimetype=student.photo_mime or 'image/jpeg')

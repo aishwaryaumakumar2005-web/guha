@@ -20,6 +20,8 @@ class Tutor(db.Model):
     status = db.Column(db.String(20), default='Active')
     qr_code_uuid = db.Column(db.String(36), unique=True, default=lambda: str(uuid.uuid4()))
     photo = db.Column(db.String(255))
+    photo_data = db.Column(db.LargeBinary)
+    photo_mime = db.Column(db.String(50))
     courses = db.relationship('Course', secondary=tutor_courses, backref=db.backref('tutors', lazy='dynamic'))
 
     def __repr__(self):

@@ -1,10 +1,11 @@
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app, send_file
 from flask_login import login_required
 from app.extensions import db
 from app.models import Tutor, Course
-from app.helpers import admin_required, is_ajax_request, save_photo
+from app.helpers import admin_required, is_ajax_request, save_photo_data
 from app.forms import TutorForm
 import tempfile
+import io
 
 tutors_bp = Blueprint('tutors', __name__)
 
@@ -33,15 +34,16 @@ def list():
                 return jsonify({"success": False, "message": message}), 400
             flash(message, 'danger')
         else:
-            photo_filename = None
+            photo_data = None
+            photo_mime = None
             if 'photo' in request.files and request.files['photo'].filename:
                 try:
-                    photo_filename = save_photo(request.files['photo'])
+                    photo_data, photo_mime = save_photo_data(request.files['photo'])
                 except ValueError as e:
                     if is_ajax_request():
                         return jsonify({"success": False, "errors": [str(e)]}), 400
                     flash(str(e), 'warning')
-            new_tutor = Tutor(name=name, email=email, phone=phone, specialization=specialization, status=status, photo=photo_filename)
+            new_tutor = Tutor(name=name, email=email, phone=phone, specialization=specialization, status=status, photo_data=photo_data, photo_mime=photo_mime)
             for c_id in selected_courses:
                 course = Course.query.get(int(c_id))
                 if course:
@@ -81,10 +83,11 @@ def edit(id):
     tutor.specialization = form.data.get('specialization', '').strip()
     tutor.status = form.data.get('status', 'Active')
     if request.form.get('remove_photo'):
-        tutor.photo = None
+        tutor.photo_data = None
+        tutor.photo_mime = None
     elif 'photo' in request.files and request.files['photo'].filename:
         try:
-            tutor.photo = save_photo(request.files['photo'])
+            tutor.photo_data, tutor.photo_mime = save_photo_data(request.files['photo'])
         except ValueError as e:
             if is_ajax_request():
                 return jsonify({"success": False, "errors": [str(e)]}), 400
@@ -210,3 +213,12 @@ def import_excel():
         return jsonify({"success": True, "message": f"Successfully imported {imported_count} tutors. Skipped {skipped_count} duplicates.", "imported": imported_count, "skipped": skipped_count}), 200
     except Exception as e:
         return jsonify({"success": False, "errors": [f"Error processing file: {str(e)}"]}), 500
+
+
+@tutors_bp.route('/tutors/photo/<int:tutor_id>')
+@login_required
+def tutor_photo(tutor_id):
+    tutor = Tutor.query.get_or_404(tutor_id)
+    if not tutor.photo_data:
+        return '', 404
+    return send_file(io.BytesIO(tutor.photo_data), mimetype=tutor.photo_mime or 'image/jpeg')

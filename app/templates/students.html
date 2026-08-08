@@ -74,8 +74,8 @@ Actions</th>
 {{ student.roll_no or ('#' ~ student.id) }}</td>
                                 <td data-label="Name">
                                     <div class="d-flex align-items-center">
-                                        {% if student.photo %}
-                                            <img src="{{ url_for('static', filename='uploads/' ~ student.photo) }}" alt="Photo of {{ student.name }}" class="student-photo rounded-circle object-fit-cover me-2" style="width: 32px; height: 32px;" loading="lazy">
+                                        {% if student.photo_data %}
+                                            <img src="{{ url_for('students.student_photo', student_id=student.id) }}" alt="Photo of {{ student.name }}" class="student-photo rounded-circle object-fit-cover me-2" style="width: 32px; height: 32px;" loading="lazy">
                                         {% endif %}
                                         <span class="fw-medium text-white">
 {{ student.name }}</span>
@@ -108,7 +108,7 @@ Actions</th>
 </i>
                                         </button>
                                         <!-- ID Card Generator Button -->
-                                        {% set course_list = student.courses|map(attribute='name')|join(', ') %}                                        <button class="btn btn-sm btn-outline-premium"                                                 onclick="showIDCard('{{ student.name }}', 'STUDENT', '{{ student.email }}', '{{ student.phone }}', '{{ student.qr_code_uuid }}', 'Enrolled Course(s)', '{{ course_list or 'Not Assigned' }}', '{{ url_for('static', filename='uploads/' + student.photo) if student.photo else '' }}')"                                                title="Print ID Card" aria-label="Print ID card for {{ student.name }}">
+                                        {% set course_list = student.courses|map(attribute='name')|join(', ') %}                                        <button class="btn btn-sm btn-outline-premium"                                                 onclick="showIDCard('{{ student.name }}', 'STUDENT', '{{ student.email }}', '{{ student.phone }}', '{{ student.qr_code_uuid }}', 'Enrolled Course(s)', '{{ course_list or 'Not Assigned' }}', '{{ url_for('students.student_photo', student_id=student.id) if student.photo_data else '' }}')"                                                title="Print ID Card" aria-label="Print ID card for {{ student.name }}">
                                             <i class="bi bi-qr-code-scan">
 </i>
                                         </button>
@@ -240,15 +240,13 @@ Inactive</option>
                     <div class="mb-3">
                         <label class="form-label text-white small d-block">Photo</label>
                         <div class="d-flex align-items-center gap-3">
-                            {% if student.photo %}
-                                <img src="{{ url_for('static', filename='uploads/' ~ student.photo) }}" alt="Current photo of {{ student.name }}" class="rounded-circle object-fit-cover" style="width: 48px; height: 48px;">
-                            {% else %}
-                                <div class="avatar-stub d-flex align-items-center justify-content-center bg-cyan bg-opacity-10 text-white rounded-circle fw-bold" style="width: 48px; height: 48px;">{{ student.name[:2].upper() }}</div>
+                            {% if student.photo_data %}
+                                <img src="{{ url_for('students.student_photo', student_id=student.id) }}" alt="Current photo of {{ student.name }}" class="rounded-circle object-fit-cover" style="width: 48px; height: 48px;">
                             {% endif %}
                             <div class="flex-grow-1">
                                 <input type="file" class="form-control" name="photo" accept="image/png,image/jpeg,image/gif,image/webp">
                                 <div class="form-check mt-2">
-                                    <input class="form-check-input" type="checkbox" name="remove_photo" id="removePhoto{{ student.id }}" {% if not student.photo %}disabled{% endif %}>
+                                    <input class="form-check-input" type="checkbox" name="remove_photo" id="removePhoto{{ student.id }}" {% if not student.photo_data %}disabled{% endif %}>
                                     <label class="form-check-label small text-white-50" for="removePhoto{{ student.id }}" style="opacity:0.8;">Remove current photo</label>
                                 </div>
                             </div>
