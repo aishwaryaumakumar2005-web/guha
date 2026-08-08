@@ -90,7 +90,7 @@ No courses mapped</span>
 </i>
                                         </button>
                                         <!-- ID Card Generator Button -->
-                                        <button class="btn btn-sm btn-outline-premium"                                                 onclick="showIDCard('{{ tutor.name }}', 'INSTRUCTOR', '{{ tutor.email }}', '{{ tutor.phone }}', '{{ tutor.qr_code_uuid }}', 'Syllabus Focus', '{{ tutor.specialization or 'All Systems' }}')"                                                title="View QR ID Card">
+                                        <button class="btn btn-sm btn-outline-premium"                                                 onclick="showIDCard('{{ tutor.name }}', 'INSTRUCTOR', '{{ tutor.email }}', '{{ tutor.phone }}', '{{ tutor.qr_code_uuid }}', 'Syllabus Focus', '{{ tutor.specialization or 'All Systems' }}', '{{ url_for('static', filename='uploads/' ~ tutor.photo) if tutor.photo else '' }}')"                                                title="View QR ID Card">
                                             <i class="bi bi-qr-code-scan">
 </i>
                                         </button>

@@ -108,7 +108,7 @@ Actions</th>
 </i>
                                         </button>
                                         <!-- ID Card Generator Button -->
-                                        {% set course_list = student.courses|map(attribute='name')|join(', ') %}                                        <button class="btn btn-sm btn-outline-premium"                                                 onclick="showIDCard('{{ student.name }}', 'STUDENT', '{{ student.email }}', '{{ student.phone }}', '{{ student.qr_code_uuid }}', 'Enrolled Course(s)', '{{ course_list or 'Not Assigned' }}')"                                                title="Print ID Card" aria-label="Print ID card for {{ student.name }}">
+                                        {% set course_list = student.courses|map(attribute='name')|join(', ') %}                                        <button class="btn btn-sm btn-outline-premium"                                                 onclick="showIDCard('{{ student.name }}', 'STUDENT', '{{ student.email }}', '{{ student.phone }}', '{{ student.qr_code_uuid }}', 'Enrolled Course(s)', '{{ course_list or 'Not Assigned' }}', '{{ url_for('static', filename='uploads/' + student.photo) if student.photo else '' }}')"                                                title="Print ID Card" aria-label="Print ID card for {{ student.name }}">
                                             <i class="bi bi-qr-code-scan">
 </i>
                                         </button>

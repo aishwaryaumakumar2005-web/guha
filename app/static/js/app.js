@@ -401,12 +401,24 @@ function copyFollowUpToClipboard() {
 /**
  * 4. Printable ID Card Dynamic Drawer
  */
-function showIDCard(name, role, email, phone, qrCodeUuid, extraLabel, extraVal) {
+function showIDCard(name, role, email, phone, qrCodeUuid, extraLabel, extraVal, photoUrl) {
     // Inject values into Modal ID Card container
     document.getElementById('modal-id-name').innerText = name;
     document.getElementById('modal-id-role').innerText = role;
     document.getElementById('modal-id-email').innerText = email;
     document.getElementById('modal-id-phone').innerText = phone;
+    
+    const photoImg = document.getElementById('modal-id-photo');
+    const photoFallback = document.getElementById('modal-id-photo-fallback');
+    if (photoUrl) {
+        photoImg.src = photoUrl;
+        photoImg.style.display = 'block';
+        photoFallback.style.display = 'none';
+    } else {
+        photoImg.src = '';
+        photoImg.style.display = 'none';
+        photoFallback.style.display = 'block';
+    }
     
     const extraBox = document.getElementById('modal-id-extra');
     if (extraLabel && extraVal) {
