@@ -408,24 +408,29 @@ function showIDCard(name, role, email, phone, qrCodeUuid, extraLabel, extraVal, 
     document.getElementById('modal-id-email').innerText = email;
     document.getElementById('modal-id-phone').innerText = phone;
     
+    // Optional photo (null-guarded so a missing element can't block the rest)
     const photoImg = document.getElementById('modal-id-photo');
     const photoFallback = document.getElementById('modal-id-photo-fallback');
-    if (photoUrl) {
-        photoImg.src = photoUrl;
-        photoImg.style.display = 'block';
-        photoFallback.style.display = 'none';
-    } else {
-        photoImg.src = '';
-        photoImg.style.display = 'none';
-        photoFallback.style.display = 'block';
+    if (photoImg && photoFallback) {
+        if (photoUrl) {
+            photoImg.src = photoUrl;
+            photoImg.style.display = 'block';
+            photoFallback.style.display = 'none';
+        } else {
+            photoImg.src = '';
+            photoImg.style.display = 'none';
+            photoFallback.style.display = 'block';
+        }
     }
     
     const extraBox = document.getElementById('modal-id-extra');
-    if (extraLabel && extraVal) {
-        extraBox.classList.remove('d-none');
-        extraBox.innerHTML = `<strong>${extraLabel}:</strong> ${extraVal}`;
-    } else {
-        extraBox.classList.add('d-none');
+    if (extraBox) {
+        if (extraLabel && extraVal) {
+            extraBox.classList.remove('d-none');
+            extraBox.innerHTML = `<strong>${extraLabel}:</strong> ${extraVal}`;
+        } else {
+            extraBox.classList.add('d-none');
+        }
     }
     
     // Clear and draw QR Code using qrcode.js
