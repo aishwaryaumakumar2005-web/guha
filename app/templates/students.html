@@ -75,7 +75,7 @@ Actions</th>
                                 <td data-label="Name">
                                     <div class="d-flex align-items-center">
                                         {% if student.photo %}
-                                            <img src="{{ url_for('static', filename='uploads/' ~ student.photo) }}" alt="Photo of {{ student.name }}" class="rounded-circle object-fit-cover me-2" style="width: 32px; height: 32px;" loading="lazy">
+                                            <img src="{{ url_for('static', filename='uploads/' ~ student.photo) }}" alt="Photo of {{ student.name }}" class="student-photo rounded-circle object-fit-cover me-2" style="width: 32px; height: 32px;" loading="lazy">
                                         {% endif %}
                                         <span class="fw-medium text-white">
 {{ student.name }}</span>

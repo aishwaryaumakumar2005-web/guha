@@ -313,6 +313,21 @@ body.dark-mode ::-webkit-scrollbar-thumb { background: #3A3A5C; }
     opacity: 1;
 }
 
+/* Student/teacher photos in table rows — enlarge to original size on hover */
+.student-photo {
+    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), z-index 0s 0.35s;
+    transform-origin: left center;
+    position: relative;
+    z-index: 1;
+    cursor: zoom-in;
+}
+.student-photo:hover {
+    transform: scale(3.2);
+    z-index: 10;
+    border-radius: 50%;
+    transition-delay: 0s;
+}
+
 /* Brand — icon in gradient circle */
 .brand-title {
     font-size: 1.2rem;
