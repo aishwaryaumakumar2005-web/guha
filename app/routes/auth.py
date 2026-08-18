@@ -114,7 +114,7 @@ def logged_out():
     html = '''<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Logged Out - Guha Academy</title>
+<title>Logged Out - Guha India</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:linear-gradient(135deg,#0a1e2e,#0d2740);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#fff}
@@ -133,9 +133,9 @@ a:hover{box-shadow:0 4px 15px rgba(0,212,255,.5)}
 <body>
 <div class="card">
 <div class="brand-wrap">
-<img src="/static/images/logo.png" alt="GUHA ACADEMY" class="brand-logo">
+<img src="/static/images/logo.png" alt="GUHA INDIA" class="brand-logo">
 <div class="brand-text-col">
-<div class="brand-text">GUHA ACADEMY</div>
+<div class="brand-text">GUHA INDIA</div>
 <div class="slogan">Learn Today, Lead Tomorrow</div>
 </div>
 </div>
