@@ -1,0 +1,141 @@
+{% extends 'base.html' %}{% block title %}Student Lifecycle{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('students.list') }}">Academic</a></li><li class="breadcrumb-item active" aria-current="page">Student Lifecycle</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold">
+Student Lifecycle</h2>
+            <p class="text-white mb-0">
+Track course completion, dropouts and long-absent students. <span class="text-info">Admin only</span></p>
+        </div>
+    </div>
+    <!-- Filter Pills -->
+    <div class="glass-card p-3 mb-4">
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{{ url_for('student_lifecycle.lifecycle', filter='all') }}" class="btn btn-sm {% if filter_key == 'all' %}btn-premium{% else %}btn-outline-premium{% endif %}">
+                All Students <span class="ms-1 badge rounded-pill badge-pill-count">{{ total }}</span>
+            </a>
+            <a href="{{ url_for('student_lifecycle.lifecycle', filter='enrolled') }}" class="btn btn-sm {% if filter_key == 'enrolled' %}btn-premium{% else %}btn-outline-premium{% endif %}">
+                <i class="bi bi-check2-circle me-1"></i>Enrolled <span class="ms-1 badge rounded-pill badge-pill-count">{{ counts.get('Enrolled', 0) }}</span>
+            </a>
+            <a href="{{ url_for('student_lifecycle.lifecycle', filter='completed') }}" class="btn btn-sm {% if filter_key == 'completed' %}btn-premium{% else %}btn-outline-premium{% endif %}">
+                <i class="bi bi-award me-1"></i>Completed <span class="ms-1 badge rounded-pill badge-pill-count">{{ counts.get('Completed', 0) }}</span>
+            </a>
+            <a href="{{ url_for('student_lifecycle.lifecycle', filter='dropped') }}" class="btn btn-sm {% if filter_key == 'dropped' %}btn-premium{% else %}btn-outline-premium{% endif %}">
+                <i class="bi bi-x-octagon me-1"></i>Dropped Out <span class="ms-1 badge rounded-pill badge-pill-count">{{ counts.get('Dropped', 0) }}</span>
+            </a>
+            <a href="{{ url_for('student_lifecycle.lifecycle', filter='long_absent') }}" class="btn btn-sm {% if filter_key == 'long_absent' %}btn-premium{% else %}btn-outline-premium{% endif %}">
+                <i class="bi bi-exclamation-triangle me-1"></i>Long Absent <span class="ms-1 badge rounded-pill badge-pill-count">{{ counts.get('Long Absent', 0) }}</span>
+            </a>
+            <a href="{{ url_for('student_lifecycle.lifecycle', filter='inactive') }}" class="btn btn-sm {% if filter_key == 'inactive' %}btn-premium{% else %}btn-outline-premium{% endif %}">
+                <i class="bi bi-person-slash me-1"></i>Inactive / Archived <span class="ms-1 badge rounded-pill badge-pill-count">{{ counts.get('Inactive', 0) + counts.get('Archived', 0) }}</span>
+            </a>
+        </div>
+        <p class="small text-white mt-3 mb-0" style="opacity:0.75;">
+<i class="bi bi-info-circle me-1">
+</i>
+Long Absent = missed {{ thresholds.streak }}+ consecutive sessions, or attendance below {{ "%.0f"|format(thresholds.rate) }}% in the last {{ thresholds.window }} days.</p>
+    </div>
+    <!-- Lifecycle Table -->
+    <div class="glass-card p-4" data-aos="fade-up">
+        <h4 class="mb-4 text-dark fw-bold">
+<i class="bi bi-diagram-3 me-2 text-dark">
+</i>
+Student Records</h4>
+        <div class="table-container">
+            <table class="table table-custom sortable" data-page-size="10">
+                <thead>
+                    <tr>
+                        <th>
+Student</th>
+                        <th>
+Overall Status</th>
+                        <th>
+Enrolled Courses</th>
+                        <th>
+Attendance ({{ thresholds.window }}d)</th>
+                        <th class="text-end">
+Last Activity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if lifecycle %}                        {% for d in lifecycle %}                        <tr>
+                            <td>
+                                <div class="fw-semibold text-dark">
+{{ d.student.name }}</div>
+                                <div class="small text-secondary">
+{{ d.student.phone }}</div>
+                            </td>
+                            <td>
+                                {% set b = d.bucket %}                                {% if b == 'Enrolled' %}                                    <span class="badge badge-custom badge-active">Enrolled</span>
+                                {% elif b == 'Completed' %}                                    <span class="badge badge-custom badge-cyan">Completed</span>
+                                {% elif b == 'Long Absent' %}                                    <span class="badge badge-custom badge-amber">Long Absent</span>
+                                {% elif b == 'Dropped' %}                                    <span class="badge badge-custom badge-inactive">Dropped</span>
+                                {% else %}                                    <span class="badge badge-custom badge-inactive">{{ b }}</span>
+                                {% endif %}                            </td>
+                            <td>
+                                {% if d.enrollments %}                                    {% for e in d.enrollments %}                                    <div class="mb-2">
+                                        <span class="badge badge-custom badge-cyan">
+{{ e.course.name }}</span>
+                                        <span class="small text-secondary ms-1">
+{% if e.status == 'Completed' %}Completed {{ e.completed_on.strftime('%d %b %Y') if e.completed_on }}{% elif e.status == 'Dropped' %}Dropped{% if e.drop_reason %} - {{ e.drop_reason }}{% endif %}{% else %}Enrolled since {{ e.enrolled_on.strftime('%d %b %Y') if e.enrolled_on else d.student.enrollment_date.strftime('%d %b %Y') }}{% endif %}</span>
+                                        <div class="mt-1">
+                                        {% if e.status == 'Enrolled' %}                                            <form method="POST" action="{{ url_for('student_lifecycle.complete', sid=d.student.id, cid=e.course.id) }}" class="d-inline" hx-boost="false" data-no-ajax>
+                                                <input type="hidden" name="filter" value="{{ filter_key }}">
+                                                <button type="submit" class="btn btn-sm btn-action-success py-1 px-2" title="Mark course completed">
+<i class="bi bi-check2 me-1"></i>Complete
+</button>
+                                            </form>
+                                            <button type="button" class="btn btn-sm btn-action-danger py-1 px-2" title="Drop student from this course"
+                                                onclick="dropEnrollment(this)"
+                                                data-sid="{{ d.student.id }}" data-cid="{{ e.course.id }}"
+                                                data-name="{{ d.student.name }}" data-course="{{ e.course.name }}">
+<i class="bi bi-x me-1"></i>Drop
+</button>
+                                        {% else %}                                            <form method="POST" action="{{ url_for('student_lifecycle.reactivate', sid=d.student.id, cid=e.course.id) }}" class="d-inline" hx-boost="false" data-no-ajax>
+                                                <input type="hidden" name="filter" value="{{ filter_key }}">
+                                                <button type="submit" class="btn btn-sm btn-action-reenroll py-1 px-2" title="Re-enroll">
+<i class="bi bi-arrow-counterclockwise me-1"></i>Re-enroll
+</button>
+                                            </form>
+                                        {% endif %}                                        </div>
+                                    </div>
+                                    {% endfor %}                                {% else %}                                    <span class="small text-secondary">No course enrollment</span>
+                                {% endif %}                            </td>
+                            <td>
+                                {% if d.metrics.att_rate_30 is not none %}                                    {% set rate = d.metrics.att_rate_30 %}                                    <span class="badge badge-custom {% if rate >= 75 %}badge-active{% elif rate >= 50 %}badge-amber{% else %}badge-inactive{% endif %}">{{ "%.0f"|format(rate) }}%</span>
+                                    <div class="small text-secondary mt-1">
+Absent last {{ d.metrics.last_streak }} session(s) {% if d.metrics.last_streak > 0 %} <span class="text-danger">&#9888;</span>{% endif %}</div>
+                                {% else %}                                    <span class="small text-secondary">No attendance marked</span>
+                                {% endif %}                            </td>
+                            <td class="text-end small text-secondary">
+                                {% if d.metrics.last_attendance_date %}                                    {{ d.metrics.last_attendance_date.strftime('%d %b %Y') }}                                {% else %}                                    Never                                {% endif %}                            </td>
+                        </tr>
+                        {% endfor %}                    {% else %}                        <tr>
+                            {{ empty_state('No students in this category', "Students appear here based on their enrollment status and attendance", 'students', '#', 'All Students', 'bi-people-fill', 5, 'onclick="window.location.href=\'' + url_for('student_lifecycle.lifecycle', filter='all') + '\'"') }}
+                        </tr>
+                    {% endif %}                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}{% block scripts %}<script>
+    window.currentFilter = {{ filter_key|tojson }};
+    function dropEnrollment(btn) {
+        const sid = btn.getAttribute('data-sid');
+        const cid = btn.getAttribute('data-cid');
+        const studentName = btn.getAttribute('data-name');
+        const courseName = btn.getAttribute('data-course');
+        const reason = prompt(`Reason for dropping ${studentName} from ${courseName}?`);
+        if (reason === null) return;
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/students/enrollment/drop/${sid}/${cid}`;
+        const r = document.createElement('input');
+        r.type = 'hidden'; r.name = 'drop_reason'; r.value = reason;
+        const f = document.createElement('input');
+        f.type = 'hidden'; f.name = 'filter'; f.value = window.currentFilter;
+        form.appendChild(r); form.appendChild(f);
+        document.body.appendChild(form);
+        form.submit();
+    }
+</script>
+{% endblock %}

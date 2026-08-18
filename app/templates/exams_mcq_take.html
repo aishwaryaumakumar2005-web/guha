@@ -1,0 +1,154 @@
+{% extends 'base.html' %}{% block title %}Taking: {{ exam.title }}{% endblock %}{% block head %}
+<style>
+.mcq-timer { font-size: 1.5rem; font-weight: 700; color: #1b6ef3; font-variant-numeric: tabular-nums; }
+.mcq-timer.warning { color: #ffc107; animation: pulse 1s infinite; }
+.mcq-timer.danger { color: #dc3545; animation: pulse 0.5s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+.mcq-option { display: block; padding: 10px 14px; margin-bottom: 6px; border-radius: 8px; cursor: pointer; transition: all 0.15s; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); }
+.mcq-option:hover { border-color: rgba(27, 110, 243,0.3); background: rgba(27, 110, 243,0.06); }
+.mcq-option input[type="radio"] { display: none; }
+.mcq-option input[type="radio"]:checked + .option-label { color: #1b6ef3; font-weight: 600; }
+.mcq-option input[type="radio"]:checked ~ .option-label { color: #1b6ef3; font-weight: 600; }
+.mcq-option:has(input:checked) { border-color: #1b6ef3; background: rgba(27, 110, 243,0.1); }
+.question-nav { display: inline-flex; width: 36px; height: 36px; align-items: center; justify-content: center; border-radius: 50%; margin: 3px; cursor: pointer; font-size: 0.8rem; font-weight: 600; transition: all 0.15s; }
+.question-nav.answered { background: #1b6ef3; color: #000; }
+.question-nav.unanswered { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.5); }
+.question-nav.current { border: 2px solid #1b6ef3; color: #1b6ef3; }
+</style>
+{% endblock %}{% block content %}
+<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h4 class="text-white fw-bold mb-0"><i class="bi bi-pencil-square me-2"></i>{{ exam.title }}</h4>
+            <small class="text-white-50">{{ exam.course.name }} ({{ exam.course.code }})</small>
+        </div>
+        <div class="text-end">
+            <div class="mcq-timer" id="timer">--:--</div>
+            <small class="text-white-50">Time Remaining</small>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <!-- Question Navigation Sidebar -->
+        <div class="col-lg-2 order-lg-2">
+            <div class="glass-card p-3 sticky-top" style="top:20px;">
+                <h6 class="text-white-50 small fw-bold text-uppercase mb-2">Questions</h6>
+                <div id="questionNav">
+                    {% for q in exam.questions|sort(attribute='question_number') %}
+                    <span class="question-nav unanswered" data-qid="{{ q.id }}" data-qnum="{{ q.question_number }}" onclick="goToQuestion({{ q.question_number }})">{{ q.question_number }}</span>
+                    {% endfor %}
+                </div>
+                <hr class="text-white-50">
+                <div class="d-flex justify-content-between small text-white-50">
+                    <span><span style="display:inline-block;width:12px;height:12px;background:#1b6ef3;border-radius:50%;"></span> Answered</span>
+                    <span><span style="display:inline-block;width:12px;height:12px;background:rgba(255,255,255,0.15);border-radius:50%;"></span> Not</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Questions -->
+        <div class="col-lg-10 order-lg-1">
+            <form id="mcqForm">
+                {% for q in exam.questions|sort(attribute='question_number') %}
+                <div class="glass-card p-4 mb-3 question-card" id="question-{{ q.question_number }}" {% if q.question_number > 1 %}style="display:none;"{% endif %}>
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <h6 class="text-info fw-bold mb-0">Question {{ q.question_number }} of {{ exam.num_questions }}</h6>
+                        <span class="text-white-50 small">{{ (exam.max_marks / exam.num_questions)|round(1) }} marks</span>
+                    </div>
+                    <p class="text-white fw-medium mb-3">{{ q.question_text }}</p>
+                    {% for opt, val in [('A', q.option_a), ('B', q.option_b), ('C', q.option_c), ('D', q.option_d)] %}
+                    <label class="mcq-option">
+                        <input type="radio" name="q_{{ q.id }}" value="{{ opt }}" onchange="markAnswered({{ q.id }}, {{ q.question_number }})">
+                        <span class="option-label"><span class="fw-bold">{{ opt }}.</span> {{ val }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+
+                <!-- Navigation Buttons -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <button type="button" class="btn btn-outline-light" id="prevBtn" onclick="changeQuestion(-1)" disabled><i class="bi bi-chevron-left me-1"></i>Previous</button>
+                    <span class="text-white-50 small" id="questionCounter">Question 1 of {{ exam.num_questions }}</span>
+                    <button type="button" class="btn btn-outline-light" id="nextBtn" onclick="changeQuestion(1)">Next <i class="bi bi-chevron-right ms-1"></i></button>
+                </div>
+
+                <div class="text-center">
+                    <button type="button" class="btn btn-success btn-lg px-5" onclick="submitExam()"><i class="bi bi-check-circle me-2"></i>Submit Exam</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}{% block scripts %}
+<script>
+var currentQuestion = 1;
+var totalQuestions = {{ exam.num_questions }};
+var examId = {{ exam.id }};
+var endTime = {{ (attempt.start_time.timestamp() + exam.duration_minutes * 60)|int }};
+
+function goToQuestion(num) {
+    document.getElementById('question-' + currentQuestion).style.display = 'none';
+    document.getElementById('question-' + num).style.display = 'block';
+    currentQuestion = num;
+    updateNavButtons();
+}
+
+function changeQuestion(delta) {
+    var next = currentQuestion + delta;
+    if (next >= 1 && next <= totalQuestions) goToQuestion(next);
+}
+
+function updateNavButtons() {
+    document.getElementById('prevBtn').disabled = currentQuestion === 1;
+    document.getElementById('nextBtn').disabled = currentQuestion === totalQuestions;
+    document.getElementById('questionCounter').textContent = 'Question ' + currentQuestion + ' of ' + totalQuestions;
+    document.querySelectorAll('.question-nav.current').forEach(function(el) { el.classList.remove('current'); });
+    var nav = document.querySelector('.question-nav[data-qnum="' + currentQuestion + '"]');
+    if (nav) nav.classList.add('current');
+}
+
+function markAnswered(qId, qNum) {
+    var nav = document.querySelector('.question-nav[data-qid="' + qId + '"]');
+    if (nav) { nav.classList.remove('unanswered'); nav.classList.add('answered'); }
+}
+
+function submitExam() {
+    if (!confirm('Are you sure you want to submit? You cannot change answers after submission.')) return;
+    var answers = {};
+    document.querySelectorAll('#mcqForm input[type="radio"]:checked').forEach(function(inp) {
+        var qId = inp.name.replace('q_', '');
+        answers[qId] = inp.value;
+    });
+    var btn = document.querySelector('.btn-success');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Submitting...';
+    var submitUrl = '{{ url_for("exams.mcq_submit", id=exam.id) }}';
+    fetch(submitUrl, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({answers: answers})
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        var resultsUrl = '{{ url_for("exams.mcq_results", id=exam.id) }}';
+        window.location.href = resultsUrl;
+    }).catch(function() {
+        btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Submit Exam';
+        alert('Submission failed. Please try again.');
+    });
+}
+
+function updateTimer() {
+    var now = Math.floor(Date.now() / 1000);
+    var diff = endTime - now;
+    if (diff <= 0) { document.getElementById('timer').textContent = '00:00'; submitExam(); return; }
+    var min = Math.floor(diff / 60);
+    var sec = diff % 60;
+    document.getElementById('timer').textContent = String(min).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+    var t = document.getElementById('timer');
+    if (diff < 60) { t.classList.add('danger'); t.classList.remove('warning'); }
+    else if (diff < 300) { t.classList.add('warning'); t.classList.remove('danger'); }
+    else { t.classList.remove('warning', 'danger'); }
+}
+setInterval(updateTimer, 1000);
+updateTimer();
+updateNavButtons();
+</script>
+{% endblock %}

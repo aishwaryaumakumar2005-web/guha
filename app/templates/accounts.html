@@ -1,0 +1,113 @@
+{% extends 'base.html' %}{% block title %}Account Balances{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('fees.list') }}">Finance</a></li><li class="breadcrumb-item active" aria-current="page">Account Balances</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold"><i class="bi bi-wallet-fill me-2"></i>Account Balances</h2>
+            <p class="text-white mb-0">Live balances for each payment account. Income (fees + capital) increases a balance; expenses decrease it — updated instantly.</p>
+        </div>
+    </div>
+
+    <!-- Balance cards -->
+    <div class="row g-3 mb-4">
+        {% for acc in accounts %}
+        <div class="col-md-6 col-lg-4 col-xxl-3">
+            <div class="glass-card p-3 {% if acc.name == active_name %}border border-info border-opacity-50{% endif %}" style="cursor:pointer;" onclick="window.location.href='{{ url_for('accounts.detail', account_name=acc.name) }}'">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="fw-semibold text-white small">
+                        <i class="bi bi-{% if acc.account_type == 'Cash' %}cash{% elif acc.account_type == 'UPI' %}phone{% elif acc.account_type == 'Bank' %}bank{% else %}credit-card{% endif %} me-1" style="color: {{ method_colors.get(acc.name, '#DDD') }};"></i>
+                        {{ acc.name }}
+                    </div>
+                    <div>
+                        <span class="badge badge-custom {% if acc.account_type == 'UPI' %}badge-active{% else %}badge-cyan{% endif %}">{{ acc.account_type }}</span>
+                        {% if acc.company_name %}
+                        <span class="badge {% if acc.is_gst_registered %}bg-primary{% else %}bg-success{% endif %}" style="font-size: 0.65rem;">{{ acc.company_name }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="fw-bold fs-4 {% if acc.balance < 0 %}text-danger{% else %}" style="color: {{ method_colors.get(acc.name, 'var(--accent-emerald)') }}{% endif %}">
+                    ₹{{ "{:,.2f}".format(acc.balance) }}
+                </div>
+                <div class="d-flex justify-content-between small text-secondary mt-2">
+                    <span title="Income (fees + capital)">In: <span style="color:var(--accent-emerald);">+{{ "{:,.2f}".format(acc.income) }}</span></span>
+                    <span title="Expenses">Out: <span class="text-danger">-{{ "{:,.2f}".format(acc.expense) }}</span></span>
+                    <span title="Transactions">{{ acc.txn_count }} txns</span>
+                </div>
+                <div class="small text-muted mt-1">Opening: ₹{{ "{:,.2f}".format(acc.opening_balance) }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Ledger for selected account -->
+    <div class="glass-card p-4" data-aos="fade-up">
+        <h4 class="mb-1 text-dark fw-bold"><i class="bi bi-journal-text me-2 text-dark"></i>Activity — {{ active_name }}</h4>
+        <p class="text-secondary small mb-3">Income and expense movements for this account. Showing the most recent 200 records per type.</p>
+
+        {% set total_in = active_acc.income if active_acc else 0 %}
+        {% set total_out = active_acc.expense if active_acc else 0 %}
+        {% set active_acc = accounts|selectattr('name', 'equalto', active_name)|first %}
+        <div class="row g-3 mb-3">
+            <div class="col-6 col-lg-3"><div class="glass-card p-3 text-center"><div class="text-secondary small text-uppercase">Opening</div><div class="fw-bold fs-5" style="color:{{ method_colors.get(active_name, '#DDD') }};">₹{{ "{:,.2f}".format(active_acc.opening_balance if active_acc else 0) }}</div></div></div>
+            <div class="col-6 col-lg-3"><div class="glass-card p-3 text-center"><div class="text-secondary small text-uppercase">Income</div><div class="fw-bold fs-5" style="color:var(--accent-emerald);">+₹{{ "{:,.2f}".format(total_in) }}</div></div></div>
+            <div class="col-6 col-lg-3"><div class="glass-card p-3 text-center"><div class="text-secondary small text-uppercase">Expense</div><div class="fw-bold fs-5 text-danger">-₹{{ "{:,.2f}".format(total_out) }}</div></div></div>
+            <div class="col-6 col-lg-3"><div class="glass-card p-3 text-center"><div class="text-secondary small text-uppercase">Balance</div><div class="fw-bold fs-5 {% if (total_in - total_out) < 0 %}text-danger{% endif %}" style="color:{% if (total_in - total_out) >= 0 %}{{ method_colors.get(active_name, '#00BFA6') }}{% endif %};">₹{{ "{:,.2f}".format(total_in - total_out) }}</div></div></div>
+        </div>
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            <span class="small text-secondary align-self-center me-1">Recorded modes:</span>
+            {% if active_methods %}
+                {% for m in active_methods %}<span class="badge badge-custom badge-cyan">{{ m }}</span>{% endfor %}
+            {% else %}
+                <span class="badge badge-custom badge-danger">None yet</span>
+            {% endif %}
+        </div>
+        <div class="d-flex flex-wrap gap-3 mb-3">
+            <span class="badge badge-custom badge-cyan">Inflow: ₹{{ "{:,.2f}".format(total_in) }}</span>
+            <span class="badge badge-custom badge-danger">Outflow: ₹{{ "{:,.2f}".format(total_out) }}</span>
+            <span class="badge badge-custom badge-active">Net: ₹{{ "{:,.2f}".format(total_in - total_out) }}</span>
+        </div>
+
+        <div class="table-container">
+            <table class="table table-custom sortable" data-page-size="15">
+                <thead>
+                    <tr><th>Date</th><th>Type</th><th>Detail</th><th>Inflow</th><th>Outflow</th><th class="text-end">Reference</th></tr>
+                </thead>
+                <tbody>
+                    {% set running = namespace(bal=0) %}
+                    {% for f in breakdown.funding %}
+                    <tr>
+                        <td class="text-secondary small">{{ f.funding_date.strftime("%d %b %Y") }}</td>
+                        <td><span class="badge badge-custom badge-active">Capital</span></td>
+                        <td><span class="fw-medium text-dark">{{ f.purpose or 'Capital contribution' }}</span></td>
+                        <td style="color:var(--accent-emerald);">+₹{{ "{:,.2f}".format(f.amount) }}</td>
+                        <td class="text-muted">-</td>
+                        <td class="text-end small text-secondary">Funding #{{ f.id }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% for f in breakdown.income %}
+                    <tr>
+                        <td class="text-secondary small">{{ f.payment_date.strftime("%d %b %Y") }}</td>
+                        <td><span class="badge badge-custom badge-cyan">Fee</span></td>
+                        <td><span class="fw-medium text-dark">{{ (f.student.name if f.student else 'Student') }} — {{ f.remarks or 'Fee payment' }}</span></td>
+                        <td style="color:var(--accent-emerald);">+₹{{ "{:,.2f}".format(f.amount_paid) }}</td>
+                        <td class="text-muted">-</td>
+                        <td class="text-end small text-secondary">Fee #{{ f.id }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% for e in breakdown.expenses %}
+                    <tr>
+                        <td class="text-secondary small">{{ e.expense_date.strftime("%d %b %Y") }}</td>
+                        <td><span class="badge badge-custom badge-danger">Expense</span></td>
+                        <td><span class="fw-medium text-dark">{{ e.description }}</span></td>
+                        <td class="text-muted">-</td>
+                        <td class="text-danger">-₹{{ "{:,.2f}".format(e.amount) }}</td>
+                        <td class="text-end small text-secondary">{{ e.category.name if e.category else '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% if not (breakdown.income or breakdown.funding or breakdown.expenses) %}
+                    <tr>{{ empty_state('No transactions for this account', "Movements will appear here when fees are collected or expenses are paid via this account", 'fees', '#', None, None, 6) }}</tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends 'base.html' %}{% block title %}Solutions: {{ exam.title }}{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('exams.exam_list') }}">Exams</a></li><li class="breadcrumb-item active" aria-current="page">Solutions</li>{% endblock %}{% block content %}
+<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold"><i class="bi bi-check2-square me-2"></i>{{ exam.title }} — Solutions</h2>
+            <p class="text-white mb-0">{{ exam.course.name }} &middot; {{ exam.num_questions }} questions &middot; {{ attempts|length }} attempts</p>
+        </div>
+        <a href="{{ url_for('exams.exam_list') }}" class="btn btn-outline-light"><i class="bi bi-arrow-left me-1"></i>Back</a>
+    </div>
+
+    {% for a in attempts %}
+    {% set answer_map = {} %}
+    {% for ans in a.answers %}{% set _ = answer_map.update({ans.mcq_question_id: ans}) %}{% endfor %}
+    <div class="glass-card p-4 mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h5 class="text-white fw-bold mb-1">{{ a.student.name }}</h5>
+                <span class="text-white-50 small">{{ a.student.email }}</span>
+            </div>
+            <div class="text-end">
+                <span class="fw-bold fs-5" style="color:{% if a.grade == 'F' %}#dc3545{% elif a.grade == 'D' %}#ff9933{% elif a.grade == 'C' %}#ffc107{% elif a.grade == 'B' %}#1b6ef3{% else %}#1b6ef3{% endif %};">{{ a.percentage }}%</span>
+                <span class="badge {% if a.grade == 'F' %}bg-danger{% elif a.grade == 'D' %}bg-warning text-dark{% elif a.grade == 'C' %}bg-warning text-dark{% elif a.grade == 'B' %}bg-info{% else %}bg-success{% endif %} ms-2">{{ a.grade }}</span>
+                <div class="text-white-50 small">{{ a.score|round(0) }}/{{ a.total_marks|round(0) }}</div>
+            </div>
+        </div>
+
+        {% for q in exam.mcq_questions|sort(attribute='question_number') %}
+        {% set ans = answer_map.get(q.id) %}
+        {% set opt_order = ['A', 'B', 'C', 'D'] %}
+        {% set opt_map = {'A': q.option_a, 'B': q.option_b, 'C': q.option_c, 'D': q.option_d} %}
+        <div class="p-3 mb-2 rounded" style="background:{% if ans and ans.is_correct %}rgba(40,167,69,0.08){% elif ans %}rgba(220,53,69,0.08){% else %}rgba(255,255,255,0.03){% endif %};border-left:4px solid {% if ans and ans.is_correct %}#28a745{% elif ans %}#dc3545{% else %}#6c757d{% endif %};">
+            <div class="d-flex justify-content-between">
+                <h6 class="fw-bold mb-2" style="color:{% if ans and ans.is_correct %}#28a745{% elif ans %}#dc3545{% else %}#6c757d{% endif %};">Q{{ q.question_number }}. {{ q.question_text }}</h6>
+                <span class="small fw-semibold" style="color:{% if ans and ans.is_correct %}#28a745{% elif ans %}#dc3545{% else %}#6c757d{% endif %};white-space:nowrap;">
+                    {% if ans and ans.is_correct %}<i class="bi bi-check-circle-fill"></i> Correct
+                    {% elif ans %}<i class="bi bi-x-circle-fill"></i> Wrong
+                    {% else %}<i class="bi bi-dash-circle-fill"></i> Not Answered{% endif %}
+                </span>
+            </div>
+            <div class="row g-1">
+                {% for opt in opt_order %}
+                {% set is_selected = ans and ans.selected_option == opt %}
+                {% set is_correct_opt = opt == q.correct_option %}
+                <div class="col-md-6">
+                    <div class="p-1 px-2 rounded small" style="background:{% if is_correct_opt %}rgba(40,167,69,0.15){% elif is_selected %}rgba(220,53,69,0.15){% else %}rgba(255,255,255,0.03){% endif %};border:1px solid {% if is_correct_opt %}rgba(40,167,69,0.3){% elif is_selected %}rgba(220,53,69,0.3){% else %}rgba(255,255,255,0.06){% endif %};">
+                        <span class="fw-bold {% if is_correct_opt %}text-success{% elif is_selected %}text-danger{% else %}text-white-50{% endif %}">{{ opt }}.</span>
+                        <span class="{% if is_correct_opt %}text-success{% elif is_selected %}text-danger{% else %}text-white-50{% endif %}">{{ opt_map[opt] }}</span>
+                        {% if is_correct_opt %}<i class="bi bi-check-circle-fill text-success ms-1" style="font-size:0.65rem;"></i>{% endif %}
+                        {% if is_selected and not is_correct_opt %}<i class="bi bi-x-circle-fill text-danger ms-1" style="font-size:0.65rem;"></i>{% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+        <div class="text-end mt-2">
+            <a href="{{ url_for('exams.mcq_student_report_pdf', id=exam.id, student_id=a.student_id) }}" class="btn btn-sm btn-outline-info"><i class="bi bi-file-pdf me-1"></i>Download PDF</a>
+        </div>
+    </div>
+    {% else %}
+    <div class="glass-card p-0 border-0" style="background:transparent;">
+        {{ empty_state('No solutions submitted yet', 'Solutions will appear here once students complete the exam', 'exams', none, none, none) }}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

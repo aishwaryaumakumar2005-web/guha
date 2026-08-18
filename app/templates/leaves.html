@@ -1,0 +1,180 @@
+{% extends 'base.html' %}{% block title %}Leave Management{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item active" aria-current="page">Leaves</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1 text-white fw-bold">
+Leave Management</h2>
+            <p class="text-white mb-0">
+                {% if current_user.role == 'Admin' %}                    Review and act on staff leave requests.                {% else %}                    Submit leave requests and monitor your application status.                {% endif %}            </p>
+        </div>
+    </div>
+    <div class="row">
+        <!-- Leave Form (Only for Staff) -->
+        {% if current_user.role == 'Staff' %}        <div class="col-xl-4 col-md-5 mb-4">
+            <div class="glass-card p-4" data-aos="fade-up">
+                <h4 class="mb-4 text-dark fw-bold">
+<i class="bi bi-calendar-plus me-2 text-dark">
+</i>
+Request Leave</h4>
+                                <form action="{{ url_for('leaves.leaves') }}" method="POST">
+                    <div class="mb-3">
+                        <label for="start_date" class="form-label text-secondary fw-semibold small">
+Start Date</label>
+                        <input type="date" class="form-control" id="start_date" name="start_date" required>
+                    </div>
+                                        <div class="mb-3">
+                        <label for="end_date" class="form-label text-secondary fw-semibold small">
+End Date</label>
+                        <input type="date" class="form-control" id="end_date" name="end_date" required>
+                    </div>
+                                        <div class="mb-4">
+                        <label for="reason" class="form-label text-secondary fw-semibold small">
+Reason / Explanation</label>
+                        <textarea class="form-control" id="reason" name="reason" rows="4" placeholder="Briefly state why you need leave..." maxlength="500" required>
+</textarea>
+                    </div>
+                                        <button type="submit" class="btn btn-premium w-100">
+                        Submit Application                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}        <!-- Leaves List -->
+        <div class="{% if current_user.role == 'Staff' %}col-xl-8 col-md-7{% else %}col-12{% endif %} mb-4">
+            <!-- Pending Leave Requests -->
+            <div class="glass-card p-4 mb-4">
+                <h4 class="mb-4 text-dark fw-bold">
+                    <i class="bi bi-hourglass-split me-2 text-dark">
+</i>
+                    {% if current_user.role == 'Admin' %}Pending Staff Requests{% else %}My Pending Applications{% endif %}                </h4>
+                                <div class="table-container">
+                    <table class="table table-custom sortable" data-page-size="10">
+                        <thead>
+                            <tr>
+                                {% if current_user.role == 'Admin' %}                                <th>
+Staff Member</th>
+                                {% endif %}                                <th>
+Dates</th>
+                                <th>
+Duration</th>
+                                <th>
+Reason</th>
+                                <th>
+Status</th>
+                                {% if current_user.role == 'Admin' %}                                <th class="text-center">
+Actions</th>
+                                {% endif %}                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if pending_leaves %}                                {% for leave in pending_leaves %}                                    <tr>
+                                        {% if current_user.role == 'Admin' %}                                        <td class="fw-medium text-dark">
+{{ leave.staff.name }}<br>
+<small class="text-muted">
+@{{ leave.staff.username }}</small>
+</td>
+                                        {% endif %}                                        <td class="text-dark">
+                                            {{ leave.start_date.strftime("%d %b %Y") }} to {{ leave.end_date.strftime("%d %b %Y") }}                                        </td>
+                                        <td class="text-secondary fw-semibold">
+                                            {{ (leave.end_date - leave.start_date).days + 1 }} Days                                        </td>
+                                        <td class="text-secondary small">
+{{ leave.reason }}</td>
+                                        <td>
+                                            <span class="badge badge-custom badge-amber">
+Pending</span>
+                                        </td>
+                                        {% if current_user.role == 'Admin' %}                                        <td class="text-center">
+                                            <a href="{{ url_for('leaves.leave_action', leave_id=leave.id, action='approve') }}" class="btn btn-sm btn-success me-2 px-3">
+                                                <i class="bi bi-check-lg">
+</i>
+ Approve                                            </a>
+                                            <a href="{{ url_for('leaves.leave_action', leave_id=leave.id, action='reject') }}" class="btn btn-sm btn-danger px-3">
+                                                <i class="bi bi-x-lg">
+</i>
+ Reject                                            </a>
+                                        </td>
+                                        {% endif %}                                    </tr>
+                                {% endfor %}                            {% else %}                                {% set leave_colspan = 6 if current_user.role == 'Admin' else 4 %}                                <tr>
+                                    {% if current_user.role == 'Admin' %}                                        {{ empty_state('Nothing to review', "Leave requests submitted by staff members will appear here once submitted", 'leaves', none, none, none, leave_colspan) }}                                    {% else %}                                        {{ empty_state('No pending applications', "Submit your first leave request using the form on this page", 'leaves', none, none, none, leave_colspan) }}                                    {% endif %}                                </tr>
+                            {% endif %}                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Leave History -->
+            <div class="glass-card p-4" data-aos="fade-up">
+                <h4 class="mb-4 text-dark fw-bold">
+                    <i class="bi bi-clock-history me-2 text-dark">
+</i>
+                    {% if current_user.role == 'Admin' %}Request History{% else %}My Leave History{% endif %}                </h4>
+                                <div class="table-container">
+                    <table class="table table-custom sortable" data-page-size="10">
+                        <thead>
+                            <tr>
+                                {% if current_user.role == 'Admin' %}                                <th>
+Staff Member</th>
+                                {% endif %}                                <th>
+Dates</th>
+                                <th>
+Duration</th>
+                                <th>
+Reason</th>
+                                <th>
+Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if history_leaves %}                                {% for leave in history_leaves %}                                    <tr>
+                                        {% if current_user.role == 'Admin' %}                                        <td class="fw-medium text-dark">
+{{ leave.staff.name }}<br>
+<small class="text-muted">
+@{{ leave.staff.username }}</small>
+</td>
+                                        {% endif %}                                        <td class="text-dark">
+                                            {{ leave.start_date.strftime("%d %b %Y") }} to {{ leave.end_date.strftime("%d %b %Y") }}                                        </td>
+                                        <td class="text-secondary fw-semibold">
+                                            {{ (leave.end_date - leave.start_date).days + 1 }} Days                                        </td>
+                                        <td class="text-secondary small">
+{{ leave.reason }}</td>
+                                        <td>
+                                            {% if leave.status == 'Approved' %}                                                <span class="badge badge-custom badge-active">
+Approved</span>
+                                            {% elif leave.status == 'Rejected' %}                                                <span class="badge badge-custom badge-inactive">
+Rejected</span>
+                                            {% else %}                                                <span class="badge badge-custom badge-amber">
+Pending</span>
+                                            {% endif %}                                        </td>
+                                    </tr>
+                                {% endfor %}                            {% else %}                                {% set hist_colspan = 5 if current_user.role == 'Admin' else 4 %}                                <tr>
+                                    {{ empty_state('No leave history', 'Past leave applications and their status will appear here', 'leaves', none, none, none, hist_colspan) }}
+                                </tr>
+                            {% endif %}                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var sd = document.querySelector('input[name="start_date"]');
+    var ed = document.querySelector('input[name="end_date"]');
+    if (sd && ed) {
+        ed.addEventListener('input', function() {
+            if (sd.value && ed.value && ed.value < sd.value) {
+                ed.setCustomValidity('End date must be on or after start date');
+            } else {
+                ed.setCustomValidity('');
+            }
+        });
+        sd.addEventListener('input', function() {
+            if (ed.value && sd.value && ed.value < sd.value) {
+                ed.setCustomValidity('End date must be on or after start date');
+            } else {
+                ed.setCustomValidity('');
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
+

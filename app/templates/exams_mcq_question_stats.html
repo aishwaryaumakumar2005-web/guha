@@ -1,0 +1,47 @@
+{% extends 'base.html' %}{% block title %}Question Stats: {{ exam.title }}{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('exams.exam_list') }}">Exams</a></li><li class="breadcrumb-item active" aria-current="page">Question Stats</li>{% endblock %}{% block content %}
+<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold"><i class="bi bi-pie-chart-fill me-2"></i>{{ exam.title }} — Question Analysis</h2>
+            <p class="text-white mb-0">See how students answered each question — identify difficult topics.</p>
+        </div>
+        <a href="{{ url_for('exams.mcq_analysis', id=exam.id) }}" class="btn btn-outline-light"><i class="bi bi-arrow-left me-1"></i>Back to Analysis</a>
+    </div>
+
+    {% for s in stats %}
+    <div class="glass-card p-4 mb-3">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <h6 class="text-info fw-bold mb-0">Q{{ s.question.question_number }}. {{ s.question.question_text }}</h6>
+            <span class="badge {% if s.pct >= 70 %}bg-success{% elif s.pct >= 40 %}bg-warning text-dark{% else %}bg-danger{% endif %}">{{ s.correct }}/{{ s.total }} correct ({{ s.pct }}%)</span>
+        </div>
+        <div class="progress mb-2" style="height:8px;">
+            <div class="progress-bar {% if s.pct >= 70 %}bg-success{% elif s.pct >= 40 %}bg-warning{% else %}bg-danger{% endif %}" role="progressbar" style="width:{{ s.pct }}%"></div>
+        </div>
+        <div class="row g-2">
+            {% for opt, label in [('A', s.question.option_a), ('B', s.question.option_b), ('C', s.question.option_c), ('D', s.question.option_d)] %}
+            {% set count = s.option_counts.get(opt, 0) %}
+            {% set pct_opt = (count / s.total * 100)|round(0) if s.total else 0 %}
+            <div class="col-md-3 col-6">
+                <div class="p-2 rounded" style="background:{% if opt == s.question.correct_option %}rgba(40,167,69,0.12){% else %}rgba(255,255,255,0.03){% endif %};border:1px solid {% if opt == s.question.correct_option %}rgba(40,167,69,0.3){% else %}rgba(255,255,255,0.06){% endif %};">
+                    <div class="d-flex justify-content-between">
+                        <span class="small">
+                            <span class="fw-bold {% if opt == s.question.correct_option %}text-success{% else %}text-white-50{% endif %}">{{ opt }}.</span>
+                            <span class="text-white-50" style="font-size:0.75rem;">{{ label[:40] }}{% if label|length > 40 %}...{% endif %}</span>
+                        </span>
+                        <span class="fw-bold {% if opt == s.question.correct_option %}text-success{% else %}text-white-50{% endif %}" style="font-size:0.75rem;">{{ count }}</span>
+                    </div>
+                    <div class="progress" style="height:3px;margin-top:2px;">
+                        <div class="progress-bar {% if opt == s.question.correct_option %}bg-success{% else %}bg-secondary{% endif %}" style="width:{{ pct_opt }}%"></div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="glass-card p-0 border-0" style="background:transparent;">
+        {{ empty_state('No question stats yet', 'Statistics will populate once students complete the exam', 'exams', none, none, none) }}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

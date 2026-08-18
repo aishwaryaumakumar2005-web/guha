@@ -1,0 +1,57 @@
+{% extends 'base.html' %}{% block title %}Results: {{ exam.title }}{% endblock %}{% block content %}
+<div class="container-fluid p-0">
+    <div class="glass-card p-5 text-center mb-4">
+        {% if attempt %}
+        {% set grade_colors = {'A': '#1b6ef3', 'B': '#1b6ef3', 'C': '#ffc107', 'D': '#ff9933', 'F': '#dc3545'} %}
+        <div style="width:120px;height:120px;border-radius:50%;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;border:4px solid {{ grade_colors.get(attempt.grade, '#1b6ef3') }};">
+            <div>
+                <div style="font-size:2.5rem;font-weight:700;color:{{ grade_colors.get(attempt.grade, '#1b6ef3') }};">{{ attempt.grade }}</div>
+                <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;">Grade</div>
+            </div>
+        </div>
+        <h3 class="text-white fw-bold mb-2">{{ exam.title }} — Results</h3>
+        <p class="text-white-50 mb-4">{{ exam.course.name }}</p>
+        <div class="row justify-content-center g-3 mb-3">
+            <div class="col-md-2 col-4">
+                <div class="p-3" style="background:rgba(27, 110, 243,0.06);border-radius:12px;">
+                    <div class="fw-bold fs-4 text-white">{{ attempt.score|round(0) }}</div>
+                    <small class="text-white-50">Score</small>
+                </div>
+            </div>
+            <div class="col-md-2 col-4">
+                <div class="p-3" style="background:rgba(27, 110, 243,0.06);border-radius:12px;">
+                    <div class="fw-bold fs-4 text-white">{{ attempt.total_marks|round(0) }}</div>
+                    <small class="text-white-50">Total</small>
+                </div>
+            </div>
+            <div class="col-md-2 col-4">
+                <div class="p-3" style="background:rgba(27, 110, 243,0.06);border-radius:12px;">
+                    <div class="fw-bold fs-4 text-white">{{ attempt.percentage }}%</div>
+                    <small class="text-white-50">Percentage</small>
+                </div>
+            </div>
+        </div>
+        {% set correct_count = attempt.answers|selectattr('is_correct', 'equalto', true)|list|length %}
+        {% set total_q = exam.questions|length %}
+        <div class="text-white-50 small">
+            <span class="text-success">{{ correct_count }}</span> Correct,
+            <span class="text-danger">{{ total_q - correct_count }}</span> Wrong
+        </div>
+        {% else %}
+        <div style="width:120px;height:120px;border-radius:50%;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;border:4px solid rgba(255,255,255,0.2);">
+            <i class="bi bi-dash-circle" style="font-size:3rem;color:var(--text-muted);"></i>
+        </div>
+        <h3 class="text-white fw-bold mb-2">No Results Yet</h3>
+        <p class="text-white-50">You haven't completed this exam yet.</p>
+        <a href="{{ url_for('exams.mcq_take', id=exam.id) }}" class="btn btn-premium"><i class="bi bi-play me-1"></i>Take Exam</a>
+        {% endif %}
+    </div>
+
+    <div class="text-center">
+        <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-outline-light"><i class="bi bi-house me-1"></i>Dashboard</a>
+        {% if attempt and attempt.status == 'completed' %}
+        <button class="btn btn-outline-premium" onclick="window.print()"><i class="bi bi-printer me-1"></i>Print</button>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

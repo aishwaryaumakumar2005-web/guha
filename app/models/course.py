@@ -1,0 +1,20 @@
+from app.extensions import db
+
+
+class Course(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    code = db.Column(db.String(20), unique=True, nullable=False)
+    description = db.Column(db.Text)
+    duration_weeks = db.Column(db.Integer, nullable=False)
+    duration_unit = db.Column(db.String(10), nullable=False, default='weeks')
+    fees = db.Column(db.Float, nullable=False)
+    capacity = db.Column(db.Integer, nullable=True)
+    gst_applicable = db.Column(db.Boolean, default=False)
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id', ondelete='SET NULL'), nullable=True)
+    syllabus = db.Column(db.Text)
+
+    enquiries = db.relationship('Enquiry', backref='course', lazy=True, passive_deletes=True)
+
+    def __repr__(self):
+        return f"<Course {self.code}: {self.name}>"

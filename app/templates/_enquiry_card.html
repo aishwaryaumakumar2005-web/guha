@@ -1,0 +1,17 @@
+<div class="kanban-card" data-enquiry-id="{{ enquiry.id }}" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px;margin-bottom:8px;cursor:grab;">
+  <div class="d-flex justify-content-between align-items-start mb-1">
+    <strong class="text-white small">{{ enquiry.student_name }}</strong>
+    <span class="badge badge-custom" style="font-size:9px;background:rgba(27, 110, 243,0.15);color:#8ab4f8;">#{{ enquiry.id }}</span>
+  </div>
+  <div class="small text-white-50 mb-1" style="opacity:0.7;"><i class="bi bi-telephone me-1"></i>{{ enquiry.phone }}</div>
+  {% if enquiry.course %}
+  <div class="small text-white-50 mb-1" style="opacity:0.6;"><i class="bi bi-book me-1"></i>{{ enquiry.course.name }}</div>
+  {% endif %}
+  <div class="d-flex justify-content-between align-items-center mt-2">
+    <span class="small text-white-50" style="opacity:0.5;font-size:10px;"><i class="bi bi-calendar3 me-1"></i>{{ enquiry.created_at.strftime('%d %b') if enquiry.created_at else '—' }}</span>
+    <span class="small text-white-50" style="opacity:0.5;font-size:10px;"><i class="bi bi-tag me-1"></i>{{ enquiry.source }}</span>
+  </div>
+  {% if enquiry.notes %}
+  <div class="small mt-1 text-white-50" style="opacity:0.4;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><i class="bi bi-chat me-1"></i>{{ enquiry.notes[:60] }}{% if enquiry.notes|length > 60 %}…{% endif %}</div>
+  {% endif %}
+</div>
