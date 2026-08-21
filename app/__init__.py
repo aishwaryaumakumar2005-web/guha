@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta
 from functools import wraps
 from flask import Flask, redirect, url_for, flash, render_template, g
 from markupsafe import Markup
+from werkzeug.security import generate_password_hash
 
 # Ensure project root is on sys.path (critical for Render deployment)
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -388,6 +389,26 @@ def create_app(config_object=None):
         with app.app_context():
             from init_db import seed_if_empty
             seed_if_empty()
+    
+    # Create default admin user if no users exist (for fresh deployments)
+    with app.app_context():
+        try:
+            from app.models import User
+            if User.query.count() == 0:
+                print("No users found - creating default admin user")
+                admin = User(
+                    username='admin',
+                    password_hash=generate_password_hash('admin123'),
+                    role='admin',
+                    name='Administrator',
+                    email='admin@guhaindia.in'
+                )
+                db.session.add(admin)
+                db.session.commit()
+                print("Default admin user created: username=admin, password=admin123")
+        except Exception as e:
+            print(f"Could not create default admin user: {e}")
+            db.session.rollback()
 
     # Start the scheduler for daily backups (only in development)
     # Render uses cron jobs for scheduled tasks, not in-app scheduler
