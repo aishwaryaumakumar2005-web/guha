@@ -4,7 +4,6 @@ services:
     env: python
     runtime: python3
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2
     envVars:
       - key: FLASK_ENV
         value: production
@@ -14,3 +13,4 @@ services:
         generateValue: true
       - key: DATABASE_URL
         value: "postgresql://neondb_owner:npg_sgFQaW98fwyk@ep-red-butterfly-az9m7dmb-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
+
