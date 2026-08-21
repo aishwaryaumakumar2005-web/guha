@@ -383,9 +383,11 @@ def create_app(config_object=None):
         return render_template('errors/500.html'), 500
 
     # Auto-seed all sample data on first deploy (fresh database)
-    with app.app_context():
-        from init_db import seed_if_empty
-        seed_if_empty()
+    # Skip auto-seeding in production to avoid startup delays and errors
+    if os.environ.get('FLASK_ENV') != 'production':
+        with app.app_context():
+            from init_db import seed_if_empty
+            seed_if_empty()
 
     # Start the scheduler for daily backups (only in development)
     # Render uses cron jobs for scheduled tasks, not in-app scheduler
