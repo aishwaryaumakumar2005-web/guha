@@ -169,3 +169,36 @@ See detailed workflow in `docs/google_forms_integration.md`.
 ## License
 
 Internal use — Guha Academy
+
+---
+
+## Postgres Pooling (Production)
+
+When running the app in production against Postgres (for example Neon), tune connection pooling via environment variables. The app reads these vars and configures SQLAlchemy engine options in `app/__init__.py`.
+
+- `USE_PGBOUNCER`: when `true` the app uses `NullPool` so each request gets a fresh connection suitable for Pgbouncer in transaction-pooling mode. Default: `false`.
+- `DB_POOL_SIZE`: integer, default `10` — number of connections to keep in the SQLAlchemy pool.
+- `DB_MAX_OVERFLOW`: integer, default `20` — additional connections beyond `DB_POOL_SIZE` allowed under load.
+- `DB_POOL_TIMEOUT`: integer seconds, default `30` — wait time for a connection from the pool.
+
+Recommendations:
+- For Pgbouncer in transaction pooling mode, set `USE_PGBOUNCER=true` and do not use a pooled SQLAlchemy `pool_size` (the app will use `NullPool`).
+- If connecting directly to Neon without Pgbouncer, set `DB_POOL_SIZE` small (e.g. `5-10`) and `DB_MAX_OVERFLOW` to `10-20` depending on your workload.
+- Ensure the application host and Neon project are in the same region to minimize latency.
+- Monitor connection usage and set up Neon connection pooling or pgbouncer if you hit connection limits.
+
+Example (PowerShell):
+```powershell
+$env:DATABASE_URL = "<your DATABASE_URL>"
+$env:FLASK_ENV = "production"
+$env:USE_PGBOUNCER = "true"
+python .\run.py
+```
+
+Example (Linux/macOS):
+```bash
+export DATABASE_URL="<your DATABASE_URL>"
+export FLASK_ENV=production
+export USE_PGBOUNCER=true
+python run.py
+```

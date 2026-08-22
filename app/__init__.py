@@ -65,6 +65,26 @@ def create_app(config_object=None):
             'connect_args': {'check_same_thread': False},
             'pool_pre_ping': True,
         }
+    else:
+        # Configure pooling for Postgres. Use environment variables to tune.
+        # If using pgbouncer in transaction pooling mode, set USE_PGBOUNCER=true
+        use_pgbouncer = os.environ.get('USE_PGBOUNCER', '').lower() in ('1', 'true', 'yes')
+        if use_pgbouncer:
+            try:
+                from sqlalchemy.pool import NullPool
+                app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'poolclass': NullPool, 'pool_pre_ping': True}
+            except Exception:
+                app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
+        else:
+            pool_size = int(os.environ.get('DB_POOL_SIZE', '10'))
+            max_overflow = int(os.environ.get('DB_MAX_OVERFLOW', '20'))
+            pool_timeout = int(os.environ.get('DB_POOL_TIMEOUT', '30'))
+            app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+                'pool_size': pool_size,
+                'max_overflow': max_overflow,
+                'pool_timeout': pool_timeout,
+                'pool_pre_ping': True,
+            }
 
     db.init_app(app)
     login_manager.init_app(app)
