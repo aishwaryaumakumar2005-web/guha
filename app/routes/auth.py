@@ -8,7 +8,19 @@ from app.forms import LoginForm, RegistrationForm, ForgotPasswordForm
 auth_bp = Blueprint('auth', __name__)
 
 def _ensure_tutor(user):
+    # Ensure we don't attempt to query or create Tutor rows when the Tutor table
+    # doesn't exist yet (migrations not applied). This prevents a 500 error on
+    # staff login for fresh/partial DBs — admin users don't hit this path.
     if user.role == 'Staff':
+        try:
+            from sqlalchemy import inspect
+            if not inspect(db.engine).has_table('tutor'):
+                return
+        except Exception:
+            # If inspection fails for any reason, skip creating tutor to avoid
+            # surfacing internal errors during login.
+            return
+
         tutor = Tutor.query.filter_by(email=user.email).first()
         if not tutor:
             tutor = Tutor(name=user.name, email=user.email, phone='', specialization='', status='Active')

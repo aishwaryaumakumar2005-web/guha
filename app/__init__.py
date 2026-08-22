@@ -376,6 +376,24 @@ def create_app(config_object=None):
                     except Exception:
                         db.session.rollback()
                 db.session.commit()
+        # In production, verify essential tables exist. If they don't, fail fast
+        # with an explicit message so the platform (Render) shows a clear error
+        # and operators can run the one-off migration job.
+        if os.environ.get('FLASK_ENV') == 'production' and os.environ.get('AUTO_MIGRATE', '').lower() not in ('1', 'true', 'yes'):
+            try:
+                from sqlalchemy import inspect
+                inspector = inspect(db.engine)
+                required_tables = ['user', 'tutor', 'student', 'course']
+                missing = [t for t in required_tables if not inspector.has_table(t)]
+                if missing:
+                    msg = (f"ERROR: Database appears uninitialized in production. Missing tables: {missing}.\n"
+                           "Run migrations with: python scripts/run_migrations.py --apply or set AUTO_MIGRATE=true temporarily.")
+                    print(msg, file=sys.stderr)
+                    sys.exit(1)
+            except Exception as e:
+                print('Failed to inspect database tables:', e, file=sys.stderr)
+                sys.exit(1)
+
         from app.audit import register_audit_events
         register_audit_events()
         from app.services.account_service import ensure_default_accounts
