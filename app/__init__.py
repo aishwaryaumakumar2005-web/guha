@@ -422,6 +422,10 @@ def create_app(config_object=None):
 
     @app.errorhandler(500)
     def server_error(e):
+        # When debugging locally, print the traceback to stderr to aid diagnosis.
+        if app.debug:
+            import traceback, sys
+            traceback.print_exc()
         return render_template('errors/500.html'), 500
 
     # Auto-seed all sample data on first deploy (fresh database)

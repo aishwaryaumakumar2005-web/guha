@@ -32,30 +32,38 @@ def login():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard.dashboard'))
     if request.method == 'POST':
-        form = LoginForm(request.form)
-        if not form.validate():
-            for msg in form.error_messages:
-                flash(msg, 'danger')
-            return render_template('login.html')
-        username = form.data.get('username', '').strip()
-        password = form.data.get('password', '')
-        user = User.query.filter_by(username=username).first()
-        if user and check_password_hash(user.password_hash, password):
-            try:
-                _ensure_tutor(user)
-                db.session.commit()
-            except Exception as e:
-                current_app.logger.exception('Failed to ensure tutor record during login')
+        try:
+            form = LoginForm(request.form)
+            if not form.validate():
+                for msg in form.error_messages:
+                    flash(msg, 'danger')
+                return render_template('login.html')
+            username = form.data.get('username', '').strip()
+            password = form.data.get('password', '')
+            current_app.logger.debug(f'Login attempt for username={username}')
+            user = User.query.filter_by(username=username).first()
+            if user and check_password_hash(user.password_hash, password):
                 try:
-                    db.session.rollback()
-                except Exception:
-                    pass
-            login_user(user)
-            flash(f"Welcome back, {user.name}!", "success")
-            next_page = request.args.get('next')
-            return redirect(next_page or url_for('dashboard.dashboard'))
-        else:
-            flash("Invalid username or password.", "danger")
+                    _ensure_tutor(user)
+                    db.session.commit()
+                except Exception as e:
+                    current_app.logger.exception('Failed to ensure tutor record during login')
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
+                login_user(user)
+                flash(f"Welcome back, {user.name}!", "success")
+                next_page = request.args.get('next')
+                return redirect(next_page or url_for('dashboard.dashboard'))
+            else:
+                flash("Invalid username or password.", "danger")
+        except Exception as e:
+            # Ensure we print full traceback to console for debugging local 500s
+            import traceback
+            traceback.print_exc()
+            current_app.logger.exception('Unhandled exception during login POST')
+            raise
     return render_template('login.html')
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
