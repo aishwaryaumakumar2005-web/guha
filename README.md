@@ -202,3 +202,17 @@ export FLASK_ENV=production
 export USE_PGBOUNCER=true
 python run.py
 ```
+
+---
+
+## Manual Migrations
+
+- Automatic schema and data migrations are disabled by default for non-local deployments. To run migrations manually (recommended for production), set the environment variable `AUTO_MIGRATE=true` or use the provided migration CLI.
+
+- To run migrations using the CLI (one-off, explicit):
+
+```bash
+python scripts/run_migrations.py --apply
+```
+
+Use `--dry-run` (default) to preview actions without applying changes; pass `--apply` to execute. You can skip confirmation with `-y`.

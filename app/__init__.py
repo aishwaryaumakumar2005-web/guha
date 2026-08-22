@@ -234,145 +234,148 @@ def create_app(config_object=None):
                 cursor.execute('PRAGMA temp_store=MEMORY')
                 cursor.close()
     with app.app_context():
-        db.create_all()
-        try:
-            from app.services.db_migration import migrate_renames
-            migrate_renames()
-            print("Migration migrate_renames completed OK", flush=True)
-        except Exception as e:
-            print("Migration migrate_renames FAILED:", e, flush=True)
-            db.session.rollback()
-        try:
-            from app.services.db_migration import migrate_company_names
-            migrate_company_names()
-            print("Migration migrate_company_names completed OK", flush=True)
-        except Exception as e:
-            print("Migration migrate_company_names FAILED:", e, flush=True)
-            db.session.rollback()
-        try:
-            from app.services.db_migration import migrate_photos_to_db
-            n = migrate_photos_to_db()
-            print(f"Migration migrate_photos_to_db completed OK ({n} photos)", flush=True)
-        except Exception as e:
-            print("Migration migrate_photos_to_db FAILED:", e, flush=True)
-            db.session.rollback()
-        try:
-            from app.services.db_migration import migrate_schema_additions
-            migrate_schema_additions()
-            print("Migration migrate_schema_additions completed OK", flush=True)
-        except Exception as e:
-            print("Migration migrate_schema_additions FAILED:", e, flush=True)
-            db.session.rollback()
-        try:
-            db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_date ON expense(expense_date)'))
-            db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_category ON expense(category_id)'))
-            db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_fee_date ON fee_record(payment_date)'))
-            db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_fee_student ON fee_record(student_id)'))
-            db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_attendance_person_date ON attendance(person_type, person_id, date)'))
-            db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date)'))
-            db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_enquiry_status ON enquiry(status)'))
-            db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_enquiry_course ON enquiry(course_id)'))
-            db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_leave_user_status ON leave_request(user_id, status)'))
-            db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_leave_status ON leave_request(status)'))
-            db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log(timestamp)'))
-            db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id)'))
+        # Run schema creation and migrations only for local sqlite or when explicitly enabled
+        auto_migrate = app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite') or os.environ.get('AUTO_MIGRATE', '').lower() in ('1', 'true', 'yes')
+        if auto_migrate:
+            db.create_all()
             try:
-                db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_fee_payment_method ON fee_record(payment_method)'))
-                db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_payment_method ON expense(payment_method)'))
-                db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_funding_method ON owner_funding(method)'))
-                db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_payroll_payment_method ON payroll_record(payment_method)'))
-                db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_fee_payment_method_low ON fee_record(lower(coalesce(payment_method, \'\')))'))
-                db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_payment_method_low ON expense(lower(coalesce(payment_method, \'\')))'))
-                db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_funding_method_low ON owner_funding(lower(coalesce(method, \'\')))'))
-            except Exception:
-                db.session.rollback()
-            # Add payment_method column to expense table if missing
-            try:
-                db.session.execute(db.text("ALTER TABLE expense ADD COLUMN payment_method VARCHAR(50) DEFAULT 'Cash'"))
-            except Exception:
+                from app.services.db_migration import migrate_renames
+                migrate_renames()
+                print("Migration migrate_renames completed OK", flush=True)
+            except Exception as e:
+                print("Migration migrate_renames FAILED:", e, flush=True)
                 db.session.rollback()
             try:
-                db.session.execute(db.text("ALTER TABLE payroll_record ADD COLUMN payment_method VARCHAR(50) DEFAULT 'Cash'"))
-            except Exception:
+                from app.services.db_migration import migrate_company_names
+                migrate_company_names()
+                print("Migration migrate_company_names completed OK", flush=True)
+            except Exception as e:
+                print("Migration migrate_company_names FAILED:", e, flush=True)
                 db.session.rollback()
             try:
-                db.session.execute(db.text("ALTER TABLE payroll_record ADD COLUMN commission_pct_used FLOAT DEFAULT 0"))
-            except Exception:
+                from app.services.db_migration import migrate_photos_to_db
+                n = migrate_photos_to_db()
+                print(f"Migration migrate_photos_to_db completed OK ({n} photos)", flush=True)
+            except Exception as e:
+                print("Migration migrate_photos_to_db FAILED:", e, flush=True)
                 db.session.rollback()
             try:
-                db.session.execute(db.text("ALTER TABLE student_courses ADD COLUMN status VARCHAR(20) DEFAULT 'Enrolled'"))
-            except Exception:
+                from app.services.db_migration import migrate_schema_additions
+                migrate_schema_additions()
+                print("Migration migrate_schema_additions completed OK", flush=True)
+            except Exception as e:
+                print("Migration migrate_schema_additions FAILED:", e, flush=True)
                 db.session.rollback()
             try:
-                db.session.execute(db.text("ALTER TABLE student_courses ADD COLUMN enrolled_on DATE"))
-            except Exception:
-                db.session.rollback()
-            try:
-                db.session.execute(db.text("ALTER TABLE student_courses ADD COLUMN completed_on DATE"))
-            except Exception:
-                db.session.rollback()
-            try:
-                db.session.execute(db.text("ALTER TABLE student_courses ADD COLUMN drop_reason VARCHAR(200)"))
-            except Exception:
-                db.session.rollback()
-            try:
-                db.session.execute(db.text("ALTER TABLE student ADD COLUMN photo VARCHAR(255)"))
-            except Exception:
-                db.session.rollback()
-            try:
-                db.session.execute(db.text("ALTER TABLE tutor ADD COLUMN photo VARCHAR(255)"))
-            except Exception:
-                db.session.rollback()
-            try:
-                db.session.execute(db.text("ALTER TABLE enquiry ADD COLUMN follow_up_date DATE"))
-            except Exception:
-                db.session.rollback()
-            try:
-                db.session.execute(db.text("CREATE INDEX IF NOT EXISTS idx_enquiry_followup ON enquiry(follow_up_date)"))
-            except Exception:
-                db.session.rollback()
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-        # Public IDs (STU/TUT) — add columns on legacy DBs and backfill existing rows
-        try:
-            from app.models import Student as _Student, Tutor as _Tutor
-            for _tbl, _col in [('student', 'roll_no'), ('tutor', 'emp_code')]:
+                db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_date ON expense(expense_date)'))
+                db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_category ON expense(category_id)'))
+                db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_fee_date ON fee_record(payment_date)'))
+                db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_fee_student ON fee_record(student_id)'))
+                db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_attendance_person_date ON attendance(person_type, person_id, date)'))
+                db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date)'))
+                db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_enquiry_status ON enquiry(status)'))
+                db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_enquiry_course ON enquiry(course_id)'))
+                db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_leave_user_status ON leave_request(user_id, status)'))
+                db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_leave_status ON leave_request(status)'))
+                db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log(timestamp)'))
+                db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id)'))
                 try:
-                    db.session.execute(db.text(f"ALTER TABLE {_tbl} ADD COLUMN {_col} VARCHAR(20)"))
-                    db.session.commit()
+                    db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_fee_payment_method ON fee_record(payment_method)'))
+                    db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_payment_method ON expense(payment_method)'))
+                    db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_funding_method ON owner_funding(method)'))
+                    db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_payroll_payment_method ON payroll_record(payment_method)'))
+                    db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_fee_payment_method_low ON fee_record(lower(coalesce(payment_method, \'\')))'))
+                    db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_payment_method_low ON expense(lower(coalesce(payment_method, \'\')))'))
+                    db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_funding_method_low ON owner_funding(lower(coalesce(method, \'\')))'))
                 except Exception:
                     db.session.rollback()
-            _n = 0
-            for _s in _Student.query.filter(_Student.roll_no.is_(None)).order_by(_Student.id).all():
-                _n += 1
-                _s.roll_no = f'STU{_n:04d}'
-            _n = 0
-            for _t in _Tutor.query.filter(_Tutor.emp_code.is_(None)).order_by(_Tutor.id).all():
-                _n += 1
-                _t.emp_code = f'TUT{_n:04d}'
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-        # Reset PostgreSQL sequences on every startup so inserted IDs never collide
-        if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
-            from sqlalchemy import text
-            from .models import (User, Course, Tutor, Student, ExpenseCategory,
-                                  Expense, FeeRecord, Enquiry, Attendance,
-                                  LeaveRequest, Exam, OwnerFunding)
-            for tbl, model_cls in [
-                ('user', User), ('course', Course), ('tutor', Tutor), ('student', Student),
-                ('expense_category', ExpenseCategory), ('expense', Expense),
-                ('fee_record', FeeRecord), ('enquiry', Enquiry), ('attendance', Attendance),
-                ('leave_request', LeaveRequest), ('exam', Exam),
-                ('owner_funding', OwnerFunding),
-            ]:
+                # Add payment_method column to expense table if missing
                 try:
-                    max_id = db.session.query(db.func.max(model_cls.id)).scalar() or 0
-                    db.session.execute(text(f"ALTER SEQUENCE {tbl}_id_seq RESTART WITH {max_id + 1}"))
+                    db.session.execute(db.text("ALTER TABLE expense ADD COLUMN payment_method VARCHAR(50) DEFAULT 'Cash'"))
                 except Exception:
                     db.session.rollback()
-            db.session.commit()
+                try:
+                    db.session.execute(db.text("ALTER TABLE payroll_record ADD COLUMN payment_method VARCHAR(50) DEFAULT 'Cash'"))
+                except Exception:
+                    db.session.rollback()
+                try:
+                    db.session.execute(db.text("ALTER TABLE payroll_record ADD COLUMN commission_pct_used FLOAT DEFAULT 0"))
+                except Exception:
+                    db.session.rollback()
+                try:
+                    db.session.execute(db.text("ALTER TABLE student_courses ADD COLUMN status VARCHAR(20) DEFAULT 'Enrolled'"))
+                except Exception:
+                    db.session.rollback()
+                try:
+                    db.session.execute(db.text("ALTER TABLE student_courses ADD COLUMN enrolled_on DATE"))
+                except Exception:
+                    db.session.rollback()
+                try:
+                    db.session.execute(db.text("ALTER TABLE student_courses ADD COLUMN completed_on DATE"))
+                except Exception:
+                    db.session.rollback()
+                try:
+                    db.session.execute(db.text("ALTER TABLE student_courses ADD COLUMN drop_reason VARCHAR(200)"))
+                except Exception:
+                    db.session.rollback()
+                try:
+                    db.session.execute(db.text("ALTER TABLE student ADD COLUMN photo VARCHAR(255)"))
+                except Exception:
+                    db.session.rollback()
+                try:
+                    db.session.execute(db.text("ALTER TABLE tutor ADD COLUMN photo VARCHAR(255)"))
+                except Exception:
+                    db.session.rollback()
+                try:
+                    db.session.execute(db.text("ALTER TABLE enquiry ADD COLUMN follow_up_date DATE"))
+                except Exception:
+                    db.session.rollback()
+                try:
+                    db.session.execute(db.text("CREATE INDEX IF NOT EXISTS idx_enquiry_followup ON enquiry(follow_up_date)"))
+                except Exception:
+                    db.session.rollback()
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+            # Public IDs (STU/TUT) — add columns on legacy DBs and backfill existing rows
+            try:
+                from app.models import Student as _Student, Tutor as _Tutor
+                for _tbl, _col in [('student', 'roll_no'), ('tutor', 'emp_code')]:
+                    try:
+                        db.session.execute(db.text(f"ALTER TABLE {_tbl} ADD COLUMN {_col} VARCHAR(20)"))
+                        db.session.commit()
+                    except Exception:
+                        db.session.rollback()
+                _n = 0
+                for _s in _Student.query.filter(_Student.roll_no.is_(None)).order_by(_Student.id).all():
+                    _n += 1
+                    _s.roll_no = f'STU{_n:04d}'
+                _n = 0
+                for _t in _Tutor.query.filter(_Tutor.emp_code.is_(None)).order_by(_Tutor.id).all():
+                    _n += 1
+                    _t.emp_code = f'TUT{_n:04d}'
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+            # Reset PostgreSQL sequences on every startup so inserted IDs never collide
+            if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+                from sqlalchemy import text
+                from .models import (User, Course, Tutor, Student, ExpenseCategory,
+                                      Expense, FeeRecord, Enquiry, Attendance,
+                                      LeaveRequest, Exam, OwnerFunding)
+                for tbl, model_cls in [
+                    ('user', User), ('course', Course), ('tutor', Tutor), ('student', Student),
+                    ('expense_category', ExpenseCategory), ('expense', Expense),
+                    ('fee_record', FeeRecord), ('enquiry', Enquiry), ('attendance', Attendance),
+                    ('leave_request', LeaveRequest), ('exam', Exam),
+                    ('owner_funding', OwnerFunding),
+                ]:
+                    try:
+                        max_id = db.session.query(db.func.max(model_cls.id)).scalar() or 0
+                        db.session.execute(text(f"ALTER SEQUENCE {tbl}_id_seq RESTART WITH {max_id + 1}"))
+                    except Exception:
+                        db.session.rollback()
+                db.session.commit()
         from app.audit import register_audit_events
         register_audit_events()
         from app.services.account_service import ensure_default_accounts
