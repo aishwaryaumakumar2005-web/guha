@@ -13,5 +13,5 @@ services:
       - key: CRON_SECRET
         generateValue: true
       - key: DATABASE_URL
-        value: "postgresql://neondb_owner:npg_sgFQaW98fwyk@ep-red-butterfly-az9m7dmb-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
+        value: "postgresql://neondb_owner:npg_c94HAgfGUJTq@ep-shiny-rice-azhpl5ih-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
 
