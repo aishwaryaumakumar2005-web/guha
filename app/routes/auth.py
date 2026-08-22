@@ -4,6 +4,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from app.extensions import db
 from app.models import User, Tutor
 from app.forms import LoginForm, RegistrationForm, ForgotPasswordForm
+from flask import current_app
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -40,8 +41,15 @@ def login():
         password = form.data.get('password', '')
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password_hash, password):
-            _ensure_tutor(user)
-            db.session.commit()
+            try:
+                _ensure_tutor(user)
+                db.session.commit()
+            except Exception as e:
+                current_app.logger.exception('Failed to ensure tutor record during login')
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
             login_user(user)
             flash(f"Welcome back, {user.name}!", "success")
             next_page = request.args.get('next')
