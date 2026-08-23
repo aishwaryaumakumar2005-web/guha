@@ -363,12 +363,13 @@ def create_app(config_object=None):
                 from .models import (User, Course, Tutor, Student, ExpenseCategory,
                                       Expense, FeeRecord, Enquiry, Attendance,
                                       LeaveRequest, Exam, OwnerFunding)
+                from .models import AuditLog
                 for tbl, model_cls in [
                     ('user', User), ('course', Course), ('tutor', Tutor), ('student', Student),
                     ('expense_category', ExpenseCategory), ('expense', Expense),
                     ('fee_record', FeeRecord), ('enquiry', Enquiry), ('attendance', Attendance),
                     ('leave_request', LeaveRequest), ('exam', Exam),
-                    ('owner_funding', OwnerFunding),
+                    ('owner_funding', OwnerFunding), ('audit_log', AuditLog),
                 ]:
                     try:
                         max_id = db.session.query(db.func.max(model_cls.id)).scalar() or 0
