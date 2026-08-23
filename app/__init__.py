@@ -377,6 +377,24 @@ def create_app(config_object=None):
                     except Exception:
                         db.session.rollback()
                 db.session.commit()
+        # Keep the audit sequence aligned even when production auto-migrations are disabled.
+        # This repairs databases restored from backups whose PostgreSQL sequences lag IDs.
+        if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+            try:
+                from sqlalchemy import inspect
+                if inspect(db.engine).has_table('audit_log'):
+                    db.session.execute(db.text("""
+                        SELECT setval(
+                            pg_get_serial_sequence('audit_log', 'id'),
+                            COALESCE((SELECT MAX(id) FROM audit_log), 0) + 1,
+                            false
+                        )
+                    """))
+                    db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                print('Failed to repair audit_log sequence:', e, file=sys.stderr)
+
         # In production, verify essential tables exist. If they don't, fail fast
         # with an explicit message so the platform (Render) shows a clear error
         # and operators can run the one-off migration job.
