@@ -383,7 +383,7 @@ def create_app(config_object=None):
             try:
                 from sqlalchemy import inspect
                 inspector = inspect(db.engine)
-                required_tables = ['user', 'tutor', 'student', 'course']
+                required_tables = ['user', 'tutor', 'student', 'course', 'leave_request']
                 missing = [t for t in required_tables if not inspector.has_table(t)]
                 if missing:
                     msg = (f"ERROR: Database appears uninitialized in production. Missing tables: {missing}.\n"
