@@ -1,7 +1,9 @@
+from datetime import date
+
 from app.extensions import db
 from app.models import (
     Student, Course, FeeRecord, Expense, ExpenseCategory, Enquiry,
-    Attendance, PayrollRecord, Task, Tutor, User, student_courses, tutor_courses,
+    Attendance, Exam, PayrollRecord, Task, Tutor, User, student_courses, tutor_courses,
 )
 
 
@@ -35,6 +37,10 @@ def test_delete_course_with_dependencies(admin_client, app):
             student_name='Prospective Student', email='prospective@guha.test',
             phone='9000000000', course_id=course.id,
         ))
+        db.session.add(Exam(
+            course_id=course.id, title='Python Test', exam_date=date.today(),
+            max_marks=100, passing_marks=40,
+        ))
         db.session.commit()
         course_id = course.id
 
@@ -44,6 +50,7 @@ def test_delete_course_with_dependencies(admin_client, app):
     with app.app_context():
         assert Course.query.get(course_id) is None
         assert Enquiry.query.filter_by(course_id=course_id).first() is None
+        assert Exam.query.filter_by(course_id=course_id).first() is None
         assert db.session.execute(
             student_courses.select().where(student_courses.c.course_id == course_id)
         ).first() is None
