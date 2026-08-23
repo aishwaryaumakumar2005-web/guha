@@ -1,7 +1,11 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import Course, Enquiry, Exam, student_courses, SystemSetting, Tutor, tutor_courses, Company
+from app.models import (
+    Course, Enquiry, Exam, ExamAssignment, ExamScore, McqAnswer,
+    McqAttempt, McqQuestion, student_courses, SystemSetting, Tutor,
+    tutor_courses, Company,
+)
 from app.helpers import admin_required, is_ajax_request
 from app.forms import CourseForm
 
@@ -139,8 +143,25 @@ def delete(id):
         db.session.execute(student_courses.delete().where(student_courses.c.course_id == course.id))
         db.session.execute(tutor_courses.delete().where(tutor_courses.c.course_id == course.id))
         Enquiry.query.filter_by(course_id=course.id).delete(synchronize_session=False)
-        for exam in Exam.query.filter_by(course_id=course.id).all():
-            db.session.delete(exam)
+        exam_ids = [exam.id for exam in Exam.query.filter_by(course_id=course.id).all()]
+        if exam_ids:
+            # Clear exam descendants first for compatibility with older schemas
+            # whose exam foreign keys may not have ON DELETE CASCADE.
+            McqAnswer.query.filter(
+                McqAnswer.mcq_attempt_id.in_(
+                    db.session.query(McqAttempt.id).filter(McqAttempt.exam_id.in_(exam_ids))
+                )
+            ).delete(synchronize_session=False)
+            McqAnswer.query.filter(
+                McqAnswer.mcq_question_id.in_(
+                    db.session.query(McqQuestion.id).filter(McqQuestion.exam_id.in_(exam_ids))
+                )
+            ).delete(synchronize_session=False)
+            ExamAssignment.query.filter(ExamAssignment.exam_id.in_(exam_ids)).delete(synchronize_session=False)
+            ExamScore.query.filter(ExamScore.exam_id.in_(exam_ids)).delete(synchronize_session=False)
+            McqQuestion.query.filter(McqQuestion.exam_id.in_(exam_ids)).delete(synchronize_session=False)
+            McqAttempt.query.filter(McqAttempt.exam_id.in_(exam_ids)).delete(synchronize_session=False)
+            Exam.query.filter(Exam.id.in_(exam_ids)).delete(synchronize_session=False)
         db.session.delete(course)
         db.session.commit()
     except Exception:
