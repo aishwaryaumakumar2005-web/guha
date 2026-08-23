@@ -1,7 +1,7 @@
 from app.extensions import db
 from app.models import (
     Student, Course, FeeRecord, Expense, ExpenseCategory, Enquiry,
-    Attendance, PayrollRecord, Task, Tutor, User,
+    Attendance, PayrollRecord, Task, Tutor, User, student_courses, tutor_courses,
 )
 
 
@@ -26,6 +26,30 @@ def test_create_duplicate_course_blocked(admin_client, app):
     assert resp.status_code == 302
     with app.app_context():
         assert Course.query.filter_by(code='PY').count() == 1
+
+
+def test_delete_course_with_dependencies(admin_client, app):
+    with app.app_context():
+        course = Course.query.filter_by(code='PY').first()
+        db.session.add(Enquiry(
+            student_name='Prospective Student', email='prospective@guha.test',
+            phone='9000000000', course_id=course.id,
+        ))
+        db.session.commit()
+        course_id = course.id
+
+    resp = admin_client.get(f'/courses/delete/{course_id}')
+
+    assert resp.status_code == 302
+    with app.app_context():
+        assert Course.query.get(course_id) is None
+        assert Enquiry.query.filter_by(course_id=course_id).first() is None
+        assert db.session.execute(
+            student_courses.select().where(student_courses.c.course_id == course_id)
+        ).first() is None
+        assert db.session.execute(
+            tutor_courses.select().where(tutor_courses.c.course_id == course_id)
+        ).first() is None
 
 
 def test_edit_course(admin_client, app):

@@ -1,7 +1,7 @@
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import Course, student_courses, SystemSetting, Tutor, tutor_courses, Company
+from app.models import Course, Enquiry, student_courses, SystemSetting, Tutor, tutor_courses, Company
 from app.helpers import admin_required, is_ajax_request
 from app.forms import CourseForm
 
@@ -133,8 +133,22 @@ def edit(id):
 @admin_required
 def delete(id):
     course = Course.query.get_or_404(id)
-    db.session.delete(course)
-    db.session.commit()
+    try:
+        # Remove association rows explicitly for compatibility with older Render schemas
+        # whose foreign keys may not have been created with ON DELETE CASCADE.
+        db.session.execute(student_courses.delete().where(student_courses.c.course_id == course.id))
+        db.session.execute(tutor_courses.delete().where(tutor_courses.c.course_id == course.id))
+        Enquiry.query.filter_by(course_id=course.id).delete(synchronize_session=False)
+        db.session.delete(course)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('Failed to delete course id=%s', course.id)
+        message = 'Course could not be deleted. Please try again or contact an administrator.'
+        if is_ajax_request():
+            return jsonify({"success": False, "message": message}), 500
+        flash(message, 'danger')
+        return redirect(url_for('courses.list'))
     message = "Course deleted successfully!"
     if is_ajax_request():
         return jsonify({"success": True, "message": message}), 200
