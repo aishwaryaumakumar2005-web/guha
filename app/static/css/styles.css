@@ -309,7 +309,7 @@ body.dark-mode ::-webkit-scrollbar-thumb { background: #3A3A5C; }
 
 /* Brand logo image */
 .brand-logo-img {
-    filter: brightness(2.0) contrast(1.4) saturate(1.4);
+    filter: brightness(2.0) contrast(1.1) saturate(1.4);
     opacity: 1;
 }
 
