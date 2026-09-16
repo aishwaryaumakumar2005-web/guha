@@ -32,7 +32,6 @@ Income, fees, expense and overall financial reports.</p>
                 <label class="form-label small text-secondary mb-1">Period</label>
                 <select name="filter_mode" class="form-select form-select-sm" onchange="toggleDateRange(this.value)">
                     <option value="monthly" {% if filter_mode == 'monthly' %}selected{% endif %}>Monthly</option>
-                    <option value="quarterly" {% if filter_mode == 'quarterly' %}selected{% endif %}>Quarterly</option>
                     <option value="yearly" {% if filter_mode == 'yearly' %}selected{% endif %}>Yearly</option>
                     <option value="custom" {% if filter_mode == 'custom' %}selected{% endif %}>Custom Range</option>
                 </select>
