@@ -5,7 +5,6 @@ from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import FeeRecord, Expense, ExpenseCategory, Course, Student, student_courses, Attendance, Tutor, OwnerFunding, Company, Account
 from app.helpers import admin_required
-from app.services.account_service import compute_account_summary
 from app.services.payment_methods import PAYMENT_METHODS, classify_method, METHOD_TYPE, METHOD_COLORS, ACCOUNT_TYPE_ICONS, method_icon
 from sqlalchemy.orm import joinedload
 
@@ -40,67 +39,8 @@ def filter_by_company_methods(query, model_attr, company_id):
     return query.filter(db.func.coalesce(model_attr, '').in_(matched))
 
 
-@reports_bp.route('/reports')
-@login_required
-def reports():
-    # Staff: show simplified reports for their courses
-    if current_user.role == 'Staff':
-        tutor = Tutor.query.filter_by(email=current_user.email).first()
-        if not tutor:
-            return render_template('reports.html', tab='staff', today=date.today(), is_staff=True,
-                staff_data={'students': [], 'courses': [], 'attendance_rate': 0, 'total_collected': 0, 'recent_fees': []})
-        
-        course_ids = [c.id for c in tutor.courses]
-        student_subquery = db.session.query(student_courses.c.student_id).filter(
-            student_courses.c.course_id.in_(course_ids)
-        ).distinct()
-        students = Student.query.filter(Student.id.in_(student_subquery)).all()
-        
-        # Get attendance data for staff's students
-        today = date.today()
-        thirty_days_ago = today - timedelta(days=30)
-        attendance_records = Attendance.query.filter(
-            Attendance.person_type == 'student',
-            Attendance.person_id.in_([s.id for s in students]),
-            Attendance.date >= thirty_days_ago
-        ).all()
-        
-        # Calculate attendance rates
-        total_records = len(attendance_records)
-        present_records = sum(1 for r in attendance_records if r.status == 'Present')
-        attendance_rate = (present_records / total_records * 100) if total_records > 0 else 0
-        
-        # Get fee data for staff's students
-        fee_records = FeeRecord.query.filter(
-            FeeRecord.student_id.in_([s.id for s in students])
-        ).order_by(FeeRecord.payment_date.desc()).limit(50).all()
-        
-        total_collected = sum(r.amount_paid for r in fee_records)
-        
-        return render_template('reports.html', 
-            tab='staff', 
-            today=today,
-            is_staff=True,
-            staff_data={
-                'students': students,
-                'courses': tutor.courses,
-                'attendance_rate': round(attendance_rate, 1),
-                'total_collected': total_collected,
-                'recent_fees': fee_records[:20]
-            })
-
-    today = date.today()
-    tab = request.args.get('tab', 'income')
-    filter_mode = request.args.get('filter_mode', 'monthly')
-    filter_month = request.args.get('month', type=int) or today.month
-    filter_year = request.args.get('year', type=int) or today.year
-    start_date_str = request.args.get('start_date')
-    end_date_str = request.args.get('end_date')
-    quick = request.args.get('quick', '').strip().lower()
-    selected_company_id = request.args.get('company_id', type=int)
-
-    companies = Company.query.filter_by(is_active=True).all()
-
+def resolve_date_range(today, filter_mode, filter_month, filter_year, start_date_str, end_date_str, quick=''):
+    """Resolve the active period (quick chip / custom / yearly / monthly) into concrete start & end dates."""
     def _quick_range(key):
         if key == 'today':
             return today, today
@@ -148,6 +88,74 @@ def reports():
                 end_date = date(filter_year + 1, 1, 1) - timedelta(days=1)
             else:
                 end_date = date(filter_year, filter_month + 1, 1) - timedelta(days=1)
+    return start_date, end_date, filter_mode, start_date_str, end_date_str
+
+
+@reports_bp.route('/reports')
+@login_required
+def reports():
+    # Staff: show simplified reports for their courses
+    if current_user.role == 'Staff':
+        tutor = Tutor.query.filter_by(email=current_user.email).first()
+        if not tutor:
+            return render_template('reports.html', tab='staff', today=date.today(), is_staff=True,
+                staff_data={'students': [], 'courses': [], 'attendance_rate': 0, 'total_collected': 0, 'recent_fees': []})
+        
+        course_ids = [c.id for c in tutor.courses]
+        student_subquery = db.session.query(student_courses.c.student_id).filter(
+            student_courses.c.course_id.in_(course_ids)
+        ).distinct()
+        students = Student.query.filter(Student.id.in_(student_subquery)).all()
+        
+        # Get attendance data for staff's students
+        today = date.today()
+        thirty_days_ago = today - timedelta(days=30)
+        attendance_records = Attendance.query.filter(
+            Attendance.person_type == 'student',
+            Attendance.person_id.in_([s.id for s in students]),
+            Attendance.date >= thirty_days_ago
+        ).all()
+        
+        # Calculate attendance rates
+        total_records = len(attendance_records)
+        present_records = sum(1 for r in attendance_records if r.status == 'Present')
+        attendance_rate = (present_records / total_records * 100) if total_records > 0 else 0
+        
+        # Get fee data for staff's students
+        fee_records = FeeRecord.query.filter(
+            FeeRecord.student_id.in_([s.id for s in students])
+        ).order_by(FeeRecord.payment_date.desc()).limit(50).all()
+
+        total_collected = db.session.query(db.func.sum(FeeRecord.amount_paid)).filter(
+            FeeRecord.student_id.in_([s.id for s in students])
+        ).scalar() or 0.0
+        
+        return render_template('reports.html', 
+            tab='staff', 
+            today=today,
+            is_staff=True,
+            staff_data={
+                'students': students,
+                'courses': tutor.courses,
+                'attendance_rate': round(attendance_rate, 1),
+                'total_collected': total_collected,
+                'recent_fees': fee_records[:20]
+            })
+
+    today = date.today()
+    tab = request.args.get('tab', 'income')
+    filter_mode = request.args.get('filter_mode', 'monthly')
+    filter_month = request.args.get('month', type=int) or today.month
+    filter_year = request.args.get('year', type=int) or today.year
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+    quick = request.args.get('quick', '').strip().lower()
+    selected_company_id = request.args.get('company_id', type=int)
+
+    companies = Company.query.filter_by(is_active=True).all()
+
+    start_date, end_date, filter_mode, start_date_str, end_date_str = resolve_date_range(
+        today, filter_mode, filter_month, filter_year, start_date_str, end_date_str, quick)
 
     months_names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
     
@@ -265,32 +273,6 @@ def reports():
         for k, v in account_map.items() if k not in account_order
     ]
 
-    summary_query = db.session.query(
-        Expense.category_id, db.func.count(Expense.id).label('cnt'), db.func.sum(Expense.amount).label('total')
-    ).filter(
-        Expense.expense_date >= start_date, Expense.expense_date <= end_date
-    )
-    summary_query = filter_by_company_methods(summary_query, Expense.payment_method, selected_company_id)
-    summary_rows = summary_query.group_by(Expense.category_id).all()
-    summary_map = {r.category_id: {'total': float(r.total), 'count': r.cnt} for r in summary_rows}
-    expense_summary = []
-    for cat in expense_categories:
-        s = summary_map.get(cat.id, {'total': 0.0, 'count': 0})
-        expense_summary.append({"name": cat.name, "total": s['total'], "count": s['count']})
-    
-    recent_expenses_query = Expense.query.filter(
-        Expense.expense_date >= start_date, Expense.expense_date <= end_date
-    )
-    recent_expenses_query = filter_by_company_methods(recent_expenses_query, Expense.payment_method, selected_company_id)
-    recent_expenses_q = recent_expenses_query.order_by(Expense.expense_date.desc()).limit(20).all()
-    recent_expenses = []
-    exp_chart_labels = []
-    exp_chart_amounts = []
-    for e in reversed(recent_expenses_q):
-        recent_expenses.append(e)
-        exp_chart_labels.append(e.expense_date.strftime('%d %b'))
-        exp_chart_amounts.append(e.amount)
-
     tot_inc_query = db.session.query(db.func.sum(FeeRecord.amount_paid)).filter(
         FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date
     )
@@ -361,30 +343,13 @@ def reports():
             'gst': cdata['gst'],
         })
 
-    cumulative_income = []
-    running = 0.0
-    for v in income_monthly:
-        running += v
-        cumulative_income.append(round(running, 2))
-
     pm_query = db.session.query(FeeRecord.payment_method, db.func.sum(FeeRecord.amount_paid))
     if selected_company_id:
         pm_query = pm_query.filter(FeeRecord.company_id == selected_company_id)
     payment_methods = pm_query.group_by(FeeRecord.payment_method).all()
     payment_labels = [p[0] for p in payment_methods]
     payment_data = [float(p[1]) for p in payment_methods]
-
-    thirty_days_ago = today - timedelta(days=30)
-    dt_query = db.session.query(
-        FeeRecord.payment_date, db.func.sum(FeeRecord.amount_paid)
-    ).filter(FeeRecord.payment_date >= thirty_days_ago)
-    if selected_company_id:
-        dt_query = dt_query.filter(FeeRecord.company_id == selected_company_id)
-    daily_totals = dt_query.group_by(FeeRecord.payment_date).order_by(FeeRecord.payment_date).all()
-    daily_labels = [d[0].strftime('%d %b') for d in daily_totals]
-    daily_amounts = [float(d[1]) for d in daily_totals]
-
-    net_trend = [p['net'] for p in pl_monthly]
+    payment_colors = [METHOD_COLORS.get(classify_method(p[0]), '#FFC107') for p in payment_methods]
 
     period_fee_q = FeeRecord.query.filter(
         FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date
@@ -417,18 +382,16 @@ def reports():
         start_date_str=start_date_str or start_date.strftime('%Y-%m-%d'),
         end_date_str=end_date_str or end_date.strftime('%Y-%m-%d'),
         active_quick=quick, companies=companies, selected_company_id=selected_company_id,
-        total_income=float(total_income), income_monthly=income_monthly, cumulative_income=cumulative_income,
+        total_income=float(total_income), income_monthly=income_monthly,
         fees_monthly=fees_monthly, course_wise_income=course_wise_income, daily_collections=daily_collections,
-        payment_labels=payment_labels, payment_data=payment_data, daily_labels=daily_labels, daily_amounts=daily_amounts,
-        monthly_expense=monthly_expense, category_wise_expense=category_wise_expense, expense_summary=expense_summary,
+        payment_labels=payment_labels, payment_data=payment_data, payment_colors=payment_colors,
+        monthly_expense=monthly_expense, category_wise_expense=category_wise_expense,
         expense_by_type=expense_by_type, expense_by_account=expense_by_account,
-        recent_expenses=recent_expenses, exp_chart_labels=exp_chart_labels, exp_chart_amounts=exp_chart_amounts,
         total_income_filtered=float(total_income_filtered), total_expense_filtered=float(total_expense_filtered),
         total_gst_filtered=float(total_gst_filtered), total_taxable_filtered=float(total_taxable_filtered),
         total_funding_filtered=float(total_funding_filtered), funding_monthly=funding_monthly,
-        net_balance=net_balance, pl_monthly=pl_monthly, company_pl=company_pl, net_trend=net_trend,
-        payment_methods_report=payment_methods_report, total_collected_period=float(total_collected_period),
-        account_balances=(compute_account_summary() if current_user.role == 'Admin' else []))
+        net_balance=net_balance, pl_monthly=pl_monthly, company_pl=company_pl,
+        payment_methods_report=payment_methods_report, total_collected_period=float(total_collected_period))
 
 @reports_bp.route('/reports/pdf')
 @login_required
@@ -446,19 +409,9 @@ def report_pdf():
 
     company_obj = Company.query.get(selected_company_id) if selected_company_id else None
 
-    if filter_mode == 'custom' and start_date_str and end_date_str:
-        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-    else:
-        if filter_mode == 'quarterly':
-            q = (filter_month - 1) // 3 + 1
-            q_start = (q - 1) * 3 + 1
-            start_date = date(filter_year, q_start, 1)
-            end_date = date(filter_year + 1, 1, 1) - timedelta(days=1) if q == 4 else date(filter_year, q_start + 3, 1) - timedelta(days=1)
-        else:
-            start_date = date(filter_year, filter_month, 1)
-            end_date = date(filter_year + 1, 1, 1) - timedelta(days=1) if filter_month == 12 else date(filter_year, filter_month + 1, 1) - timedelta(days=1)
-    
+    start_date, end_date, filter_mode, start_date_str, end_date_str = resolve_date_range(
+        today, filter_mode, filter_month, filter_year, start_date_str, end_date_str)
+
     period_label = f"{start_date.strftime('%d %b %Y')} - {end_date.strftime('%d %b %Y')}"
     company_label = f"  |  Company: {company_obj.name}" if company_obj else "  |  Company: All"
 
@@ -778,19 +731,9 @@ def report_excel():
     end_date_str = request.args.get('end_date')
     selected_company_id = request.args.get('company_id', type=int)
 
-    if filter_mode == 'custom' and start_date_str and end_date_str:
-        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-    else:
-        if filter_mode == 'quarterly':
-            q = (filter_month - 1) // 3 + 1
-            q_start = (q - 1) * 3 + 1
-            start_date = date(filter_year, q_start, 1)
-            end_date = date(filter_year + 1, 1, 1) - timedelta(days=1) if q == 4 else date(filter_year, q_start + 3, 1) - timedelta(days=1)
-        else:
-            start_date = date(filter_year, filter_month, 1)
-            end_date = date(filter_year + 1, 1, 1) - timedelta(days=1) if filter_month == 12 else date(filter_year, filter_month + 1, 1) - timedelta(days=1)
-    
+    start_date, end_date, filter_mode, start_date_str, end_date_str = resolve_date_range(
+        today, filter_mode, filter_month, filter_year, start_date_str, end_date_str)
+
     wb = Workbook()
     header_font = Font(bold=True, color='FFFFFF', size=11)
     header_fill = PatternFill(start_color='2F4858', end_color='2F4858', fill_type='solid')
