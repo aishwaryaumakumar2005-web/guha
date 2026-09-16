@@ -130,6 +130,9 @@ def reports():
     elif filter_mode == 'custom' and start_date_str and end_date_str:
         start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
         end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+    elif filter_mode == 'yearly':
+        start_date = date(filter_year, 1, 1)
+        end_date = date(filter_year, 12, 31)
     else:
         if filter_mode == 'quarterly':
             q = (filter_month - 1) // 3 + 1
@@ -265,8 +268,7 @@ def reports():
     summary_query = db.session.query(
         Expense.category_id, db.func.count(Expense.id).label('cnt'), db.func.sum(Expense.amount).label('total')
     ).filter(
-        db.extract('month', Expense.expense_date) == filter_month,
-        db.extract('year', Expense.expense_date) == filter_year
+        Expense.expense_date >= start_date, Expense.expense_date <= end_date
     )
     summary_query = filter_by_company_methods(summary_query, Expense.payment_method, selected_company_id)
     summary_rows = summary_query.group_by(Expense.category_id).all()
