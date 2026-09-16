@@ -349,6 +349,8 @@ def reports():
     comp_inc_map = {r.company_id: {'inc': float(r.inc or 0), 'tax': float(r.tax or 0), 'gst': float(r.gst or 0)} for r in comp_inc_rows}
 
     for c in companies:
+        if selected_company_id and c.id != selected_company_id:
+            continue
         cdata = comp_inc_map.get(c.id, {'inc': 0.0, 'tax': 0.0, 'gst': 0.0})
         company_pl.append({
             'company': c,
