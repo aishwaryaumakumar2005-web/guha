@@ -17,7 +17,7 @@ Income, fees, expense and overall financial reports.</p>
             <a href="{{ url_for('reports.reports', tab=tab, quick=key, company_id=selected_company_id) }}" hx-boost="false" class="btn btn-sm {% if active_quick == key %}btn-premium{% else %}btn-outline-premium{% endif %}" style="border-radius:999px;padding:2px 14px;font-size:0.78rem;">{{ label }}</a>
             {% endfor %}
         </div>
-        <form method="GET" action="{{ url_for('reports.reports') }}" hx-boost="false" class="row g-2 align-items-end" id="reportsFilterForm">
+        <form method="GET" action="{{ url_for('reports.reports') }}" hx-boost="false" class="row g-2 align-items-end" id="reportsFilterForm" novalidate>
             <input type="hidden" name="tab" value="{{ tab }}">
             <div class="col-auto">
                 <label class="form-label small text-secondary mb-1">Company</label>
