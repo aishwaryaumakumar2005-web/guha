@@ -392,6 +392,12 @@ def reports():
         tot_col_query = tot_col_query.filter(FeeRecord.company_id == selected_company_id)
     total_collected_period = tot_col_query.scalar() or 0.0
 
+    no_income_data = sum(tax_monthly) + sum(gst_monthly) <= 0
+    no_fees_data = sum(m['total'] for m in fees_monthly) <= 0
+    no_expense_data = sum(m['total'] for m in monthly_expense) <= 0
+    no_overall_data = not pl_monthly or all(not (getattr(p, 'income', 0) or getattr(p, 'funding', 0) or getattr(p, 'expense', 0)) for p in pl_monthly)
+    no_payment_data = not payment_methods_report or sum(d['total'] for d in payment_methods_report.values()) <= 0
+
     return render_template('reports.html', tab=tab, today=today, filter_mode=filter_mode,
         filter_month=filter_month, filter_year=filter_year,
         start_date_str=start_date_str or start_date.strftime('%Y-%m-%d'),
@@ -407,7 +413,9 @@ def reports():
         total_gst_filtered=float(total_gst_filtered), total_taxable_filtered=float(total_taxable_filtered),
         total_funding_filtered=float(total_funding_filtered), funding_monthly=funding_monthly,
         net_balance=net_balance, pl_monthly=pl_monthly, company_pl=company_pl,
-        payment_methods_report=payment_methods_report, total_collected_period=float(total_collected_period))
+        payment_methods_report=payment_methods_report, total_collected_period=float(total_collected_period),
+        no_income_data=no_income_data, no_fees_data=no_fees_data, no_expense_data=no_expense_data,
+        no_overall_data=no_overall_data, no_payment_data=no_payment_data)
 
 @reports_bp.route('/reports/pdf')
 @login_required
