@@ -417,10 +417,10 @@ def report_pdf():
 
     class ReportPDF(FPDF):
         def header(self):
-            self.set_font('Helvetica', 'B', 16)
+            self.set_font('DejaVu', 'B', 16)
             self.set_text_color(47, 72, 88)
             self.cell(0, 10, 'Guha Academy - Computer Institute', align='C', new_x="LMARGIN", new_y="NEXT")
-            self.set_font('Helvetica', '', 9)
+            self.set_font('DejaVu', '', 9)
             self.set_text_color(100, 100, 100)
             titles = {'income': 'Income Report', 'fees': 'Student Fees Report', 'expense': 'Expense Report', 'overall': 'Overall Report'}
             self.cell(0, 6, f'{titles.get(tab, "Report")}  |  Period: {period_label}{company_label}', align='C', new_x="LMARGIN", new_y="NEXT")
@@ -432,27 +432,27 @@ def report_pdf():
 
         def footer(self):
             self.set_y(-15)
-            self.set_font('Helvetica', 'I', 7)
+            self.set_font('DejaVu', 'I', 7)
             self.set_text_color(150, 150, 150)
             self.cell(0, 10, f'Generated: {today.strftime("%d %b %Y %I:%M %p")}  |  Page {self.page_no()}/{{nb}}', align='C')
 
         def section_title(self, title):
-            self.set_font('Helvetica', 'B', 12)
+            self.set_font('DejaVu', 'B', 12)
             self.set_text_color(47, 72, 88)
             self.cell(0, 8, title, new_x="LMARGIN", new_y="NEXT")
             self.ln(2)
 
         def kpi_box(self, label, value, color=(107, 142, 35)):
-            self.set_font('Helvetica', 'B', 12)
+            self.set_font('DejaVu', 'B', 12)
             self.set_text_color(*color)
             self.cell(60, 7, value, align='C')
-            self.set_font('Helvetica', '', 7)
+            self.set_font('DejaVu', '', 7)
             self.set_text_color(100, 100, 100)
             self.cell(0, 7, label, align='C', new_x="LMARGIN", new_y="NEXT")
             self.ln(1)
 
         def table_header(self, cols, widths):
-            self.set_font('Helvetica', 'B', 8)
+            self.set_font('DejaVu', 'B', 8)
             self.set_fill_color(47, 72, 88)
             self.set_text_color(255, 255, 255)
             for i, col in enumerate(cols):
@@ -460,7 +460,7 @@ def report_pdf():
             self.ln()
 
         def table_row(self, cols, widths, aligns=None):
-            self.set_font('Helvetica', '', 8)
+            self.set_font('DejaVu', '', 8)
             self.set_text_color(50, 50, 50)
             for i, col in enumerate(cols):
                 a = aligns[i] if aligns else 'C'
@@ -468,6 +468,10 @@ def report_pdf():
             self.ln()
 
     pdf = ReportPDF()
+    font_dir = current_app.root_path + '/static/fonts'
+    pdf.add_font('DejaVu', '', font_dir + '/DejaVuSans.ttf')
+    pdf.add_font('DejaVu', 'B', font_dir + '/DejaVuSans-Bold.ttf')
+    pdf.add_font('DejaVu', 'I', font_dir + '/DejaVuSans-Oblique.ttf')
     pdf.alias_nb_pages()
     pdf.set_auto_page_break(auto=True, margin=20)
     pdf.add_page()
@@ -495,13 +499,13 @@ def report_pdf():
         income_monthly = [income_map.get(m, 0.0) for m in range(1, 13)]
         
         pdf.section_title('Income Summary')
-        pdf.kpi_box('Total Income (All Time)', f'Rs. {total_income:,.2f}', (107, 142, 35))
-        pdf.kpi_box(f'Period Taxable Income', f'Rs. {tax_tot:,.2f}', (47, 72, 88))
-        pdf.kpi_box(f'Period GST Collected', f'Rs. {gst_tot:,.2f}', (70, 130, 180))
+        pdf.kpi_box('Total Income (All Time)', f'₹{total_income:,.2f}', (107, 142, 35))
+        pdf.kpi_box(f'Period Taxable Income', f'₹{tax_tot:,.2f}', (47, 72, 88))
+        pdf.kpi_box(f'Period GST Collected', f'₹{gst_tot:,.2f}', (70, 130, 180))
         pdf.ln(4)
         pdf.section_title(f'Monthly Income - {filter_year}')
         pdf.table_header(['Month', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], [20] + [14]*12)
-        pdf.table_row(['Income (Rs.)'] + [f'{v:,.0f}' for v in income_monthly], [20] + [14]*12, ['L'] + ['R']*12)
+        pdf.table_row(['Income (₹)'] + [f'{v:,.2f}' for v in income_monthly], [20] + [14]*12, ['L'] + ['R']*12)
 
     elif tab == 'fees':
         fees_q = db.session.query(
@@ -515,7 +519,7 @@ def report_pdf():
         months_names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
         pdf.section_title('Monthly Fees Collection')
         pdf.table_header(['Month'] + months_names, [20] + [14]*12)
-        pdf.table_row(['Amount (Rs.)'] + [f'{v:,.0f}' for v in fees_monthly], [20] + [14]*12, ['L'] + ['R']*12)
+        pdf.table_row(['Amount (₹)'] + [f'{v:,.2f}' for v in fees_monthly], [20] + [14]*12, ['L'] + ['R']*12)
         pdf.ln(3)
 
         course_fee_q = db.session.query(
@@ -535,7 +539,7 @@ def report_pdf():
         course_wise = [(course.name, course_fee_map.get(course.id, 0.0)) for course in Course.query.all() if course_fee_map.get(course.id, 0.0) > 0]
         if course_wise:
             pdf.section_title('Course-wise Income')
-            pdf.table_header(['Course', 'Amount (Rs.)'], [140, 50])
+            pdf.table_header(['Course', 'Amount (₹)'], [140, 50])
             for name, total in course_wise:
                 pdf.table_row([name, f'{total:,.2f}'], [140, 50], ['L', 'R'])
         pdf.ln(3)
@@ -551,7 +555,7 @@ def report_pdf():
             pdf.table_header(['Date', 'Student', 'Company', 'Total', 'GST', 'Method'], [24, 40, 48, 25, 20, 33])
             for r in daily[:30]:
                 c_name = (r.company.name if r.company else 'Unassigned')[:24]
-                pdf.table_row([r.payment_date.strftime('%d %b %Y'), r.student.name[:18], c_name, f'{r.amount_paid:,.0f}', f'{r.gst_amount:,.0f}', r.payment_method], [24, 40, 48, 25, 20, 33], ['L', 'L', 'L', 'R', 'R', 'C'])
+                pdf.table_row([r.payment_date.strftime('%d %b %Y'), r.student.name[:18], c_name, f'{r.amount_paid:,.2f}', f'{r.gst_amount:,.2f}', r.payment_method], [24, 40, 48, 25, 20, 33], ['L', 'L', 'L', 'R', 'R', 'C'])
 
     elif tab == 'expense':
         expense_cats = ExpenseCategory.query.all()
@@ -565,7 +569,7 @@ def report_pdf():
         monthly_exp = [exp_map.get(m, 0.0) for m in range(1, 13)]
         pdf.section_title('Monthly Expense')
         pdf.table_header(['Month'] + months_names, [20] + [14]*12)
-        pdf.table_row(['Amount (Rs.)'] + [f'{v:,.0f}' for v in monthly_exp], [20] + [14]*12, ['L'] + ['R']*12)
+        pdf.table_row(['Amount (₹)'] + [f'{v:,.2f}' for v in monthly_exp], [20] + [14]*12, ['L'] + ['R']*12)
         pdf.ln(3)
         cat_exp_q = db.session.query(
             Expense.category_id, db.func.sum(Expense.amount).label('total')
@@ -576,12 +580,12 @@ def report_pdf():
         cat_wise = [(cat.name, cat_exp_map.get(cat.id, 0.0)) for cat in expense_cats if cat_exp_map.get(cat.id, 0.0) > 0]
         if cat_wise:
             pdf.section_title('Category-wise Expense')
-            pdf.table_header(['Category', 'Amount (Rs.)'], [140, 50])
+            pdf.table_header(['Category', 'Amount (₹)'], [140, 50])
             for name, total in cat_wise:
                 pdf.table_row([name, f'{total:,.2f}'], [140, 50], ['L', 'R'])
         pdf.ln(3)
         pdf.section_title(f'Expense Summary - {months_names[filter_month-1]} {filter_year}')
-        pdf.table_header(['Category', 'Count', 'Total (Rs.)'], [100, 30, 60])
+        pdf.table_header(['Category', 'Count', 'Total (₹)'], [100, 30, 60])
         summary_q = db.session.query(
             Expense.category_id, db.func.count(Expense.id).label('cnt'), db.func.sum(Expense.amount).label('total')
         ).filter(db.extract('month', Expense.expense_date) == filter_month, db.extract('year', Expense.expense_date) == filter_year)
@@ -612,7 +616,7 @@ def report_pdf():
             d_t['count'] += cnt
         type_order = ['Cash', 'UPI', 'Bank', 'Card', 'Other']
         pdf.section_title('Expense by Account Type')
-        pdf.table_header(['Account Type', 'Count', 'Total (Rs.)'], [110, 30, 50])
+        pdf.table_header(['Account Type', 'Count', 'Total (₹)'], [110, 30, 50])
         for k in type_order:
             if k in type_map:
                 d = type_map[k]
@@ -622,7 +626,7 @@ def report_pdf():
                 pdf.table_row([k, str(d['count']), f"{d['total']:,.2f}"], [110, 30, 50], ['L', 'C', 'R'])
         pdf.ln(3)
         pdf.section_title('Expense by Source Account')
-        pdf.table_header(['Account', 'Count', 'Total (Rs.)'], [110, 30, 50])
+        pdf.table_header(['Account', 'Count', 'Total (₹)'], [110, 30, 50])
         account_order = list(PAYMENT_METHODS) + ['Others']
         for k in account_order:
             if k in account_map:
@@ -654,11 +658,11 @@ def report_pdf():
         net = float(total_income) + float(total_funding) - float(total_expense)
         
         pdf.section_title('Profit & Loss Summary')
-        pdf.kpi_box('Total Income', f'Rs. {float(total_income):,.2f}', (107, 142, 35))
-        pdf.kpi_box('GST Collected', f'Rs. {float(total_gst):,.2f}', (70, 130, 180))
-        pdf.kpi_box('Total Expense', f'Rs. {float(total_expense):,.2f}', (192, 57, 43))
+        pdf.kpi_box('Total Income', f'₹{float(total_income):,.2f}', (107, 142, 35))
+        pdf.kpi_box('GST Collected', f'₹{float(total_gst):,.2f}', (70, 130, 180))
+        pdf.kpi_box('Total Expense', f'₹{float(total_expense):,.2f}', (192, 57, 43))
         pdf.ln(3)
-        pdf.kpi_box('Net Balance', f"{'+' if net >= 0 else ''}Rs. {net:,.2f}", (47, 72, 88) if net >= 0 else (192, 57, 43))
+        pdf.kpi_box('Net Balance', f"{'+' if net >= 0 else ''}₹{net:,.2f}", (47, 72, 88) if net >= 0 else (192, 57, 43))
         pdf.ln(4)
 
         months_names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -697,17 +701,17 @@ def report_pdf():
             matched = [r for r in records if classify_method(r.payment_method) == account_name]
             return sum(r.amount_paid for r in matched), matched
         pdf.section_title('Payment Methods Report')
-        pdf.kpi_box('Total Collected', f'Rs. {total_period:,.2f}', (47, 72, 88))
+        pdf.kpi_box('Total Collected', f'₹{total_period:,.2f}', (47, 72, 88))
         pdf.ln(4)
         for label in PAYMENT_METHODS + ['Others']:
             total, records = filter_pm(all_records, label)
             if not records and label != 'Others':
                 continue
-            pdf.section_title(f'{label} - Rs. {total:,.2f}')
+            pdf.section_title(f'{label} - ₹{total:,.2f}')
             if records:
                 pdf.table_header(['Date', 'Student', 'Amount', 'Remarks'], [30, 55, 35, 70])
                 for r in records[:30]:
-                    pdf.table_row([r.payment_date.strftime('%d %b %Y'), r.student.name[:20], f'{r.amount_paid:,.0f}', (r.remarks or '')[:30]], [30, 55, 35, 70], ['L', 'L', 'R', 'L'])
+                    pdf.table_row([r.payment_date.strftime('%d %b %Y'), r.student.name[:20], f'{r.amount_paid:,.2f}', (r.remarks or '')[:30]], [30, 55, 35, 70], ['L', 'L', 'R', 'L'])
             pdf.ln(2)
 
     buf = BytesIO()
@@ -776,7 +780,7 @@ def report_excel():
 
         months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
         ws = wb.active
-        write_sheet(ws, 'Monthly Income', ['Month'] + months, [['Income (Rs.)'] + income_monthly])
+        write_sheet(ws, 'Monthly Income', ['Month'] + months, [['Income (₹)'] + income_monthly])
         ws2 = wb.create_sheet('Summary')
         write_sheet(ws2, 'Summary', ['Metric', 'Value'], [
             ['Total Income (All Time)', total_all_time],
@@ -795,7 +799,7 @@ def report_excel():
         fees_map = {int(r.m): float(r.total) for r in fees_rows}
         fees_monthly = [fees_map.get(m, 0.0) for m in range(1, 13)]
         ws = wb.active
-        write_sheet(ws, 'Monthly Fees', ['Month'] + months, [['Collection (Rs.)'] + fees_monthly])
+        write_sheet(ws, 'Monthly Fees', ['Month'] + months, [['Collection (₹)'] + fees_monthly])
         
         rows = []
         course_fee_q = db.session.query(student_courses.c.course_id, db.func.sum(FeeRecord.amount_paid).label('total')).select_from(FeeRecord).join(Student).join(student_courses).join(Course, Course.id == student_courses.c.course_id).filter(FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date)
@@ -814,7 +818,7 @@ def report_excel():
                 rows.append([course.name, course.code, total])
         if rows:
             ws2 = wb.create_sheet('Course-wise')
-            write_sheet(ws2, 'Course-wise', ['Course', 'Code', 'Collected (Rs.)'], rows)
+            write_sheet(ws2, 'Course-wise', ['Course', 'Code', 'Collected (₹)'], rows)
 
         daily_q = FeeRecord.query.filter(FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date)
         if selected_company_id:
@@ -822,7 +826,7 @@ def report_excel():
         daily = daily_q.order_by(FeeRecord.payment_date.desc()).all()
         if daily:
             ws3 = wb.create_sheet('Daily Collections')
-            write_sheet(ws3, 'Daily Collections', ['Date', 'Student', 'Company', 'Taxable (Rs.)', 'GST (Rs.)', 'Total Paid (Rs.)', 'Method', 'Remarks'], [
+            write_sheet(ws3, 'Daily Collections', ['Date', 'Student', 'Company', 'Taxable (₹)', 'GST (₹)', 'Total Paid (₹)', 'Method', 'Remarks'], [
                 [r.payment_date.strftime('%d-%b-%Y'), r.student.name, r.company.name if r.company else 'Unassigned', r.taxable_amount, r.gst_amount, r.amount_paid, r.payment_method, r.remarks or ''] for r in daily
             ])
 
@@ -834,7 +838,7 @@ def report_excel():
         exp_map = {int(r.m): float(r.total) for r in exp_rows}
         monthly_exp = [exp_map.get(m, 0.0) for m in range(1, 13)]
         ws = wb.active
-        write_sheet(ws, 'Monthly Expense', ['Month'] + months, [['Expense (Rs.)'] + monthly_exp])
+        write_sheet(ws, 'Monthly Expense', ['Month'] + months, [['Expense (₹)'] + monthly_exp])
         rows = []
         cat_exp_q = db.session.query(Expense.category_id, db.func.sum(Expense.amount).label('total')).filter(Expense.expense_date >= start_date, Expense.expense_date <= end_date)
         cat_exp_q = filter_by_company_methods(cat_exp_q, Expense.payment_method, selected_company_id)
@@ -844,7 +848,7 @@ def report_excel():
             total = cat_exp_map.get(cat.id, 0.0)
             rows.append([cat.name, total])
         ws2 = wb.create_sheet('Category-wise')
-        write_sheet(ws2, 'Category-wise', ['Category', 'Total (Rs.)'], rows)
+        write_sheet(ws2, 'Category-wise', ['Category', 'Total (₹)'], rows)
         recent_q = Expense.query.filter(Expense.expense_date >= start_date, Expense.expense_date <= end_date)
         recent_q = filter_by_company_methods(recent_q, Expense.payment_method, selected_company_id)
         recent = recent_q.order_by(Expense.expense_date.desc()).limit(50).all()
@@ -880,7 +884,7 @@ def report_excel():
                 type_rows.append([k, d['count'], round(d['total'], 2)])
         if type_rows:
             ws4 = wb.create_sheet('By Account Type')
-            write_sheet(ws4, 'By Account Type', ['Account Type', 'Count', 'Total (Rs.)'], type_rows)
+            write_sheet(ws4, 'By Account Type', ['Account Type', 'Count', 'Total (₹)'], type_rows)
         account_order = list(PAYMENT_METHODS) + ['Others']
         account_rows = []
         for k in account_order:
@@ -892,7 +896,7 @@ def report_excel():
                 account_rows.append([k, d['count'], round(d['total'], 2)])
         if account_rows:
             ws5 = wb.create_sheet('By Source Account')
-            write_sheet(ws5, 'By Source Account', ['Account', 'Count', 'Total (Rs.)'], account_rows)
+            write_sheet(ws5, 'By Source Account', ['Account', 'Count', 'Total (₹)'], account_rows)
 
     elif tab == 'overall':
         months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -964,7 +968,7 @@ def report_excel():
                 summary_rows.append([label, total])
                 ws2 = wb.create_sheet(label[:20])
                 write_sheet(ws2, label, ['Date', 'Student', 'Company', 'Amount', 'Remarks'], [[r.payment_date.strftime('%d-%b-%Y'), r.student.name, r.company.name if r.company else 'Unassigned', r.amount_paid, (r.remarks or '')] for r in records])
-        write_sheet(ws, 'Payment Summary', ['Method', 'Total (Rs.)'], summary_rows)
+        write_sheet(ws, 'Payment Summary', ['Method', 'Total (₹)'], summary_rows)
 
     buf = BytesIO()
     wb.save(buf)

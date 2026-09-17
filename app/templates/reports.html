@@ -124,7 +124,7 @@ Payment Methods            </button>
                 </div>
                 <div class="col-md-3">
                     <div class="glass-card p-4 text-center">
-                        <h3 class="text-dark fw-bold mb-1">₹{{ "{:,.0f}".format(staff_data.total_collected) }}</h3>
+                        <h3 class="text-dark fw-bold mb-1">₹{{ "{:,.2f}".format(staff_data.total_collected) }}</h3>
                         <p class="text-muted small mb-0">Fees Collected</p>
                     </div>
                 </div>
@@ -142,6 +142,7 @@ Payment Methods            </button>
                             </tr>
                         </thead>
                         <tbody>
+                            {% if staff_data.students %}
                             {% for student in staff_data.students %}
                             <tr>
                                 <td>{{ student.name }}</td>
@@ -150,6 +151,9 @@ Payment Methods            </button>
                                 <td><span class="badge badge-custom {% if student.status == 'Active' %}badge-active{% else %}badge-inactive{% endif %}">{{ student.status }}</span></td>
                             </tr>
                             {% endfor %}
+                            {% else %}
+                            <tr><td colspan="4" class="text-center text-muted py-3">No data in this period</td></tr>
+                            {% endif %}
                         </tbody>
                     </table>
                 </div>
@@ -167,14 +171,18 @@ Payment Methods            </button>
                             </tr>
                         </thead>
                         <tbody>
+                            {% if staff_data.recent_fees %}
                             {% for fee in staff_data.recent_fees %}
                             <tr>
                                 <td>{{ fee.payment_date.strftime('%d %b %Y') }}</td>
                                 <td>{{ fee.student.name }}</td>
-                                <td>₹{{ "{:,.0f}".format(fee.amount_paid) }}</td>
+                                <td>₹{{ "{:,.2f}".format(fee.amount_paid) }}</td>
                                 <td>{{ fee.payment_method }}</td>
                             </tr>
                             {% endfor %}
+                            {% else %}
+                            <tr><td colspan="4" class="text-center text-muted py-3">No data in this period</td></tr>
+                            {% endif %}
                         </tbody>
                     </table>
                 </div>
@@ -292,7 +300,7 @@ Payment Methods            </button>
                                         </tr>
                                         {% endfor %}
                                     {% else %}
-                                        <tr><td colspan="2" class="text-center text-muted py-3">No data</td></tr>
+                                        <tr><td colspan="2" class="text-center text-muted py-3">No data in this period</td></tr>
                                     {% endif %}
                                 </tbody>
                             </table>
@@ -324,13 +332,13 @@ Payment Methods            </button>
                                                     {{ r.company.code if r.company else 'Unassigned' }}
                                                 </span>
                                             </td>
-                                            <td class="fw-semibold">₹{{ "{:,.0f}".format(r.amount_paid) }}</td>
-                                            <td class="small text-primary">₹{{ "{:,.0f}".format(r.gst_amount) }}</td>
+                                            <td class="fw-semibold">₹{{ "{:,.2f}".format(r.amount_paid) }}</td>
+                                            <td class="small text-primary">₹{{ "{:,.2f}".format(r.gst_amount) }}</td>
                                             <td><span class="badge badge-custom badge-cyan">{{ r.payment_method }}</span></td>
                                         </tr>
                                         {% endfor %}
                                     {% else %}
-                                        <tr><td colspan="6" class="text-center text-muted py-4">No collections</td></tr>
+                                        <tr><td colspan="6" class="text-center text-muted py-4">No data in this period</td></tr>
                                     {% endif %}
                                 </tbody>
                             </table>
@@ -384,7 +392,7 @@ Payment Methods            </button>
                                         <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(t.total) }}</td>
                                     </tr>
                                     {% else %}
-                                    <tr><td colspan="3" class="text-center text-muted py-3">No expenses in this period</td></tr>
+                                    <tr><td colspan="3" class="text-center text-muted py-3">No data in this period</td></tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
@@ -415,7 +423,7 @@ Payment Methods            </button>
                                         <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(a.total) }}</td>
                                     </tr>
                                     {% else %}
-                                    <tr><td colspan="3" class="text-center text-muted py-3">No expenses in this period</td></tr>
+                                    <tr><td colspan="3" class="text-center text-muted py-3">No data in this period</td></tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
@@ -444,7 +452,7 @@ Payment Methods            </button>
                                         <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(s.total) }}</td>
                                     </tr>
                                     {% else %}
-                                    <tr><td colspan="3" class="text-center text-muted py-3">No expenses in this period</td></tr>
+                                    <tr><td colspan="3" class="text-center text-muted py-3">No data in this period</td></tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
@@ -645,7 +653,11 @@ Date</th>
                                         <th>
 Student</th>
                                         <th>
+Company</th>
+                                        <th class="text-end">
 Amount</th>
+                                        <th class="text-end">
+GST</th>
                                         <th>
 Remarks</th>
                                     </tr>
@@ -656,8 +668,12 @@ Remarks</th>
 {{ r.payment_date.strftime("%d %b %Y") }}</td>
                                         <td>
 {{ r.student.name[:20] }}</td>
+                                        <td class="small" style="opacity: 0.75;">
+{{ r.company.name if r.company else 'Unassigned' }}</td>
                                         <td class="fw-semibold">
-₹{{ "{:,.0f}".format(r.amount_paid) }}</td>
+₹{{ "{:,.2f}".format(r.amount_paid) }}</td>
+                                        <td class="small text-primary">
+₹{{ "{:,.2f}".format(r.gst_amount) }}</td>
                                         <td class="small" style="opacity: 0.7;">
 {{ r.remarks or '-' }}</td>
                                     </tr>
