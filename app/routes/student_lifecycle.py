@@ -14,6 +14,7 @@ LONG_ABSENT_ATT_RATE = 75.0   # percent attendance threshold
 ATT_WINDOW_DAYS = 30
 MAX_DROP_REASON = 200         # matches student_courses.drop_reason length
 MIN_MARKS_FOR_RATE = 3        # minimum marks before the rate rule can fire
+DETAIL_SERIES_LIMIT = 40      # most recent marks returned to the detail drawer
 
 FILTERS = ['all', 'enrolled', 'not_enrolled', 'long_absent', 'completed', 'dropped', 'inactive', 'archived']
 
@@ -85,9 +86,57 @@ def _score_status(status):
     return ATTENDANCE_SCORES.get(status, 1.0)
 
 
+def _normalize_marks(records):
+    """Collapse a student's marks into date -> status.
+
+    Duplicate marks for the same day (e.g. a bulk import racing the upsert
+    API) would otherwise resolve by arbitrary row order. Keep the most
+    severe status so a recorded absence is never masked.
+    """
+    by_date = {}
+    for r in records:
+        existing = by_date.get(r.date)
+        if existing is None or _score_status(r.status) < _score_status(existing):
+            by_date[r.date] = r.status
+    return by_date
+
+
+def _metrics_from_marks(by_date, window_start):
+    """Derive streak/rate metrics from one student's date -> status map."""
+    dates = sorted(by_date)
+    # Streaks count consecutive *sessions* (marks in the student's own
+    # sequence), not consecutive calendar days — classes don't run every
+    # day, so weekend/holiday gaps must not reset the run. Both streak
+    # measures use this same definition.
+    max_run = 0
+    cur = 0
+    for d in dates:
+        if by_date[d] == 'Absent':
+            cur += 1
+            max_run = max(max_run, cur)
+        else:
+            cur = 0
+    last_streak = 0
+    for d in reversed(dates):
+        if by_date[d] == 'Absent':
+            last_streak += 1
+        else:
+            break
+    recent = [d for d in dates if d >= window_start]
+    total = len(recent)
+    scored = sum(_score_status(by_date[d]) for d in recent)
+    rate = (scored / total * 100) if total else None
+    return {
+        'max_run': max_run,
+        'last_streak': last_streak,
+        'att_rate': rate,
+        'total_marks': total,
+        'last_attendance_date': dates[-1] if dates else None,
+    }
+
+
 def _attendance_metrics(window_days=ATT_WINDOW_DAYS):
-    today = date.today()
-    window_start = today - timedelta(days=window_days)
+    window_start = date.today() - timedelta(days=window_days)
     # Restrict to live students: attendance rows carry a plain person_id
     # (no FK), so rows orphaned by historical deletes are excluded here
     # (and purged by the startup migration in app/__init__.py).
@@ -95,48 +144,11 @@ def _attendance_metrics(window_days=ATT_WINDOW_DAYS):
         Attendance.person_type == 'student',
         Attendance.person_id.in_(db.session.query(Student.id))
     ).order_by(Attendance.person_id, Attendance.date).all()
-    by_student = defaultdict(dict)
+    by_student = defaultdict(list)
     for r in records:
-        by_date = by_student[r.person_id]
-        # Duplicate marks for the same day (e.g. a bulk import racing the
-        # upsert API) would otherwise resolve by arbitrary row order. Keep
-        # the most severe status so a recorded absence is never masked.
-        existing = by_date.get(r.date)
-        if existing is None or _score_status(r.status) < _score_status(existing):
-            by_date[r.date] = r.status
-    metrics = {}
-    for sid, by_date in by_student.items():
-        dates = sorted(by_date)
-        # Streaks count consecutive *sessions* (marks in the student's own
-        # sequence), not consecutive calendar days — classes don't run every
-        # day, so weekend/holiday gaps must not reset the run. Both streak
-        # measures use this same definition.
-        max_run = 0
-        cur = 0
-        for d in dates:
-            if by_date[d] == 'Absent':
-                cur += 1
-                max_run = max(max_run, cur)
-            else:
-                cur = 0
-        last_streak = 0
-        for d in reversed(dates):
-            if by_date[d] == 'Absent':
-                last_streak += 1
-            else:
-                break
-        recent = [d for d in dates if d >= window_start]
-        total = len(recent)
-        scored = sum(_score_status(by_date[d]) for d in recent)
-        rate = (scored / total * 100) if total else None
-        metrics[sid] = {
-            'max_run': max_run,
-            'last_streak': last_streak,
-            'att_rate': rate,
-            'total_marks': total,
-            'last_attendance_date': dates[-1] if dates else None,
-        }
-    return metrics
+        by_student[r.person_id].append(r)
+    return {sid: _metrics_from_marks(_normalize_marks(recs), window_start)
+            for sid, recs in by_student.items()}
 
 
 def _is_long_absent(att, thresholds=None):
@@ -263,6 +275,81 @@ def lifecycle():
         total_all=total_all, shown=shown, filter_key=filter_key, today=date.today(),
         thresholds=thresholds, courses=Course.query.order_by(Course.name).all(),
         selected_course_id=selected_course_id, q=q)
+
+
+@student_lifecycle_bp.route('/students/lifecycle/<int:sid>/detail')
+@login_required
+@admin_required
+def detail(sid):
+    """On-demand payload for the per-student drawer (timeline + sparkline).
+
+    Loaded lazily rather than rendered into every table row so the list
+    view stays cheap regardless of how much attendance history exists.
+    """
+    student = Student.query.get_or_404(sid)
+    thresholds = _get_thresholds()
+    window_start = date.today() - timedelta(days=thresholds['window'])
+    enrolls = _enrollment_map().get(sid, [])
+    records = Attendance.query.filter_by(
+        person_type='student', person_id=sid).all()
+    by_date = _normalize_marks(records)
+    metrics = _metrics_from_marks(by_date, window_start)
+    bucket = _derive_bucket(student, enrolls, metrics, thresholds)
+    # jsonify renders bare dates in RFC-822 form; the drawer expects ISO.
+    json_metrics = dict(metrics)
+    if json_metrics['last_attendance_date'] is not None:
+        json_metrics['last_attendance_date'] = \
+            json_metrics['last_attendance_date'].isoformat()
+    all_dates = sorted(by_date)
+    series = [{
+        'date': d.isoformat(),
+        'status': by_date[d],
+        'score': _score_status(by_date[d]),
+    } for d in all_dates[-DETAIL_SERIES_LIMIT:]]
+
+    timeline = []
+    for e in enrolls:
+        # Association rows created before the backfill can lack a date; fall
+        # back to the student's join date so the timeline stays readable.
+        enrolled = e['enrolled_on'] or student.enrollment_date
+        completed = e['completed_on']
+        if e['status'] == 'Enrolled':
+            end_for_duration = date.today()
+        else:
+            end_for_duration = completed or enrolled
+        timeline.append({
+            'course_id': e['course'].id,
+            'course': e['course'].name,
+            'status': e['status'],
+            'enrolled_on': enrolled.isoformat() if enrolled else None,
+            'completed_on': completed.isoformat() if completed else None,
+            'drop_reason': e['drop_reason'],
+            'days': (end_for_duration - enrolled).days
+            if (enrolled and end_for_duration) else None,
+        })
+    timeline.sort(key=lambda t: t['enrolled_on'] or '', reverse=True)
+
+    return jsonify({
+        'student': {
+            'id': student.id,
+            'name': student.name,
+            'phone': student.phone,
+            'email': student.email,
+            'roll_no': student.roll_no,
+            'status': student.status,
+            'enrollment_date': student.enrollment_date.isoformat()
+            if student.enrollment_date else None,
+            'bucket': bucket,
+        },
+        'thresholds': thresholds,
+        'attendance': {
+            'series': series,
+            'window': thresholds['window'],
+            'metrics': json_metrics,
+            'total_recorded': len(all_dates),
+        },
+        'enrollments': timeline,
+    })
 
 
 def _target_filter():

@@ -1057,6 +1057,115 @@ body.dark-mode .glass-card:hover {
         bottom: 0.25rem;
     }
 }
+.lc-name-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    background: none;
+    border: 0;
+    padding: 0;
+    text-align: left;
+    color: inherit;
+    cursor: pointer;
+}
+.lc-name-btn:hover .fw-semibold {
+    text-decoration: underline;
+}
+.lc-chevron {
+    font-size: 0.7rem;
+    opacity: 0.45;
+    transition: transform 0.15s ease;
+}
+.lc-name-btn:hover .lc-chevron {
+    opacity: 0.9;
+}
+
+/* Per-student detail drawer */
+.lc-drawer {
+    background: #0b1f33;
+    color: #e6eef7;
+    width: min(460px, 92vw);
+}
+.lc-drawer .offcanvas-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+.lc-drawer h6 {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.7rem;
+    opacity: 0.6;
+    margin: 1.1rem 0 0.5rem;
+}
+.lc-drawer dt {
+    opacity: 0.6;
+    font-weight: 500;
+}
+.lc-drawer dd {
+    margin-bottom: 0.35rem;
+}
+.lc-drawer-empty {
+    opacity: 0.6;
+}
+.lc-spark {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+}
+.lc-spark-cell {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.12);
+}
+.lc-spark-present,
+.lc-spark-late {
+    background: #22c55e;
+}
+.lc-spark-half {
+    background: #f59e0b;
+}
+.lc-spark-absent {
+    background: #ef4444;
+}
+.lc-timeline {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    position: relative;
+}
+.lc-timeline:before {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 4px;
+    bottom: 4px;
+    width: 2px;
+    background: rgba(255, 255, 255, 0.14);
+}
+.lc-timeline-item {
+    position: relative;
+    padding: 0 0 0.9rem 1.25rem;
+}
+.lc-timeline-dot {
+    position: absolute;
+    left: 0;
+    top: 3px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #64748b;
+    box-shadow: 0 0 0 3px #0b1f33;
+}
+.lc-timeline-item.lc-tl-enrolled .lc-timeline-dot {
+    background: #22c55e;
+}
+.lc-timeline-item.lc-tl-completed .lc-timeline-dot {
+    background: #06b6d4;
+}
+.lc-timeline-item.lc-tl-dropped .lc-timeline-dot {
+    background: #ef4444;
+}
 
 /* ===== BENTO GRID SYSTEM ===== */
 .bento-grid {

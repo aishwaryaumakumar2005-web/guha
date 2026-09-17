@@ -580,3 +580,53 @@ def test_bulk_no_selection_and_bad_action(admin_client, app):
     assert _bulk(admin_client, 'complete', []).status_code == 302
     assert _bulk(admin_client, 'bogus', [sid]).status_code == 302
     assert (_enrollment(app, sid, cid).status or 'Enrolled') == 'Enrolled'
+
+
+# ---- Per-student detail drawer (item 18) ----
+
+def _seed_sid(app):
+    with app.app_context():
+        return Student.query.filter_by(email='student@guha.test').first().id
+
+
+def test_detail_endpoint_payload(admin_client, app):
+    sid = _seed_sid(app)
+    _mark(app, 'student', sid, 3, 'Present')
+    _mark(app, 'student', sid, 2, 'Absent')
+    _mark(app, 'student', sid, 1, 'Half Day')
+    r = admin_client.get(f'/students/lifecycle/{sid}/detail')
+    assert r.status_code == 200
+    d = r.get_json()
+    assert d['student']['id'] == sid
+    assert d['student']['bucket'] in ('Enrolled', 'Long Absent')
+    assert d['attendance']['window'] == 30
+    assert [p['status'] for p in d['attendance']['series']] == \
+        ['Present', 'Absent', 'Half Day']
+    m = d['attendance']['metrics']
+    assert m['total_marks'] == 3
+    assert abs(m['att_rate'] - 50.0) < 0.01
+    assert m['last_attendance_date'] == \
+        (date.today() - timedelta(days=1)).isoformat()
+    assert m['max_run'] == 1
+    assert len(d['enrollments']) == 1
+    assert d['enrollments'][0]['course'] == 'Python Programming'
+
+
+def test_detail_endpoint_unknown_student_is_404(admin_client):
+    assert admin_client.get(
+        '/students/lifecycle/999999/detail').status_code == 404
+
+
+def test_detail_endpoint_requires_admin(staff_client):
+    assert staff_client.get(
+        '/students/lifecycle/1/detail').status_code == 302
+
+
+def test_lifecycle_p3_hooks(admin_client):
+    body = admin_client.get('/students/lifecycle').get_data(as_text=True)
+    assert 'id="lcDrawer"' in body
+    assert 'onclick="lcOpen(' in body
+    assert 'lc-spark' in body
+    assert 'lc-timeline' in body
+    assert '#lifecycle-thresholds' in body
+    assert 'Adjust Long Absent thresholds' in body

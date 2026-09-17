@@ -70,8 +70,9 @@
                 <a href="{{ url_for('student_lifecycle.lifecycle', filter='all') }}" class="btn btn-sm btn-outline-premium" hx-boost="false">Reset</a>
             </div>
         </form>
-        <div class="small text-white mt-3" style="opacity:.75;">
-            <i class="bi bi-info-circle me-1"></i>Showing <strong>{{ shown }}</strong> of {{ total_all }} student(s){% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}{% if selected_course_id %} in the selected course{% endif %}.
+        <div class="small text-white mt-3 d-flex flex-wrap align-items-center gap-2" style="opacity:.75;">
+            <span><i class="bi bi-info-circle me-1"></i>Showing <strong>{{ shown }}</strong> of {{ total_all }} student(s){% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}{% if selected_course_id %} in the selected course{% endif %}.</span>
+            <a href="{{ url_for('admin.admin_console') }}#lifecycle-thresholds" class="text-info text-decoration-none" hx-boost="false"><i class="bi bi-sliders me-1"></i>Adjust Long Absent thresholds</a>
         </div>
     </div>
 
@@ -113,10 +114,12 @@
                                 <input type="checkbox" class="lc-check" name="selected" value="{{ d.student.id }}" onchange="updateBulk()" aria-label="Select {{ d.student.name }}">
                             </td>
                             <td data-label="Student">
-                                <div class="fw-semibold text-dark">
-                                    {% if d.bucket == 'Long Absent' %}<i class="bi bi-exclamation-triangle-fill text-warning me-1" title="Long absent"></i>{% endif %}{{ d.student.name }}
-                                </div>
-                                <div class="small text-secondary">{{ d.student.phone }}{% if d.student.roll_no %} &middot; {{ d.student.roll_no }}{% endif %}</div>
+                                <button type="button" class="lc-name-btn" onclick="lcOpen({{ d.student.id }})" aria-label="View details for {{ d.student.name }}">
+                                    <i class="bi bi-chevron-right lc-chevron" aria-hidden="true"></i>
+                                    {% if d.bucket == 'Long Absent' %}<i class="bi bi-exclamation-triangle-fill text-warning me-1" aria-hidden="true" title="Long absent"></i>{% endif %}
+                                    <span class="fw-semibold text-dark">{{ d.student.name }}</span>
+                                </button>
+                                <div class="small text-secondary lc-sub">{{ d.student.phone }}{% if d.student.roll_no %} &middot; {{ d.student.roll_no }}{% endif %}</div>
                             </td>
                             <td data-label="Status">
                                 {% set b = d.bucket %}
@@ -169,7 +172,9 @@
                                 {% set rate = d.metrics.att_rate %}
                                 {% set bar = '#22c55e' if rate >= thresholds.rate else ('#f59e0b' if rate >= thresholds.rate * 0.66 else '#ef4444') %}
                                 <div class="d-flex align-items-center gap-2">
-                                    <span class="badge badge-custom {% if rate >= thresholds.rate %}badge-active{% elif rate >= thresholds.rate * 0.66 %}badge-amber{% else %}badge-inactive{% endif %}">{{ '%.0f'|format(rate) }}%</span>
+                                    <span class="badge badge-custom {% if rate >= thresholds.rate %}badge-active{% elif rate >= thresholds.rate * 0.66 %}badge-amber{% else %}badge-inactive{% endif %}" aria-label="Attendance rate {{ '%.0f'|format(rate) }} percent">
+                                        <i class="bi {% if rate >= thresholds.rate %}bi-check-circle{% elif rate >= thresholds.rate * 0.66 %}bi-dash-circle{% else %}bi-exclamation-triangle{% endif %} me-1" aria-hidden="true"></i>{{ '%.0f'|format(rate) }}%
+                                    </span>
                                     <div class="lc-att-bar flex-grow-1" style="min-width:60px;" title="{{ d.metrics.total_marks }} mark(s) in the last {{ thresholds.window }} days (Half Day = half)">
                                         <span style="width: {{ rate|round(0)|int }}%; background: {{ bar }};"></span>
                                     </div>
@@ -234,10 +239,21 @@
         </div>
     </div>
 </div>
+
+<div class="offcanvas offcanvas-end lc-drawer" tabindex="-1" id="lcDrawer" aria-labelledby="lcDrawerTitle">
+    <div class="offcanvas-header">
+        <h5 class="offcanvas-title" id="lcDrawerTitle">Student detail</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close student detail"></button>
+    </div>
+    <div class="offcanvas-body" id="lcDrawerBody">
+        <div class="lc-drawer-empty py-5 text-center"><span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading&hellip;</div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}<script>
     window.currentFilter = {{ filter_key|tojson }};
+    var LC_DETAIL_BASE = {{ url_for('student_lifecycle.detail', sid=999999)|tojson }};
 
     function lcInit() {
         // Convert the base flash banner into a toast, matching the app's
@@ -267,6 +283,31 @@
                 });
                 bootstrap.Popover.getOrCreateInstance(btn).toggle();
             }, true);
+        }
+        // Live search: debounce keystrokes into the server-side filter so the
+        // list narrows as the admin types (the base table's client-side search
+        // is suppressed via data-server-search).
+        var search = document.getElementById('lcSearch');
+        if (search && search.form) {
+            var searchForm = search.form;
+            var lastQ = search.value;
+            var timer = null;
+            search.addEventListener('input', function () {
+                clearTimeout(timer);
+                timer = setTimeout(function () {
+                    if (search.value.trim() === lastQ.trim()) return;
+                    lastQ = search.value;
+                    searchForm.submit();
+                }, 450);
+            });
+            var course = document.getElementById('lcCourse');
+            if (course) course.addEventListener('change', function () { searchForm.submit(); });
+            if (search.value) {
+                search.focus();
+                var v = search.value;
+                search.value = '';
+                search.value = v;
+            }
         }
         updateBulk();
     }
@@ -298,6 +339,104 @@
         var all = document.getElementById('checkAll');
         if (all) { all.checked = false; all.indeterminate = false; }
         updateBulk();
+    }
+
+    // ---- Per-student drawer (enrollment timeline + attendance sparkline) ----
+    var LC_BUCKET_CLASS = {
+        'Enrolled': 'badge-active', 'Completed': 'badge-cyan',
+        'Long Absent': 'badge-amber', 'Dropped': 'badge-inactive',
+        'Not Enrolled': 'badge-inactive', 'Inactive': 'badge-inactive',
+        'Archived': 'badge-inactive'
+    };
+    function lcEsc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+    var LC_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    function lcFmtDate(iso) {
+        if (!iso) return '';
+        var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso));
+        if (!m) return iso;
+        return m[3] + ' ' + LC_MONTHS[parseInt(m[2], 10) - 1] + ' ' + m[1];
+    }
+    function lcOpen(sid) {
+        var el = document.getElementById('lcDrawer');
+        var body = document.getElementById('lcDrawerBody');
+        if (!el || !body) return;
+        document.getElementById('lcDrawerTitle').textContent = 'Student detail';
+        body.innerHTML = '<div class="lc-drawer-empty py-5 text-center">'
+            + '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading&hellip;</div>';
+        if (window.bootstrap) bootstrap.Offcanvas.getOrCreateInstance(el).show();
+        fetch(LC_DETAIL_BASE.replace(/\/999999\/detail$/, '/' + sid + '/detail'),
+              { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(function (d) { body.innerHTML = lcRenderDetail(d); })
+            .catch(function () {
+                body.innerHTML = '<div class="alert alert-danger">Could not load this student&rsquo;s detail. Please try again.</div>';
+            });
+    }
+    function lcRenderDetail(d) {
+        var s = d.student || {};
+        document.getElementById('lcDrawerTitle').textContent = s.name || 'Student detail';
+        var bucketCls = LC_BUCKET_CLASS[s.bucket] || 'badge-inactive';
+        var html = '<div class="d-flex align-items-center gap-2 mb-3">'
+            + '<span class="badge badge-custom ' + bucketCls + '">' + lcEsc(s.bucket || 'Unknown') + '</span>'
+            + '<span class="small text-secondary">' + lcEsc(s.status || '') + '</span></div>'
+            + '<dl class="row small mb-2">'
+            + '<dt class="col-4">Phone</dt><dd class="col-8">' + (lcEsc(s.phone) || '&mdash;') + '</dd>'
+            + '<dt class="col-4">Email</dt><dd class="col-8">' + (lcEsc(s.email) || '&mdash;') + '</dd>'
+            + '<dt class="col-4">Roll no</dt><dd class="col-8">' + (lcEsc(s.roll_no) || '&mdash;') + '</dd>'
+            + '<dt class="col-4">Enrolled</dt><dd class="col-8">' + (lcFmtDate(s.enrollment_date) || '&mdash;') + '</dd>'
+            + '</dl>';
+
+        var a = d.attendance || {};
+        var m = a.metrics || {};
+        html += '<h6>Attendance &middot; last ' + lcEsc(a.window) + ' days</h6>';
+        var series = a.series || [];
+        if (series.length) {
+            html += '<div class="lc-spark mb-2">';
+            series.forEach(function (p) {
+                var cls = p.status === 'Present' ? 'lc-spark-present'
+                    : p.status === 'Late' ? 'lc-spark-late'
+                    : p.status === 'Half Day' ? 'lc-spark-half' : 'lc-spark-absent';
+                html += '<span class="lc-spark-cell ' + cls + '" title="'
+                    + lcEsc(lcFmtDate(p.date)) + ' &mdash; ' + lcEsc(p.status) + '"></span>';
+            });
+            html += '</div>';
+        } else {
+            html += '<p class="small lc-drawer-empty">No attendance recorded.</p>';
+        }
+        var rate = (m.att_rate == null) ? '&mdash;' : (Math.round(m.att_rate) + '%');
+        html += '<div class="small text-secondary">Rate ' + rate
+            + ' &middot; ' + lcEsc(m.total_marks) + ' mark(s) this window'
+            + ' &middot; worst run ' + lcEsc(m.max_run)
+            + ' &middot; last absent run ' + lcEsc(m.last_streak) + '</div>'
+            + '<div class="small text-secondary">Last seen ' + (lcFmtDate(m.last_attendance_date) || 'never')
+            + ' &middot; ' + lcEsc(a.total_recorded) + ' total mark(s)</div>';
+
+        html += '<h6>Enrollment timeline</h6>';
+        var enr = d.enrollments || [];
+        if (enr.length) {
+            html += '<ul class="lc-timeline">';
+            enr.forEach(function (e) {
+                var st = (e.status || '').toLowerCase().replace(/\s+/g, '-');
+                var detail = lcFmtDate(e.enrolled_on);
+                if (e.status === 'Completed') detail += ' &rarr; ' + (lcFmtDate(e.completed_on) || '?');
+                if (e.days != null) detail += ' (' + lcEsc(e.days) + 'd)';
+                if (e.status === 'Dropped' && e.drop_reason) detail += ' &middot; ' + lcEsc(e.drop_reason);
+                html += '<li class="lc-timeline-item lc-tl-' + lcEsc(st) + '">'
+                    + '<span class="lc-timeline-dot"></span>'
+                    + '<div class="fw-semibold">' + lcEsc(e.course) + '</div>'
+                    + '<div class="small text-secondary">' + lcEsc(e.status) + ' &middot; ' + detail + '</div>'
+                    + '</li>';
+            });
+            html += '</ul>';
+        } else {
+            html += '<p class="small lc-drawer-empty">No course enrollment.</p>';
+        }
+        return html;
     }
 
     var lcCtx = null;
