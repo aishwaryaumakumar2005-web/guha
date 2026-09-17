@@ -15,6 +15,14 @@ ATT_WINDOW_DAYS = 30
 MAX_DROP_REASON = 200         # matches student_courses.drop_reason length
 MIN_MARKS_FOR_RATE = 3        # minimum marks before the rate rule can fire
 DETAIL_SERIES_LIMIT = 40      # most recent marks returned to the detail drawer
+# History bound for attendance scans. The bucket rules only need the window
+# rate plus the trailing absence run, so marks older than this never change
+# a bucket: a run longer than a year still exceeds any sane streak
+# threshold, and window rates ignore older marks by definition. Students
+# whose only marks predate the bound are treated as never-marked, which
+# resolves to the same bucket via the enrolled-long-ago rule. Display-only
+# worst-run counts cap at roughly a year of sessions.
+METRICS_LOOKBACK_DAYS = 366
 
 FILTERS = ['all', 'enrolled', 'not_enrolled', 'long_absent', 'completed', 'dropped', 'inactive', 'archived']
 
@@ -137,11 +145,15 @@ def _metrics_from_marks(by_date, window_start):
 
 def _attendance_metrics(window_days=ATT_WINDOW_DAYS):
     window_start = date.today() - timedelta(days=window_days)
+    # Bound the scan (see METRICS_LOOKBACK_DAYS): the list view used to load
+    # every attendance row ever recorded into ORM objects on each page view.
+    earliest = date.today() - timedelta(days=max(window_days, METRICS_LOOKBACK_DAYS))
     # Restrict to live students: attendance rows carry a plain person_id
     # (no FK), so rows orphaned by historical deletes are excluded here
     # (and purged by the startup migration in app/__init__.py).
     records = Attendance.query.filter(
         Attendance.person_type == 'student',
+        Attendance.date >= earliest,
         Attendance.person_id.in_(db.session.query(Student.id))
     ).order_by(Attendance.person_id, Attendance.date).all()
     by_student = defaultdict(list)
@@ -294,10 +306,15 @@ def detail(sid):
     thresholds = _get_thresholds()
     window_start = date.today() - timedelta(days=thresholds['window'])
     enrolls = _enrollment_map().get(sid, [])
+    earliest = date.today() - timedelta(
+        days=max(thresholds['window'], METRICS_LOOKBACK_DAYS))
     records = Attendance.query.filter_by(
-        person_type='student', person_id=sid).all()
+        person_type='student', person_id=sid).filter(
+        Attendance.date >= earliest).all()
     by_date = _normalize_marks(records)
     metrics = _metrics_from_marks(by_date, window_start)
+    total_recorded = db.session.query(db.func.count(Attendance.id)).filter_by(
+        person_type='student', person_id=sid).scalar() or 0
     bucket = _derive_bucket(student, enrolls, metrics, thresholds)
     # jsonify renders bare dates in RFC-822 form; the drawer expects ISO.
     json_metrics = dict(metrics)
@@ -350,7 +367,7 @@ def detail(sid):
             'series': series,
             'window': thresholds['window'],
             'metrics': json_metrics,
-            'total_recorded': len(all_dates),
+            'total_recorded': total_recorded,
         },
         'enrollments': timeline,
     })

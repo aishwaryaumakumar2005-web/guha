@@ -100,13 +100,48 @@ def get_backup_dir(app):
 
 
 def next_code(prefix, model, column):
-    """Return the next sequential public code (e.g. STU0004) for model.column."""
+    """Return the next sequential public code (e.g. STU0004) for model.column.
+
+    Reads only the code column (never full rows), so bulk imports don't pay
+    an N+1 object load per insert. Two concurrent transactions can still
+    compute the same value — callers creating records must commit through
+    commit_with_retry() below instead of a bare db.session.commit().
+    """
+    col = getattr(model, column)
+    seen = [val for (val,) in
+            db.session.query(col).filter(col.startswith(prefix)).all()]
+    # Same-flush siblings: when several objects are added before one flush,
+    # earlier siblings' codes live only in the session (uncommitted), so the
+    # query above can't see them. Read local __dict__ state (never triggers
+    # a refresh — expired attributes are simply skipped; committed rows are
+    # already covered by the query).
+    for obj in list(db.session.new) + list(db.session.identity_map.values()):
+        if isinstance(obj, model):
+            seen.append(obj.__dict__.get(column))
     max_num = 0
-    for row in db.session.query(model).all():
-        val = getattr(row, column, None)
+    for val in seen:
         if val and val.startswith(prefix):
             try:
                 max_num = max(max_num, int(val[len(prefix):]))
             except (ValueError, TypeError):
                 continue
     return f'{prefix}{max_num + 1:04d}'
+
+
+def commit_with_retry(build_and_commit, attempts=3):
+    """Run build_and_commit() (which ends with commit) with IntegrityError retries.
+
+    The callback must rebuild all of its objects from scratch on every call:
+    a failed attempt leaves the session rolled back and pending objects
+    detached, so reusing them would re-insert stale state. Re-raises the
+    last IntegrityError when attempts run out.
+    """
+    from sqlalchemy.exc import IntegrityError
+    last_exc = None
+    for _ in range(attempts):
+        try:
+            return build_and_commit()
+        except IntegrityError as e:
+            db.session.rollback()
+            last_exc = e
+    raise last_exc

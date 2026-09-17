@@ -17,16 +17,20 @@ Enroll Student            </button>
         {% endif %}
     </div>
     {% if not is_staff %}
-    <!-- Course filter -->
-    <div class="d-flex align-items-center gap-3 mb-3">
-        <form method="GET" action="{{ url_for('students.list') }}" class="d-flex align-items-center gap-2">
+    <!-- Course filter + search + export -->
+    <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+        <form method="GET" action="{{ url_for('students.list') }}" class="d-flex align-items-center gap-2 flex-wrap">
             <label for="course-filter" class="text-white small mb-0">Filter by Course:</label>
             <select id="course-filter" name="course_id" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
                 <option value="">All Courses</option>
                 {% for c in courses %}                    <option value="{{ c.id }}" {% if selected_course_id == c.id %}selected{% endif %}>{{ c.name }}</option>
                 {% endfor %}            </select>
+            <label for="student-search" class="visually-hidden">Search students</label>
+            <input type="search" id="student-search" name="q" value="{{ q }}" class="form-control form-control-sm" style="width:220px;" placeholder="Name, phone, email or ID" aria-label="Search students">
+            <button type="submit" class="btn btn-sm btn-outline-premium">Search</button>
+            <a href="{{ url_for('students.export_excel') }}{% if selected_course_id %}?course_id={{ selected_course_id }}{% endif %}" class="btn btn-sm btn-outline-premium"><i class="bi bi-download me-1" aria-hidden="true"></i>Export</a>
         </form>
-        {% if selected_course_id %}<a href="{{ url_for('students.list') }}" class="btn btn-sm btn-outline-secondary">Clear</a>{% endif %}
+        {% if selected_course_id or q %}<a href="{{ url_for('students.list') }}" class="btn btn-sm btn-outline-secondary">Clear</a>{% endif %}
     </div>
     <!-- AI Excel Import Assistant Header -->
     <div class="glass-card p-4 mb-4 border border-info border-opacity-25" style="background: linear-gradient(135deg, rgba(27, 110, 243, 0.15) 0%, rgba(33, 37, 56, 0.45) 100%);">
@@ -46,10 +50,21 @@ Bulk import student records from Excel files with AI-powered data validation, du
         </div>
     </div>
     {% endif %}
+    {% if is_staff %}
+    <!-- Staff search (course scoping is automatic for staff) -->
+    <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+        <form method="GET" action="{{ url_for('students.list') }}" class="d-flex align-items-center gap-2 flex-wrap">
+            <label for="student-search" class="visually-hidden">Search students</label>
+            <input type="search" id="student-search" name="q" value="{{ q }}" class="form-control form-control-sm" style="width:220px;" placeholder="Name, phone, email or ID" aria-label="Search students">
+            <button type="submit" class="btn btn-sm btn-outline-premium">Search</button>
+        </form>
+        {% if q %}<a href="{{ url_for('students.list') }}" class="btn btn-sm btn-outline-secondary">Clear</a>{% endif %}
+    </div>
+    {% endif %}
     <!-- Student Table Grid -->
     <div class="glass-card p-4" data-aos="fade-up">
         <div class="table-container">
-            <table id="studentsTable" class="table table-custom sortable" data-page-size="10" data-export-url="{{ url_for('students.export_excel') }}{% if selected_course_id %}?course_id={{ selected_course_id }}{% endif %}">
+            <table id="studentsTable" class="table table-custom sortable" data-page-size="20" data-server-search="true" data-export-url="{{ url_for('students.export_excel') }}{% if selected_course_id %}?course_id={{ selected_course_id }}{% endif %}">
                 <thead>
                     <tr>
                         <th>
@@ -137,6 +152,19 @@ Actions</th>
                     {% endif %}                </tbody>
             </table>
         </div>
+        {% if pagination.pages > 1 %}
+        <nav aria-label="Students pages" class="mt-3">
+            <ul class="pagination pagination-sm justify-content-center mb-0">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" {% if pagination.has_prev %}href="{{ url_for('students.list', page=pagination.prev_num, course_id=selected_course_id, q=q) }}"{% endif %} aria-label="Previous page" {% if not pagination.has_prev %}tabindex="-1" aria-disabled="true"{% endif %}>&laquo; Prev</a>
+                </li>
+                <li class="page-item disabled"><span class="page-link">Page {{ pagination.page }} of {{ pagination.pages }} ({{ pagination.total }} students)</span></li>
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" {% if pagination.has_next %}href="{{ url_for('students.list', page=pagination.next_num, course_id=selected_course_id, q=q) }}"{% endif %} aria-label="Next page" {% if not pagination.has_next %}tabindex="-1" aria-disabled="true"{% endif %}>Next &raquo;</a>
+                </li>
+            </ul>
+        </nav>
+        {% endif %}
     </div>
 </div>
 {% endblock %}{% block modals %}<!-- ENROLL STUDENT MODAL -->

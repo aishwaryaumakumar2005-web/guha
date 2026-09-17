@@ -5,7 +5,8 @@ from flask_login import login_required
 from datetime import datetime, date as date_cls
 from app.extensions import db
 from app.models import Enquiry, Course, Student, AuditLog, ensure_enrolled_on
-from app.helpers import admin_required, is_ajax_request
+from app.helpers import admin_required, commit_with_retry, is_ajax_request
+from sqlalchemy.exc import IntegrityError
 from app.forms import (EnquiryForm, ENQUIRY_SOURCES, ENQUIRY_STATUSES,
                        ENQUIRY_CREATE_STATUSES, ENQUIRY_MANUAL_STATUSES)
 
@@ -191,17 +192,31 @@ def convert(id):
             return jsonify({"success": False, "message": message}), 400
         flash(message, "warning")
         return redirect(url_for('students.list'))
-    new_student = Student(name=enquiry.student_name, email=email, phone=phone, status='Active')
-    course = Course.query.get(enquiry.course_id) if enquiry.course_id else None
-    if course:
-        new_student.courses.append(course)
-    db.session.add(new_student)
-    db.session.flush()
-    ensure_enrolled_on(new_student.id)
-    enquiry.status = 'Converted'
-    enquiry.converted_student_id = new_student.id
-    enquiry.last_contacted_at = datetime.utcnow()
-    db.session.commit()
+    def _convert():
+        # Rebuilt from scratch on every retry attempt (see
+        # commit_with_retry); the enquiry row itself is re-read, so a
+        # rolled-back attempt leaves no stale state behind.
+        lead = Enquiry.query.get_or_404(id)
+        fresh = Student(name=lead.student_name, email=email, phone=phone, status='Active')
+        course = Course.query.get(lead.course_id) if lead.course_id else None
+        if course:
+            fresh.courses.append(course)
+        db.session.add(fresh)
+        db.session.flush()
+        ensure_enrolled_on(fresh.id)
+        lead.status = 'Converted'
+        lead.converted_student_id = fresh.id
+        lead.last_contacted_at = datetime.utcnow()
+        db.session.commit()
+        return fresh
+    try:
+        new_student = commit_with_retry(_convert)
+    except IntegrityError:
+        message = "Conversion conflicted with another write. Please retry."
+        if is_ajax_request():
+            return jsonify({"success": False, "message": message}), 409
+        flash(message, "danger")
+        return redirect(url_for('enquiries.list'))
     message = f"Enquiry successfully converted! {new_student.name} is now enrolled."
     phone_owner = Student.query.filter(
         Student.phone == phone, Student.id != new_student.id).first() if phone else None

@@ -2,7 +2,8 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import Student, Course, Tutor, Attendance, student_courses, ensure_enrolled_on
-from app.helpers import admin_required, is_ajax_request, save_photo_data, staff_can_view_student
+from app.helpers import admin_required, commit_with_retry, is_ajax_request, save_photo_data, staff_can_view_student
+from sqlalchemy.exc import IntegrityError
 from app.forms import StudentForm
 from datetime import date
 import tempfile
@@ -84,25 +85,47 @@ def list():
                     if is_ajax_request():
                         return jsonify({"success": False, "errors": [str(e)]}), 400
                     flash(str(e), 'warning')
-            new_student = Student(name=name, email=email, phone=phone, status=status, date_of_birth=date_of_birth, photo_data=photo_data, photo_mime=photo_mime)
-            for c_id in selected_courses:
-                try:
-                    course = Course.query.get(int(c_id))
-                except (TypeError, ValueError):
-                    course = None
-                if course:
-                    new_student.courses.append(course)
-            db.session.add(new_student)
-            db.session.flush()
-            ensure_enrolled_on(new_student.id)
-            db.session.commit()
+            def _create():
+                # Rebuilt from scratch on every retry attempt (see
+                # commit_with_retry): a rolled-back session detaches pending
+                # objects, so reusing them would re-insert stale state.
+                fresh = Student(name=name, email=email, phone=phone, status=status,
+                                date_of_birth=date_of_birth, photo_data=photo_data,
+                                photo_mime=photo_mime)
+                for c_id in selected_courses:
+                    try:
+                        course = Course.query.get(int(c_id))
+                    except (TypeError, ValueError):
+                        course = None
+                    if course:
+                        fresh.courses.append(course)
+                db.session.add(fresh)
+                db.session.flush()
+                ensure_enrolled_on(fresh.id)
+                db.session.commit()
+                return fresh
+            try:
+                commit_with_retry(_create)
+            except IntegrityError:
+                err = "Could not save the student (possible duplicate). Please retry."
+                if is_ajax_request():
+                    return jsonify({"success": False, "errors": [err]}), 409
+                flash(err, 'danger')
+                return redirect(url_for('students.list'))
             message = "Student enrolled successfully!"
             if is_ajax_request():
                 return jsonify({"success": True, "message": message}), 201
             flash(message, "success")
         return redirect(url_for('students.list'))
     
-    # GET request - filter students based on user role
+    # GET request - filter students based on user role. Paged server-side:
+    # the full table used to load every row (plus one edit modal per row)
+    # on each view.
+    STUDENTS_PER_PAGE = 20
+    page = request.args.get('page', 1, type=int) or 1
+    if page < 1:
+        page = 1
+    q = (request.args.get('q') or '').strip()
     course_filter = request.args.get('course_id', type=int)
     if current_user.role == 'Staff':
         tutor = Tutor.query.filter_by(email=current_user.email).first()
@@ -111,20 +134,29 @@ def list():
             student_subquery = db.session.query(student_courses.c.student_id).filter(
                 student_courses.c.course_id.in_(course_ids)
             ).distinct()
-            all_students = Student.query.filter(Student.id.in_(student_subquery)).all()
+            base = Student.query.filter(Student.id.in_(student_subquery))
         else:
-            all_students = []
+            base = Student.query.filter(db.false())
     else:
         if course_filter:
             student_subquery = db.session.query(student_courses.c.student_id).filter(
                 student_courses.c.course_id == course_filter
             ).distinct()
-            all_students = Student.query.filter(Student.id.in_(student_subquery)).order_by(Student.id).all()
+            base = Student.query.filter(Student.id.in_(student_subquery))
         else:
-            all_students = Student.query.order_by(Student.id).all()
-    
+            base = Student.query
+    if q:
+        like = f'%{q}%'
+        base = base.filter(db.or_(
+            Student.name.ilike(like), Student.email.ilike(like),
+            Student.phone.ilike(like), Student.roll_no.ilike(like)))
+    pagination = base.order_by(Student.id).paginate(
+        page=page, per_page=STUDENTS_PER_PAGE, error_out=False)
+
     all_courses = Course.query.all()
-    return render_template('students.html', students=all_students, courses=all_courses, is_staff=(current_user.role == 'Staff'), selected_course_id=course_filter)
+    return render_template('students.html', students=pagination.items, courses=all_courses,
+        is_staff=(current_user.role == 'Staff'), selected_course_id=course_filter,
+        pagination=pagination, q=q)
 
 
 @students_bp.route('/api/students/export-excel')
@@ -411,8 +443,6 @@ def import_excel():
                 "warnings": validation_result.get("warnings", []),
                 "suggestions": validation_result.get("suggestions", [])
             }), 400
-        imported_count = 0
-        skipped_count = 0
         all_courses = Course.query.all()
         all_courses_lower = {c.code.lower(): c for c in all_courses}
         # Case-insensitive: 'Foo@x.com' must match existing 'foo@x.com'.
@@ -420,35 +450,48 @@ def import_excel():
             (email or '').strip().lower()
             for (email,) in db.session.query(Student.email).all()
         )
-        seen_in_file = set()
-        for student_data in validation_result["enriched_data"]:
-            email_key = (student_data.get('email') or '').strip().lower()
-            if not email_key or email_key in existing_emails or email_key in seen_in_file:
-                skipped_count += 1
-                continue
-            seen_in_file.add(email_key)
-            new_student = Student(
-                name=student_data['name'], email=student_data['email'],
-                phone=student_data['phone'], status=student_data.get('status', 'Active')
-            )
-            if student_data.get('courses'):
-                course_codes = [c.strip() for c in student_data['courses'].split(',')]
-                for code in course_codes:
-                    course = all_courses_lower.get(code.lower())
-                    if course:
-                        new_student.courses.append(course)
-            elif auto_course_mapping:
-                suggested_courses = ai_engine.suggest_course_mapping(student_data, all_courses)
-                for course_id in suggested_courses:
-                    course = next((c for c in all_courses if c.id == course_id), None)
-                    if course:
-                        new_student.courses.append(course)
-            db.session.add(new_student)
-            db.session.flush()
-            ensure_enrolled_on(new_student.id)
-            existing_emails.add(email_key)
-            imported_count += 1
-        db.session.commit()
+
+        def _insert(rows):
+            # Pure function of rows: rebuilt from scratch on every retry
+            # attempt, so the known/seen sets stay local to the attempt.
+            known = set(existing_emails)
+            seen_in_file = set()
+            imported = skipped = 0
+            for student_data in rows:
+                email_key = (student_data.get('email') or '').strip().lower()
+                if not email_key or email_key in known or email_key in seen_in_file:
+                    skipped += 1
+                    continue
+                seen_in_file.add(email_key)
+                new_student = Student(
+                    name=student_data['name'], email=student_data['email'],
+                    phone=student_data['phone'], status=student_data.get('status', 'Active')
+                )
+                if student_data.get('courses'):
+                    course_codes = [c.strip() for c in student_data['courses'].split(',')]
+                    for code in course_codes:
+                        course = all_courses_lower.get(code.lower())
+                        if course:
+                            new_student.courses.append(course)
+                elif auto_course_mapping:
+                    suggested_courses = ai_engine.suggest_course_mapping(student_data, all_courses)
+                    for course_id in suggested_courses:
+                        course = next((c for c in all_courses if c.id == course_id), None)
+                        if course:
+                            new_student.courses.append(course)
+                db.session.add(new_student)
+                db.session.flush()
+                ensure_enrolled_on(new_student.id)
+                known.add(email_key)
+                imported += 1
+            db.session.commit()
+            return imported, skipped
+
+        try:
+            imported_count, skipped_count = commit_with_retry(
+                lambda: _insert(validation_result["enriched_data"]))
+        except IntegrityError:
+            return jsonify({"success": False, "errors": ["Import conflicted with another write. Please retry."]}), 409
         return jsonify({
             "success": True, "message": f"Successfully imported {imported_count} students. Skipped {skipped_count} row(s) (duplicates or invalid).",
             "imported": imported_count, "skipped": skipped_count,
