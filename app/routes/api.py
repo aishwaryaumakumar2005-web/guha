@@ -80,13 +80,14 @@ def api_student_details(student_id):
     days_present = sum(1 for r in attendance_records if r.status == 'Present')
     days_absent = sum(1 for r in attendance_records if r.status == 'Absent')
     days_late = sum(1 for r in attendance_records if r.status == 'Late')
+    days_half_day = sum(1 for r in attendance_records if r.status == 'Half Day')
     return jsonify({
         'id': student.id, 'roll_no': student.roll_no, 'name': student.name, 'email': student.email, 'phone': student.phone,
-        'enrollment_date': student.enrollment_date.strftime('%d %b %Y'), 'status': student.status,
+        'enrollment_date': student.enrollment_date.strftime('%d %b %Y') if student.enrollment_date else None, 'status': student.status,
         'qr_code_uuid': student.qr_code_uuid,
         'courses': [{'id': c.id, 'name': c.name, 'code': c.code, 'fees': c.fees, 'duration': f'{c.duration_weeks} {c.duration_unit or "weeks"}'} for c in student.courses],
         'fees': {'total_course_fee': total_course_fee, 'total_paid': total_paid, 'pending': total_course_fee - total_paid},
-        'attendance': {'total_days': total_days, 'present': days_present, 'absent': days_absent, 'late': days_late}
+        'attendance': {'total_days': total_days, 'present': days_present, 'absent': days_absent, 'late': days_late, 'half_day': days_half_day}
     })
 
 @api_bp.route('/api/tutors/<int:tutor_id>/details')

@@ -122,7 +122,8 @@ class StudentForm(Form):
     required = ['name', 'email', 'phone']
     email = ['email']
     phone = ['phone']
-    integer = ['courses']
+    # NB: no 'courses' validation here — it is a multi-select read via
+    # request.form.getlist(); validating .get() would only see the first id.
     choices = {'status': ['Active', 'Inactive', 'Archived']}
     max_length = {'name': 100, 'email': 100, 'phone': 20}
     regex = {'email': r'^[^@\s]+@[^@\s]+\.[^@\s]+$'}

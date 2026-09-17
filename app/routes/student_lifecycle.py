@@ -174,13 +174,17 @@ def _attendance_stale(att, window_days=ATT_WINDOW_DAYS):
 
 
 def _enrolled_long_ago(student, enrollments, window_days=ATT_WINDOW_DAYS):
-    """True when the earliest known enrollment predates the attendance window.
+    """True when the active enrollment predates the attendance window.
 
     Used to flag students who never attended anything despite being
     enrolled for a while (their window rate is None, so the normal
-    long-absent rule never fires for them).
+    long-absent rule never fires for them). Judged by the *active*
+    enrollment's date: a student re-enrolled yesterday must not inherit
+    the age of an old dropped course.
     """
-    dates = [e.get('enrolled_on') for e in enrollments if e.get('enrolled_on')]
+    active = [e.get('enrolled_on') for e in enrollments
+              if e.get('status') == 'Enrolled' and e.get('enrolled_on')]
+    dates = active or [e.get('enrolled_on') for e in enrollments if e.get('enrolled_on')]
     if not dates and getattr(student, 'enrollment_date', None):
         dates = [student.enrollment_date]
     if not dates:
@@ -482,6 +486,9 @@ def bulk():
             flash(f"Drop reason must be at most {MAX_DROP_REASON} characters.", "danger")
             return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))
     source_statuses, target = _BULK_SOURCES[action]
+    # When the list is course-filtered, only that course's rows are in view —
+    # touching every enrollment of a selected student would surprise the admin.
+    scoped_cid = request.form.get('course_id', type=int)
     today = date.today()
     updated = 0
     for sid in student_ids:
@@ -490,6 +497,8 @@ def bulk():
         ).all()
         for row in rows:
             if (row.status or 'Enrolled') not in source_statuses:
+                continue
+            if scoped_cid and row.course_id != scoped_cid:
                 continue
             values = {'status': target}
             if action == 'complete':

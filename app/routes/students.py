@@ -54,12 +54,21 @@ def list():
             for msg in form.error_messages:
                 flash(msg, 'danger')
             return redirect(url_for('students.list'))
+        dob_raw = (request.form.get('date_of_birth') or '')
+        date_of_birth = _parse_date(dob_raw)
+        if dob_raw.strip() and date_of_birth is None:
+            err = "Invalid date of birth (use YYYY-MM-DD)"
+            if is_ajax_request():
+                return jsonify({"success": False, "errors": [err]}), 400
+            flash(err, 'danger')
+            return redirect(url_for('students.list'))
         name = form.data.get('name', '').strip()
         email = form.data.get('email', '').strip()
         phone = form.data.get('phone', '').strip()
         status = form.data.get('status', 'Active')
         selected_courses = [c for c in request.form.getlist('courses') if c]
-        exists = Student.query.filter_by(email=email).first()
+        exists = Student.query.filter(
+            db.func.lower(Student.email) == email.lower()).first()
         if exists:
             message = f"Student with email '{email}' already exists!"
             if is_ajax_request():
@@ -75,7 +84,7 @@ def list():
                     if is_ajax_request():
                         return jsonify({"success": False, "errors": [str(e)]}), 400
                     flash(str(e), 'warning')
-            new_student = Student(name=name, email=email, phone=phone, status=status, date_of_birth=_parse_date(request.form.get('date_of_birth')), photo_data=photo_data, photo_mime=photo_mime)
+            new_student = Student(name=name, email=email, phone=phone, status=status, date_of_birth=date_of_birth, photo_data=photo_data, photo_mime=photo_mime)
             for c_id in selected_courses:
                 try:
                     course = Course.query.get(int(c_id))
@@ -223,15 +232,27 @@ def edit(id):
             flash(msg, 'danger')
         return redirect(url_for('students.list'))
     new_email = form.data.get('email', '').strip()
-    if new_email != student.email:
-        exists = Student.query.filter_by(email=new_email).first()
+    if new_email.lower() != (student.email or '').lower():
+        exists = Student.query.filter(
+            db.func.lower(Student.email) == new_email.lower()).first()
         if exists:
-            flash(f"Email '{new_email}' is already in use by another student.", 'danger')
+            msg = f"Email '{new_email}' is already in use by another student."
+            if is_ajax_request():
+                return jsonify({"success": False, "errors": [msg]}), 400
+            flash(msg, 'danger')
             return redirect(url_for('students.list'))
+    dob_raw = (request.form.get('date_of_birth') or '')
+    date_of_birth = _parse_date(dob_raw)
+    if dob_raw.strip() and date_of_birth is None:
+        err = "Invalid date of birth (use YYYY-MM-DD)"
+        if is_ajax_request():
+            return jsonify({"success": False, "errors": [err]}), 400
+        flash(err, 'danger')
+        return redirect(url_for('students.list'))
     student.name = form.data.get('name', '').strip()
     student.email = new_email
     student.phone = form.data.get('phone', '').strip()
-    student.date_of_birth = _parse_date(request.form.get('date_of_birth'))
+    student.date_of_birth = date_of_birth
     student.status = form.data.get('status', 'Active')
     if request.form.get('remove_photo'):
         student.photo_data = None
