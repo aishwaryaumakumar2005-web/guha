@@ -222,22 +222,29 @@ def migrate_schema_additions():
     Idempotent and safe to run on every startup. Adds:
       - course.capacity      (course seat capacity for utilization card)
       - student.date_of_birth (birthday wishes card)
-    Works on SQLite and PostgreSQL.
+    Works on SQLite and PostgreSQL. NOTE: PostgreSQL has no DATETIME type,
+    so timestamp columns use TIMESTAMP there (DATETIME on SQLite). A previous
+    version used DATETIME unconditionally, which failed silently on Postgres
+    and left enquiry.last_contacted_at / enquiry.updated_at missing.
     """
+    ts_type = 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'
     additions = [
         ('course', 'capacity', 'INTEGER'),
         ('student', 'date_of_birth', 'DATE'),
-        ('enquiry', 'last_contacted_at', 'DATETIME'),
+        ('enquiry', 'last_contacted_at', ts_type),
         ('enquiry', 'converted_student_id', 'INTEGER'),
-        ('enquiry', 'updated_at', 'DATETIME'),
+        ('enquiry', 'updated_at', ts_type),
     ]
     for table, column, col_type in additions:
         if _table_exists(table) and not _has_column(table, column):
             try:
                 db.session.execute(text('ALTER TABLE "%s" ADD COLUMN "%s" %s' % (table, column, col_type)))
                 db.session.commit()
-            except Exception:
+            except Exception as e:
+                # Never swallow DDL failures silently: a failed column add
+                # leaves the app selecting a non-existent column (500s).
                 db.session.rollback()
+                print(f"Migration migrate_schema_additions: FAILED to add {table}.{column}: {e}", flush=True)
 
 
 def migrate_enquiry_course_nullable():
