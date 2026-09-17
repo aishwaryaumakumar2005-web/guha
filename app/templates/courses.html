@@ -80,13 +80,13 @@ Total Enrollments: {{ total_enrollments }}</span>
 </i>
 {{ enrolled_count }} Enrolled student(s)</span>
                             <div class="d-flex gap-2">
-                                <button class="btn btn-sm btn-outline-premium" onclick="optimizeSyllabus({{ course.id }}, '{{ course.name }}')">
-                                    <i class="bi bi-magic me-1">
+                                <button class="btn btn-sm btn-outline-premium" onclick="optimizeSyllabus({{ course.id }})" aria-label="AI optimize syllabus for {{ course.name }}">
+                                    <i class="bi bi-magic me-1" aria-hidden="true">
 </i>
 AI Optimize                                </button>
                                 {% if not is_staff %}
-                                <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#editCourseModal{{ course.id }}">
-                                    <i class="bi bi-pencil-square me-1">
+                                <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#editCourseModal{{ course.id }}" aria-label="Edit course {{ course.name }}">
+                                    <i class="bi bi-pencil-square me-1" aria-hidden="true">
 </i>
 Edit                                </button>
                                 <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Deleting this course will drop it from all enrolled students, and permanently delete its exams and scores! Proceed?', function() { var f = document.createElement('form'); f.method = 'POST'; f.action = '{{ url_for('courses.delete', id=course.id) }}'; document.body.appendChild(f); f.submit(); })">
@@ -160,7 +160,7 @@ Days</option>
                         <div class="col-md-6 mb-3">
                             <label class="form-label small">
                             Seat Capacity <span class="text-muted fw-normal">(optional)</span></label>
-                            <input type="number" class="form-control" name="capacity" value="{{ course.capacity if course.capacity else 30 }}" min="1">
+                            <input type="number" class="form-control" name="capacity" value="{{ course.capacity if course.capacity else '' }}" placeholder="30" min="1">
                             <small class="text-muted">Used for dashboard capacity utilisation. Blank keeps the default of 30.</small>
                         </div>
                     </div>
@@ -179,7 +179,7 @@ Days</option>
                     <div class="mb-3">
                         <div class="form-check">
                             <input type="checkbox" class="form-check-input" name="gst_applicable" id="edit_gst_{{ course.id }}" {% if course.gst_applicable %}checked{% endif %} onchange="updateGstPreview('edit', {{ course.id }})">
-                            <label class="form-check-label" for="edit_gst_{{ course.id }}">18% GST Applicable (GST added on top of fee)</label>
+                            <label class="form-check-label" for="edit_gst_{{ course.id }}">{{ (gst_rates.cgst + gst_rates.sgst)|round|int }}% GST Applicable (GST added on top of fee)</label>
                         </div>
                         <div id="edit_gst_preview_{{ course.id }}" class="small mt-1" style="color: #d97706; display: {% if course.gst_applicable %}block{% else %}none{% endif %};"></div>
                     </div>
@@ -259,7 +259,7 @@ Tuition Course Fee (₹)</label>
                         <div class="col-md-6 mb-3">
                             <label class="form-label small">
                             Seat Capacity <span class="text-muted fw-normal">(optional)</span></label>
-                            <input type="number" class="form-control" name="capacity" value="30" min="1">
+                            <input type="number" class="form-control" name="capacity" value="" placeholder="30" min="1">
                             <small class="text-muted">Maximum number of seats. Used for dashboard capacity utilisation.</small>
                         </div>
                     </div>
@@ -277,7 +277,7 @@ Tuition Course Fee (₹)</label>
                     <div class="mb-3">
                         <div class="form-check">
                             <input type="checkbox" class="form-check-input" name="gst_applicable" id="add_gst" onchange="updateGstPreview('add')">
-                            <label class="form-check-label" for="add_gst">18% GST Applicable (GST added on top of fee)</label>
+                            <label class="form-check-label" for="add_gst">{{ (gst_rates.cgst + gst_rates.sgst)|round|int }}% GST Applicable (GST added on top of fee)</label>
                         </div>
                         <div id="add_gst_preview" class="small mt-1" style="color: #d97706; display: none;"></div>
                     </div>
@@ -332,7 +332,7 @@ Close</button>
     </div>
 </div>
 <script>
-function optimizeSyllabus(courseId, courseName) {    const modal = new bootstrap.Modal(document.getElementById('aiSyllabusModal'));    const contentDiv = document.getElementById('syllabusOptimizationContent');        contentDiv.innerHTML = `        <div class="d-flex align-items-center text-secondary">
+function optimizeSyllabus(courseId) {    const modal = new bootstrap.Modal(document.getElementById('aiSyllabusModal'));    const contentDiv = document.getElementById('syllabusOptimizationContent');        contentDiv.innerHTML = `        <div class="d-flex align-items-center text-secondary">
             <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true">
 </span>
             Analyzing course syllabus and generating recommendations...        </div>
@@ -373,7 +373,7 @@ ${rec}</li>
                 </div>
                 <div class="mb-4">
                     <h6 class="fw-bold mb-3">
-<i class bi bi-building me-2 text-primary">
+<i class="bi bi-building me-2 text-primary" aria-hidden="true">
 </i>
 Industry Alignment</h6>
                     <p class="text-secondary">

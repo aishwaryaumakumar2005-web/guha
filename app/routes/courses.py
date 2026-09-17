@@ -30,7 +30,10 @@ def list():
                 flash(msg, 'danger')
             return redirect(url_for('courses.list'))
         name = form.data.get('name', '').strip()
-        code = form.data.get('code', '').strip()
+        # Registry codes are canonicalized to uppercase: the DB unique index
+        # is case-sensitive, but Excel imports map codes case-insensitively,
+        # so 'py' and 'PY' coexisting would silently mis-enroll imports.
+        code = form.data.get('code', '').strip().upper()
         description = form.data.get('description', '').strip()
         duration = form.cleaned_data.get('duration_weeks', 0)
         duration_unit = request.form.get('duration_unit', 'weeks')
@@ -41,7 +44,8 @@ def list():
         syllabus = request.form.get('syllabus', '').strip()
         company_id_raw = request.form.get('company_id', '').strip()
         company_id = int(company_id_raw) if company_id_raw.isdigit() else None
-        exists = Course.query.filter_by(code=code).first()
+        exists = Course.query.filter(
+            db.func.lower(Course.code) == code.lower()).first()
         if exists:
             message = f"Course code '{code}' already exists!"
             if is_ajax_request():
@@ -112,26 +116,34 @@ def edit(id):
         for msg in form.error_messages:
             flash(msg, 'danger')
         return redirect(url_for('courses.list'))
-    new_code = form.data.get('code', '').strip()
-    if new_code != course.code:
-        exists = Course.query.filter_by(code=new_code).first()
-        if exists:
-            flash(f"Course code '{new_code}' already exists!", 'danger')
-            return redirect(url_for('courses.list'))
+    # Registry codes are immutable: imports/exports key off them, so the form
+    # field is readonly and the code is never rewritten here (a changed code
+    # would silently orphan future import mappings).
     course.name = form.data.get('name', '').strip()
-    course.code = new_code
     course.description = form.data.get('description', '').strip()
     course.duration_weeks = form.cleaned_data.get('duration_weeks', 0)
     course.duration_unit = request.form.get('duration_unit', 'weeks')
-    course.fees = form.cleaned_data.get('fees', 0.0)
+    old_fees = course.fees or 0.0
+    new_fees = form.cleaned_data.get('fees', 0.0)
+    course.fees = new_fees
     capacity_raw = request.form.get('capacity', '').strip()
     course.capacity = int(capacity_raw) if capacity_raw.isdigit() else None
     course.gst_applicable = request.form.get('gst_applicable') == 'on'
     course.syllabus = request.form.get('syllabus', '').strip()
     company_id_raw = request.form.get('company_id', '').strip()
     course.company_id = int(company_id_raw) if company_id_raw.isdigit() else None
+    fee_changed = (new_fees or 0.0) != (old_fees or 0.0)
     db.session.commit()
     message = "Course details updated!"
+    if fee_changed:
+        # Balances are computed live from course.fees, so dues move the
+        # moment this saves — say so instead of rewriting history silently.
+        affected = db.session.query(student_courses.c.student_id).filter(
+            student_courses.c.course_id == course.id,
+            db.or_(student_courses.c.status == 'Enrolled',
+                   student_courses.c.status.is_(None))).count()
+        message += (f" Fee changed ₹{old_fees:,.2f} → ₹{new_fees:,.2f}: "
+                    f"{affected} active enrollment(s) dues recalculated.")
     if is_ajax_request():
         return jsonify({"success": True, "message": message}), 200
     flash(message, "success")
