@@ -620,13 +620,20 @@ function initializeTableSorting() {
     tables.forEach(table => {
         const headers = table.querySelectorAll('thead th');
         headers.forEach((th, index) => {
+            if (th.classList.contains('no-sort')) return;
             th.style.position = 'relative';
+            th.style.cursor = 'pointer';
+            if (!th.hasAttribute('aria-sort')) th.setAttribute('aria-sort', 'none');
             th.innerHTML = `${th.innerHTML} <span class="sort-indicator"></span>`;
             th.addEventListener('click', () => {
                 const currentDir = th.classList.contains('sort-asc') ? 'asc' : th.classList.contains('sort-desc') ? 'desc' : null;
                 const newDir = currentDir === 'asc' ? 'desc' : 'asc';
-                headers.forEach(header => header.classList.remove('sort-asc', 'sort-desc'));
+                headers.forEach(header => {
+                    header.classList.remove('sort-asc', 'sort-desc');
+                    if (!header.classList.contains('no-sort')) header.setAttribute('aria-sort', 'none');
+                });
                 th.classList.add(newDir === 'asc' ? 'sort-asc' : 'sort-desc');
+                th.setAttribute('aria-sort', newDir === 'asc' ? 'ascending' : 'descending');
                 sortTableByColumn(table, index, newDir === 'asc');
             });
         });
@@ -691,6 +698,11 @@ function initializeTablePagination() {
         searchWrap.className = 'search-wrap';
         searchWrap.innerHTML = '<i class="bi bi-search"></i><input type="text" class="form-control form-control-sm" placeholder="Search table...">';
 
+        // Tables with their own server-side search (data-server-search) get
+        // pagination + info only, so the toolbar doesn't duplicate search or
+        // offer a client export that would include action columns.
+        var serverSearch = table.dataset.serverSearch === 'true';
+
         var right = document.createElement('div');
         right.className = 'toolbar-right';
 
@@ -723,8 +735,8 @@ function initializeTablePagination() {
 
         right.appendChild(info);
         right.appendChild(rpp);
-        right.appendChild(exportBtn);
-        wrapper.appendChild(searchWrap);
+        if (!serverSearch) right.appendChild(exportBtn);
+        if (!serverSearch) wrapper.appendChild(searchWrap);
         wrapper.appendChild(right);
         table.parentNode.insertBefore(wrapper, table);
 
@@ -736,7 +748,7 @@ function initializeTablePagination() {
             controls: null,
             toolbar: wrapper,
             infoEl: info,
-            searchEl: searchWrap.querySelector('input'),
+            searchEl: serverSearch ? null : searchWrap.querySelector('input'),
             rppSelect: rpp.querySelector('select'),
             searchQuery: ''
         };
@@ -748,11 +760,13 @@ function initializeTablePagination() {
         table._pagination = pagination;
 
         // Search handler
-        pagination.searchEl.addEventListener('input', function() {
-            pagination.searchQuery = this.value.toLowerCase().trim();
-            pagination.currentPage = 1;
-            renderTablePage(table);
-        });
+        if (pagination.searchEl) {
+            pagination.searchEl.addEventListener('input', function() {
+                pagination.searchQuery = this.value.toLowerCase().trim();
+                pagination.currentPage = 1;
+                renderTablePage(table);
+            });
+        }
 
         // Rows-per-page handler
         pagination.rppSelect.addEventListener('change', function() {

@@ -984,6 +984,79 @@ body.dark-mode .glass-card:hover {
 .summary-card.enrollments {
     background: linear-gradient(135deg, #f59639 0%, #d0531e 100%);
 }
+.summary-card.lc-danger {
+    background: linear-gradient(135deg, #ef4444 0%, #991b1b 100%);
+}
+.summary-card.lc-cyan {
+    background: linear-gradient(135deg, #06b6d4 0%, #0e7490 100%);
+}
+.summary-card.lc-muted {
+    background: linear-gradient(135deg, #64748b 0%, #334155 100%);
+}
+.summary-card.lc-amber {
+    background: linear-gradient(135deg, #f59e0b 0%, #b45309 100%);
+}
+.summary-card.lc-tile {
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.summary-card.lc-tile:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.3);
+}
+.summary-card.lc-active {
+    outline: 2px solid rgba(255, 255, 255, 0.8);
+    outline-offset: 2px;
+}
+
+/* ===== STUDENT LIFECYCLE MODULE ===== */
+.lc-row-risk td:first-child {
+    box-shadow: inset 4px 0 0 0 #f59e0b;
+}
+.lc-att-bar {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+    overflow: hidden;
+}
+.lc-att-bar > span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+}
+.lc-course-group + .lc-course-group {
+    margin-top: 0.4rem;
+}
+.lc-course-group-label {
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.5;
+    margin-bottom: 0.15rem;
+}
+.lc-bulk-bar {
+    display: none;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding: 0.5rem 0.85rem;
+    border-radius: 16px;
+    background: rgba(13, 39, 64, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    position: sticky;
+    bottom: 0.5rem;
+    z-index: 1020;
+}
+.lc-bulk-bar.show {
+    display: flex;
+}
+@media (max-width: 576px) {
+    .lc-bulk-bar {
+        position: sticky;
+        bottom: 0.25rem;
+    }
+}
 
 /* ===== BENTO GRID SYSTEM ===== */
 .bento-grid {

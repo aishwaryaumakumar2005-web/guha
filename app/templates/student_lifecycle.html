@@ -1,168 +1,370 @@
-{% extends 'base.html' %}{% block title %}Student Lifecycle{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('students.list') }}">Academic</a></li><li class="breadcrumb-item active" aria-current="page">Student Lifecycle</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+{% extends 'base.html' %}{% block title %}Student Lifecycle{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('students.list') }}">Academic</a></li><li class="breadcrumb-item active" aria-current="page">Student Lifecycle</li>{% endblock %}
+
+{% macro rel_date(dt, today) -%}
+{%- if not dt -%}Never
+{%- else -%}
+{%- set days = (today - dt).days -%}
+{%- if days <= 0 -%}Today
+{%- elif days == 1 -%}Yesterday
+{%- elif days < 30 -%}{{ days }} days ago
+{%- elif days < 365 -%}{{ days // 30 }} mo ago
+{%- else -%}{{ days // 365 }} yr ago
+{%- endif -%}
+{%- endif -%}
+{%- endmacro %}
+
+{% block content %}<div class="container-fluid p-0">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="text-white fw-bold">
-Student Lifecycle</h2>
-            <p class="text-white mb-0">
-Track course completion, dropouts and long-absent students. <span class="text-info">Admin only</span></p>
+            <h2 class="text-white fw-bold">Student Lifecycle</h2>
+            <p class="text-white mb-0">Track course completion, dropouts and long-absent students. <span class="text-info">Admin only</span></p>
         </div>
     </div>
-    <!-- Filter Pills -->
+
+    <!-- Summary tiles -->
+    {% set tiles = [
+        ('all', 'Total', 'bi-people-fill', 'students', total_all),
+        ('enrolled', 'Enrolled', 'bi-check2-circle', 'staff', counts.get('Enrolled', 0)),
+        ('long_absent', 'Long Absent', 'bi-exclamation-triangle-fill', 'lc-danger', counts.get('Long Absent', 0)),
+        ('completed', 'Completed', 'bi-award-fill', 'lc-cyan', counts.get('Completed', 0)),
+        ('dropped', 'Dropped', 'bi-x-octagon-fill', 'lc-muted', counts.get('Dropped', 0)),
+        ('not_enrolled', 'Not Enrolled', 'bi-person-dash-fill', 'lc-amber', counts.get('Not Enrolled', 0)),
+        ('inactive', 'Inactive / Archived', 'bi-person-slash', 'enrollments', counts.get('Inactive', 0) + counts.get('Archived', 0)),
+    ] %}
+    <div class="row g-3 mb-4">
+        {% for key, label, icon, cls, n in tiles %}
+        <div class="col-6 col-md-4 col-xl-3">
+            <a href="{{ url_for('student_lifecycle.lifecycle', filter=key, q=q, course_id=selected_course_id) }}" class="text-decoration-none">
+                <div class="summary-card {{ cls }} lc-tile {% if filter_key == key %}lc-active{% endif %}">
+                    <div>
+                        <div class="stat-number">{{ n }}</div>
+                        <div class="stat-label">{{ label }}</div>
+                    </div>
+                    <i class="bi {{ icon }} stat-icon"></i>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Compact filter bar -->
     <div class="glass-card p-3 mb-4">
-        <div class="d-flex flex-wrap gap-2">
-            <a href="{{ url_for('student_lifecycle.lifecycle', filter='all') }}" class="btn btn-sm {% if filter_key == 'all' %}btn-premium{% else %}btn-outline-premium{% endif %}">
-                All Students <span class="ms-1 badge rounded-pill badge-pill-count">{{ total }}</span>
-            </a>
-            <a href="{{ url_for('student_lifecycle.lifecycle', filter='enrolled') }}" class="btn btn-sm {% if filter_key == 'enrolled' %}btn-premium{% else %}btn-outline-premium{% endif %}">
-                <i class="bi bi-check2-circle me-1"></i>Enrolled <span class="ms-1 badge rounded-pill badge-pill-count">{{ counts.get('Enrolled', 0) }}</span>
-            </a>
-            <a href="{{ url_for('student_lifecycle.lifecycle', filter='not_enrolled') }}" class="btn btn-sm {% if filter_key == 'not_enrolled' %}btn-premium{% else %}btn-outline-premium{% endif %}">
-                <i class="bi bi-person-dash me-1"></i>Not Enrolled <span class="ms-1 badge rounded-pill badge-pill-count">{{ counts.get('Not Enrolled', 0) }}</span>
-            </a>
-            <a href="{{ url_for('student_lifecycle.lifecycle', filter='completed') }}" class="btn btn-sm {% if filter_key == 'completed' %}btn-premium{% else %}btn-outline-premium{% endif %}">
-                <i class="bi bi-award me-1"></i>Completed <span class="ms-1 badge rounded-pill badge-pill-count">{{ counts.get('Completed', 0) }}</span>
-            </a>
-            <a href="{{ url_for('student_lifecycle.lifecycle', filter='dropped') }}" class="btn btn-sm {% if filter_key == 'dropped' %}btn-premium{% else %}btn-outline-premium{% endif %}">
-                <i class="bi bi-x-octagon me-1"></i>Dropped Out <span class="ms-1 badge rounded-pill badge-pill-count">{{ counts.get('Dropped', 0) }}</span>
-            </a>
-            <a href="{{ url_for('student_lifecycle.lifecycle', filter='long_absent') }}" class="btn btn-sm {% if filter_key == 'long_absent' %}btn-premium{% else %}btn-outline-premium{% endif %}">
-                <i class="bi bi-exclamation-triangle me-1"></i>Long Absent <span class="ms-1 badge rounded-pill badge-pill-count">{{ counts.get('Long Absent', 0) }}</span>
-            </a>
-            <a href="{{ url_for('student_lifecycle.lifecycle', filter='inactive') }}" class="btn btn-sm {% if filter_key == 'inactive' %}btn-premium{% else %}btn-outline-premium{% endif %}">
-                <i class="bi bi-person-slash me-1"></i>Inactive / Archived <span class="ms-1 badge rounded-pill badge-pill-count">{{ counts.get('Inactive', 0) + counts.get('Archived', 0) }}</span>
-            </a>
+        <form method="GET" action="{{ url_for('student_lifecycle.lifecycle') }}" hx-boost="false" class="row g-2 align-items-end">
+            <input type="hidden" name="filter" value="{{ filter_key }}">
+            <div class="col-md-6">
+                <label for="lcSearch" class="form-label small text-white mb-1">Search</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-transparent text-white border-secondary"><i class="bi bi-search"></i></span>
+                    <input type="search" id="lcSearch" name="q" value="{{ q }}" class="form-control" placeholder="Name, phone, email or roll no" aria-label="Search students">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label for="lcCourse" class="form-label small text-white mb-1">Course</label>
+                <select id="lcCourse" name="course_id" class="form-select form-select-sm" aria-label="Filter by course">
+                    <option value="">All courses</option>
+                    {% for c in courses %}<option value="{{ c.id }}" {% if selected_course_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-sm btn-premium flex-grow-1"><i class="bi bi-funnel me-1"></i>Apply</button>
+                <a href="{{ url_for('student_lifecycle.lifecycle', filter='all') }}" class="btn btn-sm btn-outline-premium" hx-boost="false">Reset</a>
+            </div>
+        </form>
+        <div class="small text-white mt-3" style="opacity:.75;">
+            <i class="bi bi-info-circle me-1"></i>Showing <strong>{{ shown }}</strong> of {{ total_all }} student(s){% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}{% if selected_course_id %} in the selected course{% endif %}.
         </div>
-        <p class="small text-white mt-3 mb-0" style="opacity:0.75;">
-<i class="bi bi-info-circle me-1">
-</i>
-Long Absent = missed {{ thresholds.streak }}+ consecutive sessions, attendance below {{ "%.0f"|format(thresholds.rate) }}% in the last {{ thresholds.window }} days (Half Day counts as half), or no attendance at all {{ thresholds.window }}+ days after enrollment. Thresholds are tunable under Admin → Settings.</p>
     </div>
-    <!-- Lifecycle Table -->
-    <div class="glass-card p-4" data-aos="fade-up">
-        <h4 class="mb-4 text-dark fw-bold">
-<i class="bi bi-diagram-3 me-2 text-dark">
-</i>
-Student Records</h4>
-        <div class="table-container">
-            <table class="table table-custom sortable" data-page-size="10">
-                <thead>
-                    <tr>
-                        <th>
-Student</th>
-                        <th>
-Overall Status</th>
-                        <th>
-Enrolled Courses</th>
-                        <th>
-Attendance ({{ thresholds.window }}d)</th>
-                        <th class="text-end">
-Last Activity</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% if lifecycle %}                        {% for d in lifecycle %}                        <tr>
-                            <td>
-                                <div class="fw-semibold text-dark">
-{{ d.student.name }}</div>
-                                <div class="small text-secondary">
-{{ d.student.phone }}</div>
+
+    <!-- Bulk actions + records -->
+    <form method="POST" action="{{ url_for('student_lifecycle.bulk') }}" id="bulkForm" hx-boost="false" data-no-ajax>
+        <input type="hidden" name="bulk_action" id="bulkAction" value="">
+        <input type="hidden" name="bulk_reason" id="bulkReason" value="">
+        <input type="hidden" name="filter" value="{{ filter_key }}">
+        <div class="glass-card p-4" data-aos="fade-up">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h4 class="mb-0 text-dark fw-bold"><i class="bi bi-diagram-3 me-2 text-dark"></i>Student Records</h4>
+                <div class="lc-bulk-bar" id="bulkBar" role="region" aria-label="Bulk actions">
+                    <span class="text-white small"><strong id="bulkCount">0</strong> selected</span>
+                    <button type="button" class="btn btn-sm btn-action-success" onclick="bulkPrompt('complete')"><i class="bi bi-check2 me-1"></i>Complete</button>
+                    <button type="button" class="btn btn-sm btn-action-danger" onclick="bulkPrompt('drop')"><i class="bi bi-x me-1"></i>Drop</button>
+                    <button type="button" class="btn btn-sm btn-action-reenroll" onclick="bulkPrompt('reactivate')"><i class="bi bi-arrow-counterclockwise me-1"></i>Re-enroll</button>
+                    <button type="button" class="btn btn-sm btn-outline-light" onclick="clearBulk()">Clear</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="table table-custom sortable" data-page-size="10" data-server-search="true">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="no-sort lc-check-col" style="width:34px;"><input type="checkbox" id="checkAll" onclick="toggleAll(this)" aria-label="Select all students"></th>
+                            <th scope="col" aria-sort="none">Student</th>
+                            <th scope="col" aria-sort="none">Overall Status</th>
+                            <th scope="col" aria-sort="none">Courses</th>
+                            <th scope="col" aria-sort="none">Attendance ({{ thresholds.window }}d)
+                                <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline text-dark" onclick="event.stopPropagation()" data-bs-toggle="popover" data-bs-placement="top" data-bs-title="Long Absent rule" data-bs-content="Missed {{ thresholds.streak }}+ consecutive sessions, or below {{ '%.0f'|format(thresholds.rate) }}% attendance in {{ thresholds.window }} days (Half Day counts as half), or no attendance {{ thresholds.window }}+ days after enrollment. Tunable under Admin &rarr; Settings." aria-label="What counts as Long Absent?"><i class="bi bi-question-circle"></i></button>
+                            </th>
+                            <th scope="col" aria-sort="none" class="text-end">Last Activity</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if lifecycle %}
+                        {% for d in lifecycle %}
+                        <tr{% if d.bucket == 'Long Absent' %} class="lc-row-risk"{% endif %}>
+                            <td data-label="">
+                                <input type="checkbox" class="lc-check" name="selected" value="{{ d.student.id }}" onchange="updateBulk()" aria-label="Select {{ d.student.name }}">
                             </td>
-                            <td>
-                                {% set b = d.bucket %}                                {% if b == 'Enrolled' %}                                    <span class="badge badge-custom badge-active">Enrolled</span>
-                                {% elif b == 'Completed' %}                                    <span class="badge badge-custom badge-cyan">Completed</span>
-                                {% elif b == 'Long Absent' %}                                    <span class="badge badge-custom badge-amber">Long Absent</span>
-                                {% elif b == 'Dropped' %}                                    <span class="badge badge-custom badge-inactive">Dropped</span>
-                                {% else %}                                    <span class="badge badge-custom badge-inactive">{{ b }}</span>
-                                {% endif %}                            </td>
-                            <td>
-                                {% if d.enrollments %}                                    {% for e in d.enrollments %}                                    <div class="mb-2">
-                                        <span class="badge badge-custom badge-cyan">
-{{ e.course.name }}</span>
-                                        <span class="small text-secondary ms-1">
-{% if e.status == 'Completed' %}Completed {{ e.completed_on.strftime('%d %b %Y') if e.completed_on }}{% elif e.status == 'Dropped' %}Dropped{% if e.drop_reason %} - {{ e.drop_reason }}{% endif %}{% else %}Enrolled since {{ e.enrolled_on.strftime('%d %b %Y') if e.enrolled_on else (d.student.enrollment_date.strftime('%d %b %Y') if d.student.enrollment_date else 'date unknown') }}{% endif %}</span>
-                                        <div class="mt-1">
-                                        {% if e.status == 'Enrolled' %}                                            <form method="POST" action="{{ url_for('student_lifecycle.complete', sid=d.student.id, cid=e.course.id) }}" class="d-inline" hx-boost="false" data-no-ajax data-confirm="Mark {{ d.student.name }} as completed in {{ e.course.name }}?">
-                                                <input type="hidden" name="filter" value="{{ filter_key }}">
-                                                <button type="submit" class="btn btn-sm btn-action-success py-1 px-2" title="Mark course completed">
-<i class="bi bi-check2 me-1"></i>Complete
-</button>
-                                            </form>
-                                            <button type="button" class="btn btn-sm btn-action-danger py-1 px-2" title="Drop student from this course"
-                                                onclick="dropEnrollment(this)"
-                                                data-sid="{{ d.student.id }}" data-cid="{{ e.course.id }}"
-                                                data-name="{{ d.student.name }}" data-course="{{ e.course.name }}">
-<i class="bi bi-x me-1"></i>Drop
-</button>
-                                        {% else %}                                            <form method="POST" action="{{ url_for('student_lifecycle.reactivate', sid=d.student.id, cid=e.course.id) }}" class="d-inline" hx-boost="false" data-no-ajax data-confirm="Re-enroll {{ d.student.name }} in {{ e.course.name }}? This clears its completion/drop status.">
-                                                <input type="hidden" name="filter" value="{{ filter_key }}">
-                                                <button type="submit" class="btn btn-sm btn-action-reenroll py-1 px-2" title="Re-enroll">
-<i class="bi bi-arrow-counterclockwise me-1"></i>Re-enroll
-</button>
-                                            </form>
-                                        {% endif %}                                        </div>
+                            <td data-label="Student">
+                                <div class="fw-semibold text-dark">
+                                    {% if d.bucket == 'Long Absent' %}<i class="bi bi-exclamation-triangle-fill text-warning me-1" title="Long absent"></i>{% endif %}{{ d.student.name }}
+                                </div>
+                                <div class="small text-secondary">{{ d.student.phone }}{% if d.student.roll_no %} &middot; {{ d.student.roll_no }}{% endif %}</div>
+                            </td>
+                            <td data-label="Status">
+                                {% set b = d.bucket %}
+                                {% if b == 'Enrolled' %}<span class="badge badge-custom badge-active"><i class="bi bi-check2-circle me-1"></i>Enrolled</span>
+                                {% elif b == 'Completed' %}<span class="badge badge-custom badge-cyan"><i class="bi bi-award me-1"></i>Completed</span>
+                                {% elif b == 'Long Absent' %}<span class="badge badge-custom badge-amber"><i class="bi bi-exclamation-triangle me-1"></i>Long Absent</span>
+                                {% elif b == 'Dropped' %}<span class="badge badge-custom badge-inactive"><i class="bi bi-x-octagon me-1"></i>Dropped</span>
+                                {% elif b == 'Not Enrolled' %}<span class="badge badge-custom badge-inactive"><i class="bi bi-person-dash me-1"></i>Not Enrolled</span>
+                                {% else %}<span class="badge badge-custom badge-inactive"><i class="bi bi-person-slash me-1"></i>{{ b }}</span>
+                                {% endif %}
+                            </td>
+                            <td data-label="Courses">
+                                {% if d.enrollments %}
+                                {% for status_key, group_label in [('Enrolled', 'Enrolled'), ('Completed', 'Completed'), ('Dropped', 'Dropped')] %}
+                                {% set group = d.enrollments|selectattr('status', 'equalto', status_key)|list %}
+                                {% if group %}
+                                <div class="lc-course-group">
+                                    <div class="lc-course-group-label">{{ group_label }}</div>
+                                    {% for e in group %}
+                                    <div class="d-flex align-items-center gap-1 mb-1 flex-wrap">
+                                        <span class="badge badge-custom badge-cyan">{{ e.course.name }}</span>
+                                        <span class="small text-secondary">
+                                            {% if e.status == 'Completed' %}Completed {{ e.completed_on.strftime('%d %b %Y') if e.completed_on else '' }}
+                                            {% elif e.status == 'Dropped' %}Dropped{% if e.drop_reason %} &mdash; {{ e.drop_reason }}{% endif %}
+                                            {% else %}since {{ e.enrolled_on.strftime('%d %b %Y') if e.enrolled_on else (d.student.enrollment_date.strftime('%d %b %Y') if d.student.enrollment_date else 'date unknown') }}
+                                            {% endif %}
+                                        </span>
+                                        <div class="dropdown ms-auto">
+                                            <button class="btn btn-sm btn-outline-secondary py-0 px-1" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for {{ e.course.name }}"><i class="bi bi-three-dots-vertical"></i></button>
+                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                {% if e.status == 'Enrolled' %}
+                                                <li><button class="dropdown-item" type="button" data-lc-action="complete" data-sid="{{ d.student.id }}" data-cid="{{ e.course.id }}" data-student="{{ d.student.name }}" data-course="{{ e.course.name }}" onclick="lcFromButton(this)"><i class="bi bi-check2 me-2"></i>Mark completed</button></li>
+                                                <li><button class="dropdown-item text-danger" type="button" data-lc-action="drop" data-sid="{{ d.student.id }}" data-cid="{{ e.course.id }}" data-student="{{ d.student.name }}" data-course="{{ e.course.name }}" onclick="lcFromButton(this)"><i class="bi bi-x me-2"></i>Drop</button></li>
+                                                {% else %}
+                                                <li><button class="dropdown-item" type="button" data-lc-action="reactivate" data-sid="{{ d.student.id }}" data-cid="{{ e.course.id }}" data-student="{{ d.student.name }}" data-course="{{ e.course.name }}" onclick="lcFromButton(this)"><i class="bi bi-arrow-counterclockwise me-2"></i>Re-enroll</button></li>
+                                                {% endif %}
+                                            </ul>
+                                        </div>
                                     </div>
-                                    {% endfor %}                                {% else %}                                    <span class="small text-secondary">No course enrollment</span>
-                                {% endif %}                            </td>
-                            <td>
-                                {% if d.metrics.att_rate is not none %}
-                                    {% set rate = d.metrics.att_rate %}
-                                    <span class="badge badge-custom {% if rate >= thresholds.rate %}badge-active{% elif rate >= thresholds.rate * 0.66 %}badge-amber{% else %}badge-inactive{% endif %}" title="Attendance over the last {{ thresholds.window }} days">{{ "%.0f"|format(rate) }}%</span>
-                                    <div class="small text-secondary mt-1">{{ d.metrics.total_marks }} mark(s) &middot; worst {{ d.metrics.max_run }} absent</div>
-                                    <div class="small text-secondary">
-Absent last {{ d.metrics.last_streak }} session(s) {% if d.metrics.last_streak > 0 %} <span class="text-danger">&#9888;</span>{% endif %}</div>
-                                {% elif d.metrics.last_attendance_date %}
-                                    <span class="small text-secondary">No marks in last {{ thresholds.window }}d</span>
-                                    <div class="small text-secondary mt-1">Last: {{ d.metrics.last_attendance_date.strftime('%d %b %Y') }}</div>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                                {% endfor %}
                                 {% else %}
-                                    <span class="small text-secondary">Never marked</span>
-                                {% endif %}                            </td>
-                            <td class="text-end small text-secondary">
-                                {% if d.metrics.last_attendance_date %}                                    {{ d.metrics.last_attendance_date.strftime('%d %b %Y') }}                                {% else %}                                    Never                                {% endif %}                            </td>
+                                <span class="small text-secondary">No course enrollment</span>
+                                {% endif %}
+                            </td>
+                            <td data-label="Attendance">
+                                {% if d.metrics.att_rate is not none %}
+                                {% set rate = d.metrics.att_rate %}
+                                {% set bar = '#22c55e' if rate >= thresholds.rate else ('#f59e0b' if rate >= thresholds.rate * 0.66 else '#ef4444') %}
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge badge-custom {% if rate >= thresholds.rate %}badge-active{% elif rate >= thresholds.rate * 0.66 %}badge-amber{% else %}badge-inactive{% endif %}">{{ '%.0f'|format(rate) }}%</span>
+                                    <div class="lc-att-bar flex-grow-1" style="min-width:60px;" title="{{ d.metrics.total_marks }} mark(s) in the last {{ thresholds.window }} days (Half Day = half)">
+                                        <span style="width: {{ rate|round(0)|int }}%; background: {{ bar }};"></span>
+                                    </div>
+                                </div>
+                                <div class="small text-secondary mt-1">{{ d.metrics.total_marks }} mark(s) &middot; worst {{ d.metrics.max_run }} absent</div>
+                                <div class="small text-secondary">Absent last {{ d.metrics.last_streak }} session(s){% if d.metrics.last_streak > 0 %} <span class="text-danger">&#9888;</span>{% endif %}</div>
+                                {% elif d.metrics.last_attendance_date %}
+                                <span class="small text-secondary">No marks in last {{ thresholds.window }}d</span>
+                                <div class="small text-secondary mt-1">Last: {{ d.metrics.last_attendance_date.strftime('%d %b %Y') }}</div>
+                                {% else %}
+                                <span class="small text-secondary">Never marked</span>
+                                {% endif %}
+                            </td>
+                            <td data-label="Last Activity" class="text-end small text-secondary">
+                                {% if d.metrics.last_attendance_date %}
+                                <span title="{{ d.metrics.last_attendance_date.strftime('%d %b %Y') }}">{{ rel_date(d.metrics.last_attendance_date, today) }}</span>
+                                {% else %}Never{% endif %}
+                            </td>
                         </tr>
-                        {% endfor %}                    {% else %}                        <tr>
-                            {{ empty_state('No students in this category', "Students appear here based on their enrollment status and attendance", 'students', '#', 'All Students', 'bi-people-fill', 5, 'onclick="window.location.href=\'' + url_for('student_lifecycle.lifecycle', filter='all') + '\'"') }}
-                        </tr>
-                    {% endif %}                </tbody>
-            </table>
+                        {% endfor %}
+                        {% else %}
+                        {% set empty_map = {
+                            'all': ('No students found', 'Students you add will appear here'),
+                            'enrolled': ('No enrolled students', 'No student currently has an active enrollment'),
+                            'not_enrolled': ('Everyone is enrolled', 'No students are waiting without a course'),
+                            'long_absent': ('No long-absent students', 'Everyone with an active enrollment has recent attendance'),
+                            'completed': ('No completions yet', 'Completed enrollments will be listed here'),
+                            'dropped': ('No dropouts', 'Dropped enrollments will be listed here'),
+                            'inactive': ('No inactive students', 'Inactive and archived students will appear here'),
+                        } %}
+                        {% set em = empty_map.get(filter_key, ('No students in this category', 'Adjust the filters above')) %}
+                        <tr>{{ empty_state(em[0], em[1], 'students', url_for('student_lifecycle.lifecycle', filter='all'), 'View all students', 'bi-people-fill', 6) }}</tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="modal fade" id="lcConfirmModal" tabindex="-1" aria-labelledby="lcConfirmTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="lcConfirmTitle">Confirm</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p id="lcConfirmBody" class="mb-0"></p>
+                <div id="lcReasonWrap" class="mt-3" style="display:none;">
+                    <label for="lcReason" class="form-label small">Reason (optional)</label>
+                    <textarea id="lcReason" class="form-control" rows="3" maxlength="200" oninput="document.getElementById('lcReasonCount').textContent = this.value.length + '/200'"></textarea>
+                    <div class="small text-secondary mt-1" id="lcReasonCount">0/200</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="lcConfirmBtn" onclick="lcConfirm()">Confirm</button>
+            </div>
         </div>
     </div>
 </div>
-{% endblock %}{% block scripts %}<script>
+{% endblock %}
+
+{% block scripts %}<script>
     window.currentFilter = {{ filter_key|tojson }};
-    function dropEnrollment(btn) {
-        const sid = btn.getAttribute('data-sid');
-        const cid = btn.getAttribute('data-cid');
-        const studentName = btn.getAttribute('data-name');
-        const courseName = btn.getAttribute('data-course');
-        const reason = prompt(`Reason for dropping ${studentName} from ${courseName}?`);
-        if (reason === null) return;
-        if (reason.length > 200) { alert('Reason must be at most 200 characters.'); return; }
-        const form = document.createElement('form');
+
+    function lcInit() {
+        // Convert the base flash banner into a toast, matching the app's
+        // notification language, then drop the banner.
+        document.querySelectorAll('.flash-alert').forEach(function (el) {
+            var cat = el.classList.contains('alert-danger') ? 'danger'
+                : el.classList.contains('alert-warning') ? 'warning' : 'success';
+            var span = el.querySelector('span');
+            var text = (span ? span.textContent : el.textContent).trim();
+            if (typeof showToast === 'function') showToast(text, cat);
+            el.remove();
+        });
+        // Popovers: delegate so they work even when Bootstrap loads after this
+        // script and for any re-rendered rows. Bound once per document.
+        if (!window._lcPopoversBound) {
+            window._lcPopoversBound = true;
+            document.addEventListener('click', function (e) {
+                var btn = e.target.closest && e.target.closest('[data-bs-toggle="popover"]');
+                if (!btn || !window.bootstrap || !bootstrap.Popover) return;
+                e.preventDefault();
+                e.stopPropagation();
+                document.querySelectorAll('[data-bs-toggle="popover"]').forEach(function (o) {
+                    if (o !== btn) {
+                        var i = bootstrap.Popover.getInstance(o);
+                        if (i) i.hide();
+                    }
+                });
+                bootstrap.Popover.getOrCreateInstance(btn).toggle();
+            }, true);
+        }
+        updateBulk();
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', lcInit);
+    } else {
+        lcInit();
+    }
+
+    function updateBulk() {
+        var checks = document.querySelectorAll('.lc-check');
+        var checked = document.querySelectorAll('.lc-check:checked');
+        var bar = document.getElementById('bulkBar');
+        var count = document.getElementById('bulkCount');
+        if (count) count.textContent = checked.length;
+        if (bar) bar.classList.toggle('show', checked.length > 0);
+        var all = document.getElementById('checkAll');
+        if (all) {
+            all.checked = checks.length > 0 && checked.length === checks.length;
+            all.indeterminate = checked.length > 0 && checked.length < checks.length;
+        }
+    }
+    function toggleAll(el) {
+        document.querySelectorAll('.lc-check').forEach(function (c) { c.checked = el.checked; });
+        updateBulk();
+    }
+    function clearBulk() {
+        document.querySelectorAll('.lc-check').forEach(function (c) { c.checked = false; });
+        var all = document.getElementById('checkAll');
+        if (all) { all.checked = false; all.indeterminate = false; }
+        updateBulk();
+    }
+
+    var lcCtx = null;
+    var LC_TITLES = { complete: 'Mark enrollment completed', drop: 'Drop enrollment', reactivate: 'Re-enroll student' };
+    function lcPrompt(opts) {
+        lcCtx = opts;
+        document.getElementById('lcConfirmTitle').textContent = opts.title;
+        document.getElementById('lcConfirmBody').textContent = opts.body;
+        document.getElementById('lcReasonWrap').style.display = opts.needReason ? '' : 'none';
+        document.getElementById('lcReason').value = '';
+        document.getElementById('lcReasonCount').textContent = '0/200';
+        var btn = document.getElementById('lcConfirmBtn');
+        btn.className = 'btn ' + (opts.action === 'drop' ? 'btn-danger' : opts.action === 'complete' ? 'btn-success' : 'btn-warning');
+        btn.textContent = opts.action === 'drop' ? 'Drop' : opts.action === 'complete' ? 'Mark completed' : 'Re-enroll';
+        if (window.bootstrap) bootstrap.Modal.getOrCreateInstance(document.getElementById('lcConfirmModal')).show();
+    }
+    function lcFromButton(btn) {
+        var a = btn.dataset.lcAction;
+        var name = btn.dataset.student || '';
+        var course = btn.dataset.course || '';
+        var bodies = {
+            complete: 'Mark ' + name + ' as completed in ' + course + '?',
+            drop: 'Drop ' + name + ' from ' + course + '?',
+            reactivate: 'Re-enroll ' + name + ' in ' + course + '? This clears its completion/drop status.'
+        };
+        lcPrompt({ mode: 'single', action: a, sid: btn.dataset.sid, cid: btn.dataset.cid,
+            title: LC_TITLES[a] || 'Confirm', body: bodies[a] || '', needReason: a === 'drop' });
+    }
+    function bulkPrompt(action) {
+        var n = document.querySelectorAll('.lc-check:checked').length;
+        if (!n) { if (typeof showToast === 'function') showToast('Select at least one student first.', 'warning'); return; }
+        var desc = {
+            complete: 'mark every active enrollment completed',
+            drop: 'drop every active enrollment',
+            reactivate: 're-enroll every completed or dropped course'
+        };
+        lcPrompt({ mode: 'bulk', action: action, title: LC_TITLES[action] || 'Bulk action',
+            body: 'This will ' + desc[action] + ' for ' + n + ' selected student(s).', needReason: action === 'drop' });
+    }
+    function lcConfirm() {
+        if (!lcCtx) return;
+        var needReason = !!lcCtx.needReason;
+        var reason = document.getElementById('lcReason').value.trim();
+        if (needReason && reason.length > 200) {
+            if (typeof showToast === 'function') showToast('Reason must be at most 200 characters.', 'danger');
+            return;
+        }
+        if (window.bootstrap) bootstrap.Modal.getOrCreateInstance(document.getElementById('lcConfirmModal')).hide();
+        if (lcCtx.mode === 'bulk') {
+            document.getElementById('bulkAction').value = lcCtx.action;
+            document.getElementById('bulkReason').value = reason;
+            document.getElementById('bulkForm').submit();
+            return;
+        }
+        var form = document.createElement('form');
         form.method = 'POST';
-        form.action = `/students/enrollment/drop/${sid}/${cid}`;
-        const r = document.createElement('input');
-        r.type = 'hidden'; r.name = 'drop_reason'; r.value = reason;
-        const f = document.createElement('input');
-        f.type = 'hidden'; f.name = 'filter'; f.value = window.currentFilter;
-        form.appendChild(r); form.appendChild(f);
+        form.action = '/students/enrollment/' + lcCtx.action + '/' + lcCtx.sid + '/' + lcCtx.cid;
+        form.setAttribute('hx-boost', 'false');
+        var f = document.createElement('input');
+        f.type = 'hidden'; f.name = 'filter'; f.value = window.currentFilter || 'all';
+        form.appendChild(f);
+        if (needReason) {
+            var r = document.createElement('input');
+            r.type = 'hidden'; r.name = 'drop_reason'; r.value = reason;
+            form.appendChild(r);
+        }
         document.body.appendChild(form);
         form.submit();
     }
-    // Confirm irreversible-looking enrollment transitions. Reads the text
-    // from a data-confirm attribute so names are never interpolated into JS.
-    document.addEventListener('submit', function (ev) {
-        const form = ev.target;
-        if (!form || !form.dataset || !form.dataset.confirm) return;
-        if (form.dataset.confirmed === '1') return;
-        ev.preventDefault();
-        if (window.confirm(form.dataset.confirm)) {
-            form.dataset.confirmed = '1';
-            if (typeof form.requestSubmit === 'function') {
-                form.requestSubmit();
-            } else {
-                form.submit();
-            }
-        }
-    }, true);
-</script>
-{% endblock %}
+</script>{% endblock %}

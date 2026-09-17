@@ -13,7 +13,7 @@ from app.extensions import db
 from app.forms import EnquiryForm
 from app.models import (
     Attendance, AuditLog, Course, Enquiry, Student, SystemSetting,
-    Tutor, student_courses,
+    Tutor, ensure_enrolled_on, student_courses,
 )
 from app.routes.student_lifecycle import (
     _attendance_metrics, _attendance_stale, _derive_bucket, _get_thresholds,
@@ -460,3 +460,123 @@ def test_admin_rejects_bad_lifecycle_thresholds(admin_client, app):
         assert SystemSetting.query.filter_by(
             key='LC_ABSENT_STREAK').first() is None
         assert _get_thresholds() == {'streak': 3, 'rate': 75.0, 'window': 30}
+
+
+# ---- P1/P2 UI: search, course filter, summary counts ----
+
+def _mk_student(app, name, email, phone='9000000009', course_ids=()):
+    with app.app_context():
+        s = Student(name=name, email=email, phone=phone, status='Active')
+        db.session.add(s)
+        db.session.flush()
+        for cid in course_ids:
+            course = Course.query.get(cid)
+            if course:
+                s.courses.append(course)
+        db.session.flush()
+        ensure_enrolled_on(s.id)
+        db.session.commit()
+        return s.id
+
+
+def test_lifecycle_search_filters(admin_client, app):
+    _mk_student(app, 'Zebra Unique', 'zebra@guha.test')
+    body = admin_client.get('/students/lifecycle?q=zebra').get_data(as_text=True)
+    assert 'Zebra Unique' in body
+    assert 'Test Student' not in body
+    body = admin_client.get('/students/lifecycle?q=zzznomatch').get_data(as_text=True)
+    assert 'No students found' in body
+
+
+def test_lifecycle_course_filter(admin_client, app):
+    with app.app_context():
+        cid = Course.query.filter_by(code='PY').first().id
+    body = admin_client.get(f'/students/lifecycle?course_id={cid}').get_data(as_text=True)
+    assert 'Test Student' in body
+    body = admin_client.get('/students/lifecycle?course_id=9999').get_data(as_text=True)
+    assert 'No students found' in body
+
+
+def test_lifecycle_page_has_p1_p2_hooks(admin_client, app):
+    with app.app_context():
+        sid = Student.query.filter_by(email='student@guha.test').first().id
+    _mark(app, 'student', sid, 1, 'Present')
+    body = admin_client.get('/students/lifecycle').get_data(as_text=True)
+    assert 'data-label="Attendance"' in body
+    assert 'data-label="Last Activity"' in body
+    assert 'lc-tile' in body
+    assert 'data-server-search="true"' in body
+    assert 'id="lcConfirmModal"' in body
+    assert 'class="lc-att-bar' in body
+    assert 'bi-three-dots-vertical' in body
+
+
+# ---- Bulk actions ----
+
+def _bulk(client, action, sids, reason=None):
+    data = {'bulk_action': action, 'filter': 'all',
+            'selected': [str(s) for s in sids]}
+    if reason is not None:
+        data['bulk_reason'] = reason
+    return client.post('/students/enrollment/bulk', data=data)
+
+
+def test_bulk_complete(admin_client, app):
+    with app.app_context():
+        s = Student.query.filter_by(email='student@guha.test').first()
+        sid = s.id
+        cid = Course.query.filter_by(code='PY').first().id
+    resp = _bulk(admin_client, 'complete', [sid])
+    assert resp.status_code == 302
+    row = _enrollment(app, sid, cid)
+    assert row.status == 'Completed' and row.completed_on == date.today()
+    with app.app_context():
+        logs = AuditLog.query.filter_by(
+            entity_type='Student', entity_id=sid, action='UPDATE').all()
+        assert any('"complete"' in (l.changes or '') for l in logs)
+
+
+def test_bulk_reactivate_clears_terminal_fields(admin_client, app):
+    with app.app_context():
+        s = Student.query.filter_by(email='student@guha.test').first()
+        sid = s.id
+        cid = Course.query.filter_by(code='PY').first().id
+    _bulk(admin_client, 'drop', [sid], reason='gone')
+    assert _enrollment(app, sid, cid).drop_reason == 'gone'
+    _bulk(admin_client, 'reactivate', [sid])
+    row = _enrollment(app, sid, cid)
+    assert row.status == 'Enrolled'
+    assert row.drop_reason is None and row.completed_on is None
+
+
+def test_bulk_complete_skips_non_source_status(admin_client, app):
+    with app.app_context():
+        s = Student.query.filter_by(email='student@guha.test').first()
+        sid = s.id
+        cid = Course.query.filter_by(code='PY').first().id
+    _bulk(admin_client, 'complete', [sid])
+    with app.app_context():
+        audits = AuditLog.query.count()
+    _bulk(admin_client, 'complete', [sid])  # already Completed
+    assert _enrollment(app, sid, cid).status == 'Completed'
+    with app.app_context():
+        assert AuditLog.query.count() == audits
+
+
+def test_bulk_drop_reason_too_long_rejected(admin_client, app):
+    with app.app_context():
+        s = Student.query.filter_by(email='student@guha.test').first()
+        sid = s.id
+        cid = Course.query.filter_by(code='PY').first().id
+    _bulk(admin_client, 'drop', [sid], reason='x' * 201)
+    assert (_enrollment(app, sid, cid).status or 'Enrolled') == 'Enrolled'
+
+
+def test_bulk_no_selection_and_bad_action(admin_client, app):
+    with app.app_context():
+        s = Student.query.filter_by(email='student@guha.test').first()
+        sid = s.id
+        cid = Course.query.filter_by(code='PY').first().id
+    assert _bulk(admin_client, 'complete', []).status_code == 302
+    assert _bulk(admin_client, 'bogus', [sid]).status_code == 302
+    assert (_enrollment(app, sid, cid).status or 'Enrolled') == 'Enrolled'

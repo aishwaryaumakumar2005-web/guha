@@ -17,6 +17,10 @@ MIN_MARKS_FOR_RATE = 3        # minimum marks before the rate rule can fire
 
 FILTERS = ['all', 'enrolled', 'not_enrolled', 'long_absent', 'completed', 'dropped', 'inactive', 'archived']
 
+# Sort order for the default table view: students needing attention first.
+_BUCKET_ORDER = {'Long Absent': 0, 'Not Enrolled': 1, 'Enrolled': 2,
+                 'Dropped': 3, 'Completed': 4, 'Inactive': 5, 'Archived': 6}
+
 
 def _enrollment_map():
     rows = db.session.query(
@@ -207,6 +211,8 @@ def lifecycle():
     filter_key = request.args.get('filter', 'all')
     if filter_key not in FILTERS:
         filter_key = 'all'
+    q = (request.args.get('q') or '').strip()
+    selected_course_id = request.args.get('course_id', type=int)
     enroll_map = _enrollment_map()
     thresholds = _get_thresholds()
     att_metrics = _attendance_metrics(thresholds['window'])
@@ -223,19 +229,40 @@ def lifecycle():
             'metrics': att,
             'bucket': _derive_bucket(s, enrolls, att, thresholds),
         })
+    # Counts stay global (unaffected by search/course filters) so the filter
+    # pills don't move while the admin types.
     counts = defaultdict(int)
     for d in data:
         counts[d['bucket']] += 1
-    total = len(data)
+    total_all = len(data)
+
+    if selected_course_id:
+        data = [d for d in data
+                if any(e['course'].id == selected_course_id for e in d['enrollments'])]
+    if q:
+        needle = q.lower()
+
+        def _matches(d):
+            s = d['student']
+            return any(needle in (field or '').lower() for field in
+                       (s.name, s.phone, s.email, s.roll_no))
+        data = [d for d in data if _matches(d)]
+
     if filter_key != 'all':
         if filter_key == 'inactive':
             data = [d for d in data if d['bucket'] in ('Inactive', 'Archived')]
         else:
             target = filter_key.replace('_', ' ')
             data = [d for d in data if d['bucket'].lower() == target]
+
+    # Default view: surface students who need attention first.
+    data.sort(key=lambda d: (_BUCKET_ORDER.get(d['bucket'], 99),
+                             (d['student'].name or '').lower()))
+    shown = len(data)
     return render_template('student_lifecycle.html', lifecycle=data, counts=counts,
-        total=total, filter_key=filter_key, today=date.today(),
-        thresholds=thresholds)
+        total_all=total_all, shown=shown, filter_key=filter_key, today=date.today(),
+        thresholds=thresholds, courses=Course.query.order_by(Course.name).all(),
+        selected_course_id=selected_course_id, q=q)
 
 
 def _target_filter():
@@ -332,4 +359,72 @@ def reactivate(sid, cid):
                       {'from': previous, 'to': 'Enrolled'})
     db.session.commit()
     flash("Enrollment reactivated.", "success")
+    return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))
+
+
+# Which enrollment statuses each bulk action applies to, and the resulting
+# status. Student-level selection keeps the UI simple (one checkbox per row).
+_BULK_SOURCES = {
+    'complete': (('Enrolled',), 'Completed'),
+    'drop': (('Enrolled',), 'Dropped'),
+    'reactivate': (('Completed', 'Dropped'), 'Enrolled'),
+}
+
+
+@student_lifecycle_bp.route('/students/enrollment/bulk', methods=['POST'])
+@login_required
+@admin_required
+def bulk():
+    action = request.form.get('bulk_action', '')
+    if action not in _BULK_SOURCES:
+        flash("Unknown bulk action.", "danger")
+        return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))
+    student_ids = set()
+    for raw in request.form.getlist('selected'):
+        try:
+            student_ids.add(int(raw))
+        except (TypeError, ValueError):
+            continue
+    if not student_ids:
+        flash("No students selected.", "warning")
+        return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))
+    reason = ''
+    if action == 'drop':
+        reason = request.form.get('bulk_reason', '').strip()
+        if len(reason) > MAX_DROP_REASON:
+            flash(f"Drop reason must be at most {MAX_DROP_REASON} characters.", "danger")
+            return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))
+    source_statuses, target = _BULK_SOURCES[action]
+    today = date.today()
+    updated = 0
+    for sid in student_ids:
+        rows = db.session.execute(
+            student_courses.select().where(student_courses.c.student_id == sid)
+        ).all()
+        for row in rows:
+            if (row.status or 'Enrolled') not in source_statuses:
+                continue
+            values = {'status': target}
+            if action == 'complete':
+                values['completed_on'] = today
+            elif action == 'drop':
+                values['drop_reason'] = reason or None
+            else:
+                values['completed_on'] = None
+                values['drop_reason'] = None
+            db.session.execute(
+                student_courses.update().where(
+                    student_courses.c.student_id == sid,
+                    student_courses.c.course_id == row.course_id
+                ).values(**values)
+            )
+            detail = {'from': row.status or 'Enrolled', 'to': target}
+            if action == 'complete':
+                detail['completed_on'] = today.isoformat()
+            if action == 'drop':
+                detail['drop_reason'] = reason or None
+            _audit_transition(sid, row.course_id, action, detail)
+            updated += 1
+    db.session.commit()
+    flash(f"{updated} enrollment(s) updated.", "success")
     return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))
