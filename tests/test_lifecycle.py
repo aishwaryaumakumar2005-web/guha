@@ -327,9 +327,14 @@ def test_delete_student_removes_attendance(admin_client, app):
 
 def test_delete_tutor_removes_attendance(admin_client, app):
     with app.app_context():
-        tid = Tutor.query.filter_by(email='staff@guha.test').first().id
+        # Standalone tutor: no login User, so deletion is allowed.
+        t = Tutor(name='Gone', email='gone@guha.test', phone='9000000090',
+                  status='Active')
+        db.session.add(t)
+        db.session.commit()
+        tid = t.id
     _mark(app, 'tutor', tid, 1, 'Present')
-    resp = admin_client.get(f'/tutors/delete/{tid}')
+    resp = admin_client.post(f'/tutors/delete/{tid}')
     assert resp.status_code == 302
     with app.app_context():
         assert Attendance.query.filter_by(

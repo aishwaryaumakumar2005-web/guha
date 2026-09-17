@@ -52,6 +52,15 @@ def login():
                         db.session.rollback()
                     except Exception:
                         pass
+                if user.role == 'Staff':
+                    # "Inactive" used to be display-only: deactivated staff
+                    # kept full access. Gate login on the tutor record.
+                    tutor = Tutor.query.filter(
+                        db.func.lower(Tutor.email) == (user.email or '').lower()
+                    ).first()
+                    if tutor is not None and (tutor.status or 'Active') != 'Active':
+                        flash("Your staff account has been deactivated. Please contact the administrator.", 'danger')
+                        return render_template('login.html')
                 login_user(user)
                 flash(f"Welcome back, {user.name}!", "success")
                 next_page = request.args.get('next')

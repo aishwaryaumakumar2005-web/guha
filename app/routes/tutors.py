@@ -2,12 +2,16 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required
 from app.extensions import db
 from app.models import Tutor, Course, Attendance
-from app.helpers import admin_required, is_ajax_request, save_photo_data
+from app.helpers import admin_required, cell_text, is_ajax_request, save_photo_data
 from app.forms import TutorForm
 import tempfile
 import io
 
 tutors_bp = Blueprint('tutors', __name__)
+
+#: Statuses the roster knows how to render; anything else from an import
+#: is normalized to 'Active' instead of being written verbatim.
+TUTOR_STATUSES = ('Active', 'Inactive')
 
 @tutors_bp.route('/tutors', methods=['GET', 'POST'])
 @login_required
@@ -104,11 +108,23 @@ def edit(id):
     flash(message, "success")
     return redirect(url_for('tutors.list'))
 
-@tutors_bp.route('/tutors/delete/<int:id>')
+@tutors_bp.route('/tutors/delete/<int:id>', methods=['POST'])
 @login_required
 @admin_required
 def delete(id):
     tutor = Tutor.query.get_or_404(id)
+    # A linked login account survives the Tutor row — and the next login
+    # would silently recreate an empty Tutor record. Force the admin to
+    # deal with the account first (users console) instead of fake-deleting.
+    from app.models import User
+    if tutor.email and User.query.filter(
+            db.func.lower(User.email) == tutor.email.lower()).first():
+        message = (f"Cannot delete {tutor.name}: a login account uses this "
+                   "email. Remove or reassign the user account first.")
+        if is_ajax_request():
+            return jsonify({"success": False, "message": message}), 409
+        flash(message, 'warning')
+        return redirect(url_for('tutors.list'))
     # Same orphan-row hazard as students: attendance uses a plain person_id.
     Attendance.query.filter_by(
         person_type='tutor', person_id=tutor.id).delete(synchronize_session=False)
@@ -132,10 +148,13 @@ def import_excel():
     file = request.files['excel_file']
     if file.filename == '':
         return jsonify({"success": False, "errors": ["No file selected"]}), 400
-    if not file.filename.endswith(('.xlsx', '.xls')):
-        return jsonify({"success": False, "errors": ["Invalid file format"]}), 400
+    # openpyxl reads .xlsx only; legacy .xls would fail closed with a 500,
+    # so reject it up front with an actionable message.
+    if not file.filename.lower().endswith('.xlsx'):
+        return jsonify({"success": False, "errors": ["Invalid file format. Please upload an .xlsx file (legacy .xls is not supported)"]}), 400
     ai_validation = request.form.get('ai_validation', 'true').lower() == 'true'
     auto_course_mapping = request.form.get('auto_course_mapping', 'false').lower() == 'true'
+    tmp_file_path = None
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
             file.save(tmp_file.name)
@@ -165,16 +184,18 @@ def import_excel():
         for row in sheet.iter_rows(min_row=2, values_only=True):
             if not any(row):
                 continue
+            raw_status = cell_text(row[column_map['status']]) if 'status' in column_map and column_map['status'] < len(row) else ''
             tutor_data = {
-                'name': str(row[column_map['name']]).strip() if column_map['name'] < len(row) else '',
-                'email': str(row[column_map['email']]).strip() if column_map['email'] < len(row) else '',
-                'phone': str(row[column_map['phone']]).strip() if column_map['phone'] < len(row) else '',
-                'specialization': str(row[column_map['specialization']]).strip() if 'specialization' in column_map and column_map['specialization'] < len(row) else '',
-                'status': str(row[column_map['status']]).strip() if 'status' in column_map and column_map['status'] < len(row) else 'Active',
-                'courses': str(row[column_map['courses']]).strip() if 'courses' in column_map and column_map['courses'] < len(row) else ''
+                'name': cell_text(row[column_map['name']]) if column_map['name'] < len(row) else '',
+                'email': cell_text(row[column_map['email']]) if column_map['email'] < len(row) else '',
+                'phone': cell_text(row[column_map['phone']]) if column_map['phone'] < len(row) else '',
+                'specialization': cell_text(row[column_map['specialization']]) if 'specialization' in column_map and column_map['specialization'] < len(row) else '',
+                'status': next((s for s in TUTOR_STATUSES if s.lower() == raw_status.lower()), 'Active'),
+                'courses': cell_text(row[column_map['courses']]) if 'courses' in column_map and column_map['courses'] < len(row) else ''
             }
             tutors_data.append(tutor_data)
         os.unlink(tmp_file_path)
+        tmp_file_path = None
         if not tutors_data:
             return jsonify({"success": False, "errors": ["No data found in Excel file"]}), 400
         ai_engine = current_app.ai_engine
@@ -188,11 +209,18 @@ def import_excel():
         skipped_count = 0
         all_courses = Course.query.all()
         all_courses_lower = {c.code.lower(): c for c in all_courses}
-        existing_emails = set(email for (email,) in db.session.query(Tutor.email).all())
+        # Case-insensitive: 'Foo@x.com' must match existing 'foo@x.com'.
+        existing_emails = set(
+            (email or '').strip().lower()
+            for (email,) in db.session.query(Tutor.email).all()
+        )
+        seen_in_file = set()
         for tutor_data in validation_result["enriched_data"]:
-            if tutor_data['email'] in existing_emails:
+            email_key = (tutor_data.get('email') or '').strip().lower()
+            if not email_key or email_key in existing_emails or email_key in seen_in_file:
                 skipped_count += 1
                 continue
+            seen_in_file.add(email_key)
             new_tutor = Tutor(
                 name=tutor_data['name'], email=tutor_data['email'], phone=tutor_data['phone'],
                 specialization=tutor_data.get('specialization', ''), status=tutor_data.get('status', 'Active')
@@ -210,11 +238,13 @@ def import_excel():
                     if course:
                         new_tutor.courses.append(course)
             db.session.add(new_tutor)
-            existing_emails.add(tutor_data['email'])
+            existing_emails.add(email_key)
             imported_count += 1
         db.session.commit()
-        return jsonify({"success": True, "message": f"Successfully imported {imported_count} tutors. Skipped {skipped_count} duplicates.", "imported": imported_count, "skipped": skipped_count}), 200
+        return jsonify({"success": True, "message": f"Successfully imported {imported_count} tutors. Skipped {skipped_count} row(s) (duplicates or invalid).", "imported": imported_count, "skipped": skipped_count}), 200
     except Exception as e:
+        if tmp_file_path and os.path.exists(tmp_file_path):
+            os.unlink(tmp_file_path)
         return jsonify({"success": False, "errors": [f"Error processing file: {str(e)}"]}), 500
 
 

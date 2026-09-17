@@ -96,8 +96,8 @@ No courses mapped</span>
 </i>
                                         </button>
                                         <!-- Delete button -->
-                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Are you sure you want to delete this instructor? This action cannot be undone.', function() { window.location.href = '{{ url_for('tutors.delete', id=tutor.id) }}'; })" title="Delete Tutor">
-                                            <i class="bi bi-trash3-fill">
+                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Are you sure you want to delete this instructor? This action cannot be undone.', function() { var f = document.createElement('form'); f.method = 'POST'; f.action = '{{ url_for('tutors.delete', id=tutor.id) }}'; document.body.appendChild(f); f.submit(); })" title="Delete Tutor" aria-label="Delete tutor {{ tutor.name }}">
+                                            <i class="bi bi-trash3-fill" aria-hidden="true">
 </i>
                                         </button>
                                     </div>

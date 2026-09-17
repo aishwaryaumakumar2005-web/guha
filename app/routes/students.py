@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import Student, Course, Tutor, Attendance, student_courses, ensure_enrolled_on
-from app.helpers import admin_required, commit_with_retry, is_ajax_request, save_photo_data, staff_can_view_student
+from app.helpers import admin_required, cell_text, commit_with_retry, is_ajax_request, save_photo_data, staff_can_view_student
 from sqlalchemy.exc import IntegrityError
 from app.forms import StudentForm
 from datetime import date
@@ -27,13 +27,7 @@ def _parse_date(raw):
 #: is normalized to 'Active' instead of being written verbatim.
 STUDENT_STATUSES = ('Active', 'Inactive', 'Archived')
 
-
-def _cell_text(value):
-    """Excel cell -> stripped string. Empty cells become '', never 'None'."""
-    if value is None:
-        return ''
-    text = str(value).strip()
-    return '' if text.lower() == 'none' else text
+_cell_text = cell_text
 
 students_bp = Blueprint('students', __name__)
 

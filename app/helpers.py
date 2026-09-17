@@ -128,6 +128,18 @@ def next_code(prefix, model, column):
     return f'{prefix}{max_num + 1:04d}'
 
 
+def cell_text(value):
+    """Excel cell -> stripped string. Empty cells become '', never 'None'.
+
+    Shared by the student/tutor importers so blank cells can't become
+    literal 'None' records.
+    """
+    if value is None:
+        return ''
+    text = str(value).strip()
+    return '' if text.lower() == 'none' else text
+
+
 def get_gst_rates():
     """Return (cgst_pct, sgst_pct) from SystemSetting with safe fallbacks.
 
