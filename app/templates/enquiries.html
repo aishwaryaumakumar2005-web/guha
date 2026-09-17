@@ -349,6 +349,8 @@ Pipeline status</label>
 New / Uncontacted</option>
                             <option value="Contacted" {% if enq.status == 'Contacted' %}selected{% endif %}>
 Contacted</option>
+                            <option value="Visited" {% if enq.status == 'Visited' %}selected{% endif %}>
+Visited</option>
                             <option value="Converted" {% if enq.status == 'Converted' %}selected{% endif %}>
 Converted</option>
                             <option value="Lost" {% if enq.status == 'Lost' %}selected{% endif %}>

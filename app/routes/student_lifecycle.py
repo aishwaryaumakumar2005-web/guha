@@ -1,9 +1,10 @@
+import json
 from datetime import date, timedelta
 from collections import defaultdict
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
-from flask_login import login_required
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, abort
+from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import Student, Course, Attendance, student_courses
+from app.models import Student, Course, Attendance, AuditLog, student_courses
 from app.helpers import admin_required
 
 student_lifecycle_bp = Blueprint('student_lifecycle', __name__)
@@ -11,6 +12,7 @@ student_lifecycle_bp = Blueprint('student_lifecycle', __name__)
 LONG_ABSENT_STREAK = 3        # consecutive missed sessions
 LONG_ABSENT_ATT_RATE = 75.0   # percent attendance threshold
 ATT_WINDOW_DAYS = 30
+MAX_DROP_REASON = 200         # matches student_courses.drop_reason length
 
 FILTERS = ['all', 'enrolled', 'not_enrolled', 'long_absent', 'completed', 'dropped', 'inactive', 'archived']
 
@@ -165,16 +167,47 @@ def _target_filter():
     return f if f in FILTERS else 'all'
 
 
+def _enrollment_or_404(sid, cid):
+    """Fetch the student_courses row or 404 (transitions used to silently
+    "succeed" for nonexistent enrollments)."""
+    row = db.session.execute(
+        student_courses.select().where(
+            student_courses.c.student_id == sid,
+            student_courses.c.course_id == cid)
+    ).first()
+    if row is None:
+        abort(404)
+    return row
+
+
+def _audit_transition(sid, cid, action, detail):
+    """Association-table writes bypass the ORM audit events in app/audit.py,
+    so lifecycle transitions are logged here explicitly."""
+    db.session.add(AuditLog(
+        user_id=current_user.id if current_user.is_authenticated else None,
+        username=current_user.username if current_user.is_authenticated else 'system',
+        action='UPDATE',
+        entity_type='Student',
+        entity_id=sid,
+        changes=json.dumps({'enrollment': {'course_id': cid, action: detail}}),
+    ))
+
+
 @student_lifecycle_bp.route('/students/enrollment/complete/<int:sid>/<int:cid>', methods=['POST'])
 @login_required
 @admin_required
 def complete(sid, cid):
+    row = _enrollment_or_404(sid, cid)
+    previous = row.status or 'Enrolled'
     db.session.execute(
         student_courses.update().where(
             student_courses.c.student_id == sid,
             student_courses.c.course_id == cid
         ).values(status='Completed', completed_on=date.today())
     )
+    _audit_transition(sid, cid, 'complete',
+                      {'from': previous, 'to': 'Completed',
+                       'completed_on': date.today().isoformat()})
     db.session.commit()
     flash("Enrollment marked as Completed.", "success")
     return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))
@@ -184,13 +217,21 @@ def complete(sid, cid):
 @login_required
 @admin_required
 def drop(sid, cid):
+    row = _enrollment_or_404(sid, cid)
     reason = request.form.get('drop_reason', '').strip()
+    if len(reason) > MAX_DROP_REASON:
+        flash(f"Drop reason must be at most {MAX_DROP_REASON} characters.", "danger")
+        return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))
+    previous = row.status or 'Enrolled'
     db.session.execute(
         student_courses.update().where(
             student_courses.c.student_id == sid,
             student_courses.c.course_id == cid
         ).values(status='Dropped', completed_on=date.today(), drop_reason=reason or None)
     )
+    _audit_transition(sid, cid, 'drop',
+                      {'from': previous, 'to': 'Dropped',
+                       'drop_reason': reason or None})
     db.session.commit()
     flash("Enrollment marked as Dropped.", "success")
     return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))
@@ -200,12 +241,16 @@ def drop(sid, cid):
 @login_required
 @admin_required
 def reactivate(sid, cid):
+    row = _enrollment_or_404(sid, cid)
+    previous = row.status or 'Enrolled'
     db.session.execute(
         student_courses.update().where(
             student_courses.c.student_id == sid,
             student_courses.c.course_id == cid
         ).values(status='Enrolled', completed_on=None, drop_reason=None)
     )
+    _audit_transition(sid, cid, 'reactivate',
+                      {'from': previous, 'to': 'Enrolled'})
     db.session.commit()
     flash("Enrollment reactivated.", "success")
     return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))

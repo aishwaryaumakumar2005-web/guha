@@ -236,6 +236,8 @@ Status</label>
 Active</option>
                             <option value="Inactive" {% if student.status == 'Inactive' %}selected{% endif %}>
 Inactive</option>
+                            <option value="Archived" {% if student.status == 'Archived' %}selected{% endif %}>
+Archived</option>
                                     </select>
                     </div>
                     <div class="mb-3">

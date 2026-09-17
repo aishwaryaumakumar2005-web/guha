@@ -129,6 +129,7 @@ Absent last {{ d.metrics.last_streak }} session(s) {% if d.metrics.last_streak >
         const courseName = btn.getAttribute('data-course');
         const reason = prompt(`Reason for dropping ${studentName} from ${courseName}?`);
         if (reason === null) return;
+        if (reason.length > 200) { alert('Reason must be at most 200 characters.'); return; }
         const form = document.createElement('form');
         form.method = 'POST';
         form.action = `/students/enrollment/drop/${sid}/${cid}`;

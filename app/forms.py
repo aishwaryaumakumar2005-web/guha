@@ -205,7 +205,7 @@ class EnquiryForm(Form):
     email = ['email']
     integer = ['course_id']
     choices = {'source': ['Walk-in', 'Phone', 'Google Form', 'Referral', 'Social Media', 'Website', 'Other'],
-               'status': ['New', 'Contacted', 'Converted', 'Lost']}
+               'status': ['New', 'Contacted', 'Visited', 'Converted', 'Lost']}
     min_values = {'course_id': 1}
     max_length = {'student_name': 100, 'email': 100, 'phone': 20}
 

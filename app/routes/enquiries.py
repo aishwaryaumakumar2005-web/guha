@@ -84,14 +84,24 @@ def edit(id):
 @admin_required
 def convert(id):
     enquiry = Enquiry.query.get_or_404(id)
-    student_exists = Student.query.filter_by(email=enquiry.email).first()
+    email = (enquiry.email or '').strip()
+    phone = (enquiry.phone or '').strip()
+    if not email:
+        # Student.email is NOT NULL UNIQUE — converting without one would
+        # either 500 on IntegrityError or poison the table with ''.
+        message = "Add an email address to this enquiry before converting — it is required for the student record."
+        if is_ajax_request():
+            return jsonify({"success": False, "message": message}), 400
+        flash(message, "danger")
+        return redirect(url_for('enquiries.list'))
+    student_exists = Student.query.filter(db.func.lower(Student.email) == email.lower()).first()
     if student_exists:
-        message = f"Student with email '{enquiry.email}' is already enrolled!"
+        message = f"Student with email '{email}' is already enrolled!"
         if is_ajax_request():
             return jsonify({"success": False, "message": message}), 400
         flash(message, "warning")
     else:
-        new_student = Student(name=enquiry.student_name, email=enquiry.email, phone=enquiry.phone, status='Active')
+        new_student = Student(name=enquiry.student_name, email=email, phone=phone, status='Active')
         course = Course.query.get(enquiry.course_id)
         if course:
             new_student.courses.append(course)
@@ -101,6 +111,18 @@ def convert(id):
         enquiry.status = 'Converted'
         db.session.commit()
         message = f"Enquiry successfully converted! {new_student.name} is now enrolled."
+        phone_owner = Student.query.filter(
+            Student.phone == phone, Student.id != new_student.id).first() if phone else None
+        if phone_owner:
+            # Phone is not unique in the schema (shared family numbers are
+            # legitimate), so this stays a non-blocking heads-up.
+            note = f" Note: phone number is also used by {phone_owner.name}."
+            message += note
+            if is_ajax_request():
+                return jsonify({"success": True, "message": message, "warning": note.strip()}), 201
+            flash(message, "success")
+            flash(note.strip(), "warning")
+            return redirect(url_for('students.list'))
         if is_ajax_request():
             return jsonify({"success": True, "message": message}), 201
         flash(message, "success")
