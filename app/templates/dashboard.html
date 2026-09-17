@@ -72,7 +72,7 @@
         {% endif %}
         <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll stagger-3">
             <div class="summary-card staff">
-                <div><div class="stat-number">{{ stats.avg_student_attendance }}%</div><div class="stat-label">Attendance</div></div>
+                <div><div class="stat-number">{{ ('%d%%' % stats.avg_student_attendance) if stats.avg_student_attendance is not none else '—' }}</div><div class="stat-label">Attendance</div></div>
                 <div class="stat-sub">Last 14 days</div>
                 <i class="bi bi-calendar-check stat-icon"></i>
             </div>
@@ -352,7 +352,7 @@ function fetchWithTimeout(url, opts) {
             { label: 'Active Students', value: stats.active_students, icon: 'bi-people-fill', color: '#1b6ef3' },
             { label: 'Courses', value: stats.courses, icon: 'bi-journal-code', color: '#7b3fe4' },
             { label: 'Staff', value: stats.tutors, icon: 'bi-person-workspace', color: '#44b669' },
-            { label: 'Attendance Rate', value: stats.avg_student_attendance + '%', icon: 'bi-calendar-check', color: '#f59639' },
+            { label: 'Attendance Rate', value: (stats.avg_student_attendance === null || stats.avg_student_attendance === undefined) ? '—' : (stats.avg_student_attendance + '%'), icon: 'bi-calendar-check', color: '#f59639' },
             { label: 'Pending Enq.', value: stats.unresolved_enquiries, icon: 'bi-funnel-fill', color: '#ff3366' },
             { label: 'Fees (Month)', value: '₹' + ((stats.monthly_fees_collected || 0)/1000).toFixed(0) + 'k', icon: 'bi-currency-rupee', color: '#00BFA6' }
         ];
@@ -475,6 +475,12 @@ function fetchWithTimeout(url, opts) {
 </script>
 <script>
 (function() {
+    // Escape untrusted text (AI output, exam titles) before innerHTML insert.
+    function esc(s) {
+        return String((s === null || s === undefined) ? '' : s).replace(/[&<>"']/g, function(c) {
+            return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+        });
+    }
     // Predictive Analytics
     var paContainer = document.getElementById('predictive-analytics-container');
     if (paContainer) {
@@ -488,9 +494,9 @@ function fetchWithTimeout(url, opts) {
                 var html = '<div class="row">';
                 html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);">';
                 html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-people-fill me-2" style="color:hsl(150,100%,40%);"></i>Enrollment Forecast</h6>';
-                html += '<div class="d-flex justify-content-between align-items-center mb-2"><span class="text-white small">Growth:</span><span class="text-success fw-bold small">+' + growth + '%</span></div>';
+                html += '<div class="d-flex justify-content-between align-items-center mb-2"><span class="text-white small">Growth:</span><span class="text-success fw-bold small">+' + esc(growth) + '%</span></div>';
                 html += '<div class="d-flex gap-2">';
-                enrollment.slice(0,3).forEach(function(val) { html += '<div class="text-center flex-fill"><div class="text-white fw-bold small">' + val + '</div><div class="text-white" style="opacity:0.5;font-size:0.65rem;">Mo</div></div>'; });
+                enrollment.slice(0,3).forEach(function(val) { html += '<div class="text-center flex-fill"><div class="text-white fw-bold small">' + esc(Number(val) || 0) + '</div><div class="text-white" style="opacity:0.5;font-size:0.65rem;">Mo</div></div>'; });
                 html += '</div></div></div>';
                 html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);">';
                 html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-currency-rupee me-2" style="color:hsl(150,100%,40%);"></i>Revenue Forecast</h6>';
@@ -499,11 +505,11 @@ function fetchWithTimeout(url, opts) {
                 html += '</div></div></div>';
                 html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);">';
                 html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-lightning-fill me-2" style="color:hsl(150,100%,40%);"></i>Opportunities</h6><ul class="mb-0 ps-3">';
-                (data.opportunities || []).slice(0,3).forEach(function(opp) { html += '<li class="text-white small mb-1" style="opacity:0.7;">' + opp + '</li>'; });
+                (data.opportunities || []).slice(0,3).forEach(function(opp) { html += '<li class="text-white small mb-1" style="opacity:0.7;">' + esc(opp) + '</li>'; });
                 html += '</ul></div></div></div>';
                 if (data.risk_factors && data.risk_factors.length) {
                     html += '<div class="mt-2"><h6 class="text-white small fw-bold mb-2"><i class="bi bi-exclamation-triangle-fill me-2" style="color:#F59E0B;"></i>Risks</h6><div class="d-flex flex-wrap gap-1">';
-                    data.risk_factors.forEach(function(risk) { html += '<span class="badge badge-custom badge-amber" style="font-size:0.6rem;">' + risk + '</span>'; });
+                    data.risk_factors.forEach(function(risk) { html += '<span class="badge badge-custom badge-amber" style="font-size:0.6rem;">' + esc(risk) + '</span>'; });
                     html += '</div></div>';
                 }
                 paContainer.innerHTML = html;
@@ -529,22 +535,24 @@ function fetchWithTimeout(url, opts) {
                 var html = '';
                 var completedCount = 0;
                 tasks.forEach(function(t) {
+                    t = t || {};
                     var colors = {high: '#dc3545', medium: '#ffc107', low: '#6c757d'};
                     var labels = {high: 'HIGH', medium: 'MED', low: 'LOW'};
-                    var c = colors[t.priority] || '#6c757d';
-                    var progress = t.progress || 0;
+                    var pri = t.priority || 'low';
+                    var c = colors[pri] || '#6c757d';
+                    var progress = Math.max(0, Math.min(100, Number(t.progress) || 0));
                     var isCompleted = progress === 100;
                     if (isCompleted) completedCount++;
-                    
+
                     html += '<div class="d-flex align-items-center gap-3 p-2 mb-2 rounded" style="background:rgba(255,255,255,0.03);">';
-                    html += '<span class="badge" style="background:' + c + ';color:#fff;font-size:0.5rem;padding:2px 6px;">' + (labels[t.priority] || t.priority.toUpperCase()) + '</span>';
-                    html += '<i class="bi bi-' + (isCompleted ? 'check-circle-fill' : (t.icon || 'bell')) + ' flex-shrink-0" style="color:' + (isCompleted ? '#00BFA6' : c) + ';font-size:1.1rem;"></i>';
-                    html += '<div class="flex-grow-1 min-width-0"><div class="d-flex justify-content-between align-items-center mb-1"><div class="text-white small fw-semibold">' + (t.title || '') + '</div>';
+                    html += '<span class="badge" style="background:' + c + ';color:#fff;font-size:0.5rem;padding:2px 6px;">' + esc(labels[pri] || pri) + '</span>';
+                    html += '<i class="bi bi-' + esc(isCompleted ? 'check-circle-fill' : (t.icon || 'bell')) + ' flex-shrink-0" style="color:' + (isCompleted ? '#00BFA6' : c) + ';font-size:1.1rem;"></i>';
+                    html += '<div class="flex-grow-1 min-width-0"><div class="d-flex justify-content-between align-items-center mb-1"><div class="text-white small fw-semibold">' + esc(t.title) + '</div>';
                     html += '<span class="small" style="color:' + (isCompleted ? '#00BFA6' : 'rgba(255,255,255,0.6)') + ';font-size:0.7rem;">' + progress + '%</span></div>';
-                    html += '<div class="text-white-50 small" style="opacity:0.6;font-size:0.75rem;">' + (t.detail || '') + '</div>';
+                    html += '<div class="text-white-50 small" style="opacity:0.6;font-size:0.75rem;">' + esc(t.detail) + '</div>';
                     html += '<div class="progress mt-1" style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;"><div class="progress-bar" style="width:' + progress + '%;background:' + (isCompleted ? '#00BFA6' : c) + ';border-radius:2px;transition:width 0.3s ease;"></div></div></div>';
                     if (t.action_url && !isCompleted) {
-                        html += '<a href="' + t.action_url + '" class="btn btn-sm flex-shrink-0" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:0.7rem;padding:2px 10px;white-space:nowrap;">' + (t.action_label || 'Go') + '</a>';
+                        html += '<a href="' + esc(t.action_url) + '" class="btn btn-sm flex-shrink-0" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:0.7rem;padding:2px 10px;white-space:nowrap;">' + esc(t.action_label || 'Go') + '</a>';
                     }
                     html += '</div>';
                 });

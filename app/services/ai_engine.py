@@ -119,6 +119,8 @@ class AIEngine:
         return f"{greeting}\n\n{body}\n\n{signoff}"
 
     def generate_institute_insights(self, stats):
+        att = stats.get('avg_student_attendance')
+        att_display = f"{att}%" if att is not None else "no records yet"
         prompt = (
             f"Analyze the following computer institute dashboard metrics and generate 3 actionable, premium business insights. "
             f"Return the response in a clean JSON format with keys: 'summary' (a brief overview paragraph of institute health) "
@@ -128,7 +130,7 @@ class AIEngine:
             f"- Total Tutors: {stats['tutors']}\n"
             f"- Total Active Courses: {stats['courses']}\n"
             f"- Total Enquiries: {stats['enquiries']} (New: {stats['enquiries_new']}, Contacted: {stats['enquiries_contacted']}, Converted: {stats['enquiries_converted']})\n"
-            f"- Average Student Attendance: {stats['avg_student_attendance']}%\n"
+            f"- Average Student Attendance: {att_display}\n"
             f"- Total Collections This Month: ₹{stats['monthly_fees_collected']}\n"
             f"- Unresolved Enquiries: {stats['unresolved_enquiries']}\n"
             f"- Low Attendance Students (<75%): {stats['low_attendance_count']}\n"
@@ -177,7 +179,7 @@ class AIEngine:
         return {
             "summary": (
                 f"The institute is operating steadily with {stats['active_students']} active student(s) and {stats['tutors']} tutor(s) "
-                f"across {stats['courses']} core programs. The current average student attendance stands at {stats['avg_student_attendance']}%. "
+                f"across {stats['courses']} core programs. The current average student attendance stands at {att_display}. "
                 f"Enquiry pipelines show {stats['unresolved_enquiries']} active leads awaiting follow-ups. Financial collections reached "
                 f"₹{stats['monthly_fees_collected']} this month."
             ),
@@ -370,7 +372,8 @@ class AIEngine:
             "opportunities": [],
             "course_recommendations": ["Analyze course completion rates", "Review curriculum relevance", "Consider adding industry-demand courses"]
         }
-        if stats.get('avg_student_attendance', 100) < 80:
+        _avg_att = stats.get('avg_student_attendance')
+        if _avg_att is not None and _avg_att < 80:
             base["risk_factors"].append("Declining attendance may impact course completion rates")
         if stats.get('unresolved_enquiries', 0) > 10:
             base["risk_factors"].append("High enquiry backlog may lead to lost conversions")
@@ -390,13 +393,17 @@ class AIEngine:
         global _pa_cache
         signature = tuple(sorted((k, stats.get(k)) for k in (
             'active_students', 'tutors', 'courses', 'enquiries', 'enquiries_new',
-            'enquiries_contacted', 'enquiries_converted', 'unresolved_enquiries',
+            'enquiries_contacted', 'enquiries_visited', 'enquiries_converted',
+            'unresolved_enquiries',
             'monthly_fees_collected', 'avg_student_attendance', 'low_attendance_count')))
         now = time.time()
         if _pa_cache["signature"] == signature and now - _pa_cache["time"] < _PA_CACHE_TTL:
             return _pa_cache["data"]
 
         result = base
+        _att_display = (f"{stats['avg_student_attendance']}%"
+                        if stats.get('avg_student_attendance') is not None
+                        else "no records yet")
         prompt = (
             f"You are a business intelligence analyst for a computer institute.\n"
             f"Analyze the following current metrics and generate predictive insights:\n"
@@ -404,7 +411,7 @@ class AIEngine:
             f"- Total Tutors: {stats['tutors']}\n"
             f"- Active Courses: {stats['courses']}\n"
             f"- Total Enquiries: {stats['enquiries']} (New: {stats['enquiries_new']}, Contacted: {stats['enquiries_contacted']}, Converted: {stats['enquiries_converted']})\n"
-            f"- Average Student Attendance: {stats['avg_student_attendance']}%\n"
+            f"- Average Student Attendance: {_att_display}\n"
             f"- Monthly Fees Collected: ₹{stats['monthly_fees_collected']}\n"
             f"- Unresolved Enquiries: {stats['unresolved_enquiries']}\n"
             f"- Low Attendance Students: {stats['low_attendance_count']}\n\n"

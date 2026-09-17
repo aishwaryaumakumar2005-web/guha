@@ -282,10 +282,16 @@ function setupEditModalFormHandlers() {
 /**
  * 1. AI Dashboard Insights Fetcher
  */
+function escHtml(s) {
+    return String((s === null || s === undefined) ? '' : s).replace(/[&<>"']/g, function(c) {
+        return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+    });
+}
+
 function loadDashboardAIInsights() {
     const container = document.getElementById('ai-insights-container');
     const summaryEl = document.getElementById('ai-insights-summary');
-    
+
     if (!container) return;
     
     var controller = new AbortController();
@@ -296,7 +302,7 @@ function loadDashboardAIInsights() {
         .then(function(data) {
             // Write Summary
             if (summaryEl && data.summary) {
-                summaryEl.innerHTML = `<p class="mb-0 text-secondary">${data.summary}</p>`;
+                summaryEl.innerHTML = `<p class="mb-0 text-secondary">${escHtml(data.summary)}</p>`;
             }
             
             // Render Insights Cards
@@ -312,10 +318,10 @@ function loadDashboardAIInsights() {
                     card.innerHTML = `
                         <div class="glass-card p-4 h-100 border-start border-3" style="border-left-color: ${insight.badge === 'High' ? 'var(--accent-rose)' : insight.badge === 'Medium' ? 'var(--accent-amber)' : 'var(--accent-cyan)'} !important">
                             <div class="d-flex justify-content-between align-items-start mb-3">
-                                <h5 class="card-title mb-0" style="max-width: 65%; word-wrap: break-word;">${insight.title}</h5>
-                                <span class="badge badge-custom ${badgeClass}">${insight.badge} Priority</span>
+                                <h5 class="card-title mb-0" style="max-width: 65%; word-wrap: break-word;">${escHtml(insight.title)}</h5>
+                                <span class="badge badge-custom ${badgeClass}">${escHtml(insight.badge)} Priority</span>
                             </div>
-                            <p class="card-text text-secondary font-size-sm" style="font-size: 0.9rem; line-height: 1.5;">${insight.description}</p>
+                            <p class="card-text text-secondary font-size-sm" style="font-size: 0.9rem; line-height: 1.5;">${escHtml(insight.description)}</p>
                         </div>
                     `;
                     container.appendChild(card);

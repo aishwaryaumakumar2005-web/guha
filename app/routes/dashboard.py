@@ -15,7 +15,9 @@ _stats_cache = {"data": None, "time": 0}
 def get_dashboard_stats():
     from time import time
     if time() - _stats_cache["time"] < 30 and _stats_cache["data"]:
-        return _stats_cache["data"]
+        # Return a copy: callers (e.g. the Staff branch) add per-request keys,
+        # and mutating the shared cached dict would leak them across roles.
+        return dict(_stats_cache["data"])
     today = date.today()
     start_of_month = date(today.year, today.month, 1)
     fourteen_days_ago = today - timedelta(days=14)
@@ -24,9 +26,11 @@ def get_dashboard_stats():
     courses = Course.query.count()
     enquiries_new = Enquiry.query.filter_by(status='New').count()
     enquiries_contacted = Enquiry.query.filter_by(status='Contacted').count()
+    enquiries_visited = Enquiry.query.filter_by(status='Visited').count()
     enquiries_converted = Enquiry.query.filter_by(status='Converted').count()
     enquiries_lost = Enquiry.query.filter_by(status='Lost').count()
-    total_enquiries = enquiries_new + enquiries_contacted + enquiries_converted + enquiries_lost
+    total_enquiries = (enquiries_new + enquiries_contacted + enquiries_visited
+                       + enquiries_converted + enquiries_lost)
     unresolved_enquiries = enquiries_new + enquiries_contacted
     monthly_fees = db.session.query(db.func.sum(FeeRecord.amount_paid)).filter(
         FeeRecord.payment_date >= start_of_month
@@ -40,11 +44,10 @@ def get_dashboard_stats():
     ).first()
     total_att_records = att_counts.total or 0
     present_att_records = att_counts.present or 0
-    avg_att = 100
+    # No records means "no data" (None), never a plausible-looking fake number.
+    avg_att = None
     if total_att_records > 0:
         avg_att = int((present_att_records / total_att_records) * 100)
-    elif active_students > 0:
-        avg_att = 92
     att_stats = db.session.query(
         Attendance.person_id,
         func.count(Attendance.id).label('total'),
@@ -53,18 +56,17 @@ def get_dashboard_stats():
         func.count(Attendance.id) >= 3
     ).all()
     low_att_count = sum(1 for s in att_stats if (s.present * 100.0 / s.total) < 75)
-    if active_students > 0 and low_att_count == 0 and total_att_records == 0:
-        low_att_count = 1
     _stats_cache["data"] = {
         "active_students": active_students, "tutors": tutors, "courses": courses,
         "enquiries": total_enquiries, "enquiries_new": enquiries_new,
-        "enquiries_contacted": enquiries_contacted, "enquiries_converted": enquiries_converted,
+        "enquiries_contacted": enquiries_contacted, "enquiries_visited": enquiries_visited,
+        "enquiries_converted": enquiries_converted,
         "enquiries_lost": enquiries_lost, "unresolved_enquiries": unresolved_enquiries,
         "monthly_fees_collected": float(monthly_fees), "avg_student_attendance": avg_att,
         "low_attendance_count": low_att_count
     }
     _stats_cache["time"] = time()
-    return _stats_cache["data"]
+    return dict(_stats_cache["data"])
 
 @dashboard_bp.route('/')
 @login_required
@@ -337,7 +339,7 @@ def api_todays_activities():
         'view fees': 'fees.list',
         'view leaves': 'leaves.leaves',
         'view attendance': 'attendance.attendance',
-        'view exams': 'exams.list_exams',
+        'view exams': 'exams.exam_list',
         'view enquiries': 'enquiries.list',
         'check now': 'enquiries.kanban',
     }
