@@ -1406,7 +1406,11 @@ body.htmx-request #main-content {
 
 /* ===== ROW FADE-IN ===== */
 .table-custom tbody tr {
-    animation: tableRowFadeIn 0.35s ease both;
+    /* No fill-mode: with `both` the final keyframe's transform persists,
+       making every row its own stacking context and painting an open
+       dropdown menu behind the following row. Reverting to base styles
+       after the animation keeps rows clipping-free. */
+    animation: tableRowFadeIn 0.35s ease;
 }
 @keyframes tableRowFadeIn {
     from { opacity: 0; transform: translateY(8px); }
