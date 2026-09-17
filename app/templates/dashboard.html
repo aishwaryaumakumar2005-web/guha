@@ -5,27 +5,13 @@
             <h2 class="mb-1 fw-bold text-white">Dashboard</h2>
             <p class="text-white mb-0" style="opacity: 0.7;">{{ stats.active_students }} active students &middot; {{ stats.courses }} courses</p>
             <div class="d-flex flex-wrap gap-2 mt-2">
-                <span class="badge badge-custom badge-cyan"><i class="bi bi-calendar3 me-1"></i>{{ today.strftime("%d %b %Y") }}</span>
-                <span class="badge badge-custom badge-active"><i class="bi bi-currency-rupee me-1"></i>₹{{ "{:,.0f}".format(today_fees) }} collected today</span>
-                <span class="badge badge-custom badge-amber"><i class="bi bi-calendar2-check me-1"></i>{{ today_attendance }} attendance logged today</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Quick Stats Row -->
-    <div class="row mb-4 animate-on-scroll">
-        <div class="col-12">
-            <div class="glass-card p-3">
-                <div class="d-flex align-items-center gap-2 mb-3">
-                    <i class="bi bi-lightning-fill fs-5" style="color:hsl(40,100%,55%);"></i>
-                    <h6 class="mb-0 fw-bold" style="color:hsl(40,100%,55%);">Quick Stats</h6>
-                </div>
-                <div class="row g-3" id="quick-stats-container">
-                    <div class="d-flex align-items-center text-secondary small">
-                        <span class="spinner-border spinner-border-sm me-2" style="color:hsl(40,100%,55%);" role="status"></span>
-                        Loading quick stats...
-                    </div>
-                </div>
+                <span class="badge badge-custom badge-cyan"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>{{ today.strftime("%d %b %Y") }}</span>
+                <span class="badge badge-custom badge-amber"><i class="bi bi-calendar2-check me-1" aria-hidden="true"></i>{{ today_attendance }} attendance logged today</span>
+                {% if current_user.role == 'Admin' %}
+                <span class="badge badge-custom badge-active"><i class="bi bi-currency-rupee me-1" aria-hidden="true"></i>₹{{ "{:,.0f}".format(today_fees) }} collected today</span>
+                <span class="badge badge-custom badge-active"><i class="bi bi-graph-up-arrow me-1" aria-hidden="true"></i>₹{{ "{:,.0f}".format(stats.monthly_fees_collected) }} this month</span>
+                <span class="badge badge-custom badge-amber"><i class="bi bi-funnel me-1" aria-hidden="true"></i>{{ stats.unresolved_enquiries }} unresolved enquiries</span>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -36,7 +22,7 @@
             <div class="summary-card students">
                 <div><div class="stat-number">{{ stats.active_students }}</div><div class="stat-label">Students</div></div>
                 <div class="stat-sub">Active enrollments</div>
-                <i class="bi bi-people-fill stat-icon"></i>
+                <i class="bi bi-people-fill stat-icon" aria-hidden="true"></i>
             </div>
         </div>
         {% if current_user.role == 'Admin' %}
@@ -44,14 +30,14 @@
             <div class="summary-card courses">
                 <div><div class="stat-number">{{ stats.courses }}</div><div class="stat-label">Courses</div></div>
                 <div class="stat-sub">Active programs</div>
-                <i class="bi bi-journal-code stat-icon"></i>
+                <i class="bi bi-journal-code stat-icon" aria-hidden="true"></i>
             </div>
         </div>
         <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll stagger-2">
             <div class="summary-card staff">
                 <div><div class="stat-number">{{ stats.tutors }}</div><div class="stat-label">Staff</div></div>
                 <div class="stat-sub">Mentors &amp; instructors</div>
-                <i class="bi bi-person-workspace stat-icon"></i>
+                <i class="bi bi-person-workspace stat-icon" aria-hidden="true"></i>
             </div>
         </div>
         {% else %}
@@ -59,14 +45,14 @@
             <div class="summary-card staff">
                 <div><div class="stat-number">{{ stats.tutors }}</div><div class="stat-label">Staff</div></div>
                 <div class="stat-sub">Teaching team</div>
-                <i class="bi bi-person-workspace stat-icon"></i>
+                <i class="bi bi-person-workspace stat-icon" aria-hidden="true"></i>
             </div>
         </div>
         <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll stagger-2">
             <div class="summary-card enrollments">
                 <div><div class="stat-number">{{ stats.pending_leaves_count }}</div><div class="stat-label">Pending</div></div>
                 <div class="stat-sub">Leave requests</div>
-                <i class="bi bi-hourglass-split stat-icon"></i>
+                <i class="bi bi-hourglass-split stat-icon" aria-hidden="true"></i>
             </div>
         </div>
         {% endif %}
@@ -74,7 +60,7 @@
             <div class="summary-card staff">
                 <div><div class="stat-number">{{ ('%d%%' % stats.avg_student_attendance) if stats.avg_student_attendance is not none else '—' }}</div><div class="stat-label">Attendance</div></div>
                 <div class="stat-sub">Last 14 days</div>
-                <i class="bi bi-calendar-check stat-icon"></i>
+                <i class="bi bi-calendar-check stat-icon" aria-hidden="true"></i>
             </div>
         </div>
 
@@ -83,7 +69,7 @@
         <div class="bento-card bento-xl-4 bento-md-12 animate-on-scroll">
             <div class="glass-card p-4 h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0 fw-bold"><i class="bi bi-cash-stack me-2" style="color:hsl(0,100%,60%);"></i>Outstanding Fees</h5>
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-cash-stack me-2" style="color:hsl(0,100%,60%);" aria-hidden="true"></i>Outstanding Fees</h5>
                     <a href="{{ url_for('fees.list') }}" class="btn btn-sm" style="background:transparent;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);border-radius:8px;padding:4px 12px;font-size:0.75rem;">Track</a>
                 </div>
                 <div class="d-flex align-items-baseline gap-2 mb-1">
@@ -95,7 +81,7 @@
                     <div class="d-flex flex-column gap-2">
                         {% for d in due_students[:5] %}
                             <div class="d-flex align-items-center gap-3 p-2 rounded" style="background:rgba(255,255,255,0.03);">
-                                <div class="rounded d-flex align-items-center justify-content-center flex-shrink-0" style="width:32px;height:32px;background:rgba(255,51,102,0.12);color:hsl(0,100%,65%);"><i class="bi bi-person"></i></div>
+                                <div class="rounded d-flex align-items-center justify-content-center flex-shrink-0" style="width:32px;height:32px;background:rgba(255,51,102,0.12);color:hsl(0,100%,65%);"><i class="bi bi-person" aria-hidden="true"></i></div>
                                 <div class="flex-grow-1 min-width-0">
                                     <div class="fw-semibold small text-white text-truncate">{{ d.name }}</div>
                                     <div class="text-white small" style="opacity:0.45;font-size:0.7rem;">{{ d.roll_no or '—' }}</div>
@@ -106,7 +92,7 @@
                     </div>
                 {% else %}
                     <div class="text-center py-3">
-                        <i class="bi bi-emoji-smile fs-3 d-block mb-1" style="color:hsl(150,100%,45%);"></i>
+<i class="bi bi-emoji-smile fs-3 d-block mb-1" style="color:hsl(150,100%,45%);" aria-hidden="true"></i>
                         <p class="small text-white-50 mb-0">All active students are up to date on fees.</p>
                     </div>
                 {% endif %}
@@ -117,11 +103,11 @@
         <div class="bento-card bento-xl-4 bento-md-12 animate-on-scroll stagger-1">
             <div class="glass-card p-4 h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0 fw-bold"><i class="bi bi-bar-chart-fill me-2" style="color:hsl(200,100%,55%);"></i>Course Capacity</h5>
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-bar-chart-fill me-2" style="color:hsl(200,100%,55%);" aria-hidden="true"></i>Course Capacity</h5>
                     <a href="{{ url_for('courses.list') }}" class="btn btn-sm" style="background:transparent;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);border-radius:8px;padding:4px 12px;font-size:0.75rem;">Courses</a>
                 </div>
                 {% if overflow_capacity %}
-                    <div class="small mb-3" style="color:#ffc107;"><i class="bi bi-exclamation-triangle-fill me-1"></i>{{ overflow_capacity }} course{{ 's' if overflow_capacity != 1 else '' }} over capacity</div>
+                    <div class="small mb-3" style="color:#ffc107;"><i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>{{ overflow_capacity }} course{{ 's' if overflow_capacity != 1 else '' }} over capacity</div>
                 {% else %}
                     <div class="small text-white-50 mb-3" style="opacity:0.7;">Seat utilisation across {{ capacity_courses|length }} courses</div>
                 {% endif %}
@@ -141,7 +127,7 @@
                                 <span class="small fw-bold flex-shrink-0" style="color:{{ bar_color }};">{{ c.enrolled }}/{{ c.capacity }} <span style="opacity:0.6;">{{ c.pct }}%</span></span>
                             </div>
                             <div class="progress" style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;">
-                                <div class="progress-bar" role="progressbar" style="width:{{ pct }}%;background:{{ bar_color }};border-radius:3px;transition:width 0.5s ease;"></div>
+                                <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct }}" style="width:{{ pct }}%;background:{{ bar_color }};border-radius:3px;transition:width 0.5s ease;"></div>
                             </div>
                         </div>
                     {% endfor %}
@@ -156,43 +142,43 @@
         <div class="bento-card bento-xl-4 bento-md-12 animate-on-scroll stagger-2">
             <div class="glass-card p-4 h-100">
                 <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
-                    <h5 class="mb-0 fw-bold"><i class="bi bi-gift-fill me-2" style="color:hsl(290,100%,65%);"></i>Birthdays &amp; Anniversaries</h5>
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-gift-fill me-2" style="color:hsl(290,100%,65%);" aria-hidden="true"></i>Birthdays &amp; Anniversaries</h5>
                     {% if birthdays_today %}
                     <div class="d-flex gap-2 flex-shrink-0">
-                        <button type="button" class="btn btn-sm flex-shrink-0" id="copy-all-btn" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.85);border-radius:6px;font-size:0.7rem;padding:2px 10px;"><i class="bi bi-copy me-1"></i>Copy All</button>
-                        <button type="button" class="btn btn-sm btn-outline-premium flex-shrink-0" id="wish-all-btn"><i class="bi bi-whatsapp me-1"></i>Wish All</button>
+                        <button type="button" class="btn btn-sm flex-shrink-0" id="copy-all-btn" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.85);border-radius:6px;font-size:0.7rem;padding:2px 10px;"><i class="bi bi-copy me-1" aria-hidden="true"></i>Copy All</button>
+                        <button type="button" class="btn btn-sm btn-outline-premium flex-shrink-0" id="wish-all-btn"><i class="bi bi-whatsapp me-1" aria-hidden="true"></i>Wish All</button>
                     </div>
                     {% endif %}
                 </div>
                 {% if birthdays_today or anniversaries_today %}
                     {% if birthdays_today %}
-                        <h6 class="small text-white-50 mb-2" style="opacity:0.7;"><i class="bi bi-cake2-fill me-1" style="color:hsl(290,100%,70%);"></i>Birthdays today</h6>
+                        <h6 class="small text-white-50 mb-2" style="opacity:0.7;"><i class="bi bi-cake2-fill me-1" style="color:hsl(290,100%,70%);" aria-hidden="true"></i>Birthdays today</h6>
                         <div class="d-flex flex-column gap-2 mb-3">
                             {% for b in birthdays_today %}
                                 <div class="d-flex align-items-center gap-2 p-2 rounded" style="background:rgba(255,255,255,0.03);">
                                     <span class="small fw-semibold text-white text-truncate">{{ b.name }}</span>
-                                    <button type="button" class="btn btn-sm flex-shrink-0 copy-msg-btn" data-msg='{{ b.msg|tojson }}' title="Copy wish to clipboard" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);border-radius:6px;font-size:0.68rem;padding:1px 8px;"><i class="bi bi-copy me-1"></i>Copy</button>
+                                    <button type="button" class="btn btn-sm flex-shrink-0 copy-msg-btn" data-msg='{{ b.msg|tojson }}' title="Copy wish to clipboard" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);border-radius:6px;font-size:0.68rem;padding:1px 8px;"><i class="bi bi-copy me-1" aria-hidden="true"></i>Copy</button>
                                     {% if b.phone %}
-                                    <button type="button" class="btn btn-sm flex-shrink-0 wish-single-btn" data-student-id="{{ b.id }}" data-name="{{ b.name }}" style="background:rgba(37,211,102,0.15);border:1px solid rgba(37,211,102,0.3);color:#25D366;border-radius:6px;font-size:0.68rem;padding:1px 8px;"><i class="bi bi-whatsapp me-1"></i>Wish</button>
+                                    <button type="button" class="btn btn-sm flex-shrink-0 wish-single-btn" data-student-id="{{ b.id }}" data-name="{{ b.name }}" style="background:rgba(37,211,102,0.15);border:1px solid rgba(37,211,102,0.3);color:#25D366;border-radius:6px;font-size:0.68rem;padding:1px 8px;"><i class="bi bi-whatsapp me-1" aria-hidden="true"></i>Wish</button>
                                     {% endif %}
                                 </div>
                             {% endfor %}
                         </div>
                     {% endif %}
                     {% if anniversaries_today %}
-                        <h6 class="small text-white-50 mb-2" style="opacity:0.7;"><i class="bi bi-calendar-heart-fill me-1" style="color:hsl(200,100%,60%);"></i>Enrollment anniversaries</h6>
+                        <h6 class="small text-white-50 mb-2" style="opacity:0.7;"><i class="bi bi-calendar-heart-fill me-1" style="color:hsl(200,100%,60%);" aria-hidden="true"></i>Enrollment anniversaries</h6>
                         <div class="d-flex flex-column gap-2">
                             {% for a in anniversaries_today %}
                                 <div class="d-flex align-items-center gap-2 p-2 rounded" style="background:rgba(255,255,255,0.03);">
                                     <span class="small fw-semibold text-white text-truncate">{{ a.name }}</span>
-                                    <span class="ms-auto small flex-shrink-0" style="color:hsl(200,100%,60%);"><i class="bi bi-stars"></i></span>
+                                    <span class="ms-auto small flex-shrink-0" style="color:hsl(200,100%,60%);" aria-hidden="true"><i class="bi bi-stars" aria-hidden="true"></i></span>
                                 </div>
                             {% endfor %}
                         </div>
                     {% endif %}
                 {% else %}
                     <div class="text-center py-3">
-                        <i class="bi bi-heart fs-3 d-block mb-1" style="color:rgba(255,255,255,0.3);"></i>
+                        <i class="bi bi-heart fs-3 d-block mb-1" style="color:rgba(255,255,255,0.3);" aria-hidden="true"></i>
                         <p class="small text-white-50 mb-2">Nothing special today.</p>
                         <div class="small text-white-50" style="opacity:0.55;font-size:0.7rem;">Add a Date of Birth on the student profile to start birthday wishes.</div>
                     </div>
@@ -205,7 +191,7 @@
         <div class="bento-card bento-xl-12 animate-on-scroll">
             <div class="glass-card p-3">
                 <div class="d-flex align-items-center gap-2 mb-3">
-                    <i class="bi bi-list-check fs-4" style="color:hsl(40,100%,55%);"></i>
+                    <i class="bi bi-list-check fs-4" style="color:hsl(40,100%,55%);" aria-hidden="true"></i>
                     <h5 class="mb-0 fw-bold" style="color:hsl(40,100%,55%);">Today's Tasks</h5>
                     <span class="badge badge-custom ms-1" id="tasks-count-badge" style="background:rgba(255,193,7,0.2);color:#ffc107;border:1px solid rgba(255,193,7,0.3);font-size:0.6rem;">...</span>
                 </div>
@@ -220,14 +206,14 @@
         <!-- AI Advisor Compact -->
         <div class="bento-card bento-xl-12 animate-on-scroll">
             <div class="glass-card p-3">
-                <div class="d-flex align-items-center justify-content-between cursor-pointer" onclick="var c=this.nextElementSibling;c.classList.toggle('d-none');this.querySelector('.collapse-icon').classList.toggle('bi-chevron-up');this.querySelector('.collapse-icon').classList.toggle('bi-chevron-down');">
-                    <div class="d-flex align-items-center gap-2">
-                        <i class="bi bi-cpu-fill fs-5" style="color:hsl(200,100%,50%);"></i>
-                        <h5 class="mb-0 fw-bold" style="color:hsl(200,100%,50%);">AI Institute Advisor</h5>
+                <button type="button" id="aiAdvisorToggle" aria-expanded="false" aria-controls="aiContent" onclick="toggleAiAdvisor()" class="d-flex align-items-center justify-content-between w-100 bg-transparent border-0 p-0 text-start" style="cursor:pointer;">
+                    <span class="d-flex align-items-center gap-2">
+                        <i class="bi bi-cpu-fill fs-5" style="color:hsl(200,100%,50%);" aria-hidden="true"></i>
+                        <span class="mb-0 fw-bold h5" style="color:hsl(200,100%,50%);">AI Institute Advisor</span>
                         <span class="badge badge-custom badge-active ms-2" style="font-size:0.6rem;">LIVE</span>
-                    </div>
-                    <i class="bi bi-chevron-down collapse-icon fs-6" style="color:rgba(255,255,255,0.5);"></i>
-                </div>
+                    </span>
+                    <i class="bi bi-chevron-down collapse-icon fs-6" style="color:rgba(255,255,255,0.5);" aria-hidden="true"></i>
+                </button>
                 <div class="mt-3 d-none" id="aiContent">
                     <div id="ai-insights-summary">
                         <div class="d-flex align-items-center text-secondary small">
@@ -262,15 +248,15 @@
                 </div>
                 <div class="table-container">
                     <table class="table table-custom sortable" data-page-size="10">
-                        <thead><tr><th>Student</th><th>Amount</th><th>Date</th><th>Method</th></tr></thead>
+                        <thead><tr><th scope="col" aria-sort="none">Student</th><th scope="col" aria-sort="none">Amount</th><th scope="col" aria-sort="none">Date</th><th scope="col" class="no-sort">Method</th></tr></thead>
                         <tbody>
                             {% if recent_fees %}
                                 {% for fee in recent_fees %}
                                     <tr>
-                                        <td class="fw-medium text-white small">{{ fee.student.name }}</td>
-                                        <td class="fw-semibold small" style="color:hsl(200,100%,50%);">₹{{ "{:,.2f}".format(fee.amount_paid) }}</td>
-                                        <td class="text-white small" style="opacity:0.7;">{{ fee.payment_date.strftime("%d %b %Y") }}</td>
-                                        <td><span class="badge badge-custom badge-cyan" style="font-size:0.6rem;">{{ fee.payment_method }}</span></td>
+                                        <td data-label="Student" class="fw-medium text-white small">{{ fee.student.name }}</td>
+                                        <td data-label="Amount" class="fw-semibold small" style="color:hsl(200,100%,50%);">₹{{ "{:,.2f}".format(fee.amount_paid) }}</td>
+                                        <td data-label="Date" class="text-white small" style="opacity:0.7;">{{ fee.payment_date.strftime("%d %b %Y") }}</td>
+                                        <td data-label="Method"><span class="badge badge-custom badge-cyan" style="font-size:0.6rem;">{{ fee.payment_method }}</span></td>
                                     </tr>
                                 {% endfor %}
                             {% else %}
@@ -283,12 +269,12 @@
         </div>
         <div class="bento-card bento-xl-5 bento-md-12 animate-on-scroll stagger-1">
             <div class="glass-card p-4 h-100">
-                <h5 class="mb-4 fw-bold"><i class="bi bi-trophy me-2" style="color:hsl(200,100%,50%);"></i>Top Courses</h5>
+                <h5 class="mb-4 fw-bold"><i class="bi bi-trophy me-2" style="color:hsl(200,100%,50%);" aria-hidden="true"></i>Top Courses</h5>
                 <div class="d-flex flex-column gap-2">
                     {% if top_courses %}
                         {% for course in top_courses %}
                             <div class="d-flex align-items-center gap-3 p-2 rounded" style="background:rgba(255,255,255,0.03);">
-                                <div class="rounded d-flex align-items-center justify-content-center" style="width:36px;height:36px;background:rgba(27, 110, 243,0.1);color:hsl(200,100%,50%);flex-shrink:0;"><i class="bi bi-journal-code"></i></div>
+                                <div class="rounded d-flex align-items-center justify-content-center" style="width:36px;height:36px;background:rgba(27, 110, 243,0.1);color:hsl(200,100%,50%);flex-shrink:0;"><i class="bi bi-journal-code" aria-hidden="true"></i></div>
                                 <div class="flex-grow-1 min-width-0">
                                     <div class="fw-semibold small text-white text-truncate">{{ course.name }}</div>
                                     <div class="text-white small" style="opacity:0.5;font-size:0.75rem;">{{ course.enrolled }} enrolled</div>
@@ -307,27 +293,27 @@
         <!-- Staff View -->
         <div class="bento-card bento-xl-6 bento-md-12 animate-on-scroll">
             <div class="glass-card p-4 h-100">
-                <h5 class="mb-4 fw-bold"><i class="bi bi-lightning-fill me-2" style="color:hsl(200,100%,50%);"></i>Quick Actions</h5>
+                <h5 class="mb-4 fw-bold"><i class="bi bi-lightning-fill me-2" style="color:hsl(200,100%,50%);" aria-hidden="true"></i>Quick Actions</h5>
                 <div class="d-grid gap-3">
                     <a href="{{ url_for('attendance.attendance') }}" class="btn btn-premium py-3 text-start d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-calendar2-check-fill me-2"></i>Log Attendance</span>
-                        <i class="bi bi-arrow-right-short fs-4"></i>
+                        <span><i class="bi bi-calendar2-check-fill me-2" aria-hidden="true"></i>Log Attendance</span>
+                        <i class="bi bi-arrow-right-short fs-4" aria-hidden="true"></i>
                     </a>
                     <a href="{{ url_for('leaves.leaves') }}" class="btn btn-outline-premium py-3 text-start d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-calendar-range-fill me-2"></i>Request Leave</span>
-                        <i class="bi bi-arrow-right-short fs-4"></i>
+                        <span><i class="bi bi-calendar-range-fill me-2" aria-hidden="true"></i>Request Leave</span>
+                        <i class="bi bi-arrow-right-short fs-4" aria-hidden="true"></i>
                     </a>
                 </div>
             </div>
         </div>
         <div class="bento-card bento-xl-6 bento-md-12 animate-on-scroll stagger-1">
             <div class="glass-card p-4 h-100">
-                <h5 class="mb-4 fw-bold"><i class="bi bi-shield-check me-2" style="color:hsl(200,100%,50%);"></i>Your Access</h5>
+                <h5 class="mb-4 fw-bold"><i class="bi bi-shield-check me-2" style="color:hsl(200,100%,50%);" aria-hidden="true"></i>Your Access</h5>
                 <ul class="list-unstyled mb-0 small" style="line-height:2;">
-                    <li><i class="bi bi-check-circle me-2" style="color:hsl(150,100%,40%);"></i>Mark daily attendance</li>
-                    <li><i class="bi bi-check-circle me-2" style="color:hsl(150,100%,40%);"></i>Submit leave requests</li>
-                    <li><i class="bi bi-check-circle me-2" style="color:hsl(150,100%,40%);"></i>View attendance trends</li>
-                    <li><i class="bi bi-x-circle me-2" style="color:hsl(0,100%,60%);"></i>Financial &amp; course management</li>
+                    <li><i class="bi bi-check-circle me-2" style="color:hsl(150,100%,40%);" aria-hidden="true"></i>Mark daily attendance</li>
+                    <li><i class="bi bi-check-circle me-2" style="color:hsl(150,100%,40%);" aria-hidden="true"></i>Submit leave requests</li>
+                    <li><i class="bi bi-check-circle me-2" style="color:hsl(150,100%,40%);" aria-hidden="true"></i>View attendance trends</li>
+                    <li><i class="bi bi-x-circle me-2" style="color:hsl(0,100%,60%);" aria-hidden="true"></i>Financial &amp; course management</li>
                 </ul>
                 <div class="mt-3 p-2 rounded small" style="background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.4);">Contact admin for advanced permissions.</div>
             </div>
@@ -343,32 +329,20 @@ function fetchWithTimeout(url, opts) {
     return fetch(url, Object.assign({}, opts, ctrl ? { signal: ctrl.signal } : {}))
         .then(function(res) { clearTimeout(timer); return res; });
 }
-(function() {
-    // Quick Stats
-    var qsContainer = document.getElementById('quick-stats-container');
-    if (qsContainer) {
-        var stats = {{ stats|tojson }};
-        var qs = [
-            { label: 'Active Students', value: stats.active_students, icon: 'bi-people-fill', color: '#1b6ef3' },
-            { label: 'Courses', value: stats.courses, icon: 'bi-journal-code', color: '#7b3fe4' },
-            { label: 'Staff', value: stats.tutors, icon: 'bi-person-workspace', color: '#44b669' },
-            { label: 'Attendance Rate', value: (stats.avg_student_attendance === null || stats.avg_student_attendance === undefined) ? '—' : (stats.avg_student_attendance + '%'), icon: 'bi-calendar-check', color: '#f59639' },
-            { label: 'Pending Enq.', value: stats.unresolved_enquiries, icon: 'bi-funnel-fill', color: '#ff3366' },
-            { label: 'Fees (Month)', value: '₹' + ((stats.monthly_fees_collected || 0)/1000).toFixed(0) + 'k', icon: 'bi-currency-rupee', color: '#00BFA6' }
-        ];
-        var h = '';
-        qs.forEach(function(s) {
-            h += '<div class="col-md-2 col-sm-4 col-6">';
-            h += '<div class="p-3 rounded h-100" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);">';
-            h += '<div class="d-flex align-items-center gap-2 mb-2">';
-            h += '<div class="rounded d-flex align-items-center justify-content-center" style="width:32px;height:32px;background:rgba(' + s.color + ',0.15);color:' + s.color + ';">';
-            h += '<i class="bi ' + s.icon + '"></i></div>';
-            h += '<span class="small text-white-50">' + s.label + '</span></div>';
-            h += '<div class="fw-bold text-white fs-5">' + s.value + '</div></div></div>';
-        });
-        qsContainer.innerHTML = h;
+// AI Advisor collapse toggle (global so the header button's inline handler works;
+// the button itself is keyboard-operable, unlike the previous clickable div).
+function toggleAiAdvisor() {
+    var btn = document.getElementById('aiAdvisorToggle');
+    var c = document.getElementById('aiContent');
+    if (!c) return;
+    var open = !c.classList.toggle('d-none');
+    var icon = btn ? btn.querySelector('.collapse-icon') : null;
+    if (icon) {
+        icon.classList.toggle('bi-chevron-up', open);
+        icon.classList.toggle('bi-chevron-down', !open);
     }
-})();
+    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
 </script>
 {% if current_user.role == 'Admin' %}
 <script>
@@ -393,9 +367,9 @@ function fetchWithTimeout(url, opts) {
     }
     function bye(id, ok, msg) {
         var btn = document.querySelector('.wish-single-btn[data-student-id="' + id + '"]');
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-whatsapp me-1"></i>Wish'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-whatsapp me-1" aria-hidden="true"></i>Wish'; }
         var all = document.getElementById('wish-all-btn');
-        if (all) { all.disabled = false; all.innerHTML = '<i class="bi bi-whatsapp me-1"></i>Wish All'; }
+        if (all) { all.disabled = false; all.innerHTML = '<i class="bi bi-whatsapp me-1" aria-hidden="true"></i>Wish All'; }
         showWishStatus(msg, ok);
     }
     document.querySelectorAll('.wish-single-btn').forEach(function(btn) {
@@ -438,14 +412,14 @@ function fetchWithTimeout(url, opts) {
         try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
         document.body.removeChild(ta);
         btn.style.color = ok ? '#25D366' : '#ff3366';
-        btn.innerHTML = ok ? '<i class="bi bi-check-lg me-1"></i>Copied' : '<i class="bi bi-x-lg me-1"></i>Failed';
+        btn.innerHTML = ok ? '<i class="bi bi-check-lg me-1" aria-hidden="true"></i>Copied' : '<i class="bi bi-x-lg me-1" aria-hidden="true"></i>Failed';
         restoreBtn(btn, label);
     }
     function copyToClipboard(text, btn, label) {
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(text).then(function() {
                 btn.style.color = '#25D366';
-                btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Copied';
+                btn.innerHTML = '<i class="bi bi-check-lg me-1" aria-hidden="true"></i>Copied';
                 restoreBtn(btn, label);
             }, function() { fallbackCopy(text, btn, label); });
         } else {
@@ -458,7 +432,7 @@ function fetchWithTimeout(url, opts) {
             if (!raw) return;
             var msg;
             try { msg = JSON.parse(raw); } catch (e) { msg = raw; }
-            copyToClipboard(msg, btn, '<i class="bi bi-copy me-1"></i>Copy');
+            copyToClipboard(msg, btn, '<i class="bi bi-copy me-1" aria-hidden="true"></i>Copy');
         });
     });
     var copyAllBtn = document.getElementById('copy-all-btn');
@@ -468,7 +442,7 @@ function fetchWithTimeout(url, opts) {
             document.querySelectorAll('.copy-msg-btn').forEach(function(b) {
                 try { parts.push(JSON.parse(b.getAttribute('data-msg'))); } catch (e) { parts.push(b.getAttribute('data-msg')); }
             });
-            copyToClipboard(parts.join('\n\n────────────────────────\n\n'), copyAllBtn, '<i class="bi bi-copy me-1"></i>Copy All');
+            copyToClipboard(parts.join('\n\n────────────────────────\n\n'), copyAllBtn, '<i class="bi bi-copy me-1" aria-hidden="true"></i>Copy All');
         });
     }
 })();
@@ -493,22 +467,22 @@ function fetchWithTimeout(url, opts) {
                 var growth = (data.growth_rate !== undefined && data.growth_rate !== null) ? data.growth_rate : 0;
                 var html = '<div class="row">';
                 html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);">';
-                html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-people-fill me-2" style="color:hsl(150,100%,40%);"></i>Enrollment Forecast</h6>';
+                html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-people-fill me-2" style="color:hsl(150,100%,40%);" aria-hidden="true"></i>Enrollment Forecast</h6>';
                 html += '<div class="d-flex justify-content-between align-items-center mb-2"><span class="text-white small">Growth:</span><span class="text-success fw-bold small">+' + esc(growth) + '%</span></div>';
                 html += '<div class="d-flex gap-2">';
                 enrollment.slice(0,3).forEach(function(val) { html += '<div class="text-center flex-fill"><div class="text-white fw-bold small">' + esc(Number(val) || 0) + '</div><div class="text-white" style="opacity:0.5;font-size:0.65rem;">Mo</div></div>'; });
                 html += '</div></div></div>';
                 html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);">';
-                html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-currency-rupee me-2" style="color:hsl(150,100%,40%);"></i>Revenue Forecast</h6>';
+                html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-currency-rupee me-2" style="color:hsl(150,100%,40%);" aria-hidden="true"></i>Revenue Forecast</h6>';
                 html += '<div class="d-flex gap-2">';
                 revenue.slice(0,3).forEach(function(val) { html += '<div class="text-center flex-fill"><div class="text-white fw-bold small">' + (Number(val)/1000).toFixed(0) + 'k</div><div class="text-white" style="opacity:0.5;font-size:0.65rem;">Mo</div></div>'; });
                 html += '</div></div></div>';
                 html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);">';
-                html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-lightning-fill me-2" style="color:hsl(150,100%,40%);"></i>Opportunities</h6><ul class="mb-0 ps-3">';
+                html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-lightning-fill me-2" style="color:hsl(150,100%,40%);" aria-hidden="true"></i>Opportunities</h6><ul class="mb-0 ps-3">';
                 (data.opportunities || []).slice(0,3).forEach(function(opp) { html += '<li class="text-white small mb-1" style="opacity:0.7;">' + esc(opp) + '</li>'; });
                 html += '</ul></div></div></div>';
                 if (data.risk_factors && data.risk_factors.length) {
-                    html += '<div class="mt-2"><h6 class="text-white small fw-bold mb-2"><i class="bi bi-exclamation-triangle-fill me-2" style="color:#F59E0B;"></i>Risks</h6><div class="d-flex flex-wrap gap-1">';
+                    html += '<div class="mt-2"><h6 class="text-white small fw-bold mb-2"><i class="bi bi-exclamation-triangle-fill me-2" style="color:#F59E0B;" aria-hidden="true"></i>Risks</h6><div class="d-flex flex-wrap gap-1">';
                     data.risk_factors.forEach(function(risk) { html += '<span class="badge badge-custom badge-amber" style="font-size:0.6rem;">' + esc(risk) + '</span>'; });
                     html += '</div></div>';
                 }
@@ -527,7 +501,7 @@ function fetchWithTimeout(url, opts) {
             .then(function(resp) {
                 var tasks = resp.tasks || [];
                 if (!tasks.length) {
-                    container.innerHTML = '<div class="text-center py-3"><i class="bi bi-emoji-smile fs-3 d-block mb-1" style="color:hsl(150,100%,45%);"></i><span class="small text-white-50">All caught up! No pending tasks.</span></div>';
+                    container.innerHTML = '<div class="text-center py-3"><i class="bi bi-emoji-smile fs-3 d-block mb-1" style="color:hsl(150,100%,45%);" aria-hidden="true"></i><span class="small text-white-50">All caught up! No pending tasks.</span></div>';
                     if (badge) badge.textContent = '0';
                     return;
                 }
@@ -546,11 +520,11 @@ function fetchWithTimeout(url, opts) {
 
                     html += '<div class="d-flex align-items-center gap-3 p-2 mb-2 rounded" style="background:rgba(255,255,255,0.03);">';
                     html += '<span class="badge" style="background:' + c + ';color:#fff;font-size:0.5rem;padding:2px 6px;">' + esc(labels[pri] || pri) + '</span>';
-                    html += '<i class="bi bi-' + esc(isCompleted ? 'check-circle-fill' : (t.icon || 'bell')) + ' flex-shrink-0" style="color:' + (isCompleted ? '#00BFA6' : c) + ';font-size:1.1rem;"></i>';
+                    html += '<i class="bi bi-' + esc(isCompleted ? 'check-circle-fill' : (t.icon || 'bell')) + ' flex-shrink-0" style="color:' + (isCompleted ? '#00BFA6' : c) + ';font-size:1.1rem;" aria-hidden="true"></i>';
                     html += '<div class="flex-grow-1 min-width-0"><div class="d-flex justify-content-between align-items-center mb-1"><div class="text-white small fw-semibold">' + esc(t.title) + '</div>';
                     html += '<span class="small" style="color:' + (isCompleted ? '#00BFA6' : 'rgba(255,255,255,0.6)') + ';font-size:0.7rem;">' + progress + '%</span></div>';
                     html += '<div class="text-white-50 small" style="opacity:0.6;font-size:0.75rem;">' + esc(t.detail) + '</div>';
-                    html += '<div class="progress mt-1" style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;"><div class="progress-bar" style="width:' + progress + '%;background:' + (isCompleted ? '#00BFA6' : c) + ';border-radius:2px;transition:width 0.3s ease;"></div></div></div>';
+                    html += '<div class="progress mt-1" style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;"><div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + progress + '" style="width:' + progress + '%;background:' + (isCompleted ? '#00BFA6' : c) + ';border-radius:2px;transition:width 0.3s ease;"></div></div></div>';
                     if (t.action_url && !isCompleted) {
                         html += '<a href="' + esc(t.action_url) + '" class="btn btn-sm flex-shrink-0" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:0.7rem;padding:2px 10px;white-space:nowrap;">' + esc(t.action_label || 'Go') + '</a>';
                     }
@@ -560,7 +534,7 @@ function fetchWithTimeout(url, opts) {
                 var overallProgress = Math.round((completedCount / tasks.length) * 100);
                 var progressHtml = '<div class="mt-3 pt-3 border-top" style="border-color:rgba(255,255,255,0.08);">';
                 progressHtml += '<div class="d-flex justify-content-between align-items-center mb-2"><span class="small text-white-50">Overall Progress</span><span class="small fw-bold" style="color:#00BFA6;">' + completedCount + '/' + tasks.length + ' completed</span></div>';
-                progressHtml += '<div class="progress" style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;"><div class="progress-bar" style="width:' + overallProgress + '%;background:linear-gradient(90deg,#00BFA6,#1b6ef3);border-radius:3px;transition:width 0.5s ease;"></div></div>';
+                progressHtml += '<div class="progress" style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;"><div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + overallProgress + '" style="width:' + overallProgress + '%;background:linear-gradient(90deg,#00BFA6,#1b6ef3);border-radius:3px;transition:width 0.5s ease;"></div></div>';
                 progressHtml += '</div>';
                 container.innerHTML = html + progressHtml;
             })

@@ -135,6 +135,66 @@ def test_fee_dues_match_expected_balances(app):
         assert dues[0]['balance'] == 3000.0
 
 
+# ---- UI/UX: no duplicated Quick Stats; role-aware header badges ----
+
+def test_admin_header_badges_show_financials(admin_client):
+    page = admin_client.get('/')
+    html = page.data.decode()
+    assert 'quick-stats-container' not in html
+    assert 'this month' in html
+    assert 'unresolved enquiries' in html
+    assert 'collected today' in html
+
+
+def test_staff_header_badges_hide_financials(staff_client):
+    page = staff_client.get('/')
+    html = page.data.decode()
+    assert 'quick-stats-container' not in html
+    assert 'collected today' not in html
+    assert 'this month' not in html
+    assert 'attendance logged today' in html
+
+
+# ---- UI/UX: recent table hooks + keyboard-operable AI toggle ----
+
+def test_recent_table_accessibility_hooks(admin_client):
+    app = admin_client.application
+    sid = _seed_student_id(app)
+    with app.app_context():
+        db.session.add(FeeRecord(student_id=sid, amount_paid=500.0,
+                                 payment_date=date.today()))
+        db.session.commit()
+    page = admin_client.get('/')
+    html = page.data.decode()
+    assert '<th scope="col"' in html
+    assert 'no-sort' in html
+    assert 'data-label="Student"' in html
+    assert 'data-label="Method"' in html
+
+
+def test_ai_toggle_is_keyboard_operable_button(admin_client):
+    page = admin_client.get('/')
+    html = page.data.decode()
+    assert 'id="aiAdvisorToggle"' in html
+    assert 'aria-controls="aiContent"' in html
+    assert 'aria-expanded=' in html
+
+
+# ---- UI/UX: unmatched AI labels get no action button (not kanban) ----
+
+def test_unmatched_task_label_gets_no_action_url(admin_client, monkeypatch):
+    app = admin_client.application
+    monkeypatch.setattr(
+        app.ai_engine, 'generate_todays_tasks',
+        lambda data: [{'title': 'Read the monthly report', 'detail': 'See admin',
+                        'priority': 'low', 'action_label': 'View Report'}])
+    resp = admin_client.get('/api/dashboard/todays-activities')
+    assert resp.status_code == 200
+    tasks = resp.get_json()['tasks']
+    assert len(tasks) == 1
+    assert 'action_url' not in tasks[0]
+
+
 # ---- Bug 4: Visited leads count toward the enquiry total ----
 
 def test_total_enquiries_includes_visited(app):

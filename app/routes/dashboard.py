@@ -124,24 +124,6 @@ def _today_figures(today):
     return float(today_fees), int(today_attendance)
 
 
-def _weekly_attendance(week_dates, today):
-    # Last 7 days with real data (single query).
-    weekly_rows = db.session.query(
-        Attendance.date,
-        db.func.count(Attendance.id).label('total'),
-        db.func.sum(db.case((Attendance.status == 'Present', 1), else_=0)).label('present')
-    ).filter(
-        Attendance.date >= week_dates[0], Attendance.date <= today,
-        Attendance.person_type == 'student'
-    ).group_by(Attendance.date).all()
-    weekly_map = {r.date: (r.present or 0, r.total or 0) for r in weekly_rows}
-    data = []
-    for d in week_dates:
-        present, total = weekly_map.get(d, (0, 0))
-        data.append(int(present / total * 100) if total > 0 else 0)
-    return data
-
-
 def _recent_lists():
     return (Enquiry.query.order_by(Enquiry.id.desc()).limit(5).all(),
             FeeRecord.query.order_by(FeeRecord.id.desc()).limit(5).all())
@@ -273,13 +255,6 @@ def dashboard():
     today_fees, today_attendance = _safe(
         'today_figures', lambda: _today_figures(today), (0.0, 0))
 
-    # Weekly attendance chart labels are pure date math; only the data query
-    # can fail, in which case the chart renders zeros.
-    week_dates = [today - timedelta(days=i) for i in range(6, -1, -1)]
-    weekly_chart_labels = [d.strftime("%a") for d in week_dates]
-    weekly_chart_data = _safe(
-        'weekly_chart', lambda: _weekly_attendance(week_dates, today), [0] * 7)
-
     if current_user.role == 'Staff':
         stats['monthly_fees_collected'] = 0.0
         recent_enquiries = []
@@ -310,7 +285,6 @@ def dashboard():
     return render_template('dashboard.html',
         stats=stats, recent_enquiries=recent_enquiries,
         recent_fees=recent_fees, chart_months=chart_months, chart_data=chart_data,
-        weekly_chart_labels=weekly_chart_labels, weekly_chart_data=weekly_chart_data,
         top_courses=top_courses,
         due_students=due_students, total_outstanding=total_outstanding,
         capacity_courses=capacity_courses, overflow_capacity=overflow_capacity,
@@ -464,6 +438,9 @@ def api_todays_activities():
                 matched = True
                 break
         if not matched:
-            task['action_url'] = url_for('enquiries.kanban')
+            # No button is better than a wrong one: the card renders the
+            # action link only when action_url is present, so an unmatched
+            # label (e.g. "View Report") no longer opens the pipeline.
+            task.pop('action_url', None)
 
     return jsonify({'tasks': tasks, 'meta': data})
