@@ -31,7 +31,8 @@ def list():
         specialization = form.data.get('specialization', '').strip()
         status = form.data.get('status', 'Active')
         selected_courses = [c for c in request.form.getlist('courses') if c]
-        exists = Tutor.query.filter_by(email=email).first()
+        exists = Tutor.query.filter(
+            db.func.lower(Tutor.email) == email.lower()).first()
         if exists:
             message = f"Tutor with email '{email}' already exists!"
             if is_ajax_request():
@@ -49,7 +50,10 @@ def list():
                     flash(str(e), 'warning')
             new_tutor = Tutor(name=name, email=email, phone=phone, specialization=specialization, status=status, photo_data=photo_data, photo_mime=photo_mime)
             for c_id in selected_courses:
-                course = Course.query.get(int(c_id))
+                try:
+                    course = Course.query.get(int(c_id))
+                except (TypeError, ValueError):
+                    course = None
                 if course:
                     new_tutor.courses.append(course)
             db.session.add(new_tutor)
@@ -76,10 +80,14 @@ def edit(id):
             flash(msg, 'danger')
         return redirect(url_for('tutors.list'))
     new_email = form.data.get('email', '').strip()
-    if new_email != tutor.email:
-        exists = Tutor.query.filter_by(email=new_email).first()
+    if new_email.lower() != (tutor.email or '').lower():
+        exists = Tutor.query.filter(
+            db.func.lower(Tutor.email) == new_email.lower()).first()
         if exists:
-            flash(f"Email '{new_email}' is already in use by another tutor.", 'danger')
+            msg = f"Email '{new_email}' is already in use by another tutor."
+            if is_ajax_request():
+                return jsonify({"success": False, "errors": [msg]}), 400
+            flash(msg, 'danger')
             return redirect(url_for('tutors.list'))
     tutor.name = form.data.get('name', '').strip()
     tutor.email = new_email
@@ -98,7 +106,10 @@ def edit(id):
             flash(str(e), 'danger')
     tutor.courses = []
     for c_id in (c for c in request.form.getlist('courses') if c):
-        course = Course.query.get(int(c_id))
+        try:
+            course = Course.query.get(int(c_id))
+        except (TypeError, ValueError):
+            course = None
         if course:
             tutor.courses.append(course)
     db.session.commit()
@@ -135,6 +146,28 @@ def delete(id):
         return jsonify({"success": True, "message": message}), 200
     flash(message, "success")
     return redirect(url_for('tutors.list'))
+
+@tutors_bp.route('/api/tutors/check-duplicate')
+@login_required
+@admin_required
+def check_duplicate():
+    email = request.args.get('email', '').strip().lower()
+    phone = request.args.get('phone', '').strip()
+    exclude_id = request.args.get('exclude_id', type=int)
+    matches = []
+    q = Tutor.query
+    if exclude_id:
+        q = q.filter(Tutor.id != exclude_id)
+    if email:
+        other = q.filter(db.func.lower(Tutor.email) == email).first()
+        if other:
+            matches.append({'field': 'email', 'value': other.email, 'name': other.name})
+    if phone:
+        other = q.filter(Tutor.phone == phone).first()
+        if other:
+            matches.append({'field': 'phone', 'value': other.phone, 'name': other.name})
+    return jsonify({'duplicates': matches})
+
 
 @tutors_bp.route('/api/tutors/import-excel', methods=['POST'])
 @login_required

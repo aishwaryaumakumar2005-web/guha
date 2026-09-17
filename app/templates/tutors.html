@@ -86,8 +86,8 @@ No courses mapped</span>
 </i>
                                         </button>
                                         <!-- ID Card Generator Button -->
-                                        <button class="btn btn-sm btn-outline-premium"                                                 onclick="showIDCard('{{ tutor.name }}', 'INSTRUCTOR', '{{ tutor.email }}', '{{ tutor.phone }}', '{{ tutor.qr_code_uuid }}', 'Syllabus Focus', '{{ tutor.specialization or 'All Systems' }}', '{{ url_for('tutors.tutor_photo', tutor_id=tutor.id) if tutor.photo_data else '' }}')"                                                title="View QR ID Card">
-                                            <i class="bi bi-qr-code-scan">
+                                        <button class="btn btn-sm btn-outline-premium"                                                 data-idcard-name="{{ tutor.name }}"                                                data-idcard-email="{{ tutor.email }}"                                                data-idcard-phone="{{ tutor.phone }}"                                                data-idcard-qr="{{ tutor.qr_code_uuid }}"                                                data-idcard-extra="{{ tutor.specialization or 'All Systems' }}"                                                data-idcard-photo="{{ url_for('tutors.tutor_photo', tutor_id=tutor.id) if tutor.photo_data else '' }}"                                                onclick="showTutorIDCard(this)"                                                title="View QR ID Card" aria-label="Print ID card for {{ tutor.name }}">
+                                            <i class="bi bi-qr-code-scan" aria-hidden="true">
 </i>
                                         </button>
                                         <!-- Edit button -->
@@ -412,6 +412,13 @@ Close</button>
     </div>
 </div>
 <script>
+// Tutor values reach showIDCard via data-* attributes (dataset decodes
+// HTML entities back to the exact string), never interpolated into JS.
+function showTutorIDCard(el) {
+    var d = el.dataset;
+    showIDCard(d.idcardName, 'INSTRUCTOR', d.idcardEmail, d.idcardPhone,
+        d.idcardQr, 'Syllabus Focus', d.idcardExtra, d.idcardPhoto);
+}
 function viewTutorDetails(tutorId) {
     try {
         const modalEl = document.getElementById('tutorDetailsModal');
@@ -456,5 +463,47 @@ function viewTutorDetails(tutorId) {
         console.error('viewTutorDetails error:', e);
     }
 }</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var fields = document.querySelectorAll('.modal input[name="email"], .modal input[name="phone"]');
+    fields.forEach(function(input) {
+        var host = input.parentElement;
+        input.addEventListener('blur', function() { checkTutorDuplicate(input, host); });
+    });
+    function checkTutorDuplicate(input, host) {
+        var email = input.name === 'email' ? (input.value || '').trim() : '';
+        var phone = input.name === 'phone' ? (input.value || '').trim() : '';
+        if (!email && !phone) return;
+        var modalEl = input.closest('.modal');
+        var excludeId = null;
+        if (modalEl) {
+            var m = /editTutorModal(\d+)/.exec(modalEl.id || '');
+            if (m) excludeId = m[1];
+        }
+        var params = [];
+        if (email) params.push('email=' + encodeURIComponent(email));
+        if (phone) params.push('phone=' + encodeURIComponent(phone));
+        if (excludeId) params.push('exclude_id=' + excludeId);
+        fetch('/api/tutors/check-duplicate?' + params.join('&'))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var warn = host.querySelector('.dup-warning');
+                if (!warn) {
+                    warn = document.createElement('div');
+                    warn.className = 'small text-warning mt-1 dup-warning';
+                    warn.style.opacity = '0.9';
+                    host.appendChild(warn);
+                }
+                if (data.duplicates && data.duplicates.length) {
+                    var label = data.duplicates.map(function(d) { return d.name + ' (' + d.value + ')'; }).join(', ');
+                    warn.textContent = 'Warning: matches an existing record - ' + label;
+                } else {
+                    warn.textContent = '';
+                }
+            })
+            .catch(function() {});
+    }
+});
+</script>
 {% endblock %}
 

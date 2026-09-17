@@ -100,8 +100,12 @@ def api_tutor_details(tutor_id):
     days_absent = sum(1 for r in attendance_records if r.status == 'Absent')
     days_late = sum(1 for r in attendance_records if r.status == 'Late')
     salary_cat = ExpenseCategory.query.filter_by(name="Salary").first()
+    # Names are free text: escape LIKE wildcards or a tutor named '%'
+    # would match every salary row in the table. (Deeper fix: link salary
+    # expenses to tutors by id instead of name substring.)
+    name_pat = '%' + (tutor.name or '').replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
     salary_payments = Expense.query.filter(
-        Expense.category_id == salary_cat.id, Expense.description.ilike(f'%{tutor.name}%')
+        Expense.category_id == salary_cat.id, Expense.description.ilike(name_pat, escape='\\')
     ).order_by(Expense.expense_date.desc()).all() if salary_cat else []
     total_salary_paid = sum(s.amount for s in salary_payments)
     return jsonify({
