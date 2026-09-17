@@ -183,6 +183,21 @@ def reports():
     income_monthly = [fee_monthly_map.get(m, 0.0) for m in range(1, 13)]
     fees_monthly = [{"month": months_names[m-1], "total": fee_monthly_map.get(m, 0.0)} for m in range(1, 13)]
 
+    fee_breakdown_query = db.session.query(
+        db.extract('month', FeeRecord.payment_date).label('m'),
+        db.func.sum(FeeRecord.taxable_amount).label('tax'),
+        db.func.sum(FeeRecord.gst_amount).label('gst')
+    ).filter(db.extract('year', FeeRecord.payment_date) == filter_year)
+    if selected_company_id:
+        fee_breakdown_query = fee_breakdown_query.filter(FeeRecord.company_id == selected_company_id)
+    fee_breakdown_rows = fee_breakdown_query.group_by(db.extract('month', FeeRecord.payment_date)).all()
+    tax_map, gst_map = {}, {}
+    for r in fee_breakdown_rows:
+        tax_map[int(r.m)] = float(r.tax or 0)
+        gst_map[int(r.m)] = float(r.gst or 0)
+    tax_monthly = [tax_map.get(m, 0.0) for m in range(1, 13)]
+    gst_monthly = [gst_map.get(m, 0.0) for m in range(1, 13)]
+
     course_fee_query = db.session.query(
         student_courses.c.course_id, db.func.sum(FeeRecord.amount_paid).label('total')
     ).select_from(FeeRecord).join(Student).join(student_courses).join(Course, Course.id == student_courses.c.course_id).filter(
@@ -383,6 +398,7 @@ def reports():
         end_date_str=end_date_str or end_date.strftime('%Y-%m-%d'),
         active_quick=quick, companies=companies, selected_company_id=selected_company_id,
         total_income=float(total_income), income_monthly=income_monthly,
+        tax_monthly=tax_monthly, gst_monthly=gst_monthly,
         fees_monthly=fees_monthly, course_wise_income=course_wise_income, daily_collections=daily_collections,
         payment_labels=payment_labels, payment_data=payment_data, payment_colors=payment_colors,
         monthly_expense=monthly_expense, category_wise_expense=category_wise_expense,

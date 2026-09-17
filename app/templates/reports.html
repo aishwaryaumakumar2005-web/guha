@@ -202,7 +202,7 @@ Payment Methods            </button>
             <div class="row g-3 mb-4">
                 <div class="col-md-3">
                     <div class="glass-card p-3 text-center">
-                        <div class="text-secondary small fw-semibold text-uppercase">Total Income (All Time)</div>
+                        <div class="text-secondary small fw-semibold text-uppercase" title="Full income for the selected company, not limited by the period filter">All-Time Income (Any Period)</div>
                         <div class="fw-bold fs-3" style="color: var(--accent-emerald);">₹{{ "{:,.2f}".format(total_income) }}</div>
                     </div>
                 </div>
@@ -262,7 +262,7 @@ Payment Methods            </button>
             <div class="row g-4">
                 <div class="col-lg-12">
                     <div class="glass-card p-4">
-                        <h5 class="fw-bold mb-3">Monthly Income ({{ filter_year }})</h5>
+                        <h5 class="fw-bold mb-3">Monthly Income Split: Taxable + GST ({{ filter_year }})</h5>
                         <div style="position:relative;height:240px;">
                             <canvas id="incomeChart"></canvas>
                         </div>
@@ -368,11 +368,17 @@ Payment Methods            </button>
                 </a>
             </div>
             <div class="row g-4">
-                <div class="col-lg-6">
+                <div class="col-lg-12">
                     <div class="glass-card p-4" data-aos="fade-up">
-                        <h5 class="fw-bold mb-3">Expense by Account Type</h5>
+                        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+                            <h5 class="fw-bold mb-0">Expense by Account</h5>
+                            <div class="btn-group btn-group-sm" role="group" aria-label="Expense account view">
+                                <button type="button" class="btn btn-premium" id="btnExpType">Account Type</button>
+                                <button type="button" class="btn btn-outline-premium" id="btnExpAccount">Source Account</button>
+                            </div>
+                        </div>
                         <div class="table-container" style="max-height: 320px; overflow-y: auto;">
-                            <table class="table table-custom sortable" data-page-size="10">
+                            <table class="table table-custom sortable" data-page-size="10" id="expByTypeTable">
                                 <thead>
                                     <tr>
                                         <th>Account Type</th>
@@ -396,17 +402,10 @@ Payment Methods            </button>
                                     {% endfor %}
                                 </tbody>
                             </table>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-lg-6">
-                    <div class="glass-card p-4" data-aos="fade-up" data-aos-delay="100">
-                        <h5 class="fw-bold mb-3">Expense by Source Account</h5>
-                        <div class="table-container" style="max-height: 320px; overflow-y: auto;">
-                            <table class="table table-custom sortable" data-page-size="10">
+                            <table class="table table-custom sortable" data-page-size="10" id="expByAccountTable" style="display:none;">
                                 <thead>
                                     <tr>
-                                        <th>Account</th>
+                                        <th>Source Account</th>
                                         <th class="text-end">Count</th>
                                         <th class="text-end">Total</th>
                                     </tr>
@@ -513,8 +512,8 @@ Payment Methods            </button>
             
             <!-- Company P&L Breakdown -->
             <div class="glass-card p-4 mb-4">
-                <h5 class="fw-bold mb-3"><i class="bi bi-building-fill me-2"></i>Company-wise Profit Breakdown</h5>
-                <p class="text-secondary small">Income and tax details per company. (Note: Capital Injection and Expenses are shared/unassigned across companies.)</p>
+                <h5 class="fw-bold mb-3"><i class="bi bi-building-fill me-2"></i>Company-wise Income & Tax</h5>
+                <p class="text-secondary small">Income and tax collected per company. (Note: Capital Injection and Expenses are shared/unassigned and not apportioned here.)</p>
                 <div class="row g-3">
                     {% for citem in company_pl %}
                     <div class="col-md-6">
@@ -691,12 +690,35 @@ No {{ method }} transactions in this period.</div>
 </div>
 {% endblock %}{% block scripts %}{% if tab != 'staff' %}
 <script>
-function toggleDateRange(val) {    var hideMonth = (val === 'custom' || val === 'yearly');    document.getElementById('monthPicker').style.display = hideMonth ? 'none' : 'block';    document.getElementById('dateRangePicker').style.display = (val === 'custom') ? 'block' : 'none';    }toggleDateRange('{{ filter_mode }}');var _charts = {};var _created = {};function makeChart(id, config) {    var el = document.getElementById(id);    if (!el || _created[id]) return;    _charts[id] = new Chart(el, config);    _created[id] = true;}function initTabCharts(tabId) {    var tabChartMap = {        'income':  ['incomeChart'],        'fees':    ['feesMonthlyChart'],        'expense': ['expenseMonthlyChart'],        'overall': ['plChart'],        'payment_methods': ['paymentChart']    };    var ids = tabChartMap[tabId] || [];    ids.forEach(function(id) {        var cfg = chartConfigs[id];        if (cfg) makeChart(id, cfg);    });    Object.keys(_charts).forEach(function(k) {        if (_charts[k] && _charts[k].resize) _charts[k].resize();    });}var chartConfigs = {};chartConfigs['incomeChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Income (₹)',            data: {{ income_monthly|tojson }},            backgroundColor: 'rgba(107, 142, 35, 0.6)',            borderColor: 'rgba(107, 142, 35, 1)',            borderWidth: 2,            borderRadius: 6        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } ,
+function toggleDateRange(val) {    var hideMonth = (val === 'custom' || val === 'yearly');    document.getElementById('monthPicker').style.display = hideMonth ? 'none' : 'block';    document.getElementById('dateRangePicker').style.display = (val === 'custom') ? 'block' : 'none';    }toggleDateRange('{{ filter_mode }}');var _charts = {};var _created = {};function makeChart(id, config) {    var el = document.getElementById(id);    if (!el || _created[id]) return;    _charts[id] = new Chart(el, config);    _created[id] = true;}function initTabCharts(tabId) {    var tabChartMap = {        'income':  ['incomeChart'],        'fees':    ['feesMonthlyChart'],        'expense': ['expenseMonthlyChart'],        'overall': ['plChart'],        'payment_methods': ['paymentChart']    };    var ids = tabChartMap[tabId] || [];    ids.forEach(function(id) {        var cfg = chartConfigs[id];        if (cfg) makeChart(id, cfg);    });    Object.keys(_charts).forEach(function(k) {        if (_charts[k] && _charts[k].resize) _charts[k].resize();    });}var chartConfigs = {};chartConfigs['incomeChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [            { label: 'Taxable (₹)', data: {{ tax_monthly|tojson }}, backgroundColor: 'rgba(107, 142, 35, 0.6)', borderColor: 'rgba(107, 142, 35, 1)', borderWidth: 2, borderRadius: 6 },            { label: 'GST (₹)', data: {{ gst_monthly|tojson }}, backgroundColor: 'rgba(0, 51, 204, 0.55)', borderColor: 'rgba(0, 51, 204, 1)', borderWidth: 2, borderRadius: 6 }        ]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#ffffff', boxWidth: 12, font: { size: 11 } } } },
                 scales: {
-                    x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#ffffff' } },
-                    y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#ffffff', beginAtZero: true } }
+                    x: { stacked: true, grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#ffffff' } },
+                    y: { stacked: true, grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#ffffff', beginAtZero: true } }
                 }
-            }};chartConfigs['feesMonthlyChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Collected (₹)',            data: {{ fees_monthly|map(attribute='total')|list|tojson }},            backgroundColor: 'rgba(107, 142, 35, 0.6)',            borderColor: 'rgba(107, 142, 35, 1)',            borderWidth: 2,            borderRadius: 6        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};chartConfigs['expenseMonthlyChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Expense (₹)',            data: {{ monthly_expense|map(attribute='total')|list|tojson }},            backgroundColor: 'rgba(192, 57, 43, 0.5)',            borderColor: 'rgba(192, 57, 43, 1)',            borderWidth: 2,            borderRadius: 6        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};chartConfigs['plChart'] = {    type: 'bar',    data: {        labels: {{ pl_monthly|map(attribute='month')|list|tojson }},        datasets: [            {                label: 'Income',                data: {{ pl_monthly|map(attribute='income')|list|tojson }},                backgroundColor: 'rgba(107, 142, 35, 0.6)',                borderColor: 'rgba(107, 142, 35, 1)',                borderWidth: 2,                borderRadius: 6            },            {                label: 'Capital Injection',                data: {{ pl_monthly|map(attribute='funding')|list|tojson }},                backgroundColor: 'rgba(0, 51, 204, 0.5)',                borderColor: 'rgba(0, 51, 204, 1)',                borderWidth: 2,                borderRadius: 6            },            {                label: 'Expense',                data: {{ pl_monthly|map(attribute='expense')|list|tojson }},                backgroundColor: 'rgba(192, 57, 43, 0.6)',                borderColor: 'rgba(192, 57, 43, 1)',                borderWidth: 2,                borderRadius: 6            }        ]    },    options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: false, ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};chartConfigs['paymentChart'] = {    type: 'doughnut',    data: {        labels: {{ payment_labels|tojson }},        datasets: [{            label: 'Collected (₹)',            data: {{ payment_data|tojson }},            backgroundColor: {{ payment_colors|tojson }},            borderColor: 'rgba(255,255,255,0.25)',            borderWidth: 2        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#ffffff' } } } }};var activeTab = document.querySelector('#reportTabs .nav-link.active');if (activeTab) initTabCharts(activeTab.id.replace('-tab', ''));document.querySelectorAll('#reportTabs button').forEach(function(tab) {    tab.addEventListener('shown.bs.tab', function(e) {        initTabCharts(e.target.id.replace('-tab', ''));        const params = new URLSearchParams(window.location.search);        params.set('tab', e.target.id.replace('-tab', ''));        window.history.replaceState({}, '', '?' + params.toString());        var tabId = e.target.id.replace('-tab', '');        var hiddenTab = document.querySelector('#reportsFilterForm input[name="tab"]');        if (hiddenTab) hiddenTab.value = tabId;        document.querySelectorAll('a[hx-boost="false"][href*="quick="]').forEach(function(a) {            try {                var u = new URL(a.getAttribute('href'), window.location.origin);                u.searchParams.set('tab', tabId);                a.setAttribute('href', u.pathname + u.search);            } catch (err) {}        });    });});</script>
+            }};chartConfigs['feesMonthlyChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Collected (₹)',            data: {{ fees_monthly|map(attribute='total')|list|tojson }},            backgroundColor: 'rgba(107, 142, 35, 0.6)',            borderColor: 'rgba(107, 142, 35, 1)',            borderWidth: 2,            borderRadius: 6        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};chartConfigs['expenseMonthlyChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Expense (₹)',            data: {{ monthly_expense|map(attribute='total')|list|tojson }},            backgroundColor: 'rgba(192, 57, 43, 0.5)',            borderColor: 'rgba(192, 57, 43, 1)',            borderWidth: 2,            borderRadius: 6        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};chartConfigs['plChart'] = {    type: 'bar',    data: {        labels: {{ pl_monthly|map(attribute='month')|list|tojson }},        datasets: [            {                label: 'Income',                data: {{ pl_monthly|map(attribute='income')|list|tojson }},                backgroundColor: 'rgba(107, 142, 35, 0.6)',                borderColor: 'rgba(107, 142, 35, 1)',                borderWidth: 2,                borderRadius: 6            },            {                label: 'Capital Injection',                data: {{ pl_monthly|map(attribute='funding')|list|tojson }},                backgroundColor: 'rgba(0, 51, 204, 0.5)',                borderColor: 'rgba(0, 51, 204, 1)',                borderWidth: 2,                borderRadius: 6            },            {                label: 'Expense',                data: {{ pl_monthly|map(attribute='expense')|list|tojson }},                backgroundColor: 'rgba(192, 57, 43, 0.6)',                borderColor: 'rgba(192, 57, 43, 1)',                borderWidth: 2,                borderRadius: 6            }        ]    },    options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: false, ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};chartConfigs['paymentChart'] = {    type: 'doughnut',    data: {        labels: {{ payment_labels|tojson }},        datasets: [{            label: 'Collected (₹)',            data: {{ payment_data|tojson }},            backgroundColor: {{ payment_colors|tojson }},            borderColor: 'rgba(255,255,255,0.25)',            borderWidth: 2        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#ffffff' } } } }};var activeTab = document.querySelector('#reportTabs .nav-link.active');if (activeTab) initTabCharts(activeTab.id.replace('-tab', ''));document.querySelectorAll('#reportTabs button').forEach(function(tab) {    tab.addEventListener('shown.bs.tab', function(e) {        initTabCharts(e.target.id.replace('-tab', ''));        const params = new URLSearchParams(window.location.search);        params.set('tab', e.target.id.replace('-tab', ''));        window.history.replaceState({}, '', '?' + params.toString());        var tabId = e.target.id.replace('-tab', '');        var hiddenTab = document.querySelector('#reportsFilterForm input[name="tab"]');        if (hiddenTab) hiddenTab.value = tabId;        document.querySelectorAll('a[hx-boost="false"][href*="quick="]').forEach(function(a) {            try {                var u = new URL(a.getAttribute('href'), window.location.origin);                u.searchParams.set('tab', tabId);                a.setAttribute('href', u.pathname + u.search);            } catch (err) {}        });    });});
+
+function setExpView(view) {
+    ['type', 'account'].forEach(function (key) {
+        var on = (key === view);
+        var tbl = document.getElementById(key === 'type' ? 'expByTypeTable' : 'expByAccountTable');
+        if (!tbl) return;
+        tbl.style.display = on ? '' : 'none';
+        var prev = tbl.previousElementSibling;
+        if (prev && prev.classList && prev.classList.contains('table-toolbar')) prev.style.display = on ? '' : 'none';
+        var next = tbl.nextElementSibling;
+        if (next && next.classList && next.classList.contains('table-pagination')) next.style.display = on ? '' : 'none';
+    });
+    document.getElementById('btnExpType').classList.toggle('btn-premium', view === 'type');
+    document.getElementById('btnExpType').classList.toggle('btn-outline-premium', view !== 'type');
+    document.getElementById('btnExpAccount').classList.toggle('btn-premium', view === 'account');
+    document.getElementById('btnExpAccount').classList.toggle('btn-outline-premium', view !== 'account');
+}
+var btnExpType = document.getElementById('btnExpType');
+if (btnExpType) {
+    btnExpType.addEventListener('click', function () { setExpView('type'); });
+    document.getElementById('btnExpAccount').addEventListener('click', function () { setExpView('account'); });
+    setExpView('type');
+}</script>
 {% endif %}{% endblock %}
 
 
