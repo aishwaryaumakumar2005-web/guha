@@ -25,7 +25,7 @@ def _make_enquiry(app, **kwargs):
 def test_course_delete_detaches_instead_of_deleting_enquiries(admin_client, app):
     cid = _course_id(app)
     eid = _make_enquiry(app, course_id=cid)
-    resp = admin_client.get(f'/courses/delete/{cid}')
+    resp = admin_client.post(f'/courses/delete/{cid}')
     assert resp.status_code == 302
     with app.app_context():
         enq = Enquiry.query.get(eid)

@@ -206,9 +206,14 @@ def _fee_dues():
 
 
 def _capacity():
+    # Active enrollments only (see courses.list): dropped/completed students
+    # must not consume capacity or trigger overflow flags.
     enroll_rows = db.session.query(
         student_courses.c.course_id, db.func.count(student_courses.c.student_id).label('cnt')
-    ).group_by(student_courses.c.course_id).all()
+    ).filter(db.or_(
+        student_courses.c.status == 'Enrolled',
+        student_courses.c.status.is_(None),
+    )).group_by(student_courses.c.course_id).all()
     enroll_map = {cid: cnt for cid, cnt in enroll_rows}
     overflow_capacity = 0
     capacity_courses = []

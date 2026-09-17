@@ -11,6 +11,17 @@ BILL_NOTE = ("In our acclaimed training division, we proudly present variety of 
              "skill development courses designed to meet the changing market demands.")
 
 
+def _safe_pct(raw, default=9.0):
+    """Parse a GST percentage setting; fall back on blanks/garbage."""
+    try:
+        val = float((raw or '').strip() if isinstance(raw, str) else raw)
+        if 0 <= val <= 100:
+            return val
+    except (TypeError, ValueError):
+        pass
+    return default
+
+
 class AccountingService:
     def __init__(self, app=None):
         self.app = app
@@ -34,8 +45,8 @@ class AccountingService:
             'org_hsn': val('ORG_HSN') or '999293',
             'org_state': val('ORG_STATE') or 'Tamil Nadu',
             'org_state_code': val('ORG_STATE_CODE') or '33',
-            'cgst_pct': float(val('CGST_PCT') or '9'),
-            'sgst_pct': float(val('SGST_PCT') or '9'),
+            'cgst_pct': _safe_pct(val('CGST_PCT')),
+            'sgst_pct': _safe_pct(val('SGST_PCT')),
             'invoice_prefix': val('INVOICE_PREFIX') or 'INV',
         }
 

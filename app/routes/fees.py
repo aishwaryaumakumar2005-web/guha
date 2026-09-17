@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import FeeRecord, Student, Course, SystemSetting, Tutor, student_courses, Company
-from app.helpers import admin_required, is_ajax_request
+from app.helpers import admin_required, get_gst_rates, is_ajax_request
 from app.forms import FeeForm
 from app.services.account_service import compute_account_summary, ensure_default_companies, company_bill_name
 from sqlalchemy.orm import subqueryload
@@ -58,8 +58,7 @@ def list():
                 else:
                     selected_company = Company.query.filter_by(is_gst_registered=False).first() or Company.query.first()
         
-        cgst_pct = float((SystemSetting.query.filter_by(key='CGST_PCT').first()).value or '9') if SystemSetting.query.filter_by(key='CGST_PCT').first() else 9.0
-        sgst_pct = float((SystemSetting.query.filter_by(key='SGST_PCT').first()).value or '9') if SystemSetting.query.filter_by(key='SGST_PCT').first() else 9.0
+        cgst_pct, sgst_pct = get_gst_rates()
         total_gst_pct = cgst_pct + sgst_pct
 
         if selected_company and selected_company.is_gst_registered:
@@ -116,8 +115,7 @@ def list():
         all_records = query.options(subqueryload(FeeRecord.student).subqueryload(Student.courses), subqueryload(FeeRecord.company)).order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).all()
         all_students = Student.query.filter_by(status='Active').all()
     
-    cgst_pct = float((SystemSetting.query.filter_by(key='CGST_PCT').first()).value or '9') if SystemSetting.query.filter_by(key='CGST_PCT').first() else 9.0
-    sgst_pct = float((SystemSetting.query.filter_by(key='SGST_PCT').first()).value or '9') if SystemSetting.query.filter_by(key='SGST_PCT').first() else 9.0
+    cgst_pct, sgst_pct = get_gst_rates()
     total_gst_pct = cgst_pct + sgst_pct
     student_balances = []
     for student in Student.query.options(subqueryload(Student.courses), subqueryload(Student.fee_records)).filter(Student.id.in_([s.id for s in all_students])).all():
@@ -145,8 +143,7 @@ def list():
 @login_required
 def receipt(id):
     record = FeeRecord.query.get_or_404(id)
-    cgst_pct = float((SystemSetting.query.filter_by(key='CGST_PCT').first()).value or '9') if SystemSetting.query.filter_by(key='CGST_PCT').first() else 9.0
-    sgst_pct = float((SystemSetting.query.filter_by(key='SGST_PCT').first()).value or '9') if SystemSetting.query.filter_by(key='SGST_PCT').first() else 9.0
+    cgst_pct, sgst_pct = get_gst_rates()
     
     company = record.company
     if not company and record.student:

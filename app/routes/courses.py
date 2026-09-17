@@ -3,10 +3,10 @@ from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import (
     Course, Enquiry, Exam, ExamAssignment, ExamScore, McqAnswer,
-    McqAttempt, McqQuestion, student_courses, SystemSetting, Tutor,
+    McqAttempt, McqQuestion, student_courses, Tutor,
     tutor_courses, Company,
 )
-from app.helpers import admin_required, is_ajax_request
+from app.helpers import admin_required, get_gst_rates, is_ajax_request
 from app.forms import CourseForm
 
 courses_bp = Blueprint('courses', __name__)
@@ -76,20 +76,25 @@ def list():
         all_courses = Course.query.all()
     
     total_courses = len(all_courses)
+    # Active enrollments only: Dropped/Completed rows must not inflate
+    # demand badges or capacity. NULL status predates the column default
+    # and means Enrolled (same convention as the lifecycle buckets).
     enroll_counts = db.session.query(
         student_courses.c.course_id, db.func.count(student_courses.c.student_id).label('cnt')
-    ).group_by(student_courses.c.course_id).all()
+    ).filter(db.or_(
+        student_courses.c.status == 'Enrolled',
+        student_courses.c.status.is_(None),
+    )).group_by(student_courses.c.course_id).all()
     enroll_map = {r.course_id: r.cnt for r in enroll_counts}
     courses_with_enrollment = sum(1 for c in all_courses if enroll_map.get(c.id, 0) > 0)
     courses_without_enrollment = total_courses - courses_with_enrollment
     total_enrollments = sum(enroll_map.values())
-    cgst_pct = float((SystemSetting.query.filter_by(key='CGST_PCT').first()).value or '9') if SystemSetting.query.filter_by(key='CGST_PCT').first() else 9.0
-    sgst_pct = float((SystemSetting.query.filter_by(key='SGST_PCT').first()).value or '9') if SystemSetting.query.filter_by(key='SGST_PCT').first() else 9.0
+    cgst_pct, sgst_pct = get_gst_rates()
     return render_template(
         'courses.html', courses=all_courses, total_courses=total_courses,
         courses_with_enrollment=courses_with_enrollment,
         courses_without_enrollment=courses_without_enrollment,
-        total_enrollments=total_enrollments,
+        total_enrollments=total_enrollments, enroll_map=enroll_map,
         gst_rates={'cgst': cgst_pct, 'sgst': sgst_pct},
         is_staff=(current_user.role == 'Staff'),
         companies=companies
@@ -132,7 +137,7 @@ def edit(id):
     flash(message, "success")
     return redirect(url_for('courses.list'))
 
-@courses_bp.route('/courses/delete/<int:id>')
+@courses_bp.route('/courses/delete/<int:id>', methods=['POST'])
 @login_required
 @admin_required
 def delete(id):

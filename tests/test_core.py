@@ -44,7 +44,7 @@ def test_delete_course_with_dependencies(admin_client, app):
         db.session.commit()
         course_id = course.id
 
-    resp = admin_client.get(f'/courses/delete/{course_id}')
+    resp = admin_client.post(f'/courses/delete/{course_id}')
 
     assert resp.status_code == 302
     with app.app_context():

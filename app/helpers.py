@@ -128,6 +128,30 @@ def next_code(prefix, model, column):
     return f'{prefix}{max_num + 1:04d}'
 
 
+def get_gst_rates():
+    """Return (cgst_pct, sgst_pct) from SystemSetting with safe fallbacks.
+
+    Never raises: missing, blank, non-numeric, or out-of-range values fall
+    back to 9.0 each. Every reader must use this instead of float()-ing the
+    raw setting (a single bad admin save used to 500 every fee/GST page).
+    """
+    from app.models import SystemSetting
+
+    def _rate(key):
+        try:
+            row = SystemSetting.query.filter_by(key=key).first()
+            if row is None or row.value in (None, ''):
+                return 9.0
+            val = float(row.value)
+            if 0 <= val <= 100:
+                return val
+        except (TypeError, ValueError):
+            pass
+        return 9.0
+
+    return _rate('CGST_PCT'), _rate('SGST_PCT')
+
+
 def commit_with_retry(build_and_commit, attempts=3):
     """Run build_and_commit() (which ends with commit) with IntegrityError retries.
 

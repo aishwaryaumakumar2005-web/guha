@@ -179,9 +179,25 @@ def admin_console():
                     flash(f"User account {user_to_delete.username} deleted.", "success")
             return redirect(url_for('admin.admin_console', _anchor='users'))
         elif action == 'save_org':
+            # GST rates feed float() on every fee/GST page — reject garbage
+            # here instead of 500ing those pages (readers still fall back
+            # via get_gst_rates for legacy bad rows).
+            gst_rates = {}
+            for key, label in (('CGST_PCT', 'CGST'), ('SGST_PCT', 'SGST')):
+                try:
+                    rate = float(request.form.get(key, '').strip())
+                    if not 0 <= rate <= 100:
+                        raise ValueError
+                    gst_rates[key] = str(rate)
+                except (TypeError, ValueError):
+                    flash(f"{label} must be a number between 0 and 100.", "danger")
+                    return redirect(url_for('admin.admin_console'))
             org_keys = ['ORG_NAME', 'ORG_ADDRESS', 'ORG_GSTIN', 'ORG_HSN', 'ORG_STATE', 'ORG_STATE_CODE', 'CGST_PCT', 'SGST_PCT', 'INVOICE_PREFIX']
             for key in org_keys:
-                val = request.form.get(key, '').strip()
+                if key in gst_rates:
+                    val = gst_rates[key]
+                else:
+                    val = request.form.get(key, '').strip()
                 setting = SystemSetting.query.filter_by(key=key).first()
                 if setting:
                     setting.value = val

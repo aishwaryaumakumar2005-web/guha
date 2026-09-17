@@ -39,7 +39,7 @@ Total Enrollments: {{ total_enrollments }}</span>
                         <div>
                             <div class="d-flex justify-content-between align-items-start mb-3">
                                 <div>
-                                    {% set enrolled_count = course.students.count() %}                                    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                                    {% set enrolled_count = enroll_map.get(course.id, 0) %}                                    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                                         <span class="badge badge-custom badge-cyan">{{ course.code }}</span>
                                         {% if course.company %}
                                         <span class="badge badge-custom" style="background: {% if course.company.is_gst_registered %}#1e40af{% else %}#065f46{% endif %}; font-size:0.65rem;" title="{{ course.company.name }}">
@@ -76,9 +76,9 @@ Total Enrollments: {{ total_enrollments }}</span>
                                                     <!-- Actions bar -->
                         <div class="d-flex justify-content-between align-items-center border-top border-color pt-3 mt-auto">
                             <span class="text-muted small">
-<i class="bi bi-people-fill me-1">
+<i class="bi bi-people-fill me-1" aria-hidden="true">
 </i>
-{{ course.students.count() }} Enrolled student(s)</span>
+{{ enrolled_count }} Enrolled student(s)</span>
                             <div class="d-flex gap-2">
                                 <button class="btn btn-sm btn-outline-premium" onclick="optimizeSyllabus({{ course.id }}, '{{ course.name }}')">
                                     <i class="bi bi-magic me-1">
@@ -89,10 +89,10 @@ AI Optimize                                </button>
                                     <i class="bi bi-pencil-square me-1">
 </i>
 Edit                                </button>
-                                <a href="{{ url_for('courses.delete', id=course.id) }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Deleting this course will drop it from all enrolled students! Proceed?')">
-                                    <i class="bi bi-trash3-fill me-1">
+                                <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Deleting this course will drop it from all enrolled students, and permanently delete its exams and scores! Proceed?', function() { var f = document.createElement('form'); f.method = 'POST'; f.action = '{{ url_for('courses.delete', id=course.id) }}'; document.body.appendChild(f); f.submit(); })">
+                                    <i class="bi bi-trash3-fill me-1" aria-hidden="true">
 </i>
-Remove                                </a>
+Remove                                </button>
                                 {% endif %}
                             </div>
                         </div>
