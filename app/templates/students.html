@@ -103,12 +103,12 @@ Actions</th>
 </i>
                                         </button>
                                         <!-- AI Performance Insights Button -->
-                                        <button class="btn btn-sm btn-outline-premium"                                                 onclick="loadStudentPerformanceInsights({{ student.id }}, '{{ student.name }}')"                                                title="AI Performance Insights" aria-label="AI performance insights for {{ student.name }}">
+                                        <button class="btn btn-sm btn-outline-premium"                                                 onclick="loadStudentPerformanceInsights({{ student.id }})"                                                title="AI Performance Insights" aria-label="AI performance insights for {{ student.name }}">
                                             <i class="bi bi-graph-up-arrow">
 </i>
                                         </button>
                                         <!-- ID Card Generator Button -->
-                                        {% set course_list = student.courses|map(attribute='name')|join(', ') %}                                        <button class="btn btn-sm btn-outline-premium"                                                 onclick="showIDCard('{{ student.name }}', 'STUDENT', '{{ student.email }}', '{{ student.phone }}', '{{ student.qr_code_uuid }}', 'Enrolled Course(s)', '{{ course_list or 'Not Assigned' }}', '{{ url_for('students.student_photo', student_id=student.id) if student.photo_data else '' }}')"                                                title="Print ID Card" aria-label="Print ID card for {{ student.name }}">
+                                        {% set course_list = student.courses|map(attribute='name')|join(', ') %}                                        <button class="btn btn-sm btn-outline-premium"                                                 data-idcard-name="{{ student.name }}"                                                data-idcard-email="{{ student.email }}"                                                data-idcard-phone="{{ student.phone }}"                                                data-idcard-qr="{{ student.qr_code_uuid }}"                                                data-idcard-courses="{{ course_list or 'Not Assigned' }}"                                                data-idcard-photo="{{ url_for('students.student_photo', student_id=student.id) if student.photo_data else '' }}"                                                onclick="showIDCardFromEl(this)"                                                title="Print ID Card" aria-label="Print ID card for {{ student.name }}">
                                             <i class="bi bi-qr-code-scan">
 </i>
                                         </button>
@@ -119,7 +119,7 @@ Actions</th>
 </i>
                                         </button>
                                         <!-- Delete button -->
-                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Are you sure you want to completely remove this student record? This action cannot be undone.', function() { window.location.href = '{{ url_for('students.delete', id=student.id) }}'; })" title="Delete Student" aria-label="Delete student {{ student.name }}">
+                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Are you sure you want to completely remove this student record? This action cannot be undone.', function() { var f = document.createElement('form'); f.method = 'POST'; f.action = '{{ url_for('students.delete', id=student.id) }}'; document.body.appendChild(f); f.submit(); })" title="Delete Student" aria-label="Delete student {{ student.name }}">
                                             <i class="bi bi-trash3-fill">
 </i>
                                         </button>
@@ -502,7 +502,15 @@ function viewStudentDetails(studentId) {
     } catch (e) {
         console.error('viewStudentDetails error:', e);
     }
-}function loadStudentPerformanceInsights(studentId, studentName) {    const modal = new bootstrap.Modal(document.getElementById('aiStudentPerformanceModal'));    const contentDiv = document.getElementById('studentPerformanceContent');        contentDiv.innerHTML = `        <div class="d-flex align-items-center text-secondary">
+}
+// Student values reach showIDCard via data-* attributes (dataset decodes
+// HTML entities back to the exact string), never interpolated into JS.
+function showIDCardFromEl(el) {
+    var d = el.dataset;
+    showIDCard(d.idcardName, 'STUDENT', d.idcardEmail, d.idcardPhone,
+        d.idcardQr, 'Enrolled Course(s)', d.idcardCourses, d.idcardPhoto);
+}
+function loadStudentPerformanceInsights(studentId) {    const modal = new bootstrap.Modal(document.getElementById('aiStudentPerformanceModal'));    const contentDiv = document.getElementById('studentPerformanceContent');        contentDiv.innerHTML = `        <div class="d-flex align-items-center text-secondary">
             <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true">
 </span>
             Analyzing student performance and generating insights...        </div>

@@ -64,6 +64,30 @@ def is_ajax_request():
     return request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
 
+def staff_can_view_student(student_id):
+    """Admins see every student; staff only those sharing their courses.
+
+    Imports are lazy because app.models imports from this module.
+    """
+    if not current_user.is_authenticated:
+        return False
+    if current_user.role == 'Admin':
+        return True
+    if current_user.role != 'Staff':
+        return False
+    from app.models import Tutor, student_courses
+    tutor = Tutor.query.filter_by(email=current_user.email).first()
+    if not tutor:
+        return False
+    course_ids = [c.id for c in tutor.courses]
+    if not course_ids:
+        return False
+    return db.session.query(student_courses).filter(
+        student_courses.c.student_id == student_id,
+        student_courses.c.course_id.in_(course_ids)
+    ).first() is not None
+
+
 BACKUP_DIR = None
 
 

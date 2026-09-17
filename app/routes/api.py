@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import Student, Tutor, Course, Enquiry, FeeRecord, Attendance, Expense, ExpenseCategory
-from app.helpers import admin_required
+from app.helpers import admin_required, staff_can_view_student
 from sqlalchemy.orm import subqueryload
 
 api_bp = Blueprint('api', __name__)
@@ -55,6 +55,9 @@ def api_course_syllabus_optimization(course_id):
 @api_bp.route('/api/students/<int:student_id>/ai-performance-insights')
 @login_required
 def api_student_performance_insights(student_id):
+    # Scope check first so staff can't probe IDs outside their courses.
+    if not staff_can_view_student(student_id):
+        return jsonify({"error": "Access denied"}), 403
     student = Student.query.get_or_404(student_id)
     attendance_data = Attendance.query.filter_by(person_type='student', person_id=student_id).all()
     total_course_fee = sum(c.fees for c in student.courses)
@@ -66,6 +69,9 @@ def api_student_performance_insights(student_id):
 @api_bp.route('/api/students/<int:student_id>/details')
 @login_required
 def api_student_details(student_id):
+    # Scope check first so staff can't probe IDs outside their courses.
+    if not staff_can_view_student(student_id):
+        return jsonify({"error": "Access denied"}), 403
     student = Student.query.get_or_404(student_id)
     total_course_fee = sum(c.fees for c in student.courses)
     total_paid = sum(r.amount_paid for r in student.fee_records)

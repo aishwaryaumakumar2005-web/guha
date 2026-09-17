@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import Student, Course, Tutor, Attendance, student_courses, ensure_enrolled_on
-from app.helpers import admin_required, is_ajax_request, save_photo_data
+from app.helpers import admin_required, is_ajax_request, save_photo_data, staff_can_view_student
 from app.forms import StudentForm
 from datetime import date
 import tempfile
@@ -20,6 +20,19 @@ def _parse_date(raw):
         return date.fromisoformat(raw)
     except ValueError:
         return None
+
+
+#: Statuses the directory knows how to render; anything else from an import
+#: is normalized to 'Active' instead of being written verbatim.
+STUDENT_STATUSES = ('Active', 'Inactive', 'Archived')
+
+
+def _cell_text(value):
+    """Excel cell -> stripped string. Empty cells become '', never 'None'."""
+    if value is None:
+        return ''
+    text = str(value).strip()
+    return '' if text.lower() == 'none' else text
 
 students_bp = Blueprint('students', __name__)
 
@@ -261,7 +274,7 @@ def edit(id):
     flash(message, "success")
     return redirect(url_for('students.list'))
 
-@students_bp.route('/students/delete/<int:id>')
+@students_bp.route('/students/delete/<int:id>', methods=['POST'])
 @login_required
 @admin_required
 def delete(id):
@@ -281,6 +294,7 @@ def delete(id):
 
 @students_bp.route('/api/students/check-duplicate')
 @login_required
+@admin_required
 def check_duplicate():
     email = request.args.get('email', '').strip().lower()
     phone = request.args.get('phone', '').strip()
@@ -311,10 +325,13 @@ def import_excel():
     file = request.files['excel_file']
     if file.filename == '':
         return jsonify({"success": False, "errors": ["No file selected"]}), 400
-    if not file.filename.endswith(('.xlsx', '.xls')):
-        return jsonify({"success": False, "errors": ["Invalid file format. Please upload .xlsx or .xls file"]}), 400
+    # openpyxl reads .xlsx only; legacy .xls would fail closed with a 500,
+    # so reject it up front with an actionable message.
+    if not file.filename.lower().endswith('.xlsx'):
+        return jsonify({"success": False, "errors": ["Invalid file format. Please upload an .xlsx file (legacy .xls is not supported)"]}), 400
     ai_validation = request.form.get('ai_validation', 'true').lower() == 'true'
     auto_course_mapping = request.form.get('auto_course_mapping', 'false').lower() == 'true'
+    tmp_file_path = None
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
             file.save(tmp_file.name)
@@ -349,15 +366,17 @@ def import_excel():
         for row in sheet.iter_rows(min_row=2, values_only=True):
             if not any(row):
                 continue
+            raw_status = _cell_text(row[column_map['status']]) if 'status' in column_map and column_map['status'] < len(row) else ''
             student_data = {
-                'name': str(row[column_map['name']]).strip() if column_map['name'] < len(row) else '',
-                'email': str(row[column_map['email']]).strip() if column_map['email'] < len(row) else '',
-                'phone': str(row[column_map['phone']]).strip() if column_map['phone'] < len(row) else '',
-                'status': str(row[column_map['status']]).strip() if 'status' in column_map and column_map['status'] < len(row) else 'Active',
-                'courses': str(row[column_map['courses']]).strip() if 'courses' in column_map and column_map['courses'] < len(row) else ''
+                'name': _cell_text(row[column_map['name']]) if column_map['name'] < len(row) else '',
+                'email': _cell_text(row[column_map['email']]) if column_map['email'] < len(row) else '',
+                'phone': _cell_text(row[column_map['phone']]) if column_map['phone'] < len(row) else '',
+                'status': next((s for s in STUDENT_STATUSES if s.lower() == raw_status.lower()), 'Active'),
+                'courses': _cell_text(row[column_map['courses']]) if 'courses' in column_map and column_map['courses'] < len(row) else ''
             }
             students_data.append(student_data)
         os.unlink(tmp_file_path)
+        tmp_file_path = None
         if not students_data:
             return jsonify({"success": False, "errors": ["No data found in Excel file"]}), 400
         ai_engine = current_app.ai_engine
@@ -375,11 +394,18 @@ def import_excel():
         skipped_count = 0
         all_courses = Course.query.all()
         all_courses_lower = {c.code.lower(): c for c in all_courses}
-        existing_emails = set(email for (email,) in db.session.query(Student.email).all())
+        # Case-insensitive: 'Foo@x.com' must match existing 'foo@x.com'.
+        existing_emails = set(
+            (email or '').strip().lower()
+            for (email,) in db.session.query(Student.email).all()
+        )
+        seen_in_file = set()
         for student_data in validation_result["enriched_data"]:
-            if student_data['email'] in existing_emails:
+            email_key = (student_data.get('email') or '').strip().lower()
+            if not email_key or email_key in existing_emails or email_key in seen_in_file:
                 skipped_count += 1
                 continue
+            seen_in_file.add(email_key)
             new_student = Student(
                 name=student_data['name'], email=student_data['email'],
                 phone=student_data['phone'], status=student_data.get('status', 'Active')
@@ -399,21 +425,25 @@ def import_excel():
             db.session.add(new_student)
             db.session.flush()
             ensure_enrolled_on(new_student.id)
-            existing_emails.add(student_data['email'])
+            existing_emails.add(email_key)
             imported_count += 1
         db.session.commit()
         return jsonify({
-            "success": True, "message": f"Successfully imported {imported_count} students. Skipped {skipped_count} duplicates.",
+            "success": True, "message": f"Successfully imported {imported_count} students. Skipped {skipped_count} row(s) (duplicates or invalid).",
             "imported": imported_count, "skipped": skipped_count,
             "warnings": validation_result.get("warnings", [])
         }), 200
     except Exception as e:
+        if tmp_file_path and os.path.exists(tmp_file_path):
+            os.unlink(tmp_file_path)
         return jsonify({"success": False, "errors": [f"Error processing file: {str(e)}"]}), 500
 
 
 @students_bp.route('/students/photo/<int:student_id>')
 @login_required
 def student_photo(student_id):
+    if not staff_can_view_student(student_id):
+        return '', 403
     student = Student.query.get_or_404(student_id)
     if not student.photo_data:
         return '', 404

@@ -316,7 +316,7 @@ def test_delete_student_removes_attendance(admin_client, app):
         oid = other.id
     _mark(app, 'student', sid, 1, 'Present')
     _mark(app, 'student', oid, 1, 'Present')
-    resp = admin_client.get(f'/students/delete/{sid}')
+    resp = admin_client.post(f'/students/delete/{sid}')
     assert resp.status_code == 302
     with app.app_context():
         assert Attendance.query.filter_by(

@@ -433,7 +433,13 @@ function showIDCard(name, role, email, phone, qrCodeUuid, extraLabel, extraVal, 
     if (extraBox) {
         if (extraLabel && extraVal) {
             extraBox.classList.remove('d-none');
-            extraBox.innerHTML = `<strong>${extraLabel}:</strong> ${extraVal}`;
+            // textContent (not innerHTML): extraVal carries course names,
+            // which are user-controlled and must not parse as HTML.
+            extraBox.textContent = '';
+            const strong = document.createElement('strong');
+            strong.textContent = extraLabel + ':';
+            extraBox.appendChild(strong);
+            extraBox.appendChild(document.createTextNode(' ' + extraVal));
         } else {
             extraBox.classList.add('d-none');
         }

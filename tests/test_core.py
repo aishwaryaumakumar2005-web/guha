@@ -109,10 +109,19 @@ def test_edit_student(admin_client, app):
 def test_delete_student(admin_client, app):
     with app.app_context():
         sid = Student.query.filter_by(email='student@guha.test').first().id
-    resp = admin_client.get(f'/students/delete/{sid}')
+    resp = admin_client.post(f'/students/delete/{sid}')
     assert resp.status_code == 302
     with app.app_context():
         assert Student.query.get(sid) is None
+
+
+def test_delete_student_rejects_get(admin_client, app):
+    with app.app_context():
+        sid = Student.query.filter_by(email='student@guha.test').first().id
+    # Destructive route must not be reachable by GET (prefetch/crawler safe).
+    assert admin_client.get(f'/students/delete/{sid}').status_code == 405
+    with app.app_context():
+        assert Student.query.get(sid) is not None
 
 
 def test_record_fee(admin_client, app):
