@@ -68,6 +68,11 @@
     </div>
 {%- endmacro %}
     {% if not is_staff %}
+    {% if range_note %}
+    <div class="alert alert-warning d-flex align-items-center py-2 mb-4" role="alert">
+        <i class="bi bi-info-circle me-2"></i><span class="small">{{ range_note }}</span>
+    </div>
+    {% endif %}
     <!-- Date Filter Bar -->
     <div class="glass-card p-3 mb-4">
         <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
@@ -129,7 +134,7 @@
     </div>
 <!-- Tab Navigation -->
     {% macro tab_link(key, label, icon) -%}
-    <a href="{{ url_for('reports.reports', tab=key, filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id, quick=active_quick or '') }}" hx-boost="false" class="nav-link {% if tab == key %}active{% endif %}" id="{{ key }}-tab" role="tab" aria-selected="{% if tab == key %}true{% else %}false{% endif %}"><i class="bi {{ icon }} me-1"></i>{{ label }}</a>
+    <a href="{{ url_for('reports.reports', tab=key, filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id, quick=active_quick or '') }}" hx-boost="false" class="nav-link {% if tab == key %}active{% endif %}" id="{{ key }}-tab" role="tab" aria-controls="{{ key }}" aria-selected="{% if tab == key %}true{% else %}false{% endif %}"{% if tab == key %} aria-current="page"{% endif %}><i class="bi {{ icon }} me-1"></i>{{ label }}</a>
     {%- endmacro %}
     <ul class="nav nav-tabs mb-4" id="reportTabs" role="tablist">
         <li class="nav-item" role="presentation">{{ tab_link('income', 'Income Report', 'bi-graph-up-arrow') }}</li>
@@ -233,10 +238,10 @@
         <!-- === TAB 1: INCOME REPORT === -->
         <div class="tab-pane fade {% if tab == 'income' %}show active{% endif %}" id="income" role="tabpanel">
             <div class="d-flex justify-content-end mb-3">
-                <a href="{{ url_for('reports.report_pdf', tab='income', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id) }}" class="btn btn-premium btn-sm me-2" target="_blank">
+                <a href="{{ url_for('reports.report_pdf', tab='income', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id, quick=active_quick or '') }}" class="btn btn-premium btn-sm me-2" target="_blank">
                     <i class="bi bi-filetype-pdf me-1"></i>PDF
                 </a>
-                <a href="{{ url_for('reports.report_excel', tab='income', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id) }}" class="btn btn-outline-premium btn-sm" target="_blank">
+                <a href="{{ url_for('reports.report_excel', tab='income', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id, quick=active_quick or '') }}" class="btn btn-outline-premium btn-sm" target="_blank">
                     <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
                 </a>
             </div>
@@ -319,10 +324,10 @@
         <!-- === TAB 2: STUDENT FEES REPORT === -->
         <div class="tab-pane fade {% if tab == 'fees' %}show active{% endif %}" id="fees" role="tabpanel">
             <div class="d-flex justify-content-end mb-3">
-                <a href="{{ url_for('reports.report_pdf', tab='fees', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id) }}" class="btn btn-premium btn-sm me-2" target="_blank">
+                <a href="{{ url_for('reports.report_pdf', tab='fees', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id, quick=active_quick or '') }}" class="btn btn-premium btn-sm me-2" target="_blank">
                     <i class="bi bi-filetype-pdf me-1"></i>PDF
                 </a>
-                <a href="{{ url_for('reports.report_excel', tab='fees', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id) }}" class="btn btn-outline-premium btn-sm" target="_blank">
+                <a href="{{ url_for('reports.report_excel', tab='fees', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id, quick=active_quick or '') }}" class="btn btn-outline-premium btn-sm" target="_blank">
                     <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
                 </a>
             </div>
@@ -365,7 +370,7 @@
                 <div class="col-lg-7">
                     <div class="glass-card p-4" data-aos="fade-up" data-aos-delay="100"><h5 class="fw-bold mb-3">Daily Collections Table</h5>
                         <div class="table-container" style="max-height: 300px; overflow-y: auto;">
-                            <table class="table table-custom sortable" data-page-size="10">
+                            <table class="table table-custom sortable">
                                 <thead>
                                     <tr>
                                         <th>Date</th>
@@ -377,8 +382,8 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% if daily_collections[:25] %}
-                                        {% for r in daily_collections[:25] %}
+                                    {% if daily_collections %}
+                                        {% for r in daily_collections %}
                                         <tr>
                                             <td class="small">{{ r.payment_date.strftime("%d %b") }}</td>
                                             <td>{{ r.student.name[:16] }}</td>
@@ -396,18 +401,34 @@
                                         <tr><td colspan="6" class="text-center text-muted py-4">No data in this period</td></tr>
                                     {% endif %}
                                 </tbody>
-                                {% if daily_collections[:25] %}
+                                {% if daily_total_count %}
                                 <tfoot>
                                     <tr class="report-total-row">
-                                        <td colspan="3" class="fw-semibold">Total (shown)</td>
-                                        <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(daily_collections[:25]|sum(attribute='amount_paid')) }}</td>
-                                        <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(daily_collections[:25]|sum(attribute='gst_amount')) }}</td>
+                                        <td colspan="3" class="fw-semibold">Total ({{ daily_total_count }} record{{ 's' if daily_total_count != 1 else '' }})</td>
+                                        <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(daily_total_amount) }}</td>
+                                        <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(daily_total_gst) }}</td>
                                         <td></td>
                                     </tr>
                                 </tfoot>
                                 {% endif %}
                             </table>
                         </div>
+                        {% if daily_pages > 1 %}
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <small class="text-muted">Page {{ daily_page }} of {{ daily_pages }} · {{ daily_total_count }} records</small>
+                            <nav>
+                                <ul class="pagination pagination-sm mb-0">
+                                    <li class="page-item {% if daily_page <= 1 %}disabled{% endif %}">
+                                        <a class="page-link" href="{{ url_for('reports.reports', tab='fees', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id, quick=active_quick or '', page=daily_page-1) }}">Prev</a>
+                                    </li>
+                                    <li class="page-item disabled"><span class="page-link">{{ daily_page }}</span></li>
+                                    <li class="page-item {% if daily_page >= daily_pages %}disabled{% endif %}">
+                                        <a class="page-link" href="{{ url_for('reports.reports', tab='fees', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id, quick=active_quick or '', page=daily_page+1) }}">Next</a>
+                                    </li>
+                                </ul>
+                            </nav>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -427,10 +448,10 @@
         <!-- === TAB 3: EXPENSE REPORT === -->
         <div class="tab-pane fade {% if tab == 'expense' %}show active{% endif %}" id="expense" role="tabpanel">
             <div class="d-flex justify-content-end mb-3">
-                <a href="{{ url_for('reports.report_pdf', tab='expense', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id) }}" class="btn btn-premium btn-sm me-2" target="_blank">
+                <a href="{{ url_for('reports.report_pdf', tab='expense', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id, quick=active_quick or '') }}" class="btn btn-premium btn-sm me-2" target="_blank">
                     <i class="bi bi-filetype-pdf me-1"></i>PDF
                 </a>
-                <a href="{{ url_for('reports.report_excel', tab='expense', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id) }}" class="btn btn-outline-premium btn-sm" target="_blank">
+                <a href="{{ url_for('reports.report_excel', tab='expense', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id, quick=active_quick or '') }}" class="btn btn-outline-premium btn-sm" target="_blank">
                     <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
                 </a>
             </div>
@@ -569,10 +590,10 @@
         <!-- === TAB 4: OVERALL REPORT === -->
         <div class="tab-pane fade {% if tab == 'overall' %}show active{% endif %}" id="overall" role="tabpanel">
             <div class="d-flex justify-content-end mb-3">
-                <a href="{{ url_for('reports.report_pdf', tab='overall', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id) }}" class="btn btn-premium btn-sm me-2" target="_blank">
+                <a href="{{ url_for('reports.report_pdf', tab='overall', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id, quick=active_quick or '') }}" class="btn btn-premium btn-sm me-2" target="_blank">
                     <i class="bi bi-filetype-pdf me-1"></i>PDF
                 </a>
-                <a href="{{ url_for('reports.report_excel', tab='overall', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id) }}" class="btn btn-outline-premium btn-sm" target="_blank">
+                <a href="{{ url_for('reports.report_excel', tab='overall', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id, quick=active_quick or '') }}" class="btn btn-outline-premium btn-sm" target="_blank">
                     <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
                 </a>
             </div>
@@ -712,10 +733,10 @@
         <!-- === TAB 5: PAYMENT METHODS REPORT === -->
         <div class="tab-pane fade {% if tab == 'payment_methods' %}show active{% endif %}" id="payment_methods" role="tabpanel">
             <div class="d-flex justify-content-end mb-3">
-                <a href="{{ url_for('reports.report_pdf', tab='payment_methods', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id) }}" class="btn btn-premium btn-sm me-2" target="_blank">
+                <a href="{{ url_for('reports.report_pdf', tab='payment_methods', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id, quick=active_quick or '') }}" class="btn btn-premium btn-sm me-2" target="_blank">
                     <i class="bi bi-filetype-pdf me-1"></i>PDF
                 </a>
-                <a href="{{ url_for('reports.report_excel', tab='payment_methods', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id) }}" class="btn btn-outline-premium btn-sm" target="_blank">
+                <a href="{{ url_for('reports.report_excel', tab='payment_methods', filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id, quick=active_quick or '') }}" class="btn btn-outline-premium btn-sm" target="_blank">
                     <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
                 </a>
             </div>
@@ -755,66 +776,57 @@ Total Collected</div>
             </div>
             <!-- Detail Tables -->
             <div class="row g-4">
-                {% for method, data in payment_methods_report.items() %}                <div class="col-lg-6">
+                {% for method, data in payment_methods_report.items() %}
+                {% if data.count %}
+                <div class="col-lg-6">
                     <div class="glass-card p-4 h-100">
                         <h5 class="fw-bold mb-3">
-                            <i class="bi bi-{{ method_icon(method) }} me-2">
-</i>
-                            {{ method }} Transactions                            <span class="badge badge-custom badge-cyan ms-2">
-₹{{ "{:,.2f}".format(data.total) }}</span>
+                            <i class="bi bi-{{ method_icon(method) }} me-2"></i>
+                            {{ method }} Transactions
+                            <span class="badge badge-custom badge-cyan ms-2">₹{{ "{:,.2f}".format(data.total) }}</span>
+                            <span class="badge bg-secondary ms-1">{{ data.count }} payment{{ 's' if data.count != 1 else '' }}</span>
                         </h5>
                         <div class="table-container" style="max-height: 300px; overflow-y: auto;">
-                            {% if data.records %}                            <table class="table table-custom">
+                            <table class="table table-custom sortable" data-page-size="10">
                                 <thead>
                                     <tr>
-                                        <th>
-Date</th>
-                                        <th>
-Student</th>
-                                        <th>
-Company</th>
-                                        <th class="text-end">
-Amount</th>
-                                        <th class="text-end">
-GST</th>
-                                        <th>
-Remarks</th>
+                                        <th>Date</th>
+                                        <th>Student</th>
+                                        <th>Company</th>
+                                        <th class="text-end">Amount</th>
+                                        <th class="text-end">GST</th>
+                                        <th>Remarks</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for r in data.records %}                                    <tr>
-                                        <td class="small">
-{{ r.payment_date.strftime("%d %b %Y") }}</td>
-                                        <td>
-{{ r.student.name[:20] }}</td>
-                                        <td class="small" style="opacity: 0.75;">
-{{ r.company.name if r.company else 'Unassigned' }}</td>
-                                        <td class="fw-semibold">
-₹{{ "{:,.2f}".format(r.amount_paid) }}</td>
-                                        <td class="small text-primary">
-₹{{ "{:,.2f}".format(r.gst_amount) }}</td>
-                                        <td class="small" style="opacity: 0.7;">
-{{ r.remarks or '-' }}</td>
+                                    {% for r in data.records %}
+                                    <tr>
+                                        <td class="small">{{ r.payment_date.strftime("%d %b %Y") }}</td>
+                                        <td>{{ r.student.name[:20] }}</td>
+                                        <td class="small" style="opacity: 0.75;">{{ r.company.name if r.company else 'Unassigned' }}</td>
+                                        <td class="fw-semibold">₹{{ "{:,.2f}".format(r.amount_paid) }}</td>
+                                        <td class="small text-primary">₹{{ "{:,.2f}".format(r.gst_amount) }}</td>
+                                        <td class="small" style="opacity: 0.7;">{{ r.remarks or '-' }}</td>
                                     </tr>
                                     {% endfor %}
+                                </tbody>
                                 <tfoot>
-                                    {% if data.records %}
                                     <tr class="report-total-row">
-                                        <td colspan="3" class="fw-semibold">Total</td>
-                                        <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(data.records|sum(attribute='amount_paid')) }}</td>
-                                        <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(data.records|sum(attribute='gst_amount')) }}</td>
+                                        <td colspan="3" class="fw-semibold">Total (all {{ data.count }})</td>
+                                        <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(data.total) }}</td>
+                                        <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(data.gst_total) }}</td>
                                         <td></td>
                                     </tr>
-                                    {% endif %}
                                 </tfoot>
-                                </tbody>
                             </table>
-                            {% else %}                            <div class="text-center text-muted py-4">
-No data in this period</div>
-                            {% endif %}                        </div>
+                            {% if data.count > data.records|length %}
+                            <small class="text-muted">Showing latest {{ data.records|length }} of {{ data.count }} payments.</small>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
-                {% endfor %}            </div>
+                {% endif %}
+                {% endfor %}
         </div>
         {% endif %}
     </div>
@@ -826,7 +838,7 @@ function toggleDateRange(val) {    var hideMonth = (val === 'custom' || val === 
                     x: { stacked: true, grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#ffffff' } },
                     y: { stacked: true, grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#ffffff', beginAtZero: true } }
                 }
-            }};chartConfigs['feesMonthlyChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Collected (₹)',            data: {{ fees_monthly|map(attribute='total')|list|tojson }},            backgroundColor: 'rgba(107, 142, 35, 0.6)',            borderColor: 'rgba(107, 142, 35, 1)',            borderWidth: 2,            borderRadius: 6        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};chartConfigs['expenseMonthlyChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Expense (₹)',            data: {{ monthly_expense|map(attribute='total')|list|tojson }},            backgroundColor: 'rgba(192, 57, 43, 0.5)',            borderColor: 'rgba(192, 57, 43, 1)',            borderWidth: 2,            borderRadius: 6        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};chartConfigs['plChart'] = {    type: 'bar',    data: {        labels: {{ pl_monthly|map(attribute='month')|list|tojson }},        datasets: [            {                label: 'Income',                data: {{ pl_monthly|map(attribute='income')|list|tojson }},                backgroundColor: 'rgba(107, 142, 35, 0.6)',                borderColor: 'rgba(107, 142, 35, 1)',                borderWidth: 2,                borderRadius: 6            },            {                label: 'Capital Injection',                data: {{ pl_monthly|map(attribute='funding')|list|tojson }},                backgroundColor: 'rgba(0, 51, 204, 0.5)',                borderColor: 'rgba(0, 51, 204, 1)',                borderWidth: 2,                borderRadius: 6            },            {                label: 'Expense',                data: {{ pl_monthly|map(attribute='expense')|list|tojson }},                backgroundColor: 'rgba(192, 57, 43, 0.6)',                borderColor: 'rgba(192, 57, 43, 1)',                borderWidth: 2,                borderRadius: 6            }        ]    },    options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: false, ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};chartConfigs['paymentChart'] = {    type: 'doughnut',    data: {        labels: {{ payment_labels|tojson }},        datasets: [{            label: 'Collected (₹)',            data: {{ payment_data|tojson }},            backgroundColor: {{ payment_colors|tojson }},            borderColor: 'rgba(255,255,255,0.25)',            borderWidth: 2        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#ffffff' } } } }};var activeTab = document.querySelector('#reportTabs .nav-link.active');if (activeTab) initTabCharts(activeTab.id.replace('-tab', ''));document.querySelectorAll('#reportTabs button').forEach(function(tab) {    tab.addEventListener('shown.bs.tab', function(e) {        initTabCharts(e.target.id.replace('-tab', ''));        const params = new URLSearchParams(window.location.search);        params.set('tab', e.target.id.replace('-tab', ''));        window.history.replaceState({}, '', '?' + params.toString());        var tabId = e.target.id.replace('-tab', '');        var hiddenTab = document.querySelector('#reportsFilterForm input[name="tab"]');        if (hiddenTab) hiddenTab.value = tabId;        document.querySelectorAll('a[hx-boost="false"][href*="quick="]').forEach(function(a) {            try {                var u = new URL(a.getAttribute('href'), window.location.origin);                u.searchParams.set('tab', tabId);                a.setAttribute('href', u.pathname + u.search);            } catch (err) {}        });    });});
+            }};chartConfigs['feesMonthlyChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Collected (₹)',            data: {{ fees_monthly|map(attribute='total')|list|tojson }},            backgroundColor: 'rgba(107, 142, 35, 0.6)',            borderColor: 'rgba(107, 142, 35, 1)',            borderWidth: 2,            borderRadius: 6        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};chartConfigs['expenseMonthlyChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [{            label: 'Expense (₹)',            data: {{ monthly_expense|map(attribute='total')|list|tojson }},            backgroundColor: 'rgba(192, 57, 43, 0.5)',            borderColor: 'rgba(192, 57, 43, 1)',            borderWidth: 2,            borderRadius: 6        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};chartConfigs['plChart'] = {    type: 'bar',    data: {        labels: {{ pl_monthly|map(attribute='month')|list|tojson }},        datasets: [            {                label: 'Income',                data: {{ pl_monthly|map(attribute='income')|list|tojson }},                backgroundColor: 'rgba(107, 142, 35, 0.6)',                borderColor: 'rgba(107, 142, 35, 1)',                borderWidth: 2,                borderRadius: 6            },            {                label: 'Capital Injection',                data: {{ pl_monthly|map(attribute='funding')|list|tojson }},                backgroundColor: 'rgba(0, 51, 204, 0.5)',                borderColor: 'rgba(0, 51, 204, 1)',                borderWidth: 2,                borderRadius: 6            },            {                label: 'Expense',                data: {{ pl_monthly|map(attribute='expense')|list|tojson }},                backgroundColor: 'rgba(192, 57, 43, 0.6)',                borderColor: 'rgba(192, 57, 43, 1)',                borderWidth: 2,                borderRadius: 6            }        ]    },    options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: false, ticks: { color: '#ffffff' } }, y: { beginAtZero: true, ticks: { color: '#ffffff' } } } }};chartConfigs['paymentChart'] = {    type: 'doughnut',    data: {        labels: {{ payment_labels|tojson }},        datasets: [{            label: 'Collected (₹)',            data: {{ payment_data|tojson }},            backgroundColor: {{ payment_colors|tojson }},            borderColor: 'rgba(255,255,255,0.25)',            borderWidth: 2        }]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#ffffff' } } } }};var activeTab = document.querySelector('#reportTabs .nav-link.active');if (activeTab) initTabCharts(activeTab.id.replace('-tab', ''));
 
 function setExpView(view) {
     ['type', 'account'].forEach(function (key) {

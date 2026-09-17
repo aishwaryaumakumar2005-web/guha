@@ -81,8 +81,27 @@ def course_wise_income_summary(start_date, end_date, company_id=None):
     return {course_id: cents / 100.0 for course_id, cents in per_course_cents.items()}
 
 
+REPORT_TABS = ('income', 'fees', 'expense', 'overall', 'payment_methods')
+
+# Daily Collections table paginates 25 rows/page; per-method detail caps at this many rows.
+DAILY_PAGE_SIZE = 25
+PM_DETAIL_LIMIT = 50
+
+
+def _month_bounds(year, month):
+    """First and last day of the given month (month clamped to 1..12)."""
+    month = month if 1 <= month <= 12 else 1
+    start = date(year, month, 1)
+    end = date(year + 1, 1, 1) - timedelta(days=1) if month == 12 else date(year, month + 1, 1) - timedelta(days=1)
+    return start, end
+
+
 def resolve_date_range(today, filter_mode, filter_month, filter_year, start_date_str, end_date_str, quick=''):
-    """Resolve the active period (quick chip / custom / yearly / monthly) into concrete start & end dates."""
+    """Resolve the active period (quick chip / custom / yearly / monthly) into concrete start & end dates.
+
+    Malformed custom dates fall back to the monthly range so bad query strings
+    never raise; callers should still clamp month/year at parse time.
+    """
     def _quick_range(key):
         if key == 'today':
             return today, today
@@ -103,6 +122,7 @@ def resolve_date_range(today, filter_mode, filter_month, filter_year, start_date
             return date(2000, 1, 1), date(2100, 12, 31)
         return None
 
+    range_note = None
     qrange = _quick_range(quick) if quick else None
     if qrange:
         start_date, end_date = qrange
@@ -110,19 +130,27 @@ def resolve_date_range(today, filter_mode, filter_month, filter_year, start_date
         start_date_str = start_date.strftime('%Y-%m-%d')
         end_date_str = end_date.strftime('%Y-%m-%d')
     elif filter_mode == 'custom' and start_date_str and end_date_str:
-        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            filter_mode = 'monthly'
+            start_date, end_date = _month_bounds(filter_year, filter_month)
+            start_date_str = end_date_str = None
+            range_note = 'The custom dates were invalid, so the current month is shown instead.'
+        else:
+            if start_date > end_date:
+                start_date, end_date = end_date, start_date
+                start_date_str = start_date.strftime('%Y-%m-%d')
+                end_date_str = end_date.strftime('%Y-%m-%d')
+                range_note = 'The start date was after the end date, so the range was swapped.'
     elif filter_mode == 'yearly':
         start_date = date(filter_year, 1, 1)
         end_date = date(filter_year, 12, 31)
     else:
         # Monthly range; the filter dropdown offers Monthly/Yearly/Custom only.
-        start_date = date(filter_year, filter_month, 1)
-        if filter_month == 12:
-            end_date = date(filter_year + 1, 1, 1) - timedelta(days=1)
-        else:
-            end_date = date(filter_year, filter_month + 1, 1) - timedelta(days=1)
-    return start_date, end_date, filter_mode, start_date_str, end_date_str
+        start_date, end_date = _month_bounds(filter_year, filter_month)
+    return start_date, end_date, filter_mode, start_date_str, end_date_str, range_note
 
 
 @reports_bp.route('/reports')
@@ -178,8 +206,14 @@ def reports():
 
     today = date.today()
     tab = request.args.get('tab', 'income')
+    if tab not in REPORT_TABS:
+        tab = 'income'
     filter_mode = request.args.get('filter_mode', 'monthly')
+    if filter_mode not in ('monthly', 'yearly', 'custom'):
+        filter_mode = 'monthly'
     filter_month = request.args.get('month', type=int) or today.month
+    if not 1 <= filter_month <= 12:
+        filter_month = today.month
     filter_year = request.args.get('year', type=int) or today.year
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
@@ -188,7 +222,7 @@ def reports():
 
     companies = Company.query.filter_by(is_active=True).all()
 
-    start_date, end_date, filter_mode, start_date_str, end_date_str = resolve_date_range(
+    start_date, end_date, filter_mode, start_date_str, end_date_str, range_note = resolve_date_range(
         today, filter_mode, filter_month, filter_year, start_date_str, end_date_str, quick)
 
     months_names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -202,6 +236,8 @@ def reports():
     total_income = 0.0
     tax_monthly, gst_monthly = [], []
     fees_monthly, course_wise_income, daily_collections = [], [], []
+    daily_page, daily_pages, daily_total_count = 1, 1, 0
+    daily_total_amount = daily_total_gst = 0.0
     monthly_expense, category_wise_expense, expense_by_type, expense_by_account = [], [], [], []
     funding_monthly, pl_monthly = [], []
     company_pl = []
@@ -393,11 +429,27 @@ def reports():
             if total > 0:
                 course_wise_income.append({"name": course.name, "code": course.code, "total": total})
 
-        daily_collections = fee_q.options(
-            joinedload(FeeRecord.student), joinedload(FeeRecord.company)
-        ).filter(
+        daily_query = fee_q.filter(
             FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date
-        ).order_by(FeeRecord.payment_date.desc()).all()
+        )
+        daily_total_count = daily_query.count()
+        daily_agg = daily_query.with_entities(
+            db.func.sum(FeeRecord.amount_paid), db.func.sum(FeeRecord.gst_amount)
+        ).one()
+        daily_total_amount = float(daily_agg[0] or 0.0)
+        daily_total_gst = float(daily_agg[1] or 0.0)
+        daily_per_page = DAILY_PAGE_SIZE
+        daily_pages = max(1, (daily_total_count + daily_per_page - 1) // daily_per_page)
+        try:
+            daily_page = int(request.args.get('page', 1))
+        except (TypeError, ValueError):
+            daily_page = 1
+        daily_page = min(max(daily_page, 1), daily_pages)
+        daily_collections = daily_query.options(
+            joinedload(FeeRecord.student), joinedload(FeeRecord.company)
+        ).order_by(
+            FeeRecord.payment_date.desc(), FeeRecord.id.desc()
+        ).offset((daily_page - 1) * daily_per_page).limit(daily_per_page).all()
 
     # ---- Overall tab: monthly P&L + funding series ----
     if tab == 'overall':
@@ -458,40 +510,47 @@ def reports():
 
     # ---- Payment methods tab: distribution chart + per-method report ----
     if tab == 'payment_methods':
-        pm_query = db.session.query(FeeRecord.payment_method, db.func.sum(FeeRecord.amount_paid))
+        period_conds = [
+            FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date
+        ]
         if selected_company_id:
-            pm_query = pm_query.filter(FeeRecord.company_id == selected_company_id)
+            period_conds.append(FeeRecord.company_id == selected_company_id)
+
+        pm_query = db.session.query(
+            FeeRecord.payment_method, db.func.sum(FeeRecord.amount_paid)
+        ).filter(*period_conds)
         payment_methods = pm_query.group_by(FeeRecord.payment_method).all()
         payment_labels = [p[0] for p in payment_methods]
         payment_data = [float(p[1]) for p in payment_methods]
         payment_colors = [METHOD_COLORS.get(classify_method(p[0]), '#FFC107') for p in payment_methods]
 
-        period_fee_q = FeeRecord.query.filter(
-            FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date
-        )
-        if selected_company_id:
-            period_fee_q = period_fee_q.filter(FeeRecord.company_id == selected_company_id)
-        period_fee_records = period_fee_q.options(
-            joinedload(FeeRecord.student)
-        ).order_by(FeeRecord.payment_date.desc()).all()
+        payment_methods_report = {m: {'total': 0.0, 'gst_total': 0.0, 'count': 0, 'records': []} for m in PAYMENT_METHODS}
+        payment_methods_report['Others'] = {'total': 0.0, 'gst_total': 0.0, 'count': 0, 'records': []}
 
-        def get_payment_method_data(account_name):
-            records = [r for r in period_fee_records if classify_method(r.payment_method) == account_name]
-            total = sum(r.amount_paid for r in records)
-            return {'total': total, 'records': records}
+        pm_counts = db.session.query(
+            FeeRecord.payment_method, db.func.count(FeeRecord.id),
+            db.func.sum(FeeRecord.amount_paid), db.func.sum(FeeRecord.gst_amount)
+        ).filter(*period_conds).group_by(FeeRecord.payment_method).all()
+        raw_methods_by_key = {}
+        for raw, cnt, tot, gst in pm_counts:
+            key = classify_method(raw)
+            if key not in payment_methods_report:
+                key = 'Others'
+            payment_methods_report[key]['total'] += float(tot or 0.0)
+            payment_methods_report[key]['gst_total'] += float(gst or 0.0)
+            payment_methods_report[key]['count'] += int(cnt or 0)
+            raw_methods_by_key.setdefault(key, []).append(raw)
 
-        payment_methods_report = {}
-        for m in PAYMENT_METHODS:
-            payment_methods_report[m] = get_payment_method_data(m)
-        payment_methods_report['Others'] = get_payment_method_data('Others')
+        for key, raw_methods in raw_methods_by_key.items():
+            detail_q = FeeRecord.query.filter(*period_conds).filter(
+                FeeRecord.payment_method.in_(raw_methods)
+            )
+            payment_methods_report[key]['records'] = detail_q.options(
+                joinedload(FeeRecord.student), joinedload(FeeRecord.company)
+            ).order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).limit(PM_DETAIL_LIMIT).all()
 
-        tot_col_query = db.session.query(db.func.sum(FeeRecord.amount_paid)).filter(
-            FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date
-        )
-        if selected_company_id:
-            tot_col_query = tot_col_query.filter(FeeRecord.company_id == selected_company_id)
-        total_collected_period = tot_col_query.scalar() or 0.0
-        no_payment_data = not payment_methods_report or sum(d['total'] for d in payment_methods_report.values()) <= 0
+        total_collected_period = sum(d['total'] for d in payment_methods_report.values())
+        no_payment_data = total_collected_period <= 0
 
     # ---- Smart insight callouts (per tab) ----
     insights = {}
@@ -563,7 +622,7 @@ def reports():
     if payment_methods_report:
         top_pm = max(payment_methods_report.items(), key=lambda kv: kv[1]['total'])
         if top_pm[1]['total'] > 0:
-            pm_ins.append({'icon': 'bi-credit-card', 'text': f'Most-used method: {top_pm[0]} — ₹{top_pm[1]["total"]:,.2f} ({len(top_pm[1]["records"])} payments)'})
+            pm_ins.append({'icon': 'bi-credit-card', 'text': f'Most-used method: {top_pm[0]} — ₹{top_pm[1]["total"]:,.2f} ({top_pm[1]["count"]} payments)'})
     insights['payment'] = pm_ins
 
     return render_template('reports.html', tab=tab, today=today, filter_mode=filter_mode,
@@ -571,6 +630,9 @@ def reports():
         start_date_str=start_date_str or start_date.strftime('%Y-%m-%d'),
         end_date_str=end_date_str or end_date.strftime('%Y-%m-%d'),
         active_quick=quick, companies=companies, selected_company_id=selected_company_id,
+        range_note=range_note,
+        daily_page=daily_page, daily_pages=daily_pages, daily_total_count=daily_total_count,
+        daily_total_amount=float(daily_total_amount), daily_total_gst=float(daily_total_gst),
         total_income=float(total_income),
         tax_monthly=tax_monthly, gst_monthly=gst_monthly,
         fees_monthly=fees_monthly, course_wise_income=course_wise_income, daily_collections=daily_collections,
@@ -595,17 +657,24 @@ def report_pdf():
     from fpdf import FPDF
     today = date.today()
     tab = request.args.get('tab', 'income')
+    if tab not in REPORT_TABS:
+        tab = 'income'
     filter_mode = request.args.get('filter_mode', 'monthly')
+    if filter_mode not in ('monthly', 'yearly', 'custom'):
+        filter_mode = 'monthly'
     filter_month = request.args.get('month', type=int) or today.month
+    if not 1 <= filter_month <= 12:
+        filter_month = today.month
     filter_year = request.args.get('year', type=int) or today.year
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
+    quick = request.args.get('quick', '').strip().lower()
     selected_company_id = request.args.get('company_id', type=int)
 
     company_obj = Company.query.get(selected_company_id) if selected_company_id else None
 
-    start_date, end_date, filter_mode, start_date_str, end_date_str = resolve_date_range(
-        today, filter_mode, filter_month, filter_year, start_date_str, end_date_str)
+    start_date, end_date, filter_mode, start_date_str, end_date_str, _range_note = resolve_date_range(
+        today, filter_mode, filter_month, filter_year, start_date_str, end_date_str, quick)
 
     period_label = f"{start_date.strftime('%d %b %Y')} - {end_date.strftime('%d %b %Y')}"
     company_label = f"  |  Company: {company_obj.name}" if company_obj else "  |  Company: All"
@@ -617,7 +686,7 @@ def report_pdf():
             self.cell(0, 10, 'Guha Academy - Computer Institute', align='C', new_x="LMARGIN", new_y="NEXT")
             self.set_font('DejaVu', '', 9)
             self.set_text_color(100, 100, 100)
-            titles = {'income': 'Income Report', 'fees': 'Student Fees Report', 'expense': 'Expense Report', 'overall': 'Overall Report'}
+            titles = {'income': 'Income Report', 'fees': 'Student Fees Report', 'expense': 'Expense Report', 'overall': 'Overall Report', 'payment_methods': 'Payment Methods Report'}
             self.cell(0, 6, f'{titles.get(tab, "Report")}  |  Period: {period_label}{company_label}', align='C', new_x="LMARGIN", new_y="NEXT")
             self.ln(4)
             self.set_draw_color(217, 93, 57)
@@ -735,7 +804,7 @@ def report_pdf():
         if daily:
             pdf.section_title('Daily Collections (with Company & GST)')
             pdf.table_header(['Date', 'Student', 'Company', 'Total', 'GST', 'Method'], [24, 40, 48, 25, 20, 33])
-            for r in daily[:30]:
+            for r in daily:
                 c_name = (r.company.name if r.company else 'Unassigned')[:24]
                 pdf.table_row([r.payment_date.strftime('%d %b %Y'), r.student.name[:18], c_name, f'{r.amount_paid:,.2f}', f'{r.gst_amount:,.2f}', r.payment_method], [24, 40, 48, 25, 20, 33], ['L', 'L', 'L', 'R', 'R', 'C'])
 
@@ -766,11 +835,11 @@ def report_pdf():
             for name, total in cat_wise:
                 pdf.table_row([name, f'{total:,.2f}'], [140, 50], ['L', 'R'])
         pdf.ln(3)
-        pdf.section_title(f'Expense Summary - {months_names[filter_month-1]} {filter_year}')
+        pdf.section_title(f'Expense Summary - {period_label}')
         pdf.table_header(['Category', 'Count', 'Total (₹)'], [100, 30, 60])
         summary_q = db.session.query(
             Expense.category_id, db.func.count(Expense.id).label('cnt'), db.func.sum(Expense.amount).label('total')
-        ).filter(db.extract('month', Expense.expense_date) == filter_month, db.extract('year', Expense.expense_date) == filter_year)
+        ).filter(Expense.expense_date >= start_date, Expense.expense_date <= end_date)
         summary_q = filter_by_company_methods(summary_q, Expense.payment_method, selected_company_id)
         summary_rows = summary_q.group_by(Expense.category_id).all()
         summary_map = {r.category_id: {'total': float(r.total), 'count': r.cnt} for r in summary_rows}
@@ -892,7 +961,7 @@ def report_pdf():
             pdf.section_title(f'{label} - ₹{total:,.2f}')
             if records:
                 pdf.table_header(['Date', 'Student', 'Amount', 'Remarks'], [30, 55, 35, 70])
-                for r in records[:30]:
+                for r in records:
                     pdf.table_row([r.payment_date.strftime('%d %b %Y'), r.student.name[:20], f'{r.amount_paid:,.2f}', (r.remarks or '')[:30]], [30, 55, 35, 70], ['L', 'L', 'R', 'L'])
             pdf.ln(2)
 
@@ -910,15 +979,22 @@ def report_excel():
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     today = date.today()
     tab = request.args.get('tab', 'income')
+    if tab not in REPORT_TABS:
+        tab = 'income'
     filter_mode = request.args.get('filter_mode', 'monthly')
+    if filter_mode not in ('monthly', 'yearly', 'custom'):
+        filter_mode = 'monthly'
     filter_month = request.args.get('month', type=int) or today.month
+    if not 1 <= filter_month <= 12:
+        filter_month = today.month
     filter_year = request.args.get('year', type=int) or today.year
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
+    quick = request.args.get('quick', '').strip().lower()
     selected_company_id = request.args.get('company_id', type=int)
 
-    start_date, end_date, filter_mode, start_date_str, end_date_str = resolve_date_range(
-        today, filter_mode, filter_month, filter_year, start_date_str, end_date_str)
+    start_date, end_date, filter_mode, start_date_str, end_date_str, _range_note = resolve_date_range(
+        today, filter_mode, filter_month, filter_year, start_date_str, end_date_str, quick)
 
     wb = Workbook()
     header_font = Font(bold=True, color='FFFFFF', size=11)
