@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app, send_file
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import Student, Course, Tutor, student_courses
+from app.models import Student, Course, Tutor, student_courses, ensure_enrolled_on
 from app.helpers import admin_required, is_ajax_request, save_photo_data
 from app.forms import StudentForm
 from datetime import date
@@ -64,10 +64,15 @@ def list():
                     flash(str(e), 'warning')
             new_student = Student(name=name, email=email, phone=phone, status=status, date_of_birth=_parse_date(request.form.get('date_of_birth')), photo_data=photo_data, photo_mime=photo_mime)
             for c_id in selected_courses:
-                course = Course.query.get(int(c_id))
+                try:
+                    course = Course.query.get(int(c_id))
+                except (TypeError, ValueError):
+                    course = None
                 if course:
                     new_student.courses.append(course)
             db.session.add(new_student)
+            db.session.flush()
+            ensure_enrolled_on(new_student.id)
             db.session.commit()
             message = "Student enrolled successfully!"
             if is_ajax_request():
@@ -225,11 +230,30 @@ def edit(id):
             if is_ajax_request():
                 return jsonify({"success": False, "errors": [str(e)]}), 400
             flash(str(e), 'danger')
-    student.courses = []
-    for c_id in (c for c in request.form.getlist('courses') if c):
-        course = Course.query.get(int(c_id))
+    # Diff the course set instead of clearing it: clearing + re-adding would
+    # delete student_courses rows and wipe per-course history (status,
+    # enrolled_on/completed_on, drop_reason). Only unchecked courses are
+    # removed; newly checked ones are appended and stamped.
+    requested_ids = set()
+    for raw_cid in (c for c in request.form.getlist('courses') if c):
+        try:
+            requested_ids.add(int(raw_cid))
+        except (TypeError, ValueError):
+            continue
+    existing_ids = {c.id for c in student.courses}
+    # NB: this module defines a view named `list`, so the builtin list()
+    # is shadowed here — collect removals first instead.
+    for c in [c for c in student.courses if c.id not in requested_ids]:
+        student.courses.remove(c)
+    added_ids = set()
+    for cid in requested_ids - existing_ids:
+        course = Course.query.get(cid)
         if course:
             student.courses.append(course)
+            added_ids.add(cid)
+    db.session.flush()
+    if added_ids:
+        ensure_enrolled_on(student.id, added_ids)
     db.session.commit()
     message = "Student details updated!"
     if is_ajax_request():
@@ -368,6 +392,8 @@ def import_excel():
                     if course:
                         new_student.courses.append(course)
             db.session.add(new_student)
+            db.session.flush()
+            ensure_enrolled_on(new_student.id)
             existing_emails.add(student_data['email'])
             imported_count += 1
         db.session.commit()

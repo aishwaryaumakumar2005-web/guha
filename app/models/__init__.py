@@ -1,6 +1,6 @@
 from .user import User, LeaveRequest
 from .course import Course
-from .student import Student, student_courses
+from .student import Student, student_courses, ensure_enrolled_on
 from .tutor import Tutor, tutor_courses
 from .attendance import Attendance
 from .fee import FeeRecord

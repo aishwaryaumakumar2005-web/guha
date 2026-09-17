@@ -15,6 +15,23 @@ student_courses = db.Table('student_courses',
 )
 
 
+def ensure_enrolled_on(student_id, course_ids=None, when=None):
+    """Stamp enrolled_on on association rows that are missing it.
+
+    Safe to rerun: only touches rows where enrolled_on IS NULL, so
+    existing enrollment history (Completed/Dropped dates) is preserved.
+    """
+    from datetime import date as _date
+    when = when or _date.today()
+    cond = [student_courses.c.student_id == student_id,
+            student_courses.c.enrolled_on.is_(None)]
+    if course_ids:
+        cond.append(student_courses.c.course_id.in_(list(course_ids)))
+    db.session.execute(
+        student_courses.update().where(*cond).values(enrolled_on=when)
+    )
+
+
 class Student(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     roll_no = db.Column(db.String(20), unique=True)

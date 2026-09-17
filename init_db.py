@@ -4,7 +4,7 @@ from app import create_app
 from app.extensions import db
 from app.models import (Course, Student, Tutor, Attendance, FeeRecord,
                          Enquiry, User, LeaveRequest, ExpenseCategory,
-                         Expense, Exam, Company)
+                         Expense, Exam, Company, ensure_enrolled_on)
 from app.services.account_service import ensure_default_companies, ensure_default_accounts
 from werkzeug.security import generate_password_hash
 
@@ -153,6 +153,10 @@ def _restore_all():
         if sid in _students and cid in _courses:
             _students[sid].courses.append(_courses[cid])
     db.session.flush()
+    # Stamp enrolled_on (backup rows predate the column); fall back to each
+    # student's enrollment date so history stays plausible.
+    for sid, obj in _students.items():
+        ensure_enrolled_on(obj.id, when=obj.enrollment_date)
     obj_map['student'] = _students
     print(f"Restored {len(_students)} students with course enrollments")
 

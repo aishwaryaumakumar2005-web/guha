@@ -319,6 +319,17 @@ def create_app(config_object=None):
                 except Exception:
                     db.session.rollback()
                 try:
+                    # Backfill enrolled_on for rows predating the column or
+                    # written before stamping existed; fall back to each
+                    # student's enrollment date, else today. Idempotent.
+                    db.session.execute(db.text(
+                        "UPDATE student_courses SET enrolled_on = COALESCE("
+                        "(SELECT enrollment_date FROM student "
+                        "WHERE student.id = student_courses.student_id), "
+                        "CURRENT_DATE) WHERE enrolled_on IS NULL"))
+                except Exception:
+                    db.session.rollback()
+                try:
                     db.session.execute(db.text("ALTER TABLE student ADD COLUMN photo VARCHAR(255)"))
                 except Exception:
                     db.session.rollback()

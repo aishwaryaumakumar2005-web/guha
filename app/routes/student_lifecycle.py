@@ -12,7 +12,7 @@ LONG_ABSENT_STREAK = 3        # consecutive missed sessions
 LONG_ABSENT_ATT_RATE = 75.0   # percent attendance threshold
 ATT_WINDOW_DAYS = 30
 
-FILTERS = ['all', 'enrolled', 'long_absent', 'completed', 'dropped', 'inactive', 'archived']
+FILTERS = ['all', 'enrolled', 'not_enrolled', 'long_absent', 'completed', 'dropped', 'inactive', 'archived']
 
 
 def _enrollment_map():
@@ -79,20 +79,47 @@ def _attendance_metrics():
     return metrics
 
 
-def _derive_bucket(student, enrollments, att):
-    if student.status not in ('Active', None):
-        return student.status
-    if any(e['status'] == 'Dropped' for e in enrollments):
-        return 'Dropped'
-    long_absent = att['last_streak'] >= LONG_ABSENT_STREAK or (
+def _is_long_absent(att):
+    return att['last_streak'] >= LONG_ABSENT_STREAK or (
         att['total_marks_30'] >= 3 and att['att_rate_30'] is not None
         and att['att_rate_30'] < LONG_ABSENT_ATT_RATE
     )
-    if long_absent:
-        return 'Long Absent'
-    if any(e['status'] == 'Completed' for e in enrollments):
+
+
+def _enrolled_long_ago(student, enrollments):
+    """True when the earliest known enrollment predates the attendance window.
+
+    Used to flag students who never attended anything despite being
+    enrolled for a while (their 30-day rate is None, so the normal
+    long-absent rule never fires for them).
+    """
+    dates = [e.get('enrolled_on') for e in enrollments if e.get('enrolled_on')]
+    if not dates and getattr(student, 'enrollment_date', None):
+        dates = [student.enrollment_date]
+    if not dates:
+        return False
+    return (date.today() - min(dates)).days > ATT_WINDOW_DAYS
+
+
+def _derive_bucket(student, enrollments, att):
+    if student.status not in ('Active', None):
+        return student.status
+    if not enrollments:
+        return 'Not Enrolled'
+    statuses = {e['status'] for e in enrollments}
+    if 'Enrolled' in statuses:
+        # A currently-active enrollment takes precedence over any historic
+        # Dropped/Completed rows; still surface attendance risk.
+        if _is_long_absent(att):
+            return 'Long Absent'
+        if att['last_attendance_date'] is None and _enrolled_long_ago(student, enrollments):
+            return 'Long Absent'
+        return 'Enrolled'
+    if 'Dropped' in statuses and 'Completed' not in statuses:
+        return 'Dropped'
+    if 'Completed' in statuses:
         return 'Completed'
-    return 'Enrolled'
+    return 'Dropped'
 
 
 @student_lifecycle_bp.route('/students/lifecycle')

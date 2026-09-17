@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required
 from datetime import datetime, date as date_cls
 from app.extensions import db
-from app.models import Enquiry, Course, Student
+from app.models import Enquiry, Course, Student, ensure_enrolled_on
 from app.helpers import admin_required, is_ajax_request
 from app.forms import EnquiryForm
 
@@ -96,6 +96,8 @@ def convert(id):
         if course:
             new_student.courses.append(course)
         db.session.add(new_student)
+        db.session.flush()
+        ensure_enrolled_on(new_student.id)
         enquiry.status = 'Converted'
         db.session.commit()
         message = f"Enquiry successfully converted! {new_student.name} is now enrolled."

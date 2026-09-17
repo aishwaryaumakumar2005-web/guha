@@ -533,7 +533,7 @@ def _execute_import(db_path, selected):
                         {'s': ns, 'c': nc}).fetchone()
                     if not hit:
                         db.session.execute(
-                            db.text("INSERT INTO student_courses (student_id, course_id) VALUES (:s, :c)"),
+                            db.text("INSERT INTO student_courses (student_id, course_id, enrolled_on) VALUES (:s, :c, CURRENT_DATE)"),
                             {'s': ns, 'c': nc})
                         assoc += 1
             results['student_courses'] = assoc
