@@ -127,24 +127,17 @@
             </div>
         </form>
     </div>
-    <!-- Tab Navigation -->
+<!-- Tab Navigation -->
+    {% macro tab_link(key, label, icon) -%}
+    <a href="{{ url_for('reports.reports', tab=key, filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id, quick=active_quick or '') }}" hx-boost="false" class="nav-link {% if tab == key %}active{% endif %}" id="{{ key }}-tab" role="tab" aria-selected="{% if tab == key %}true{% else %}false{% endif %}">{{ icon }} {{ label }}</a>
+    {%- endmacro %}
     <ul class="nav nav-tabs mb-4" id="reportTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link {% if tab == 'income' %}active{% endif %}" id="income-tab" data-bs-toggle="tab" data-bs-target="#income" type="button" role="tab"><i class="bi bi-graph-up-arrow me-1"></i>Income Report</button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link {% if tab == 'fees' %}active{% endif %}" id="fees-tab" data-bs-toggle="tab" data-bs-target="#fees" type="button" role="tab"><i class="bi bi-person-vcard me-1"></i>Student Fees Report</button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link {% if tab == 'expense' %}active{% endif %}" id="expense-tab" data-bs-toggle="tab" data-bs-target="#expense" type="button" role="tab"><i class="bi bi-receipt me-1"></i>Expense Report</button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link {% if tab == 'overall' %}active{% endif %}" id="overall-tab" data-bs-toggle="tab" data-bs-target="#overall" type="button" role="tab"><i class="bi bi-pie-chart-fill me-1"></i>Overall Report</button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link {% if tab == 'payment_methods' %}active{% endif %}" id="payment_methods-tab" data-bs-toggle="tab" data-bs-target="#payment_methods" type="button" role="tab"><i class="bi bi-credit-card-2-front me-1"></i>Payment Methods</button>
-        </li>
-        </ul>
+        <li class="nav-item" role="presentation">{{ tab_link('income', 'Income Report', '<i class="bi bi-graph-up-arrow me-1"></i>') }}</li>
+        <li class="nav-item" role="presentation">{{ tab_link('fees', 'Student Fees Report', '<i class="bi bi-person-vcard me-1"></i>') }}</li>
+        <li class="nav-item" role="presentation">{{ tab_link('expense', 'Expense Report', '<i class="bi bi-receipt me-1"></i>') }}</li>
+        <li class="nav-item" role="presentation">{{ tab_link('overall', 'Overall Report', '<i class="bi bi-pie-chart-fill me-1"></i>') }}</li>
+        <li class="nav-item" role="presentation">{{ tab_link('payment_methods', 'Payment Methods', '<i class="bi bi-credit-card-2-front me-1"></i>') }}</li>
+    </ul>
     {% endif %}
     <!-- Tab Content -->
     <div class="tab-content">
