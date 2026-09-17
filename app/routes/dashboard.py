@@ -12,12 +12,55 @@ dashboard_bp = Blueprint('dashboard', __name__)
 
 _stats_cache = {"data": None, "time": 0}
 
+
+def _empty_stats():
+    """Zeroed stats shape. Served when a stats query fails so the page (or a
+    JSON endpoint) degrades instead of raising."""
+    return {
+        "active_students": 0, "tutors": 0, "courses": 0,
+        "enquiries": 0, "enquiries_new": 0, "enquiries_contacted": 0,
+        "enquiries_visited": 0, "enquiries_converted": 0, "enquiries_lost": 0,
+        "unresolved_enquiries": 0, "monthly_fees_collected": 0.0,
+        "avg_student_attendance": None, "low_attendance_count": 0,
+    }
+
+
+def _safe(label, fn, default):
+    """Run a dashboard section; on any DB error roll the session back (a
+    failed statement poisons it for the rest of the request) and return the
+    default so one bad section can't 500 the whole page."""
+    try:
+        return fn()
+    except Exception:
+        current_app.logger.exception('Dashboard section failed: %s', label)
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return default
+
+
 def get_dashboard_stats():
     from time import time
     if time() - _stats_cache["time"] < 30 and _stats_cache["data"]:
         # Return a copy: callers (e.g. the Staff branch) add per-request keys,
         # and mutating the shared cached dict would leak them across roles.
         return dict(_stats_cache["data"])
+    try:
+        data = _compute_stats()
+    except Exception:
+        current_app.logger.exception('get_dashboard_stats failed; serving zeros')
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return _empty_stats()
+    _stats_cache["data"] = data
+    _stats_cache["time"] = time()
+    return dict(data)
+
+
+def _compute_stats():
     today = date.today()
     start_of_month = date(today.year, today.month, 1)
     fourteen_days_ago = today - timedelta(days=14)
@@ -48,15 +91,20 @@ def get_dashboard_stats():
     avg_att = None
     if total_att_records > 0:
         avg_att = int((present_att_records / total_att_records) * 100)
+    # Bound to the same 14-day window as the headline rate: without a date
+    # filter this scans the entire attendance history on every cache miss.
     att_stats = db.session.query(
         Attendance.person_id,
         func.count(Attendance.id).label('total'),
         func.sum(case((Attendance.status == 'Present', 1), else_=0)).label('present')
-    ).filter(Attendance.person_type == 'student').group_by(Attendance.person_id).having(
+    ).filter(
+        Attendance.person_type == 'student',
+        Attendance.date >= fourteen_days_ago
+    ).group_by(Attendance.person_id).having(
         func.count(Attendance.id) >= 3
     ).all()
     low_att_count = sum(1 for s in att_stats if (s.present * 100.0 / s.total) < 75)
-    _stats_cache["data"] = {
+    return {
         "active_students": active_students, "tutors": tutors, "courses": courses,
         "enquiries": total_enquiries, "enquiries_new": enquiries_new,
         "enquiries_contacted": enquiries_contacted, "enquiries_visited": enquiries_visited,
@@ -65,24 +113,19 @@ def get_dashboard_stats():
         "monthly_fees_collected": float(monthly_fees), "avg_student_attendance": avg_att,
         "low_attendance_count": low_att_count
     }
-    _stats_cache["time"] = time()
-    return dict(_stats_cache["data"])
 
-@dashboard_bp.route('/')
-@login_required
-def dashboard():
-    stats = get_dashboard_stats()
-    today = date.today()
+def _today_figures(today):
     today_fees = db.session.query(db.func.sum(FeeRecord.amount_paid)).filter(
         FeeRecord.payment_date == today
     ).scalar() or 0.0
     today_attendance = db.session.query(db.func.count(Attendance.id)).filter(
         Attendance.date == today, Attendance.person_type == 'student'
     ).scalar() or 0
+    return float(today_fees), int(today_attendance)
 
-    # Weekly attendance chart — last 7 days with real data (single query)
-    week_dates = [today - timedelta(days=i) for i in range(6, -1, -1)]
-    weekly_chart_labels = [d.strftime("%a") for d in week_dates]
+
+def _weekly_attendance(week_dates, today):
+    # Last 7 days with real data (single query).
     weekly_rows = db.session.query(
         Attendance.date,
         db.func.count(Attendance.id).label('total'),
@@ -92,10 +135,150 @@ def dashboard():
         Attendance.person_type == 'student'
     ).group_by(Attendance.date).all()
     weekly_map = {r.date: (r.present or 0, r.total or 0) for r in weekly_rows}
-    weekly_chart_data = []
+    data = []
     for d in week_dates:
         present, total = weekly_map.get(d, (0, 0))
-        weekly_chart_data.append(int(present / total * 100) if total > 0 else 0)
+        data.append(int(present / total * 100) if total > 0 else 0)
+    return data
+
+
+def _recent_lists():
+    return (Enquiry.query.order_by(Enquiry.id.desc()).limit(5).all(),
+            FeeRecord.query.order_by(FeeRecord.id.desc()).limit(5).all())
+
+
+def _fee_chart(today):
+    six_months_ago_month = today.month - 5
+    six_months_ago_year = today.year
+    if six_months_ago_month <= 0:
+        six_months_ago_month += 12
+        six_months_ago_year -= 1
+    six_months_ago = date(six_months_ago_year, six_months_ago_month, 1)
+    monthly = db.session.query(
+        db.extract('month', FeeRecord.payment_date).label('m'),
+        db.extract('year', FeeRecord.payment_date).label('y'),
+        db.func.sum(FeeRecord.amount_paid).label('total')
+    ).filter(FeeRecord.payment_date >= six_months_ago
+    ).group_by('y', 'm').order_by('y', 'm').all()
+    totals_by_ym = {(int(r.y), int(r.m)): float(r.total) for r in monthly}
+    chart_months = []
+    chart_data = []
+    for i in range(5, -1, -1):
+        m = today.month - i
+        y = today.year
+        if m <= 0:
+            m += 12
+            y -= 1
+        month_start = date(y, m, 1)
+        chart_months.append(month_start.strftime("%b"))
+        chart_data.append(totals_by_ym.get((y, m), 0.0))
+    return chart_months, chart_data
+
+
+def _top_courses():
+    # Top courses by enrollment count (for upcoming classes section).
+    return db.session.query(
+        Course.id, Course.name,
+        func.count(student_courses.c.student_id).label('enrolled')
+    ).outerjoin(student_courses, Course.id == student_courses.c.course_id
+    ).group_by(Course.id, Course.name
+    ).order_by(func.count(student_courses.c.student_id).desc()
+    ).limit(5).all()
+
+
+def _fee_dues():
+    """Outstanding fees per active student in ONE aggregated query.
+
+    Previously this loaded every active student and then lazy-loaded
+    ``s.courses`` per student (N+1). The query below joins the enrollment
+    association and a per-student payments subquery, so the section costs a
+    constant number of round trips no matter how many students exist. The
+    result shape is unchanged: ([{name, roll_no, total_fee, paid, balance}]
+    sorted by balance desc, total_outstanding).
+    """
+    paid_sq = db.session.query(
+        FeeRecord.student_id.label('sid'),
+        db.func.sum(FeeRecord.amount_paid).label('paid')
+    ).group_by(FeeRecord.student_id).subquery()
+    rows = db.session.query(
+        Student.name, Student.roll_no,
+        db.func.coalesce(db.func.sum(Course.fees), 0).label('total_fee'),
+        db.func.coalesce(paid_sq.c.paid, 0).label('paid')
+    ).outerjoin(student_courses, student_courses.c.student_id == Student.id
+    ).outerjoin(Course, Course.id == student_courses.c.course_id
+    ).outerjoin(paid_sq, paid_sq.c.sid == Student.id
+    ).filter(Student.status == 'Active'
+    ).group_by(Student.id, Student.name, Student.roll_no, paid_sq.c.paid
+    ).all()
+    due_students = []
+    for name, roll_no, total_fee, paid in rows:
+        total_fee = float(total_fee or 0)
+        paid = float(paid or 0)
+        balance = total_fee - paid
+        if balance > 1:
+            due_students.append({'name': name, 'roll_no': roll_no,
+                                 'total_fee': total_fee, 'paid': paid,
+                                 'balance': balance})
+    due_students.sort(key=lambda d: d['balance'], reverse=True)
+    return due_students, round(sum(d['balance'] for d in due_students), 2)
+
+
+def _capacity():
+    enroll_rows = db.session.query(
+        student_courses.c.course_id, db.func.count(student_courses.c.student_id).label('cnt')
+    ).group_by(student_courses.c.course_id).all()
+    enroll_map = {cid: cnt for cid, cnt in enroll_rows}
+    overflow_capacity = 0
+    capacity_courses = []
+    for c in Course.query.all():
+        enrolled = enroll_map.get(c.id, 0)
+        seats = c.capacity or 30
+        pct = round(enrolled / seats * 100) if seats else 0
+        if enrolled > seats:
+            overflow_capacity += 1
+        capacity_courses.append({'id': c.id, 'name': c.name, 'code': c.code,
+                                 'enrolled': enrolled, 'capacity': seats, 'pct': min(100, pct),
+                                 'over': enrolled > seats})
+    capacity_courses.sort(key=lambda x: x['pct'], reverse=True)
+    return capacity_courses, overflow_capacity
+
+
+def _celebrations(today):
+    # Birthdays & enrollment anniversaries today.
+    today_md = (today.month, today.day)
+    active_students_all = Student.query.all()
+    birthdays_today = [{'id': s.id, 'name': s.name, 'roll_no': s.roll_no, 'phone': s.phone,
+                        'msg': current_app.messenger.birthday_message(s.name, today.year - s.date_of_birth.year)}
+                       for s in active_students_all
+                       if s.status == 'Active' and s.date_of_birth
+                       and (s.date_of_birth.month, s.date_of_birth.day) == today_md]
+    anniversaries_today = [{'name': s.name, 'roll_no': s.roll_no} for s in active_students_all
+                           if s.status == 'Active' and s.enrollment_date
+                           and (s.enrollment_date.month, s.enrollment_date.day) == today_md
+                           and (s.enrollment_date.year, s.enrollment_date.month, s.enrollment_date.day) != (today.year, today.month, today.day)]
+    return birthdays_today, anniversaries_today
+
+
+def _staff_leave_counts(user):
+    pending = LeaveRequest.query.filter_by(user_id=user.id, status='Pending').count()
+    approved = LeaveRequest.query.filter_by(user_id=user.id, status='Approved').count()
+    return pending, approved
+
+
+@dashboard_bp.route('/')
+@login_required
+def dashboard():
+    today = date.today()
+    stats = _safe('stats', get_dashboard_stats, _empty_stats())
+    today_fees, today_attendance = _safe(
+        'today_figures', lambda: _today_figures(today), (0.0, 0))
+
+    # Weekly attendance chart labels are pure date math; only the data query
+    # can fail, in which case the chart renders zeros.
+    week_dates = [today - timedelta(days=i) for i in range(6, -1, -1)]
+    weekly_chart_labels = [d.strftime("%a") for d in week_dates]
+    weekly_chart_data = _safe(
+        'weekly_chart', lambda: _weekly_attendance(week_dates, today), [0] * 7)
 
     if current_user.role == 'Staff':
         stats['monthly_fees_collected'] = 0.0
@@ -103,8 +286,8 @@ def dashboard():
         recent_fees = []
         chart_months = []
         chart_data = []
-        pending_leaves_count = LeaveRequest.query.filter_by(user_id=current_user.id, status='Pending').count()
-        approved_leaves_count = LeaveRequest.query.filter_by(user_id=current_user.id, status='Approved').count()
+        pending_leaves_count, approved_leaves_count = _safe(
+            'staff_leaves', lambda: _staff_leave_counts(current_user), (0, 0))
         stats['pending_leaves_count'] = pending_leaves_count
         stats['approved_leaves_count'] = approved_leaves_count
         top_courses = []
@@ -115,89 +298,14 @@ def dashboard():
         birthdays_today = []
         anniversaries_today = []
     else:
-        recent_enquiries = Enquiry.query.order_by(Enquiry.id.desc()).limit(5).all()
-        recent_fees = FeeRecord.query.order_by(FeeRecord.id.desc()).limit(5).all()
-        six_months_ago_month = today.month - 5
-        six_months_ago_year = today.year
-        if six_months_ago_month <= 0:
-            six_months_ago_month += 12
-            six_months_ago_year -= 1
-        six_months_ago = date(six_months_ago_year, six_months_ago_month, 1)
-        monthly = db.session.query(
-            db.extract('month', FeeRecord.payment_date).label('m'),
-            db.extract('year', FeeRecord.payment_date).label('y'),
-            db.func.sum(FeeRecord.amount_paid).label('total')
-        ).filter(FeeRecord.payment_date >= six_months_ago
-        ).group_by('y', 'm').order_by('y', 'm').all()
-        totals_by_ym = {(int(r.y), int(r.m)): float(r.total) for r in monthly}
-        chart_months = []
-        chart_data = []
-        for i in range(5, -1, -1):
-            m = today.month - i
-            y = today.year
-            if m <= 0:
-                m += 12
-                y -= 1
-            month_start = date(y, m, 1)
-            chart_months.append(month_start.strftime("%b"))
-            chart_data.append(totals_by_ym.get((y, m), 0.0))
-        # Top courses by enrollment count (for upcoming classes section)
-        top_courses = db.session.query(
-            Course.id, Course.name,
-            func.count(student_courses.c.student_id).label('enrolled')
-        ).outerjoin(student_courses, Course.id == student_courses.c.course_id
-        ).group_by(Course.id, Course.name
-        ).order_by(func.count(student_courses.c.student_id).desc()
-        ).limit(5).all()
-
-        # Outstanding / pending fees — per active student: enrolled course fees
-        # minus payments made (same convention as api.py fee analysis)
-        active_students = Student.query.filter_by(status='Active').all()
-        paid_rows = db.session.query(
-            FeeRecord.student_id, db.func.sum(FeeRecord.amount_paid).label('paid')
-        ).group_by(FeeRecord.student_id).all()
-        paid_map = {sid: float(paid) for sid, paid in paid_rows}
-        due_students = []
-        for s in active_students:
-            total_fee = sum((c.fees or 0) for c in s.courses)
-            paid = paid_map.get(s.id, 0.0)
-            balance = total_fee - paid
-            if balance > 1:
-                due_students.append({'name': s.name, 'roll_no': s.roll_no,
-                                     'total_fee': total_fee, 'paid': paid, 'balance': balance})
-        due_students.sort(key=lambda d: d['balance'], reverse=True)
-        total_outstanding = round(sum(d['balance'] for d in due_students), 2)
-
-        # Course capacity utilisation
-        enroll_rows = db.session.query(
-            student_courses.c.course_id, db.func.count(student_courses.c.student_id).label('cnt')
-        ).group_by(student_courses.c.course_id).all()
-        enroll_map = {cid: cnt for cid, cnt in enroll_rows}
-        overflow_capacity = 0
-        capacity_courses = []
-        for c in Course.query.all():
-            enrolled = enroll_map.get(c.id, 0)
-            seats = c.capacity or 30
-            pct = round(enrolled / seats * 100) if seats else 0
-            if enrolled > seats:
-                overflow_capacity += 1
-            capacity_courses.append({'id': c.id, 'name': c.name, 'code': c.code,
-                                     'enrolled': enrolled, 'capacity': seats, 'pct': min(100, pct),
-                                     'over': enrolled > seats})
-        capacity_courses.sort(key=lambda x: x['pct'], reverse=True)
-
-        # Birthdays & enrollment anniversaries today
-        today_md = (today.month, today.day)
-        active_students_all = Student.query.all()
-        birthdays_today = [{'id': s.id, 'name': s.name, 'roll_no': s.roll_no, 'phone': s.phone,
-                            'msg': current_app.messenger.birthday_message(s.name, today.year - s.date_of_birth.year)}
-                           for s in active_students_all
-                           if s.status == 'Active' and s.date_of_birth
-                           and (s.date_of_birth.month, s.date_of_birth.day) == today_md]
-        anniversaries_today = [{'name': s.name, 'roll_no': s.roll_no} for s in active_students_all
-                               if s.status == 'Active' and s.enrollment_date
-                               and (s.enrollment_date.month, s.enrollment_date.day) == today_md
-                               and (s.enrollment_date.year, s.enrollment_date.month, s.enrollment_date.day) != (today.year, today.month, today.day)]
+        recent_enquiries, recent_fees = _safe('recent_lists', _recent_lists, ([], []))
+        chart_months, chart_data = _safe(
+            'fee_chart', lambda: _fee_chart(today), ([], []))
+        top_courses = _safe('top_courses', _top_courses, [])
+        due_students, total_outstanding = _safe('fee_dues', _fee_dues, ([], 0.0))
+        capacity_courses, overflow_capacity = _safe('capacity', _capacity, ([], 0))
+        birthdays_today, anniversaries_today = _safe(
+            'celebrations', lambda: _celebrations(today), ([], []))
 
     return render_template('dashboard.html',
         stats=stats, recent_enquiries=recent_enquiries,
@@ -208,7 +316,10 @@ def dashboard():
         capacity_courses=capacity_courses, overflow_capacity=overflow_capacity,
         birthdays_today=birthdays_today, anniversaries_today=anniversaries_today,
         today=today, today_fees=float(today_fees), today_attendance=int(today_attendance),
-        account_balances=(compute_account_summary() if current_user.role == 'Admin' else []))
+        account_balances=_safe(
+            'account_balances',
+            lambda: (compute_account_summary() if current_user.role == 'Admin' else []),
+            []))
 
 @dashboard_bp.route('/api/dashboard/ai-insights')
 @login_required
