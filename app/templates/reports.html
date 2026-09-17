@@ -3,6 +3,7 @@
         .chart-empty-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: center; color: rgba(255,255,255,0.55); font-size: .9rem; letter-spacing: .3px; pointer-events: none; }
         .chart-empty-overlay i { font-size: 1.6rem; opacity: .6; }
         .glass-card .table-container .table-custom thead th { position: sticky !important; top: 0 !important; z-index: 2 !important; }
+        .report-total-row td { background: rgba(255,255,255,0.06) !important; border-top: 1px solid rgba(255,255,255,0.18) !important; }
     </style>
     {% if is_staff %}
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -34,6 +35,25 @@
         </div>
     </div>
     {% endif %}
+    {% macro kpi_trend(cur, prev) -%}
+    <div class="small fw-semibold mt-1">
+        {%- if prev and cur -%}
+            {%- set p = (cur - prev) / prev * 100 -%}
+            {%- if p >= 0 -%}
+                <span class="text-success"><i class="bi bi-arrow-up-right"></i> +{{ "%.1f"|format(p) }}%</span>
+            {%- else -%}
+                <span class="text-danger"><i class="bi bi-arrow-down-right"></i> {{ "%.1f"|format(p) }}%</span>
+            {%- endif -%}
+        {%- elif cur and not prev -%}
+            <span class="text-success"><i class="bi bi-plus-circle"></i> New</span>
+        {%- elif prev and not cur -%}
+            <span class="text-danger"><i class="bi bi-arrow-down-right"></i> 100%</span>
+        {%- else -%}
+            <span class="text-muted">—</span>
+        {%- endif -%}
+        <span class="text-muted ms-1 fw-normal">vs {{ prev_label }}</span>
+    </div>
+{%- endmacro %}
     {% if not is_staff %}
     <!-- Date Filter Bar -->
     <div class="glass-card p-3 mb-4">
@@ -88,6 +108,9 @@
             </div>
             <div class="col-auto">
                 <button type="submit" class="btn btn-premium btn-sm"><i class="bi bi-funnel me-1"></i>Apply</button>
+            </div>
+            <div class="col-auto">
+                <button type="button" class="btn btn-outline-premium btn-sm" id="copyReportLink" title="Copy this report view as a link"><i class="bi bi-link-45deg me-1"></i>Copy link</button>
             </div>
         </form>
     </div>
@@ -222,18 +245,21 @@
                     <div class="glass-card p-3 text-center">
                         <div class="text-secondary small fw-semibold text-uppercase">Period Total Income</div>
                         <div class="fw-bold fs-3 text-dark">₹{{ "{:,.2f}".format(total_income_filtered) }}</div>
+                        {{ kpi_trend(total_income_filtered, prev_income) }}
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="glass-card p-3 text-center">
                         <div class="text-secondary small fw-semibold text-uppercase">Period Taxable Amount</div>
                         <div class="fw-bold fs-3 text-info">₹{{ "{:,.2f}".format(total_taxable_filtered) }}</div>
+                        {{ kpi_trend(total_taxable_filtered, prev_taxable) }}
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="glass-card p-3 text-center">
                         <div class="text-secondary small fw-semibold text-uppercase">Period GST Collected</div>
                         <div class="fw-bold fs-3 text-primary">₹{{ "{:,.2f}".format(total_gst_filtered) }}</div>
+                        {{ kpi_trend(total_gst_filtered, prev_gst) }}
                     </div>
                 </div>
             </div>
@@ -296,6 +322,7 @@
             <div class="row g-4">
                 <div class="col-lg-5">
                     <div class="glass-card p-4" data-aos="fade-up" data-aos-delay="0"><h5 class="fw-bold mb-3">Course-wise Table</h5>
+                        <p class="text-secondary small mb-3">Prorated across each student's enrolled courses so every payment is counted exactly once.</p>
                         <div class="table-container" style="max-height: 300px; overflow-y: auto;">
                             <table class="table table-custom sortable" data-page-size="10">
                                 <thead>
@@ -316,6 +343,14 @@
                                         <tr><td colspan="2" class="text-center text-muted py-3">No data in this period</td></tr>
                                     {% endif %}
                                 </tbody>
+                                {% if course_wise_income %}
+                                <tfoot>
+                                    <tr class="report-total-row">
+                                        <td class="fw-semibold">Total</td>
+                                        <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(course_wise_income|sum(attribute='total')) }}</td>
+                                    </tr>
+                                </tfoot>
+                                {% endif %}
                             </table>
                         </div>
                     </div>
@@ -354,6 +389,16 @@
                                         <tr><td colspan="6" class="text-center text-muted py-4">No data in this period</td></tr>
                                     {% endif %}
                                 </tbody>
+                                {% if daily_collections[:25] %}
+                                <tfoot>
+                                    <tr class="report-total-row">
+                                        <td colspan="3" class="fw-semibold">Total (shown)</td>
+                                        <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(daily_collections[:25]|sum(attribute='amount_paid')) }}</td>
+                                        <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(daily_collections[:25]|sum(attribute='gst_amount')) }}</td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                                {% endif %}
                             </table>
                         </div>
                     </div>
@@ -415,6 +460,15 @@
                                     <tr><td colspan="3" class="text-center text-muted py-3">No data in this period</td></tr>
                                     {% endfor %}
                                 </tbody>
+                                {% if expense_by_type %}
+                                <tfoot>
+                                    <tr class="report-total-row">
+                                        <td class="fw-semibold">Total</td>
+                                        <td class="text-end fw-semibold">{{ expense_by_type|sum(attribute='count') }}</td>
+                                        <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(expense_by_type|sum(attribute='total')) }}</td>
+                                    </tr>
+                                </tfoot>
+                                {% endif %}
                             </table>
                             <table class="table table-custom sortable" data-page-size="10" id="expByAccountTable" style="display:none;">
                                 <thead>
@@ -439,6 +493,15 @@
                                     <tr><td colspan="3" class="text-center text-muted py-3">No data in this period</td></tr>
                                     {% endfor %}
                                 </tbody>
+                                {% if expense_by_account %}
+                                <tfoot>
+                                    <tr class="report-total-row">
+                                        <td class="fw-semibold">Total</td>
+                                        <td class="text-end fw-semibold">{{ expense_by_account|sum(attribute='count') }}</td>
+                                        <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(expense_by_account|sum(attribute='total')) }}</td>
+                                    </tr>
+                                </tfoot>
+                                {% endif %}
                             </table>
                         </div>
                     </div>
@@ -468,6 +531,15 @@
                                     <tr><td colspan="3" class="text-center text-muted py-3">No data in this period</td></tr>
                                     {% endfor %}
                                 </tbody>
+                                {% if category_wise_expense %}
+                                <tfoot>
+                                    <tr class="report-total-row">
+                                        <td class="fw-semibold">Total</td>
+                                        <td class="text-end fw-semibold">{{ category_wise_expense|sum(attribute='count') }}</td>
+                                        <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(category_wise_expense|sum(attribute='total')) }}</td>
+                                    </tr>
+                                </tfoot>
+                                {% endif %}
                             </table>
                         </div>
                     </div>
@@ -501,18 +573,21 @@
                     <div class="glass-card p-3 text-center" style="border-left: 4px solid #0033cc;">
                         <div class="text-secondary small fw-semibold text-uppercase">Total Income</div>
                         <div class="fw-bold fs-3" style="color: #0033cc;">₹{{ "{:,.2f}".format(total_income_filtered) }}</div>
+                        {{ kpi_trend(total_income_filtered, prev_income) }}
                     </div>
                 </div>
                 <div class="col-md-3 col-6">
                     <div class="glass-card p-3 text-center" style="border-left: 4px solid var(--accent-emerald);">
                         <div class="text-secondary small fw-semibold text-uppercase">Capital Injection</div>
                         <div class="fw-bold fs-3" style="color: var(--accent-emerald);">₹{{ "{:,.2f}".format(total_funding_filtered) }}</div>
+                        {{ kpi_trend(total_funding_filtered, prev_funding) }}
                     </div>
                 </div>
                 <div class="col-md-3 col-6">
                     <div class="glass-card p-3 text-center" style="border-left: 4px solid var(--accent-rose);">
                         <div class="text-secondary small fw-semibold text-uppercase">Total Expense</div>
                         <div class="fw-bold fs-3" style="color: var(--accent-rose);">₹{{ "{:,.2f}".format(total_expense_filtered) }}</div>
+                        {{ kpi_trend(total_expense_filtered, prev_expense) }}
                     </div>
                 </div>
                 <div class="col-md-3 col-6">
@@ -521,6 +596,7 @@
                         <div class="fw-bold fs-3 {% if net_balance >= 0 %}text-dark{% else %}text-danger{% endif %}">
                             {% if net_balance >= 0 %}+{% endif %}₹{{ "{:,.2f}".format(net_balance) }}
                         </div>
+                        {{ kpi_trend(net_balance, prev_income + prev_funding - prev_expense) }}
                     </div>
                 </div>
             </div>
@@ -592,6 +668,22 @@
                             </tr>
                             {% endfor %}
                         </tbody>
+                        {% if pl_monthly %}
+                        <tfoot>
+                            {% set t_inc = pl_monthly|sum(attribute='income') %}
+                            {% set t_fund = pl_monthly|sum(attribute='funding') %}
+                            {% set t_exp = pl_monthly|sum(attribute='expense') %}
+                            {% set t_net = t_inc + t_fund - t_exp %}
+                            <tr class="report-total-row">
+                                <td class="fw-bold">Total ({{ filter_year }})</td>
+                                <td class="text-end fw-semibold" style="color: var(--accent-emerald);">₹{{ "{:,.2f}".format(t_inc) }}</td>
+                                <td class="text-end fw-semibold" style="color: #0033cc;">₹{{ "{:,.2f}".format(t_fund) }}</td>
+                                <td class="text-end fw-semibold" style="color: var(--accent-rose);">₹{{ "{:,.2f}".format(t_exp) }}</td>
+                                <td class="text-end fw-semibold {% if t_net < 0 %}text-danger{% endif %}">{% if t_net >= 0 %}+{% endif %}₹{{ "{:,.2f}".format(t_net) }}</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                        {% endif %}
                     </table>
                 </div>
             </div>
@@ -693,7 +785,18 @@ Remarks</th>
                                         <td class="small" style="opacity: 0.7;">
 {{ r.remarks or '-' }}</td>
                                     </tr>
-                                    {% endfor %}                                </tbody>
+                                    {% endfor %}
+                                <tfoot>
+                                    {% if data.records %}
+                                    <tr class="report-total-row">
+                                        <td colspan="3" class="fw-semibold">Total</td>
+                                        <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(data.records|sum(attribute='amount_paid')) }}</td>
+                                        <td class="text-end fw-semibold">₹{{ "{:,.2f}".format(data.records|sum(attribute='gst_amount')) }}</td>
+                                        <td></td>
+                                    </tr>
+                                    {% endif %}
+                                </tfoot>
+                                </tbody>
                             </table>
                             {% else %}                            <div class="text-center text-muted py-4">
 No data in this period</div>
@@ -735,7 +838,40 @@ if (btnExpType) {
     btnExpType.addEventListener('click', function () { setExpView('type'); });
     document.getElementById('btnExpAccount').addEventListener('click', function () { setExpView('account'); });
     setExpView('type');
-}</script>
+}
+var reportCopyBtn = document.getElementById('copyReportLink');
+if (reportCopyBtn) {
+    reportCopyBtn.addEventListener('click', function () {
+        var url = window.location.href.split('#')[0];
+        function copied() {
+            var orig = reportCopyBtn.innerHTML;
+            reportCopyBtn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copied!';
+            setTimeout(function () { reportCopyBtn.innerHTML = orig; }, 1600);
+        }
+        function fallback() {
+            var ta = document.createElement('textarea');
+            ta.value = url;
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); copied(); } catch (e) {}
+            document.body.removeChild(ta);
+        }
+        if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(url).then(copied, fallback); }
+        else { fallback(); }
+    });
+}
+function drillIntoMonth(evt, items) {
+    if (!items || !items.length) return;
+    var u = new URL(window.location.href, window.location.origin);
+    u.searchParams.set('month', String(items[0].index + 1));
+    u.searchParams.set('filter_mode', 'monthly');
+    u.searchParams.delete('quick');
+    window.location.assign(u.toString());
+}
+['incomeChart', 'feesMonthlyChart', 'expenseMonthlyChart', 'plChart'].forEach(function (id) {
+    var cfg = chartConfigs[id];
+    if (cfg) cfg.options.onClick = drillIntoMonth;
+});</script>
 {% endif %}{% endblock %}
 
 

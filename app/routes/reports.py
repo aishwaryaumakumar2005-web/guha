@@ -39,6 +39,33 @@ def filter_by_company_methods(query, model_attr, company_id):
     return query.filter(db.func.coalesce(model_attr, '').in_(matched))
 
 
+def course_wise_income_summary(start_date, end_date, company_id=None):
+    """Per-course income, prorated across each payment's student enrollments.
+
+    A fee belongs to a student, not a course. To avoid counting a payment
+    once per enrolled course, every payment is split equally across the
+    student's courses with cent rounding (remainder goes to the last course)
+    so per-course totals sum back exactly to the collected amount.
+    """
+    fee_q = FeeRecord.query.filter(FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date)
+    if company_id:
+        fee_q = fee_q.filter(FeeRecord.company_id == company_id)
+    fees = fee_q.options(joinedload(FeeRecord.student)).all()
+
+    per_course_cents = {}
+    for fee in fees:
+        if not fee.student or not fee.student.courses:
+            continue
+        courses = fee.student.courses
+        n = len(courses)
+        amount_cents = int(round(fee.amount_paid * 100))
+        shares = [amount_cents // n] * n
+        shares[-1] += amount_cents - sum(shares)
+        for course, share in zip(courses, shares):
+            per_course_cents[course.id] = per_course_cents.get(course.id, 0) + share
+    return {course_id: cents / 100.0 for course_id, cents in per_course_cents.items()}
+
+
 def resolve_date_range(today, filter_mode, filter_month, filter_year, start_date_str, end_date_str, quick=''):
     """Resolve the active period (quick chip / custom / yearly / monthly) into concrete start & end dates."""
     def _quick_range(key):
@@ -198,20 +225,7 @@ def reports():
     tax_monthly = [tax_map.get(m, 0.0) for m in range(1, 13)]
     gst_monthly = [gst_map.get(m, 0.0) for m in range(1, 13)]
 
-    course_fee_query = db.session.query(
-        student_courses.c.course_id, db.func.sum(FeeRecord.amount_paid).label('total')
-    ).select_from(FeeRecord).join(Student).join(student_courses).join(Course, Course.id == student_courses.c.course_id).filter(
-        FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date
-    )
-    if selected_company_id:
-        course_fee_query = course_fee_query.filter(
-            FeeRecord.company_id == selected_company_id,
-            Course.company_id == selected_company_id
-        )
-    else:
-        course_fee_query = course_fee_query.filter(Course.company_id == FeeRecord.company_id)
-    course_fee_rows = course_fee_query.group_by(student_courses.c.course_id).all()
-    course_fee_map = {r.course_id: float(r.total) for r in course_fee_rows}
+    course_fee_map = course_wise_income_summary(start_date, end_date, selected_company_id)
     
     course_wise_income = []
     for course in Course.query.all():
@@ -328,6 +342,40 @@ def reports():
     total_funding_filtered = total_funding_query.scalar() or 0.0
 
     net_balance = float(total_income_filtered) + float(total_funding_filtered) - float(total_expense_filtered)
+
+    # Comparable previous-period totals for KPI trend indicators
+    span_days = (end_date - start_date).days + 1
+    prev_end = start_date - timedelta(days=1)
+    prev_start = prev_end - timedelta(days=span_days - 1)
+
+    prev_tot_query = db.session.query(
+        db.func.sum(FeeRecord.amount_paid).label('income'),
+        db.func.sum(FeeRecord.taxable_amount).label('tax'),
+        db.func.sum(FeeRecord.gst_amount).label('gst'),
+    ).filter(FeeRecord.payment_date >= prev_start, FeeRecord.payment_date <= prev_end)
+    if selected_company_id:
+        prev_tot_query = prev_tot_query.filter(FeeRecord.company_id == selected_company_id)
+    prev_tot = prev_tot_query.one_or_none()
+    prev_income = float(prev_tot.income or 0) if prev_tot else 0.0
+    prev_taxable = float(prev_tot.tax or 0) if prev_tot else 0.0
+    prev_gst = float(prev_tot.gst or 0) if prev_tot else 0.0
+
+    prev_expense_query = db.session.query(db.func.sum(Expense.amount)).filter(
+        Expense.expense_date >= prev_start, Expense.expense_date <= prev_end)
+    prev_expense_query = filter_by_company_methods(prev_expense_query, Expense.payment_method, selected_company_id)
+    prev_expense = float(prev_expense_query.scalar() or 0.0)
+
+    prev_funding_query = db.session.query(db.func.sum(OwnerFunding.amount)).filter(
+        OwnerFunding.funding_date >= prev_start, OwnerFunding.funding_date <= prev_end)
+    prev_funding_query = filter_by_company_methods(prev_funding_query, OwnerFunding.method, selected_company_id)
+    prev_funding = float(prev_funding_query.scalar() or 0.0)
+
+    if filter_mode == 'yearly':
+        prev_label = 'last year'
+    elif filter_mode == 'custom':
+        prev_label = 'previous period'
+    else:
+        prev_label = 'last month'
     
     pl_monthly = []
     for m in range(1, 13):
@@ -415,7 +463,9 @@ def reports():
         net_balance=net_balance, pl_monthly=pl_monthly, company_pl=company_pl,
         payment_methods_report=payment_methods_report, total_collected_period=float(total_collected_period),
         no_income_data=no_income_data, no_fees_data=no_fees_data, no_expense_data=no_expense_data,
-        no_overall_data=no_overall_data, no_payment_data=no_payment_data)
+        no_overall_data=no_overall_data, no_payment_data=no_payment_data,
+        prev_income=prev_income, prev_taxable=prev_taxable, prev_gst=prev_gst,
+        prev_expense=prev_expense, prev_funding=prev_funding, prev_label=prev_label)
 
 @reports_bp.route('/reports/pdf')
 @login_required
@@ -546,20 +596,7 @@ def report_pdf():
         pdf.table_row(['Amount (₹)'] + [f'{v:,.2f}' for v in fees_monthly], [20] + [14]*12, ['L'] + ['R']*12)
         pdf.ln(3)
 
-        course_fee_q = db.session.query(
-            student_courses.c.course_id, db.func.sum(FeeRecord.amount_paid).label('total')
-        ).select_from(FeeRecord).join(Student).join(student_courses).join(Course, Course.id == student_courses.c.course_id).filter(
-            FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date
-        )
-        if selected_company_id:
-            course_fee_q = course_fee_q.filter(
-                FeeRecord.company_id == selected_company_id,
-                Course.company_id == selected_company_id
-            )
-        else:
-            course_fee_q = course_fee_q.filter(Course.company_id == FeeRecord.company_id)
-        course_fee_rows = course_fee_q.group_by(student_courses.c.course_id).all()
-        course_fee_map = {r.course_id: float(r.total) for r in course_fee_rows}
+        course_fee_map = course_wise_income_summary(start_date, end_date, selected_company_id)
         course_wise = [(course.name, course_fee_map.get(course.id, 0.0)) for course in Course.query.all() if course_fee_map.get(course.id, 0.0) > 0]
         if course_wise:
             pdf.section_title('Course-wise Income')
@@ -826,16 +863,7 @@ def report_excel():
         write_sheet(ws, 'Monthly Fees', ['Month'] + months, [['Collection (₹)'] + fees_monthly])
         
         rows = []
-        course_fee_q = db.session.query(student_courses.c.course_id, db.func.sum(FeeRecord.amount_paid).label('total')).select_from(FeeRecord).join(Student).join(student_courses).join(Course, Course.id == student_courses.c.course_id).filter(FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date)
-        if selected_company_id:
-            course_fee_q = course_fee_q.filter(
-                FeeRecord.company_id == selected_company_id,
-                Course.company_id == selected_company_id
-            )
-        else:
-            course_fee_q = course_fee_q.filter(Course.company_id == FeeRecord.company_id)
-        course_fee_rows = course_fee_q.group_by(student_courses.c.course_id).all()
-        course_fee_map = {r.course_id: float(r.total) for r in course_fee_rows}
+        course_fee_map = course_wise_income_summary(start_date, end_date, selected_company_id)
         for course in Course.query.all():
             total = course_fee_map.get(course.id, 0.0)
             if total > 0:
