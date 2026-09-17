@@ -22,7 +22,8 @@ def _ensure_tutor(user):
             # surfacing internal errors during login.
             return
 
-        tutor = Tutor.query.filter_by(email=user.email).first()
+        tutor = Tutor.query.filter(
+            db.func.lower(Tutor.email) == (user.email or '').lower()).first()
         if not tutor:
             tutor = Tutor(name=user.name, email=user.email, phone='', specialization='', status='Active')
             db.session.add(tutor)

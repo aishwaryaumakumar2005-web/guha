@@ -1,9 +1,10 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app, send_file
-from flask_login import login_required
+from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import Tutor, Course, Attendance
-from app.helpers import admin_required, cell_text, is_ajax_request, save_photo_data
+from app.helpers import admin_required, cell_text, commit_with_retry, is_ajax_request, save_photo_data
 from app.forms import TutorForm
+from sqlalchemy.exc import IntegrityError
 import tempfile
 import io
 
@@ -12,6 +13,25 @@ tutors_bp = Blueprint('tutors', __name__)
 #: Statuses the roster knows how to render; anything else from an import
 #: is normalized to 'Active' instead of being written verbatim.
 TUTOR_STATUSES = ('Active', 'Inactive')
+
+
+def _audit_tutor_courses(tid, added, removed):
+    """Log course-mapping changes, which bypass the ORM audit events
+    (relationships aren't columns, so the automatic UPDATE log misses them
+    — same reason lifecycle transitions log explicitly)."""
+    if not added and not removed:
+        return
+    import json
+    from app.models import AuditLog
+    db.session.add(AuditLog(
+        user_id=current_user.id if current_user.is_authenticated else None,
+        username=current_user.username if current_user.is_authenticated else 'system',
+        action='UPDATE',
+        entity_type='Tutor',
+        entity_id=tid,
+        changes=json.dumps({'courses': {
+            'added': sorted(added), 'removed': sorted(removed)}}),
+    ))
 
 @tutors_bp.route('/tutors', methods=['GET', 'POST'])
 @login_required
@@ -48,16 +68,34 @@ def list():
                     if is_ajax_request():
                         return jsonify({"success": False, "errors": [str(e)]}), 400
                     flash(str(e), 'warning')
-            new_tutor = Tutor(name=name, email=email, phone=phone, specialization=specialization, status=status, photo_data=photo_data, photo_mime=photo_mime)
-            for c_id in selected_courses:
-                try:
-                    course = Course.query.get(int(c_id))
-                except (TypeError, ValueError):
-                    course = None
-                if course:
-                    new_tutor.courses.append(course)
-            db.session.add(new_tutor)
-            db.session.commit()
+            def _create():
+                # Rebuilt from scratch on every retry attempt (see
+                # commit_with_retry in helpers).
+                fresh = Tutor(name=name, email=email, phone=phone, specialization=specialization,
+                              status=status, photo_data=photo_data, photo_mime=photo_mime)
+                added = set()
+                for c_id in selected_courses:
+                    try:
+                        cid = int(c_id)
+                    except (TypeError, ValueError):
+                        continue
+                    course = Course.query.get(cid)
+                    if course:
+                        fresh.courses.append(course)
+                        added.add(cid)
+                db.session.add(fresh)
+                db.session.flush()
+                _audit_tutor_courses(fresh.id, added, set())
+                db.session.commit()
+                return fresh
+            try:
+                commit_with_retry(_create)
+            except IntegrityError:
+                err = "Could not save the instructor (possible duplicate). Please retry."
+                if is_ajax_request():
+                    return jsonify({"success": False, "errors": [err]}), 409
+                flash(err, 'danger')
+                return redirect(url_for('tutors.list'))
             message = "Tutor added successfully!"
             if is_ajax_request():
                 return jsonify({"success": True, "message": message}), 201
@@ -104,14 +142,20 @@ def edit(id):
             if is_ajax_request():
                 return jsonify({"success": False, "errors": [str(e)]}), 400
             flash(str(e), 'danger')
+    existing_ids = {c.id for c in tutor.courses}
+    requested_ids = set()
     tutor.courses = []
     for c_id in (c for c in request.form.getlist('courses') if c):
         try:
-            course = Course.query.get(int(c_id))
+            cid = int(c_id)
         except (TypeError, ValueError):
-            course = None
+            continue
+        course = Course.query.get(cid)
         if course:
             tutor.courses.append(course)
+            requested_ids.add(cid)
+    _audit_tutor_courses(tutor.id, requested_ids - existing_ids,
+                         existing_ids - requested_ids)
     db.session.commit()
     message = "Tutor details updated!"
     if is_ajax_request():
@@ -173,7 +217,6 @@ def check_duplicate():
 @login_required
 @admin_required
 def import_excel():
-    from werkzeug.utils import secure_filename
     from openpyxl import load_workbook
     import os
     if 'excel_file' not in request.files:
@@ -238,8 +281,6 @@ def import_excel():
             validation_result = {"valid": True, "errors": [], "warnings": [], "suggestions": [], "enriched_data": tutors_data}
         if not validation_result["valid"]:
             return jsonify({"success": False, "errors": validation_result.get("errors", [])}), 400
-        imported_count = 0
-        skipped_count = 0
         all_courses = Course.query.all()
         all_courses_lower = {c.code.lower(): c for c in all_courses}
         # Case-insensitive: 'Foo@x.com' must match existing 'foo@x.com'.
@@ -247,33 +288,47 @@ def import_excel():
             (email or '').strip().lower()
             for (email,) in db.session.query(Tutor.email).all()
         )
-        seen_in_file = set()
-        for tutor_data in validation_result["enriched_data"]:
-            email_key = (tutor_data.get('email') or '').strip().lower()
-            if not email_key or email_key in existing_emails or email_key in seen_in_file:
-                skipped_count += 1
-                continue
-            seen_in_file.add(email_key)
-            new_tutor = Tutor(
-                name=tutor_data['name'], email=tutor_data['email'], phone=tutor_data['phone'],
-                specialization=tutor_data.get('specialization', ''), status=tutor_data.get('status', 'Active')
-            )
-            if tutor_data.get('courses'):
-                course_codes = [c.strip() for c in tutor_data['courses'].split(',')]
-                for code in course_codes:
-                    course = all_courses_lower.get(code.lower())
-                    if course:
-                        new_tutor.courses.append(course)
-            elif auto_course_mapping:
-                suggested_courses = ai_engine.suggest_course_mapping(tutor_data, all_courses)
-                for course_id in suggested_courses:
-                    course = next((c for c in all_courses if c.id == course_id), None)
-                    if course:
-                        new_tutor.courses.append(course)
-            db.session.add(new_tutor)
-            existing_emails.add(email_key)
-            imported_count += 1
-        db.session.commit()
+
+        def _insert(rows):
+            # Pure function of rows: rebuilt from scratch on every retry
+            # attempt, so the known/seen sets stay local to the attempt.
+            known = set(existing_emails)
+            seen_in_file = set()
+            imported = skipped = 0
+            for tutor_data in rows:
+                email_key = (tutor_data.get('email') or '').strip().lower()
+                if not email_key or email_key in known or email_key in seen_in_file:
+                    skipped += 1
+                    continue
+                seen_in_file.add(email_key)
+                new_tutor = Tutor(
+                    name=tutor_data['name'], email=tutor_data['email'], phone=tutor_data['phone'],
+                    specialization=tutor_data.get('specialization', ''), status=tutor_data.get('status', 'Active')
+                )
+                if tutor_data.get('courses'):
+                    course_codes = [c.strip() for c in tutor_data['courses'].split(',')]
+                    for code in course_codes:
+                        course = all_courses_lower.get(code.lower())
+                        if course:
+                            new_tutor.courses.append(course)
+                elif auto_course_mapping:
+                    suggested_courses = ai_engine.suggest_course_mapping(tutor_data, all_courses)
+                    for course_id in suggested_courses:
+                        course = next((c for c in all_courses if c.id == course_id), None)
+                        if course:
+                            new_tutor.courses.append(course)
+                db.session.add(new_tutor)
+                db.session.flush()
+                known.add(email_key)
+                imported += 1
+            db.session.commit()
+            return imported, skipped
+
+        try:
+            imported_count, skipped_count = commit_with_retry(
+                lambda: _insert(validation_result["enriched_data"]))
+        except IntegrityError:
+            return jsonify({"success": False, "errors": ["Import conflicted with another write. Please retry."]}), 409
         return jsonify({"success": True, "message": f"Successfully imported {imported_count} tutors. Skipped {skipped_count} row(s) (duplicates or invalid).", "imported": imported_count, "skipped": skipped_count}), 200
     except Exception as e:
         if tmp_file_path and os.path.exists(tmp_file_path):
@@ -283,6 +338,7 @@ def import_excel():
 
 @tutors_bp.route('/tutors/photo/<int:tutor_id>')
 @login_required
+@admin_required
 def tutor_photo(tutor_id):
     tutor = Tutor.query.get_or_404(tutor_id)
     if not tutor.photo_data:
