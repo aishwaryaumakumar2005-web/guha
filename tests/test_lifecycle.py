@@ -1,15 +1,23 @@
-"""Regression tests for student-lifecycle fixes #1-#3.
+"""Regression tests for student-lifecycle fixes #1-#8.
 
 #1: editing a student preserves per-course enrollment history.
 #2: enrolled_on is stamped on every enrollment write.
 #3: lifecycle buckets prioritize current enrollments correctly.
+#4: hardened enquiry conversion.  #5: unified status choices.
+#6: validated + audited transitions.  #7: no orphaned attendance rows.
+#8: consistent streak math, weighted rate, tunable thresholds.
 """
 from datetime import date, timedelta
 
 from app.extensions import db
 from app.forms import EnquiryForm
-from app.models import AuditLog, Course, Enquiry, Student, student_courses
-from app.routes.student_lifecycle import _derive_bucket
+from app.models import (
+    Attendance, AuditLog, Course, Enquiry, Student, SystemSetting,
+    Tutor, student_courses,
+)
+from app.routes.student_lifecycle import (
+    _attendance_metrics, _derive_bucket, _get_thresholds,
+)
 
 
 def _mk_course(app, code, name='Course'):
@@ -106,8 +114,8 @@ def _stud(status='Active', enrolled_days_ago=0):
 
 
 def _att(streak=0, rate=None, total=0, last=None):
-    return {'max_run': 0, 'last_streak': streak, 'att_rate_30': rate,
-            'total_marks_30': total, 'last_attendance_date': last}
+    return {'max_run': 0, 'last_streak': streak, 'att_rate': rate,
+            'total_marks': total, 'last_attendance_date': last}
 
 
 def test_bucket_active_enrollment_beats_historic_drop():
@@ -286,3 +294,119 @@ def test_complete_writes_audit_log(admin_client, app):
             entity_type='Student', entity_id=sid, action='UPDATE').all()
         assert any('complete' in (l.changes or '') for l in logs)
         assert any(l.username == 'admin' for l in logs)
+
+
+# ---- Fix #7: no orphaned attendance rows ----
+
+def _mark(app, person_type, person_id, day_offset, status='Absent'):
+    with app.app_context():
+        db.session.add(Attendance(
+            person_type=person_type, person_id=person_id,
+            date=date.today() - timedelta(days=day_offset), status=status))
+        db.session.commit()
+
+
+def test_delete_student_removes_attendance(admin_client, app):
+    with app.app_context():
+        sid = Student.query.filter_by(email='student@guha.test').first().id
+        other = Student(name='Keeper', email='keeper@guha.test',
+                        phone='9000000002', status='Active')
+        db.session.add(other)
+        db.session.commit()
+        oid = other.id
+    _mark(app, 'student', sid, 1, 'Present')
+    _mark(app, 'student', oid, 1, 'Present')
+    resp = admin_client.get(f'/students/delete/{sid}')
+    assert resp.status_code == 302
+    with app.app_context():
+        assert Attendance.query.filter_by(
+            person_type='student', person_id=sid).count() == 0
+        assert Attendance.query.filter_by(
+            person_type='student', person_id=oid).count() == 1
+
+
+def test_delete_tutor_removes_attendance(admin_client, app):
+    with app.app_context():
+        tid = Tutor.query.filter_by(email='staff@guha.test').first().id
+    _mark(app, 'tutor', tid, 1, 'Present')
+    resp = admin_client.get(f'/tutors/delete/{tid}')
+    assert resp.status_code == 302
+    with app.app_context():
+        assert Attendance.query.filter_by(
+            person_type='tutor', person_id=tid).count() == 0
+
+
+def test_orphan_attendance_excluded_from_metrics(app):
+    _mark(app, 'student', 9999, 1)
+    with app.app_context():
+        assert 9999 not in _attendance_metrics()
+
+
+# ---- Fix #8: consistent streak math + weighted rate + tunable thresholds ----
+
+def test_streak_spans_calendar_gaps(app):
+    # Absent Fri / Mon / Tue with no weekend marks: 3 consecutive sessions.
+    with app.app_context():
+        sid = Student.query.filter_by(email='student@guha.test').first().id
+    for offset in (4, 3, 1):
+        _mark(app, 'student', sid, offset)
+    with app.app_context():
+        m = _attendance_metrics()[sid]
+        assert m['max_run'] == 3
+        assert m['last_streak'] == 3
+        s = Student.query.get(sid)
+        enrolls = [{'status': 'Enrolled', 'enrolled_on': date.today()}]
+        assert _derive_bucket(s, enrolls, m) == 'Long Absent'
+
+
+def test_half_day_counts_half(app):
+    with app.app_context():
+        sid = Student.query.filter_by(email='student@guha.test').first().id
+    for offset in (4, 3, 2):
+        _mark(app, 'student', sid, offset, 'Present')
+    _mark(app, 'student', sid, 1, 'Half Day')
+    with app.app_context():
+        m = _attendance_metrics()[sid]
+        assert m['att_rate'] == 87.5
+
+
+def test_thresholds_override_and_fallback(app):
+    with app.app_context():
+        db.session.add(SystemSetting(key='LC_ABSENT_STREAK', value='10'))
+        db.session.add(SystemSetting(key='LC_ABSENT_RATE', value='bogus'))
+        db.session.commit()
+        t = _get_thresholds()
+        assert t['streak'] == 10
+        assert t['rate'] == 75.0  # invalid value falls back
+        assert t['window'] == 30
+        s = Student.query.filter_by(email='student@guha.test').first()
+        enrolls = [{'status': 'Enrolled', 'enrolled_on': date.today()}]
+        att = {'max_run': 3, 'last_streak': 3, 'att_rate': 100.0,
+               'total_marks': 3, 'last_attendance_date': date.today()}
+        # streak 3 < overridden streak 10, rate is fine -> Enrolled
+        # (with default thresholds this would be Long Absent)
+        assert _derive_bucket(s, enrolls, att, t) == 'Enrolled'
+
+
+def test_admin_saves_lifecycle_thresholds(admin_client, app):
+    resp = admin_client.post('/admin', data={
+        'action': 'save_lifecycle', 'LC_ABSENT_STREAK': '5',
+        'LC_ABSENT_RATE': '60', 'LC_ATT_WINDOW_DAYS': '14',
+    })
+    assert resp.status_code == 302
+    with app.app_context():
+        assert SystemSetting.query.filter_by(
+            key='LC_ABSENT_STREAK').first().value == '5'
+        assert _get_thresholds() == {'streak': 5, 'rate': 60.0, 'window': 14}
+
+
+def test_admin_rejects_bad_lifecycle_thresholds(admin_client, app):
+    resp = admin_client.post('/admin', data={
+        'action': 'save_lifecycle', 'LC_ABSENT_STREAK': '0',
+        'LC_ABSENT_RATE': '150', 'LC_ATT_WINDOW_DAYS': '-3',
+    })
+    assert resp.status_code == 302
+    with app.app_context():
+        assert SystemSetting.query.filter_by(
+            key='LC_ABSENT_STREAK').first() is None
+        assert _get_thresholds() == {'streak': 3, 'rate': 75.0, 'window': 30}

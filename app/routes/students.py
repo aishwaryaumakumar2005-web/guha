@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app, send_file
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import Student, Course, Tutor, student_courses, ensure_enrolled_on
+from app.models import Student, Course, Tutor, Attendance, student_courses, ensure_enrolled_on
 from app.helpers import admin_required, is_ajax_request, save_photo_data
 from app.forms import StudentForm
 from datetime import date
@@ -266,6 +266,11 @@ def edit(id):
 @admin_required
 def delete(id):
     student = Student.query.get_or_404(id)
+    # Attendance rows reference students by plain person_id (no FK), so they
+    # must be removed explicitly — otherwise orphan rows keep polluting the
+    # lifecycle attendance metrics. (Fees/exam rows cascade via FK.)
+    Attendance.query.filter_by(
+        person_type='student', person_id=student.id).delete(synchronize_session=False)
     db.session.delete(student)
     db.session.commit()
     message = "Student record deleted!"

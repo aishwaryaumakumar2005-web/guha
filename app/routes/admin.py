@@ -190,6 +190,41 @@ def admin_console():
             db.session.commit()
             flash("Organization & GST settings saved!", "success")
             return redirect(url_for('admin.admin_console'))
+        elif action == 'save_lifecycle':
+            errors = []
+            try:
+                streak = int(float(request.form.get('LC_ABSENT_STREAK', '').strip()))
+                if streak < 1:
+                    raise ValueError
+            except (TypeError, ValueError):
+                errors.append('Absent-streak must be a whole number of 1 or more.')
+            try:
+                rate = float(request.form.get('LC_ABSENT_RATE', '').strip())
+                if not 0 < rate <= 100:
+                    raise ValueError
+            except (TypeError, ValueError):
+                errors.append('Attendance rate must be a number between 0 and 100.')
+            try:
+                window = int(float(request.form.get('LC_ATT_WINDOW_DAYS', '').strip()))
+                if window < 1:
+                    raise ValueError
+            except (TypeError, ValueError):
+                errors.append('Attendance window must be a whole number of 1 day or more.')
+            if errors:
+                for e in errors:
+                    flash(e, "danger")
+                return redirect(url_for('admin.admin_console'))
+            for key, val in [('LC_ABSENT_STREAK', str(streak)),
+                             ('LC_ABSENT_RATE', str(rate)),
+                             ('LC_ATT_WINDOW_DAYS', str(window))]:
+                setting = SystemSetting.query.filter_by(key=key).first()
+                if setting:
+                    setting.value = val
+                else:
+                    db.session.add(SystemSetting(key=key, value=val))
+            db.session.commit()
+            flash("Student lifecycle thresholds saved!", "success")
+            return redirect(url_for('admin.admin_console'))
         elif action == 'reset_db':
             from init_db import seed_database
             try:
@@ -222,6 +257,10 @@ def admin_console():
     for key in ['ORG_NAME', 'ORG_ADDRESS', 'ORG_GSTIN', 'ORG_HSN', 'ORG_STATE', 'ORG_STATE_CODE', 'CGST_PCT', 'SGST_PCT', 'INVOICE_PREFIX']:
         s = SystemSetting.query.filter_by(key=key).first()
         org_settings[key.lower()] = s.value if s else ''
+    lifecycle_settings = {}
+    for key, default in [('LC_ABSENT_STREAK', '3'), ('LC_ABSENT_RATE', '75.0'), ('LC_ATT_WINDOW_DAYS', '30')]:
+        s = SystemSetting.query.filter_by(key=key).first()
+        lifecycle_settings[key.lower()] = s.value if s and s.value not in (None, '') else default
     db_counts = {
         "courses": Course.query.count(), "students": Student.query.count(), "tutors": Tutor.query.count(),
         "enquiries": Enquiry.query.count(), "fees": FeeRecord.query.count(), "attendance": Attendance.query.count()
@@ -232,6 +271,7 @@ def admin_console():
     return render_template('admin.html', gemini_key=gemini_key, openai_key=openai_key,
         db_counts=db_counts, g_active=g_active, o_active=o_active, users=users,
         smtp=smtp_settings, wa=wa_settings, sms=sms_settings, org=org_settings,
+        lifecycle=lifecycle_settings,
         courses=Course.query.order_by(Course.name).all())
 
 @admin_bp.route('/admin/backup')

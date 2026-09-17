@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app, send_file
 from flask_login import login_required
 from app.extensions import db
-from app.models import Tutor, Course
+from app.models import Tutor, Course, Attendance
 from app.helpers import admin_required, is_ajax_request, save_photo_data
 from app.forms import TutorForm
 import tempfile
@@ -109,6 +109,9 @@ def edit(id):
 @admin_required
 def delete(id):
     tutor = Tutor.query.get_or_404(id)
+    # Same orphan-row hazard as students: attendance uses a plain person_id.
+    Attendance.query.filter_by(
+        person_type='tutor', person_id=tutor.id).delete(synchronize_session=False)
     db.session.delete(tutor)
     db.session.commit()
     message = "Tutor record removed!"

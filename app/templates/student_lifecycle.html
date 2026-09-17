@@ -35,7 +35,7 @@ Track course completion, dropouts and long-absent students. <span class="text-in
         <p class="small text-white mt-3 mb-0" style="opacity:0.75;">
 <i class="bi bi-info-circle me-1">
 </i>
-Long Absent = missed {{ thresholds.streak }}+ consecutive sessions, attendance below {{ "%.0f"|format(thresholds.rate) }}% in the last {{ thresholds.window }} days, or no attendance at all {{ thresholds.window }}+ days after enrollment.</p>
+Long Absent = missed {{ thresholds.streak }}+ consecutive sessions, attendance below {{ "%.0f"|format(thresholds.rate) }}% in the last {{ thresholds.window }} days (Half Day counts as half), or no attendance at all {{ thresholds.window }}+ days after enrollment. Thresholds are tunable under Admin → Settings.</p>
     </div>
     <!-- Lifecycle Table -->
     <div class="glass-card p-4" data-aos="fade-up">
@@ -104,7 +104,7 @@ Last Activity</th>
                                     {% endfor %}                                {% else %}                                    <span class="small text-secondary">No course enrollment</span>
                                 {% endif %}                            </td>
                             <td>
-                                {% if d.metrics.att_rate_30 is not none %}                                    {% set rate = d.metrics.att_rate_30 %}                                    <span class="badge badge-custom {% if rate >= 75 %}badge-active{% elif rate >= 50 %}badge-amber{% else %}badge-inactive{% endif %}">{{ "%.0f"|format(rate) }}%</span>
+                                {% if d.metrics.att_rate is not none %}                                    {% set rate = d.metrics.att_rate %}                                    <span class="badge badge-custom {% if rate >= 75 %}badge-active{% elif rate >= 50 %}badge-amber{% else %}badge-inactive{% endif %}">{{ "%.0f"|format(rate) }}%</span>
                                     <div class="small text-secondary mt-1">
 Absent last {{ d.metrics.last_streak }} session(s) {% if d.metrics.last_streak > 0 %} <span class="text-danger">&#9888;</span>{% endif %}</div>
                                 {% else %}                                    <span class="small text-secondary">No attendance marked</span>

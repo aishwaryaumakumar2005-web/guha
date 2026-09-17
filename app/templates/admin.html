@@ -290,6 +290,28 @@
                             <button type="submit" class="btn btn-success mt-3"><i class="bi bi-save me-2"></i>Save Organization Settings</button>
                         </form>
                     </div>
+                    <div class="glass-card p-4 mt-4">
+                        <h4 class="mb-3 text-dark fw-bold"><i class="bi bi-diagram-3 me-2 text-dark"></i>Student Lifecycle Thresholds</h4>
+                        <p class="text-secondary small mb-4">Controls the Long Absent rule on the Student Lifecycle page. A Half Day mark always counts as half a session.</p>
+                        <form action="{{ url_for('admin.admin_console') }}" method="POST">
+                            <input type="hidden" name="action" value="save_lifecycle">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label text-secondary small fw-bold">Absent Streak (sessions)</label>
+                                    <input type="number" step="1" min="1" class="form-control" name="LC_ABSENT_STREAK" value="{{ lifecycle.get('lc_absent_streak', '3') }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label text-secondary small fw-bold">Attendance Rate % (below = at risk)</label>
+                                    <input type="number" step="0.1" min="0.1" max="100" class="form-control" name="LC_ABSENT_RATE" value="{{ lifecycle.get('lc_absent_rate', '75.0') }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label text-secondary small fw-bold">Attendance Window (days)</label>
+                                    <input type="number" step="1" min="1" class="form-control" name="LC_ATT_WINDOW_DAYS" value="{{ lifecycle.get('lc_att_window_days', '30') }}">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-success mt-3"><i class="bi bi-save me-2"></i>Save Lifecycle Thresholds</button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>

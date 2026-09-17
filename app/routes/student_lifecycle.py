@@ -39,28 +39,75 @@ def _enrollment_map():
     return enroll_map
 
 
-def _attendance_metrics():
+# Attendance score per mark: a Half Day counts as half a session. Unknown
+# statuses fail open as attended, matching historical behavior.
+ATTENDANCE_SCORES = {'Present': 1.0, 'Late': 1.0, 'Half Day': 0.5, 'Absent': 0.0}
+
+# SystemSetting keys overriding the defaults below (editable on the admin
+# console). Absent/invalid values fall back to the constants.
+SETTING_STREAK = 'LC_ABSENT_STREAK'
+SETTING_RATE = 'LC_ABSENT_RATE'
+SETTING_WINDOW = 'LC_ATT_WINDOW_DAYS'
+
+
+def _default_thresholds():
+    return {'streak': LONG_ABSENT_STREAK, 'rate': LONG_ABSENT_ATT_RATE,
+            'window': ATT_WINDOW_DAYS}
+
+
+def _get_thresholds():
+    """DB-backed thresholds with sanitization; falls back to defaults."""
+    from app.models import SystemSetting
+    t = _default_thresholds()
+    try:
+        streak = SystemSetting.query.filter_by(key=SETTING_STREAK).first()
+        rate = SystemSetting.query.filter_by(key=SETTING_RATE).first()
+        window = SystemSetting.query.filter_by(key=SETTING_WINDOW).first()
+        if streak is not None and streak.value not in (None, ''):
+            t['streak'] = max(1, int(float(streak.value)))
+        if rate is not None and rate.value not in (None, ''):
+            r = float(rate.value)
+            if 0 < r <= 100:
+                t['rate'] = r
+        if window is not None and window.value not in (None, ''):
+            t['window'] = max(1, int(float(window.value)))
+    except (TypeError, ValueError):
+        pass
+    return t
+
+
+def _score_status(status):
+    return ATTENDANCE_SCORES.get(status, 1.0)
+
+
+def _attendance_metrics(window_days=ATT_WINDOW_DAYS):
     today = date.today()
-    window_start = today - timedelta(days=ATT_WINDOW_DAYS)
-    records = Attendance.query.filter(Attendance.person_type == 'student').order_by(
-        Attendance.person_id, Attendance.date
-    ).all()
+    window_start = today - timedelta(days=window_days)
+    # Restrict to live students: attendance rows carry a plain person_id
+    # (no FK), so rows orphaned by historical deletes are excluded here
+    # (and purged by the startup migration in app/__init__.py).
+    records = Attendance.query.filter(
+        Attendance.person_type == 'student',
+        Attendance.person_id.in_(db.session.query(Student.id))
+    ).order_by(Attendance.person_id, Attendance.date).all()
     by_student = defaultdict(dict)
     for r in records:
         by_student[r.person_id][r.date] = r.status
     metrics = {}
     for sid, by_date in by_student.items():
         dates = sorted(by_date)
+        # Streaks count consecutive *sessions* (marks in the student's own
+        # sequence), not consecutive calendar days — classes don't run every
+        # day, so weekend/holiday gaps must not reset the run. Both streak
+        # measures use this same definition.
         max_run = 0
         cur = 0
-        prev = None
         for d in dates:
             if by_date[d] == 'Absent':
-                cur = cur + 1 if prev is not None and (d - prev).days == 1 else 1
+                cur += 1
                 max_run = max(max_run, cur)
             else:
                 cur = 0
-            prev = d
         last_streak = 0
         for d in reversed(dates):
             if by_date[d] == 'Absent':
@@ -69,30 +116,31 @@ def _attendance_metrics():
                 break
         recent = [d for d in dates if d >= window_start]
         total = len(recent)
-        attended = sum(1 for d in recent if by_date[d] != 'Absent')
-        rate = (attended / total * 100) if total else None
+        scored = sum(_score_status(by_date[d]) for d in recent)
+        rate = (scored / total * 100) if total else None
         metrics[sid] = {
             'max_run': max_run,
             'last_streak': last_streak,
-            'att_rate_30': rate,
-            'total_marks_30': total,
+            'att_rate': rate,
+            'total_marks': total,
             'last_attendance_date': dates[-1] if dates else None,
         }
     return metrics
 
 
-def _is_long_absent(att):
-    return att['last_streak'] >= LONG_ABSENT_STREAK or (
-        att['total_marks_30'] >= 3 and att['att_rate_30'] is not None
-        and att['att_rate_30'] < LONG_ABSENT_ATT_RATE
+def _is_long_absent(att, thresholds=None):
+    thresholds = thresholds or _default_thresholds()
+    return att['last_streak'] >= thresholds['streak'] or (
+        att['total_marks'] >= 3 and att['att_rate'] is not None
+        and att['att_rate'] < thresholds['rate']
     )
 
 
-def _enrolled_long_ago(student, enrollments):
+def _enrolled_long_ago(student, enrollments, window_days=ATT_WINDOW_DAYS):
     """True when the earliest known enrollment predates the attendance window.
 
     Used to flag students who never attended anything despite being
-    enrolled for a while (their 30-day rate is None, so the normal
+    enrolled for a while (their window rate is None, so the normal
     long-absent rule never fires for them).
     """
     dates = [e.get('enrolled_on') for e in enrollments if e.get('enrolled_on')]
@@ -100,10 +148,11 @@ def _enrolled_long_ago(student, enrollments):
         dates = [student.enrollment_date]
     if not dates:
         return False
-    return (date.today() - min(dates)).days > ATT_WINDOW_DAYS
+    return (date.today() - min(dates)).days > window_days
 
 
-def _derive_bucket(student, enrollments, att):
+def _derive_bucket(student, enrollments, att, thresholds=None):
+    thresholds = thresholds or _default_thresholds()
     if student.status not in ('Active', None):
         return student.status
     if not enrollments:
@@ -112,9 +161,10 @@ def _derive_bucket(student, enrollments, att):
     if 'Enrolled' in statuses:
         # A currently-active enrollment takes precedence over any historic
         # Dropped/Completed rows; still surface attendance risk.
-        if _is_long_absent(att):
+        if _is_long_absent(att, thresholds):
             return 'Long Absent'
-        if att['last_attendance_date'] is None and _enrolled_long_ago(student, enrollments):
+        if att['last_attendance_date'] is None and _enrolled_long_ago(
+                student, enrollments, thresholds['window']):
             return 'Long Absent'
         return 'Enrolled'
     if 'Dropped' in statuses and 'Completed' not in statuses:
@@ -132,19 +182,20 @@ def lifecycle():
     if filter_key not in FILTERS:
         filter_key = 'all'
     enroll_map = _enrollment_map()
-    att_metrics = _attendance_metrics()
+    thresholds = _get_thresholds()
+    att_metrics = _attendance_metrics(thresholds['window'])
     data = []
     for s in Student.query.order_by(Student.id).all():
         enrolls = enroll_map.get(s.id, [])
         att = att_metrics.get(s.id, {
-            'max_run': 0, 'last_streak': 0, 'att_rate_30': None,
-            'total_marks_30': 0, 'last_attendance_date': None,
+            'max_run': 0, 'last_streak': 0, 'att_rate': None,
+            'total_marks': 0, 'last_attendance_date': None,
         })
         data.append({
             'student': s,
             'enrollments': enrolls,
             'metrics': att,
-            'bucket': _derive_bucket(s, enrolls, att),
+            'bucket': _derive_bucket(s, enrolls, att, thresholds),
         })
     counts = defaultdict(int)
     for d in data:
@@ -158,8 +209,7 @@ def lifecycle():
             data = [d for d in data if d['bucket'].lower() == target]
     return render_template('student_lifecycle.html', lifecycle=data, counts=counts,
         total=total, filter_key=filter_key, today=date.today(),
-        thresholds={'streak': LONG_ABSENT_STREAK, 'rate': LONG_ABSENT_ATT_RATE,
-                    'window': ATT_WINDOW_DAYS})
+        thresholds=thresholds)
 
 
 def _target_filter():

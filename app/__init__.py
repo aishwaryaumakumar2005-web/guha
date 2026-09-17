@@ -330,6 +330,20 @@ def create_app(config_object=None):
                 except Exception:
                     db.session.rollback()
                 try:
+                    # Purge attendance rows orphaned by historical deletes
+                    # (attendance.person_id has no FK). Idempotent.
+                    db.session.execute(db.text(
+                        "DELETE FROM attendance WHERE person_type = 'student' "
+                        "AND person_id NOT IN (SELECT id FROM student)"))
+                except Exception:
+                    db.session.rollback()
+                try:
+                    db.session.execute(db.text(
+                        "DELETE FROM attendance WHERE person_type = 'tutor' "
+                        "AND person_id NOT IN (SELECT id FROM tutor)"))
+                except Exception:
+                    db.session.rollback()
+                try:
                     db.session.execute(db.text("ALTER TABLE student ADD COLUMN photo VARCHAR(255)"))
                 except Exception:
                     db.session.rollback()
