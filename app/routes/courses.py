@@ -8,8 +8,24 @@ from app.models import (
 )
 from app.helpers import admin_required, get_gst_rates, is_ajax_request
 from app.forms import CourseForm
+from sqlalchemy.orm import joinedload
 
 courses_bp = Blueprint('courses', __name__)
+
+def _parse_capacity(raw):
+    """Validate the optional seat-capacity input.
+
+    Returns (value, error): blank -> (None, None); a whole number >= 1 ->
+    (int, None); anything else ("-5", "30.5", "lots") -> (None, message)
+    instead of the old silent NULL.
+    """
+    raw = (raw or '').strip()
+    if not raw:
+        return None, None
+    if raw.isdigit() and int(raw) >= 1:
+        return int(raw), None
+    return None, f"Seat capacity must be a whole number of 1 or more (got '{raw}')"
+
 
 @courses_bp.route('/courses', methods=['GET', 'POST'])
 @login_required
@@ -38,8 +54,12 @@ def list():
         duration = form.cleaned_data.get('duration_weeks', 0)
         duration_unit = request.form.get('duration_unit', 'weeks')
         fees = form.cleaned_data.get('fees', 0.0)
-        capacity_raw = request.form.get('capacity', '').strip()
-        capacity = int(capacity_raw) if capacity_raw.isdigit() else None
+        capacity, capacity_err = _parse_capacity(request.form.get('capacity', ''))
+        if capacity_err:
+            if is_ajax_request():
+                return jsonify({"success": False, "errors": [capacity_err]}), 400
+            flash(capacity_err, 'danger')
+            return redirect(url_for('courses.list'))
         gst_applicable = request.form.get('gst_applicable') == 'on'
         syllabus = request.form.get('syllabus', '').strip()
         company_id_raw = request.form.get('company_id', '').strip()
@@ -72,12 +92,13 @@ def list():
     if current_user.role == 'Staff':
         # Find the tutor record for this staff user
         tutor = Tutor.query.filter_by(email=current_user.email).first()
-        if tutor:
-            all_courses = tutor.courses
-        else:
-            all_courses = []
+        course_ids = [c.id for c in tutor.courses] if tutor else []
+        # joinedload: each card reads course.company — without it that's one
+        # extra query per card.
+        all_courses = (Course.query.options(joinedload(Course.company))
+                       .filter(Course.id.in_(course_ids)).all()) if course_ids else []
     else:
-        all_courses = Course.query.all()
+        all_courses = Course.query.options(joinedload(Course.company)).all()
     
     total_courses = len(all_courses)
     # Active enrollments only: Dropped/Completed rows must not inflate
@@ -126,8 +147,13 @@ def edit(id):
     old_fees = course.fees or 0.0
     new_fees = form.cleaned_data.get('fees', 0.0)
     course.fees = new_fees
-    capacity_raw = request.form.get('capacity', '').strip()
-    course.capacity = int(capacity_raw) if capacity_raw.isdigit() else None
+    capacity, capacity_err = _parse_capacity(request.form.get('capacity', ''))
+    if capacity_err:
+        if is_ajax_request():
+            return jsonify({"success": False, "errors": [capacity_err]}), 400
+        flash(capacity_err, 'danger')
+        return redirect(url_for('courses.list'))
+    course.capacity = capacity
     course.gst_applicable = request.form.get('gst_applicable') == 'on'
     course.syllabus = request.form.get('syllabus', '').strip()
     company_id_raw = request.form.get('company_id', '').strip()

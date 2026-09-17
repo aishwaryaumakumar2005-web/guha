@@ -138,11 +138,14 @@ class TutorForm(Form):
 
 
 class CourseForm(Form):
-    required = ['name', 'code', 'duration_weeks', 'fees']
+    # description/syllabus are required to match the template inputs, so
+    # direct POSTs can't create syllabus-less courses the AI tools choke on.
+    # duration_weeks starts at 1 (a 0-length course is nonsense).
+    required = ['name', 'code', 'duration_weeks', 'fees', 'description', 'syllabus']
     float = ['fees']
     integer = ['duration_weeks']
     choices = {'duration_unit': ['weeks', 'months', 'days']}
-    min_values = {'fees': 0, 'duration_weeks': 0}
+    min_values = {'fees': 0, 'duration_weeks': 1}
     max_length = {'name': 100, 'code': 20}
     regex = {'code': r'^[A-Za-z0-9_-]+$'}
 

@@ -21,9 +21,11 @@ def test_create_course(admin_client, app):
 def test_create_duplicate_course_blocked(admin_client, app):
     admin_client.post('/courses', data={
         'name': 'Python', 'code': 'PY', 'duration_weeks': '8', 'fees': '5000',
+        'description': 'd', 'syllabus': 's',
     })
     resp = admin_client.post('/courses', data={
         'name': 'Python Dup', 'code': 'PY', 'duration_weeks': '8', 'fees': '5000',
+        'description': 'd', 'syllabus': 's',
     })
     assert resp.status_code == 302
     with app.app_context():
@@ -63,8 +65,9 @@ def test_edit_course(admin_client, app):
     with app.app_context():
         cid = Course.query.filter_by(code='PY').first().id
     resp = admin_client.post(f'/courses/edit/{cid}', data={
-        'name': 'Python Pro', 'code': 'PY', 'description': '',
+        'name': 'Python Pro', 'code': 'PY', 'description': 'pro',
         'duration_weeks': '10', 'duration_unit': 'weeks', 'fees': '6000',
+        'syllabus': 's',
     })
     assert resp.status_code == 302
     with app.app_context():

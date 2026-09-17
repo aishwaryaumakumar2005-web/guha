@@ -49,7 +49,8 @@ def test_fee_unchanged_no_warning(admin_client, app):
 def test_create_code_uppercased(admin_client, app):
     admin_client.post('/courses', data={
         'name': 'Lower', 'code': 'py-101', 'duration_weeks': '4',
-        'duration_unit': 'weeks', 'fees': '1000', 'syllabus': 's'})
+        'duration_unit': 'weeks', 'fees': '1000', 'description': 'd',
+        'syllabus': 's'})
     with app.app_context():
         assert Course.query.filter_by(code='PY-101').first() is not None
         assert Course.query.filter_by(code='py-101').first() is None
@@ -60,7 +61,8 @@ def test_create_case_variant_code_blocked(admin_client, app):
         before = Course.query.count()
     resp = admin_client.post('/courses', data={
         'name': 'Dup', 'code': 'py', 'duration_weeks': '4',
-        'duration_unit': 'weeks', 'fees': '1000', 'syllabus': 's'})
+        'duration_unit': 'weeks', 'fees': '1000', 'description': 'd',
+        'syllabus': 's'})
     assert resp.status_code == 302
     with app.app_context():
         assert Course.query.count() == before
