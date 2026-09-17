@@ -57,7 +57,7 @@
       {% if subtitle %}<p class="empty-state-subtitle">{{ subtitle }}</p>{% endif %}
       {% if cta_url and cta_text %}
       <a href="{{ cta_url }}" class="empty-state-cta">
-        <i class="bi {{ cta_icon }} me-1"></i> {{ cta_text }}
+        <i class="bi {{ cta_icon }} me-1" aria-hidden="true"></i> {{ cta_text }}
       </a>
       {% endif %}
     </div>
@@ -71,7 +71,7 @@
     {% if subtitle %}<p class="empty-state-subtitle">{{ subtitle }}</p>{% endif %}
     {% if cta_url and cta_text %}
     <a href="{{ cta_url }}" class="empty-state-cta">
-      <i class="bi {{ cta_icon }} me-1"></i> {{ cta_text }}
+      <i class="bi {{ cta_icon }} me-1" aria-hidden="true"></i> {{ cta_text }}
     </a>
     {% endif %}
   </div>
