@@ -4,6 +4,10 @@
         .chart-empty-overlay i { font-size: 1.6rem; opacity: .6; }
         .glass-card .table-container .table-custom thead th { position: sticky !important; top: 0 !important; z-index: 2 !important; }
         .report-total-row td { background: rgba(255,255,255,0.06) !important; border-top: 1px solid rgba(255,255,255,0.18) !important; }
+        .insight-box { margin-top: .85rem; padding: .65rem .9rem; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); font-size: .84rem; }
+        .insight-row { margin-bottom: .35rem; }
+        .insight-row:last-child { margin-bottom: 0; }
+        .insight-row i { color: var(--accent-gold, #FFC107); }
     </style>
     {% if is_staff %}
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -35,7 +39,16 @@
         </div>
     </div>
     {% endif %}
-    {% macro kpi_trend(cur, prev) -%}
+    {% macro insight_card(items) -%}
+    {% if items %}
+    <div class="insight-box">
+        {% for item in items %}
+        <div class="insight-row"><i class="bi {{ item.icon }} me-2"></i><span>{{ item.text }}</span></div>
+        {% endfor %}
+    </div>
+    {% endif %}
+{%- endmacro %}
+{% macro kpi_trend(cur, prev) -%}
     <div class="small fw-semibold mt-1">
         {%- if prev and cur -%}
             {%- set p = (cur - prev) / prev * 100 -%}
@@ -304,6 +317,7 @@
                         <div style="position:relative;height:240px;">
                             <canvas id="incomeChart"></canvas>
                             {% if no_income_data %}<div class="chart-empty-overlay"><i class="bi bi-inbox"></i>No income recorded in this period</div>{% endif %}
+                            {{ insight_card(insights.income) }}
                         </div>
                     </div>
                 </div>
@@ -411,6 +425,7 @@
                         <div style="position:relative;height:240px;">
                             <canvas id="feesMonthlyChart"></canvas>
                             {% if no_fees_data %}<div class="chart-empty-overlay"><i class="bi bi-inbox"></i>No fees collected in this period</div>{% endif %}
+                            {{ insight_card(insights.fees) }}
                         </div>
                     </div>
                 </div>
@@ -552,6 +567,7 @@
                         <div style="position:relative;height:240px;">
                             <canvas id="expenseMonthlyChart"></canvas>
                             {% if no_expense_data %}<div class="chart-empty-overlay"><i class="bi bi-inbox"></i>No expenses recorded in this period</div>{% endif %}
+                            {{ insight_card(insights.expense) }}
                         </div>
                     </div>
                 </div>
@@ -694,6 +710,7 @@
                         <div style="position:relative;height:240px;">
                             <canvas id="plChart"></canvas>
                             {% if no_overall_data %}<div class="chart-empty-overlay"><i class="bi bi-inbox"></i>No activity in this period</div>{% endif %}
+                            {{ insight_card(insights.overall) }}
                         </div>
                     </div>
                 </div>
@@ -738,6 +755,7 @@ Total Collected</div>
                         <div style="position:relative;height:240px;">
                             <canvas id="paymentChart"></canvas>
                             {% if no_payment_data %}<div class="chart-empty-overlay"><i class="bi bi-inbox"></i>No payments collected in this period</div>{% endif %}
+                            {{ insight_card(insights.payment) }}
                         </div>
                     </div>
                 </div>

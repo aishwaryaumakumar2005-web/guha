@@ -446,6 +446,79 @@ def reports():
     no_overall_data = not pl_monthly or all(not (getattr(p, 'income', 0) or getattr(p, 'funding', 0) or getattr(p, 'expense', 0)) for p in pl_monthly)
     no_payment_data = not payment_methods_report or sum(d['total'] for d in payment_methods_report.values()) <= 0
 
+    # ---- Smart insight callouts (per tab) ----
+    insights = {}
+
+    income_month_totals = [tax_monthly[m] + gst_monthly[m] for m in range(12)]
+    data_months = [i for i, v in enumerate(income_month_totals) if v > 0]
+    if data_months:
+        best_i = max(data_months, key=lambda i: income_month_totals[i])
+        year_inc = sum(income_month_totals)
+        pct = (income_month_totals[best_i] / year_inc * 100) if year_inc > 0 else 0
+        income_ins = [{'icon': 'bi-trophy', 'text': f'Best month: {months_names[best_i]} — ₹{income_month_totals[best_i]:,.2f} ({pct:.0f}% of {filter_year} income)'}]
+        if len(data_months) > 1:
+            worst_i = min(data_months, key=lambda i: income_month_totals[i])
+            if worst_i != best_i:
+                income_ins.append({'icon': 'bi-graph-down-arrow', 'text': f'Quietest month: {months_names[worst_i]} — ₹{income_month_totals[worst_i]:,.2f}'})
+            jumps = []
+            prev = None
+            for i in data_months:
+                if prev is not None:
+                    diff = income_month_totals[i] - income_month_totals[prev]
+                    if diff > 0:
+                        jumps.append((prev, i, diff))
+                prev = i
+            if jumps:
+                p, i, diff = max(jumps, key=lambda g: g[2])
+                gr_pct = (diff / income_month_totals[p] * 100) if income_month_totals[p] else 0
+                income_ins.append({'icon': 'bi-arrow-up-right', 'text': f'Biggest month-on-month jump: {months_names[p]} → {months_names[i]} (+₹{diff:,.2f}, {gr_pct:.0f}%)'})
+        insights['income'] = income_ins
+    if filter_year == today.year and (today.month - 1) not in data_months:
+        insights.setdefault('income', []).append({'icon': 'bi-exclamation-triangle', 'text': f'No income recorded yet this month ({today.strftime("%b")})'})
+
+    fee_month_totals = [m['total'] for m in fees_monthly]
+    fee_data_months = [i for i, v in enumerate(fee_month_totals) if v > 0]
+    fees_ins = []
+    if fee_data_months:
+        best_fi = max(fee_data_months, key=lambda i: fee_month_totals[i])
+        fees_ins.append({'icon': 'bi-trophy', 'text': f'Top collection month: {months_names[best_fi]} — ₹{fee_month_totals[best_fi]:,.2f}'})
+    if course_wise_income:
+        top_course = max(course_wise_income, key=lambda c: c['total'])
+        fees_ins.append({'icon': 'bi-mortarboard', 'text': f'Top course: {top_course["name"]} — ₹{top_course["total"]:,.2f}'})
+    if filter_year == today.year and (today.month - 1) not in fee_data_months:
+        fees_ins.append({'icon': 'bi-exclamation-triangle', 'text': f'No fees collected yet this month ({today.strftime("%b")})'})
+    insights['fees'] = fees_ins
+
+    exp_month_totals = [m['total'] for m in monthly_expense]
+    exp_data_months = [i for i, v in enumerate(exp_month_totals) if v > 0]
+    exp_ins = []
+    if category_wise_expense:
+        top_cat = max(category_wise_expense, key=lambda c: c['total'])
+        exp_ins.append({'icon': 'bi-receipt-cutoff', 'text': f'Biggest spend category: {top_cat["name"]} — ₹{top_cat["total"]:,.2f} ({top_cat["count"]} entries)'})
+    if exp_data_months:
+        best_ei = max(exp_data_months, key=lambda i: exp_month_totals[i])
+        exp_ins.append({'icon': 'bi-fire', 'text': f'Highest spend month: {months_names[best_ei]} — ₹{exp_month_totals[best_ei]:,.2f}'})
+    insights['expense'] = exp_ins
+
+    pl_active = [p for p in pl_monthly if p['income'] or p['funding'] or p['expense']]
+    overall_ins = []
+    if pl_active:
+        best_p = max(pl_active, key=lambda p: p['net'])
+        if best_p['net'] > 0:
+            overall_ins.append({'icon': 'bi-graph-up-arrow', 'text': f'Most profitable month: {best_p["month"]} — +₹{best_p["net"]:,.2f}'})
+        worst_p = min(pl_active, key=lambda p: p['net'])
+        overall_ins.append({'icon': 'bi-flag', 'text': f'Weakest month: {worst_p["month"]} — ₹{worst_p["net"]:,.2f}'})
+    if net_balance < 0 and total_expense_filtered > total_income_filtered + total_funding_filtered:
+        overall_ins.append({'icon': 'bi-lightbulb', 'text': f'Expenses (₹{total_expense_filtered:,.2f}) exceed income + capital for the period — review cost drivers.'})
+    insights['overall'] = overall_ins
+
+    pm_ins = []
+    if payment_methods_report:
+        top_pm = max(payment_methods_report.items(), key=lambda kv: kv[1]['total'])
+        if top_pm[1]['total'] > 0:
+            pm_ins.append({'icon': 'bi-credit-card', 'text': f'Most-used method: {top_pm[0]} — ₹{top_pm[1]["total"]:,.2f} ({len(top_pm[1]["records"])} payments)'})
+    insights['payment'] = pm_ins
+
     return render_template('reports.html', tab=tab, today=today, filter_mode=filter_mode,
         filter_month=filter_month, filter_year=filter_year,
         start_date_str=start_date_str or start_date.strftime('%Y-%m-%d'),
@@ -462,6 +535,7 @@ def reports():
         total_funding_filtered=float(total_funding_filtered), funding_monthly=funding_monthly,
         net_balance=net_balance, pl_monthly=pl_monthly, company_pl=company_pl,
         payment_methods_report=payment_methods_report, total_collected_period=float(total_collected_period),
+        insights=insights,
         no_income_data=no_income_data, no_fees_data=no_fees_data, no_expense_data=no_expense_data,
         no_overall_data=no_overall_data, no_payment_data=no_payment_data,
         prev_income=prev_income, prev_taxable=prev_taxable, prev_gst=prev_gst,
