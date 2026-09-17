@@ -315,6 +315,68 @@ def test_enquiry_history_unknown_lead_404(admin_client, app):
     assert admin_client.get('/enquiries/999999/history').status_code == 404
 
 
+# ---- UI/UX reforms 1-3, 6-7: table page ----
+
+def test_table_cells_have_mobile_data_labels(admin_client, app):
+    _make_enquiry(app)
+    page = admin_client.get('/enquiries')
+    html = page.data.decode()
+    for label in ['Lead Info', 'Interested In', 'Source', 'Status',
+                  'Follow Up', 'Actions']:
+        assert f'data-label="{label}"' in html
+
+
+def test_metrics_consolidated_into_single_tile_row(admin_client, app):
+    _make_enquiry(app)
+    page = admin_client.get('/enquiries')
+    html = page.data.decode()
+    assert 'Total Leads:' not in html  # old duplicate badge strip is gone
+    assert html.count('summary-card') >= 4
+    assert 'stat-number' in html and 'stat-label' in html
+
+
+def test_actions_column_is_not_sortable(admin_client, app):
+    _make_enquiry(app)
+    page = admin_client.get('/enquiries')
+    html = page.data.decode()
+    assert 'no-sort' in html
+    assert '<th scope="col"' in html
+
+
+def test_table_page_naming_and_modal_theming(admin_client, app):
+    _make_enquiry(app)
+    page = admin_client.get('/enquiries')
+    html = page.data.decode()
+    assert 'Enquiry Pipeline' in html
+    assert 'Prospect pipeline' not in html
+    assert 'bi-funnel me-2 text-white' in html
+
+
+def test_table_page_accessibility_hooks(admin_client, app):
+    _make_enquiry(app)
+    page = admin_client.get('/enquiries')
+    html = page.data.decode()
+    assert 'for="ai-followup-textarea"' in html
+    assert 'aria-live="polite"' in html
+
+
+# ---- UI/UX reforms 4-5: kanban card parity + touch fallback ----
+
+def test_kanban_card_has_kebab_email_and_overdue(admin_client, app):
+    from datetime import date
+    yesterday = date.today() - timedelta(days=1)
+    _make_enquiry(app, student_name='Card Lead', email='card@guha.test',
+                  phone='9000000401', follow_up_date=yesterday)
+    page = admin_client.get('/enquiries/kanban')
+    html = page.data.decode()
+    assert 'card@guha.test' in html
+    assert 'Overdue' in html
+    assert 'Actions for Card Lead' in html
+    assert 'AI follow-up draft' in html
+    assert 'data-move-select' in html
+    assert 'Move to' in html
+
+
 def test_audit_log_records_enquiry_lifecycle(admin_client, app):
     eid = _make_enquiry(app)
     admin_client.post(f'/enquiries/edit/{eid}', data={

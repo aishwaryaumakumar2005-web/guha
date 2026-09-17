@@ -3,111 +3,89 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h2 class="text-white fw-bold">
-Prospect pipeline</h2>
+Enquiry Pipeline</h2>
             <p class="text-white mb-0">
 Track student leads, manage advisor outreach, and use AI to write responses.</p>
         </div>
         <div class="d-flex gap-2">
-          <a href="{{ url_for('enquiries.kanban') }}" class="btn btn-outline-info"><i class="bi bi-kanban me-1"></i>Pipeline</a>
+          <a href="{{ url_for('enquiries.kanban') }}" class="btn btn-outline-info"><i class="bi bi-kanban me-1" aria-hidden="true"></i>Pipeline</a>
           <button class="btn btn-premium" data-bs-toggle="modal" data-bs-target="#addEnquiryModal">
-            <i class="bi bi-funnel-fill me-2"></i>Log New Enquiry
+            <i class="bi bi-funnel-fill me-2" aria-hidden="true"></i>Log New Enquiry
           </button>
         </div>
     </div>
-    <div class="mb-3 d-flex flex-wrap gap-2">
-        <span class="badge badge-custom badge-cyan">
-Total Leads: {{ enquiries|length }}</span>
-        <span class="badge badge-custom badge-amber">
-New: {{ enquiries|selectattr('status', 'equalto', 'New')|list|length }}</span>
-        <span class="badge badge-custom badge-active">
-Contacted: {{ enquiries|selectattr('status', 'equalto', 'Contacted')|list|length }}</span>
-        <span class="badge badge-custom badge-success">
-Converted: {{ enquiries|selectattr('status', 'equalto', 'Converted')|list|length }}</span>
-    </div>
-    <!-- Summary Metrics -->
-    <div class="row mb-4">
-        <div class="col">
-            <div class="glass-card p-3 d-flex align-items-center justify-content-between">
+    <!-- Summary tiles (lifecycle pattern: one tile row, no duplicate badge strip) -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-4 col-xl-3">
+            <div class="summary-card students">
                 <div>
-                    <span class="text-dark small uppercase">
-Total Leads</span>
-                    <h4 class="text-dark mb-0 fw-bold">
-{{ enquiries|length }}</h4>
+                    <div class="stat-number">{{ enquiries|length }}</div>
+                    <div class="stat-label">Total Leads</div>
                 </div>
-                <i class="bi bi-envelope-paper-fill fs-3 text-dark opacity-50">
-</i>
+                <i class="bi bi-envelope-paper-fill stat-icon" aria-hidden="true"></i>
             </div>
         </div>
-        <div class="col">
-            <div class="glass-card p-3 d-flex align-items-center justify-content-between">
+        <div class="col-6 col-md-4 col-xl-3">
+            <div class="summary-card lc-amber">
                 <div>
-                    <span class="text-dark small uppercase">
-New / Uncontacted</span>
-                    <h4 class="text-dark mb-0 fw-bold">
-{{ enquiries|selectattr('status', 'equalto', 'New')|list|length }}</h4>
+                    <div class="stat-number">{{ enquiries|selectattr('status', 'equalto', 'New')|list|length }}</div>
+                    <div class="stat-label">New / Uncontacted</div>
                 </div>
-                <i class="bi bi-bell-fill fs-3 text-rose opacity-50">
-</i>
+                <i class="bi bi-bell-fill stat-icon" aria-hidden="true"></i>
             </div>
         </div>
-        <div class="col">
-            <div class="glass-card p-3 d-flex align-items-center justify-content-between">
+        <div class="col-6 col-md-4 col-xl-3">
+            <div class="summary-card lc-cyan">
                 <div>
-                    <span class="text-dark small uppercase">
-Contacted Pipeline</span>
-                    <h4 class="text-dark mb-0 fw-bold">
-{{ enquiries|selectattr('status', 'equalto', 'Contacted')|list|length }}</h4>
+                    <div class="stat-number">{{ enquiries|selectattr('status', 'equalto', 'Contacted')|list|length }}</div>
+                    <div class="stat-label">Contacted Pipeline</div>
                 </div>
-                <i class="bi bi-chat-left-dots-fill fs-3 text-amber opacity-50">
-</i>
+                <i class="bi bi-chat-left-dots-fill stat-icon" aria-hidden="true"></i>
             </div>
         </div>
-        <div class="col">
-            <div class="glass-card p-3 d-flex align-items-center justify-content-between">
+        <div class="col-6 col-md-4 col-xl-3">
+            <div class="summary-card staff">
                 <div>
-                    <span class="text-dark small uppercase">
-Converted Enrollments</span>
-                    <h4 class="text-dark mb-0 fw-bold">
-{{ enquiries|selectattr('status', 'equalto', 'Converted')|list|length }}</h4>
+                    <div class="stat-number">{{ enquiries|selectattr('status', 'equalto', 'Converted')|list|length }}</div>
+                    <div class="stat-label">Converted Enrollments</div>
                 </div>
-                <i class="bi bi-check-circle-fill fs-3 text-dark opacity-50">
-</i>
+                <i class="bi bi-check-circle-fill stat-icon" aria-hidden="true"></i>
             </div>
         </div>
     </div>
     <!-- Enquiry Pipeline Table -->
     <div class="glass-card p-4 mb-4">
         <h4 class="mb-4 text-white fw-bold">
-<i class="bi bi-funnel me-2 text-white">
+<i class="bi bi-funnel me-2 text-white" aria-hidden="true">
 </i>
 Active Pipelines Ledger</h4>
         <div class="table-container">
             <table class="table table-custom sortable" data-page-size="10">
                 <thead>
                     <tr>
-                        <th>
+                        <th scope="col" aria-sort="none">
 Lead Info</th>
-                        <th>
+                        <th scope="col" aria-sort="none">
 Interested In</th>
-                        <th>
+                        <th scope="col" aria-sort="none">
 Source</th>
-                        <th>
+                        <th scope="col" aria-sort="none">
 Status</th>
-                        <th>
+                        <th scope="col" aria-sort="none">
 Follow Up</th>
-                        <th class="text-end">
+                        <th scope="col" class="text-end no-sort">
 Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% if enquiries %}                        {% for enq in enquiries %}                            <tr>
-                                <td>
+                                <td data-label="Lead Info">
                                     <div class="fw-medium text-white">
 {{ enq.student_name }}</div>
                                     <div class="small text-white">
 {{ enq.email or "No email" }} • {{ enq.phone }}</div>
                                 </td>
-                                <td>
+                                <td data-label="Interested In">
                                     {% if enq.course %}
                                     <span class="badge badge-custom badge-cyan">
 {{ enq.course.code }}</span>
@@ -119,15 +97,15 @@ Actions</th>
 Course removed</span>
                                     {% endif %}
                                 </td>
-                                <td>
+                                <td data-label="Source">
 <span class="text-white small">
 {{ enq.source }}</span>
 </td>
-                                <td>
+                                <td data-label="Status">
                                     <span class="badge badge-custom                                         {% if enq.status == 'New' %}badge-inactive                                        {% elif enq.status == 'Contacted' %}badge-amber                                        {% elif enq.status == 'Converted' %}badge-active                                        {% else %}badge-cyan{% endif %}">
                                         {{ enq.status }}                                    </span>
                                 </td>
-                                <td>
+                                <td data-label="Follow Up">
                                     {% if enq.follow_up_date %}
                                         {% set overdue = enq.follow_up_date < today and enq.status != 'Converted' %}
                                         <span class="small text-white {{ 'text-warning fw-semibold' if overdue }}">
@@ -140,7 +118,7 @@ Course removed</span>
                                         <span class="text-white small" style="opacity: 0.6;">—</span>
                                     {% endif %}
                                 </td>
-                                <td class="text-end">
+                                <td data-label="Actions" class="text-end">
                                     <div class="d-flex justify-content-end gap-2">
                                         <!-- Convert / view converted student -->
                                         {% if enq.status == 'Converted' %}
@@ -191,28 +169,28 @@ Course removed</span>
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title text-white" id="aiFollowupModalLabel">
-<i class="bi bi-magic text-white me-2">
+<i class="bi bi-magic text-white me-2" aria-hidden="true">
 </i>
 AI Follow-up Draft</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close">
 </button>
             </div>
             <div class="modal-body p-4">
-                <div id="ai-followup-loading" class="text-center p-5">
+                <div id="ai-followup-loading" class="text-center p-5" role="status" aria-live="polite">
                     <div class="spinner-border text-primary mb-3" role="status">
 </div>
                     <p class="text-secondary small">
 Synthesizing messaging copywriting draft...</p>
                 </div>
                 <div id="ai-followup-box" class="d-none">
-                    <label class="form-label small fw-bold" style="color:#ffffff;">
-<i class="bi bi-file-earmark-text me-1" style="color:#ffffff;">
+                    <label class="form-label small fw-bold" style="color:#ffffff;" for="ai-followup-textarea">
+<i class="bi bi-file-earmark-text me-1" style="color:#ffffff;" aria-hidden="true">
 </i>
 Copywriting Pitch Draft:</label>
                     <textarea class="form-control mb-3" id="ai-followup-textarea" rows="10" style="font-size: 0.85rem; line-height: 1.6;">
 </textarea>
                     <button class="btn btn-outline-premium w-100" id="btn-copy-followup" onclick="copyFollowUpToClipboard()">
-<i class="bi bi-clipboard2-check me-2">
+<i class="bi bi-clipboard2-check me-2" aria-hidden="true">
 </i>
 Copy Draft to Clipboard            </button>
                 </div>
@@ -230,7 +208,7 @@ Copy Draft to Clipboard            </button>
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="addEnquiryModalLabel">
-<i class="bi bi-funnel me-2 text-dark">
+<i class="bi bi-funnel me-2 text-white" aria-hidden="true">
 </i>
 Log Lead Enquiry</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
@@ -303,110 +281,14 @@ Submit Enquiry</button>
         </div>
     </div>
 </div>
-{% if enquiries %}{% for enq in enquiries %}<!-- EDIT ENQUIRY MODAL -->
-<div class="modal fade" id="editEnquiryModal{{ enq.id }}" tabindex="-1" aria-labelledby="editEnquiryModalLabel{{ enq.id }}" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="editEnquiryModalLabel{{ enq.id }}">
-Modify Lead Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
-</button>
-            </div>
-            <form action="{{ url_for('enquiries.edit', id=enq.id) }}" method="POST" hx-boost="false" data-no-ajax>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label small">
-Student Name</label>
-                        <input type="text" class="form-control" name="student_name" value="{{ enq.student_name }}" maxlength="100" required autofocus>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small">
-Email Address</label>
-                        <input type="email" class="form-control" name="email" value="{{ enq.email }}" maxlength="100">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small">
-Phone Number</label>
-                        <input type="tel" class="form-control" name="phone" value="{{ enq.phone }}" pattern="[0-9+\-\s]{10,20}" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small">
-Course Focus</label>
-                        <select class="form-select ts-select" name="course_id" placeholder="Search course...">
-                            <option value="" {% if not enq.course_id %}selected{% endif %}>-- No course assigned --</option>
-                            {% for course in courses %}                                <option value="{{ course.id }}" {% if course.id == enq.course_id %}selected{% endif %}>
-{{ course.code }}: {{ course.name }}</option>
-                            {% endfor %}                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small">
-Enquiry Lead Source</label>
-                        <select class="form-select" name="source">
-                            {% for src in sources %}<option value="{{ src }}" {% if enq.source == src %}selected{% endif %}>
-{{ src }}</option>
-                            {% endfor %}</select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small">
-Pipeline status</label>
-{% if enq.status == 'Converted' %}
-                        <input type="hidden" name="status" value="Converted">
-                        <select class="form-select" disabled aria-disabled="true">
-                            <option selected>
-Converted (enrolled student)</option>
-                        </select>
-{% else %}
-                        <select class="form-select" name="status">
-                            <option value="New" {% if enq.status == 'New' %}selected{% endif %}>
-New / Uncontacted</option>
-                            <option value="Contacted" {% if enq.status == 'Contacted' %}selected{% endif %}>
-Contacted</option>
-                            <option value="Visited" {% if enq.status == 'Visited' %}selected{% endif %}>
-Visited</option>
-                            <option value="Lost" {% if enq.status == 'Lost' %}selected{% endif %}>
-Lost</option>
-                        </select>
-{% endif %}
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small">
-Advisor notes / Background Context</label>
-                        <textarea class="form-control" name="notes" rows="3">
-{{ enq.notes }}</textarea>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small">
-Follow-up Date</label>
-                        <input type="date" class="form-control" name="follow_up_date" value="{{ enq.follow_up_date.strftime('%Y-%m-%d') if enq.follow_up_date else '' }}">
-                    </div>
-                    <div class="mb-1">
-                        <label class="form-label small text-muted">
-Activity history</label>
-                        <div class="enq-history border rounded p-2" style="max-height:170px;overflow:auto;" data-history-url="{{ url_for('enquiries.history', id=enq.id) }}">
-                            <p class="text-muted small mb-0">
-Opening history...</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
-Cancel</button>
-                    <button type="submit" class="btn btn-premium">
-Save Changes</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-{% endfor %}{% endif %}
+{% if enquiries %}{% for enq in enquiries %}{% include '_enquiry_edit_modal.html' %}{% endfor %}{% endif %}
 <!-- DELETE ENQUIRY MODAL -->
 <div class="modal fade" id="deleteEnquiryModal" tabindex="-1" aria-labelledby="deleteEnquiryModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="deleteEnquiryModalLabel">
-<i class="bi bi-trash3-fill me-2">
+<i class="bi bi-trash3-fill me-2" aria-hidden="true">
 </i>
 Delete Lead</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">

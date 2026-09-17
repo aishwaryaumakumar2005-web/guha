@@ -282,7 +282,8 @@ def kanban():
     columns = {s: Enquiry.query.filter_by(status=s).order_by(Enquiry.created_at.desc()).all() for s in ENQUIRY_STAGES}
     all_courses = Course.query.order_by(Course.code).all()
     return render_template('enquiries_kanban.html', columns=columns, stages=ENQUIRY_STAGES,
-                           courses=all_courses, sources=ENQUIRY_SOURCES)
+                           courses=all_courses, sources=ENQUIRY_SOURCES,
+                           today=date_cls.today())
 
 @enquiries_bp.route('/enquiries/status/<int:id>', methods=['POST'])
 @login_required

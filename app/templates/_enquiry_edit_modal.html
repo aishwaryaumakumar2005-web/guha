@@ -1,0 +1,96 @@
+<!-- EDIT ENQUIRY MODAL (shared by the table and kanban views; expects `enq`, `courses`, `sources`) -->
+<div class="modal fade" id="editEnquiryModal{{ enq.id }}" tabindex="-1" aria-labelledby="editEnquiryModalLabel{{ enq.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editEnquiryModalLabel{{ enq.id }}">
+Modify Lead Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+</button>
+            </div>
+            <form action="{{ url_for('enquiries.edit', id=enq.id) }}" method="POST" hx-boost="false" data-no-ajax>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small">
+Student Name</label>
+                        <input type="text" class="form-control" name="student_name" value="{{ enq.student_name }}" maxlength="100" required autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Email Address</label>
+                        <input type="email" class="form-control" name="email" value="{{ enq.email }}" maxlength="100">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Phone Number</label>
+                        <input type="tel" class="form-control" name="phone" value="{{ enq.phone }}" pattern="[0-9+\-\s]{10,20}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Course Focus</label>
+                        <select class="form-select ts-select" name="course_id" placeholder="Search course...">
+                            <option value="" {% if not enq.course_id %}selected{% endif %}>-- No course assigned --</option>
+                            {% for course in courses %}                                <option value="{{ course.id }}" {% if course.id == enq.course_id %}selected{% endif %}>
+{{ course.code }}: {{ course.name }}</option>
+                            {% endfor %}                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Enquiry Lead Source</label>
+                        <select class="form-select" name="source">
+                            {% for src in sources %}<option value="{{ src }}" {% if enq.source == src %}selected{% endif %}>
+{{ src }}</option>
+                            {% endfor %}</select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Pipeline status</label>
+{% if enq.status == 'Converted' %}
+                        <input type="hidden" name="status" value="Converted">
+                        <select class="form-select" disabled aria-disabled="true">
+                            <option selected>
+Converted (enrolled student)</option>
+                        </select>
+{% else %}
+                        <select class="form-select" name="status">
+                            <option value="New" {% if enq.status == 'New' %}selected{% endif %}>
+New / Uncontacted</option>
+                            <option value="Contacted" {% if enq.status == 'Contacted' %}selected{% endif %}>
+Contacted</option>
+                            <option value="Visited" {% if enq.status == 'Visited' %}selected{% endif %}>
+Visited</option>
+                            <option value="Lost" {% if enq.status == 'Lost' %}selected{% endif %}>
+Lost</option>
+                        </select>
+{% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Advisor notes / Background Context</label>
+                        <textarea class="form-control" name="notes" rows="3">
+{{ enq.notes }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">
+Follow-up Date</label>
+                        <input type="date" class="form-control" name="follow_up_date" value="{{ enq.follow_up_date.strftime('%Y-%m-%d') if enq.follow_up_date else '' }}">
+                    </div>
+                    <div class="mb-1">
+                        <label class="form-label small text-muted">
+Activity history</label>
+                        <div class="enq-history border rounded p-2" style="max-height:170px;overflow:auto;" data-history-url="{{ url_for('enquiries.history', id=enq.id) }}">
+                            <p class="text-muted small mb-0">
+Opening history...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+Cancel</button>
+                    <button type="submit" class="btn btn-premium">
+Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

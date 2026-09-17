@@ -383,7 +383,7 @@ function copyFollowUpToClipboard() {
         .then(() => {
             const btn = document.getElementById('btn-copy-followup');
             const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="bi bi-check-lg mr-1"></i> Copied!';
+            btn.innerHTML = '<i class="bi bi-check-lg mr-1" aria-hidden="true"></i> Copied!';
             btn.className = "btn btn-success font-weight-bold";
             
             setTimeout(() => {
