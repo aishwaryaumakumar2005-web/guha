@@ -13,6 +13,7 @@ LONG_ABSENT_STREAK = 3        # consecutive missed sessions
 LONG_ABSENT_ATT_RATE = 75.0   # percent attendance threshold
 ATT_WINDOW_DAYS = 30
 MAX_DROP_REASON = 200         # matches student_courses.drop_reason length
+MIN_MARKS_FOR_RATE = 3        # minimum marks before the rate rule can fire
 
 FILTERS = ['all', 'enrolled', 'not_enrolled', 'long_absent', 'completed', 'dropped', 'inactive', 'archived']
 
@@ -92,7 +93,13 @@ def _attendance_metrics(window_days=ATT_WINDOW_DAYS):
     ).order_by(Attendance.person_id, Attendance.date).all()
     by_student = defaultdict(dict)
     for r in records:
-        by_student[r.person_id][r.date] = r.status
+        by_date = by_student[r.person_id]
+        # Duplicate marks for the same day (e.g. a bulk import racing the
+        # upsert API) would otherwise resolve by arbitrary row order. Keep
+        # the most severe status so a recorded absence is never masked.
+        existing = by_date.get(r.date)
+        if existing is None or _score_status(r.status) < _score_status(existing):
+            by_date[r.date] = r.status
     metrics = {}
     for sid, by_date in by_student.items():
         dates = sorted(by_date)
@@ -131,9 +138,23 @@ def _attendance_metrics(window_days=ATT_WINDOW_DAYS):
 def _is_long_absent(att, thresholds=None):
     thresholds = thresholds or _default_thresholds()
     return att['last_streak'] >= thresholds['streak'] or (
-        att['total_marks'] >= 3 and att['att_rate'] is not None
+        att['total_marks'] >= MIN_MARKS_FOR_RATE and att['att_rate'] is not None
         and att['att_rate'] < thresholds['rate']
     )
+
+
+def _attendance_stale(att, window_days=ATT_WINDOW_DAYS):
+    """True when the student's most recent mark predates the window.
+
+    Covers the gap where a student attended a few times, then simply
+    stopped being marked (their last mark is Present, so neither the
+    streak nor the rate rule fires) — without this they stay "Enrolled"
+    forever.
+    """
+    last = att['last_attendance_date']
+    if last is None:
+        return False
+    return (date.today() - last).days > window_days
 
 
 def _enrolled_long_ago(student, enrollments, window_days=ATT_WINDOW_DAYS):
@@ -163,8 +184,13 @@ def _derive_bucket(student, enrollments, att, thresholds=None):
         # Dropped/Completed rows; still surface attendance risk.
         if _is_long_absent(att, thresholds):
             return 'Long Absent'
-        if att['last_attendance_date'] is None and _enrolled_long_ago(
+        if att['last_attendance_date'] is None:
+            # Never marked: flag once they've been enrolled past the window.
+            if _enrolled_long_ago(student, enrollments, thresholds['window']):
+                return 'Long Absent'
+        elif _attendance_stale(att, thresholds['window']) and _enrolled_long_ago(
                 student, enrollments, thresholds['window']):
+            # Marked, but nothing recent: they stopped showing up.
             return 'Long Absent'
         return 'Enrolled'
     if 'Dropped' in statuses and 'Completed' not in statuses:
@@ -277,7 +303,10 @@ def drop(sid, cid):
         student_courses.update().where(
             student_courses.c.student_id == sid,
             student_courses.c.course_id == cid
-        ).values(status='Dropped', completed_on=date.today(), drop_reason=reason or None)
+        # NB: completed_on is deliberately left untouched — a dropped
+        # enrollment is not a completion, and writing today() there
+        # polluted completion dates for anything reading the column.
+        ).values(status='Dropped', drop_reason=reason or None)
     )
     _audit_transition(sid, cid, 'drop',
                       {'from': previous, 'to': 'Dropped',

@@ -16,7 +16,7 @@ from app.models import (
     Tutor, student_courses,
 )
 from app.routes.student_lifecycle import (
-    _attendance_metrics, _derive_bucket, _get_thresholds,
+    _attendance_metrics, _attendance_stale, _derive_bucket, _get_thresholds,
 )
 
 
@@ -368,6 +368,56 @@ def test_half_day_counts_half(app):
     with app.app_context():
         m = _attendance_metrics()[sid]
         assert m['att_rate'] == 87.5
+
+
+def test_stale_attendance_flags_long_absent(app):
+    # Last mark was Present but 45 days ago: streak/rate rules are silent,
+    # so the staleness rule must catch it.
+    with app.app_context():
+        sid = Student.query.filter_by(email='student@guha.test').first().id
+    _mark(app, 'student', sid, 45, 'Present')
+    with app.app_context():
+        s = Student.query.get(sid)
+        enrolls = [{'status': 'Enrolled',
+                    'enrolled_on': date.today() - timedelta(days=60)}]
+        m = _attendance_metrics()[sid]
+        assert _attendance_stale(m) is True
+        assert _derive_bucket(s, enrolls, m) == 'Long Absent'
+
+
+def test_recent_attendance_not_stale(app):
+    with app.app_context():
+        sid = Student.query.filter_by(email='student@guha.test').first().id
+    _mark(app, 'student', sid, 5, 'Present')
+    with app.app_context():
+        s = Student.query.get(sid)
+        enrolls = [{'status': 'Enrolled',
+                    'enrolled_on': date.today() - timedelta(days=60)}]
+        m = _attendance_metrics()[sid]
+        assert _attendance_stale(m) is False
+        assert _derive_bucket(s, enrolls, m) == 'Enrolled'
+
+
+def test_duplicate_same_day_mark_prefers_absent(app):
+    with app.app_context():
+        sid = Student.query.filter_by(email='student@guha.test').first().id
+    _mark(app, 'student', sid, 5, 'Present')
+    _mark(app, 'student', sid, 5, 'Absent')
+    with app.app_context():
+        m = _attendance_metrics()[sid]
+        assert m['total_marks'] == 1
+        assert m['att_rate'] == 0.0
+
+
+def test_drop_does_not_set_completed_on(admin_client, app):
+    with app.app_context():
+        sid = Student.query.filter_by(email='student@guha.test').first().id
+        cid = Course.query.filter_by(code='PY').first().id
+    admin_client.post(f'/students/enrollment/drop/{sid}/{cid}',
+                      data={'filter': 'all', 'drop_reason': 'moved away'})
+    row = _enrollment(app, sid, cid)
+    assert row.status == 'Dropped'
+    assert row.completed_on is None
 
 
 def test_thresholds_override_and_fallback(app):

@@ -79,9 +79,9 @@ Last Activity</th>
                                         <span class="badge badge-custom badge-cyan">
 {{ e.course.name }}</span>
                                         <span class="small text-secondary ms-1">
-{% if e.status == 'Completed' %}Completed {{ e.completed_on.strftime('%d %b %Y') if e.completed_on }}{% elif e.status == 'Dropped' %}Dropped{% if e.drop_reason %} - {{ e.drop_reason }}{% endif %}{% else %}Enrolled since {{ e.enrolled_on.strftime('%d %b %Y') if e.enrolled_on else d.student.enrollment_date.strftime('%d %b %Y') }}{% endif %}</span>
+{% if e.status == 'Completed' %}Completed {{ e.completed_on.strftime('%d %b %Y') if e.completed_on }}{% elif e.status == 'Dropped' %}Dropped{% if e.drop_reason %} - {{ e.drop_reason }}{% endif %}{% else %}Enrolled since {{ e.enrolled_on.strftime('%d %b %Y') if e.enrolled_on else (d.student.enrollment_date.strftime('%d %b %Y') if d.student.enrollment_date else 'date unknown') }}{% endif %}</span>
                                         <div class="mt-1">
-                                        {% if e.status == 'Enrolled' %}                                            <form method="POST" action="{{ url_for('student_lifecycle.complete', sid=d.student.id, cid=e.course.id) }}" class="d-inline" hx-boost="false" data-no-ajax>
+                                        {% if e.status == 'Enrolled' %}                                            <form method="POST" action="{{ url_for('student_lifecycle.complete', sid=d.student.id, cid=e.course.id) }}" class="d-inline" hx-boost="false" data-no-ajax data-confirm="Mark {{ d.student.name }} as completed in {{ e.course.name }}?">
                                                 <input type="hidden" name="filter" value="{{ filter_key }}">
                                                 <button type="submit" class="btn btn-sm btn-action-success py-1 px-2" title="Mark course completed">
 <i class="bi bi-check2 me-1"></i>Complete
@@ -93,7 +93,7 @@ Last Activity</th>
                                                 data-name="{{ d.student.name }}" data-course="{{ e.course.name }}">
 <i class="bi bi-x me-1"></i>Drop
 </button>
-                                        {% else %}                                            <form method="POST" action="{{ url_for('student_lifecycle.reactivate', sid=d.student.id, cid=e.course.id) }}" class="d-inline" hx-boost="false" data-no-ajax>
+                                        {% else %}                                            <form method="POST" action="{{ url_for('student_lifecycle.reactivate', sid=d.student.id, cid=e.course.id) }}" class="d-inline" hx-boost="false" data-no-ajax data-confirm="Re-enroll {{ d.student.name }} in {{ e.course.name }}? This clears its completion/drop status.">
                                                 <input type="hidden" name="filter" value="{{ filter_key }}">
                                                 <button type="submit" class="btn btn-sm btn-action-reenroll py-1 px-2" title="Re-enroll">
 <i class="bi bi-arrow-counterclockwise me-1"></i>Re-enroll
@@ -104,10 +104,17 @@ Last Activity</th>
                                     {% endfor %}                                {% else %}                                    <span class="small text-secondary">No course enrollment</span>
                                 {% endif %}                            </td>
                             <td>
-                                {% if d.metrics.att_rate is not none %}                                    {% set rate = d.metrics.att_rate %}                                    <span class="badge badge-custom {% if rate >= 75 %}badge-active{% elif rate >= 50 %}badge-amber{% else %}badge-inactive{% endif %}">{{ "%.0f"|format(rate) }}%</span>
-                                    <div class="small text-secondary mt-1">
+                                {% if d.metrics.att_rate is not none %}
+                                    {% set rate = d.metrics.att_rate %}
+                                    <span class="badge badge-custom {% if rate >= thresholds.rate %}badge-active{% elif rate >= thresholds.rate * 0.66 %}badge-amber{% else %}badge-inactive{% endif %}" title="Attendance over the last {{ thresholds.window }} days">{{ "%.0f"|format(rate) }}%</span>
+                                    <div class="small text-secondary mt-1">{{ d.metrics.total_marks }} mark(s) &middot; worst {{ d.metrics.max_run }} absent</div>
+                                    <div class="small text-secondary">
 Absent last {{ d.metrics.last_streak }} session(s) {% if d.metrics.last_streak > 0 %} <span class="text-danger">&#9888;</span>{% endif %}</div>
-                                {% else %}                                    <span class="small text-secondary">No attendance marked</span>
+                                {% elif d.metrics.last_attendance_date %}
+                                    <span class="small text-secondary">No marks in last {{ thresholds.window }}d</span>
+                                    <div class="small text-secondary mt-1">Last: {{ d.metrics.last_attendance_date.strftime('%d %b %Y') }}</div>
+                                {% else %}
+                                    <span class="small text-secondary">Never marked</span>
                                 {% endif %}                            </td>
                             <td class="text-end small text-secondary">
                                 {% if d.metrics.last_attendance_date %}                                    {{ d.metrics.last_attendance_date.strftime('%d %b %Y') }}                                {% else %}                                    Never                                {% endif %}                            </td>
@@ -141,5 +148,21 @@ Absent last {{ d.metrics.last_streak }} session(s) {% if d.metrics.last_streak >
         document.body.appendChild(form);
         form.submit();
     }
+    // Confirm irreversible-looking enrollment transitions. Reads the text
+    // from a data-confirm attribute so names are never interpolated into JS.
+    document.addEventListener('submit', function (ev) {
+        const form = ev.target;
+        if (!form || !form.dataset || !form.dataset.confirm) return;
+        if (form.dataset.confirmed === '1') return;
+        ev.preventDefault();
+        if (window.confirm(form.dataset.confirm)) {
+            form.dataset.confirmed = '1';
+            if (typeof form.requestSubmit === 'function') {
+                form.requestSubmit();
+            } else {
+                form.submit();
+            }
+        }
+    }, true);
 </script>
 {% endblock %}
