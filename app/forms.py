@@ -204,6 +204,12 @@ class ExpenseForm(Form):
 # source (e.g. a "Google Form" import reset to "Website").
 ENQUIRY_SOURCES = ['Website', 'Walk-in', 'Phone', 'Referral', 'Social Media', 'Google Form', 'Other']
 ENQUIRY_STATUSES = ['New', 'Contacted', 'Visited', 'Converted', 'Lost']
+# A brand-new lead can only start here (matches the create modal).
+ENQUIRY_CREATE_STATUSES = ['New', 'Contacted']
+# Statuses an advisor may set directly. 'Converted' is deliberately excluded:
+# it may only be reached through the convert() route so that every Converted
+# lead is guaranteed to have a linked Student.
+ENQUIRY_MANUAL_STATUSES = ['New', 'Contacted', 'Visited', 'Lost']
 
 
 class EnquiryForm(Form):

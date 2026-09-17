@@ -350,6 +350,13 @@ Enquiry Lead Source</label>
                     <div class="mb-3">
                         <label class="form-label small">
 Pipeline status</label>
+{% if enq.status == 'Converted' %}
+                        <input type="hidden" name="status" value="Converted">
+                        <select class="form-select" disabled aria-disabled="true">
+                            <option selected>
+Converted (enrolled student)</option>
+                        </select>
+{% else %}
                         <select class="form-select" name="status">
                             <option value="New" {% if enq.status == 'New' %}selected{% endif %}>
 New / Uncontacted</option>
@@ -357,11 +364,10 @@ New / Uncontacted</option>
 Contacted</option>
                             <option value="Visited" {% if enq.status == 'Visited' %}selected{% endif %}>
 Visited</option>
-                            <option value="Converted" {% if enq.status == 'Converted' %}selected{% endif %}>
-Converted</option>
                             <option value="Lost" {% if enq.status == 'Lost' %}selected{% endif %}>
 Lost</option>
                         </select>
+{% endif %}
                     </div>
                     <div class="mb-3">
                         <label class="form-label small">
@@ -373,6 +379,14 @@ Advisor notes / Background Context</label>
                         <label class="form-label small">
 Follow-up Date</label>
                         <input type="date" class="form-control" name="follow_up_date" value="{{ enq.follow_up_date.strftime('%Y-%m-%d') if enq.follow_up_date else '' }}">
+                    </div>
+                    <div class="mb-1">
+                        <label class="form-label small text-muted">
+Activity history</label>
+                        <div class="enq-history border rounded p-2" style="max-height:170px;overflow:auto;" data-history-url="{{ url_for('enquiries.history', id=enq.id) }}">
+                            <p class="text-muted small mb-0">
+Opening history...</p>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -429,6 +443,55 @@ Delete Lead</button>
         if (form && id !== null) form.setAttribute('action', '/enquiries/delete/' + id);
         var nameEl = document.getElementById('deleteEnquiryName');
         if (nameEl) nameEl.textContent = name;
+    });
+})();
+(function () {
+    document.querySelectorAll('.modal[id^="editEnquiryModal"]').forEach(function (modal) {
+        modal.addEventListener('show.bs.modal', function () {
+            var box = modal.querySelector('.enq-history');
+            if (!box || box.getAttribute('data-loaded') === '1') return;
+            var url = box.getAttribute('data-history-url');
+            box.textContent = '';
+            var loading = document.createElement('p');
+            loading.className = 'text-muted small mb-0';
+            loading.textContent = 'Loading...';
+            box.appendChild(loading);
+            fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    box.setAttribute('data-loaded', '1');
+                    box.textContent = '';
+                    if (!data.success || !data.entries || !data.entries.length) {
+                        var empty = document.createElement('p');
+                        empty.className = 'text-muted small mb-0';
+                        empty.textContent = 'No history yet.';
+                        box.appendChild(empty);
+                        return;
+                    }
+                    var ul = document.createElement('ul');
+                    ul.className = 'list-unstyled mb-0';
+                    data.entries.forEach(function (e) {
+                        var li = document.createElement('li');
+                        li.className = 'small mb-1';
+                        var meta = document.createElement('div');
+                        meta.className = 'text-muted';
+                        meta.textContent = e.timestamp + ' - ' + e.username;
+                        var body = document.createElement('div');
+                        body.textContent = e.detail;
+                        li.appendChild(meta);
+                        li.appendChild(body);
+                        ul.appendChild(li);
+                    });
+                    box.appendChild(ul);
+                })
+                .catch(function () {
+                    box.textContent = '';
+                    var err = document.createElement('p');
+                    err.className = 'text-danger small mb-0';
+                    err.textContent = 'Could not load history.';
+                    box.appendChild(err);
+                });
+        });
     });
 })();
 </script>

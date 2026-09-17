@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 from app.extensions import db
-from app.models import Course, Enquiry, Student, SystemSetting
+from app.models import AuditLog, Course, Enquiry, Student, SystemSetting
 
 
 def _course_id(app):
@@ -194,3 +194,137 @@ def test_kanban_renders_placeholder_and_toast_hooks(admin_client, app):
     assert b'kanban-empty' in page.data
     assert b'refreshColumn' in page.data
     assert b'showToast' in page.data
+
+
+# ---- Tier 1: status-transition integrity (no Converted without a student) ----
+
+def test_create_rejects_converted_status(admin_client, app):
+    resp = admin_client.post('/enquiries', data={
+        'student_name': 'Craft', 'phone': '9111111111',
+        'source': 'Walk-in', 'status': 'Converted'})
+    assert resp.status_code == 302
+    with app.app_context():
+        assert Enquiry.query.filter_by(phone='9111111111').count() == 0
+
+
+def test_create_allows_only_new_or_contacted(admin_client, app):
+    resp = admin_client.post('/enquiries', data={
+        'student_name': 'OK Lead', 'phone': '9111111112',
+        'source': 'Walk-in', 'status': 'New'})
+    assert resp.status_code == 302
+    with app.app_context():
+        assert Enquiry.query.filter_by(phone='9111111112').count() == 1
+
+
+def test_edit_rejects_manual_conversion(admin_client, app):
+    eid = _make_enquiry(app)
+    resp = admin_client.post(f'/enquiries/edit/{eid}', data={
+        'student_name': 'Lead', 'email': 'lead@guha.test', 'phone': '9000000001',
+        'status': 'Converted'})
+    assert resp.status_code == 302
+    with app.app_context():
+        assert Enquiry.query.get(eid).status == 'New'
+
+
+def test_edit_keeps_converted_lead_converted(admin_client, app):
+    eid = _make_enquiry(app, email='keep@guha.test')
+    admin_client.post(f'/enquiries/convert/{eid}',
+                      headers={'X-Requested-With': 'XMLHttpRequest'})
+    resp = admin_client.post(f'/enquiries/edit/{eid}', data={
+        'student_name': 'Renamed', 'email': 'keep@guha.test',
+        'phone': '9000000001', 'status': 'New'})
+    assert resp.status_code == 302
+    with app.app_context():
+        enq = Enquiry.query.get(eid)
+        assert enq.status == 'Converted'
+        assert enq.student_name == 'Renamed'
+
+
+def test_update_status_rejects_converted(admin_client, app):
+    eid = _make_enquiry(app)
+    resp = admin_client.post(f'/enquiries/status/{eid}', data={'status': 'Converted'},
+                             headers={'X-Requested-With': 'XMLHttpRequest'})
+    assert resp.status_code == 400
+    with app.app_context():
+        assert Enquiry.query.get(eid).status == 'New'
+
+
+# ---- Tier 1: create-time dedupe on phone/email ----
+
+def test_create_rejects_duplicate_phone(admin_client, app):
+    _make_enquiry(app, email='first@guha.test', phone='9876500001')
+    resp = admin_client.post('/enquiries', data={
+        'student_name': 'Dup Phone', 'phone': '98765 00001',
+        'email': 'second@guha.test', 'source': 'Walk-in', 'status': 'New'})
+    assert resp.status_code == 302
+    with app.app_context():
+        assert Enquiry.query.count() == 1
+
+
+def test_create_rejects_duplicate_email_case_insensitive(admin_client, app):
+    _make_enquiry(app, email='Dup@Guha.test', phone='9000000101')
+    resp = admin_client.post('/enquiries', data={
+        'student_name': 'Dup Email', 'phone': '9000000102',
+        'email': 'dup@guha.test', 'source': 'Walk-in', 'status': 'New'})
+    assert resp.status_code == 302
+    with app.app_context():
+        assert Enquiry.query.count() == 1
+
+
+def test_edit_rejects_collision_with_other_lead(admin_client, app):
+    _make_enquiry(app, email='a@guha.test', phone='9000000201')
+    bid = _make_enquiry(app, email='b@guha.test', phone='9000000202')
+    resp = admin_client.post(f'/enquiries/edit/{bid}', data={
+        'student_name': 'B', 'email': 'a@guha.test', 'phone': '9000000202',
+        'status': 'New'})
+    assert resp.status_code == 302
+    with app.app_context():
+        assert Enquiry.query.get(bid).email == 'b@guha.test'
+
+
+def test_edit_allows_keeping_own_phone(admin_client, app):
+    eid = _make_enquiry(app, email='self@guha.test', phone='9000000301')
+    resp = admin_client.post(f'/enquiries/edit/{eid}', data={
+        'student_name': 'Self Edited', 'email': 'self@guha.test',
+        'phone': '9000000301', 'status': 'Contacted'})
+    assert resp.status_code == 302
+    with app.app_context():
+        enq = Enquiry.query.get(eid)
+        assert enq.student_name == 'Self Edited'
+        assert enq.status == 'Contacted'
+
+
+# ---- Tier 1: AuditLog coverage (already provided by app/audit.py ORM events) ----
+
+def test_enquiry_history_endpoint(admin_client, app):
+    eid = _make_enquiry(app)
+    admin_client.post(f'/enquiries/edit/{eid}', data={
+        'student_name': 'Lead', 'email': 'lead@guha.test', 'phone': '9000000001',
+        'status': 'Contacted', 'notes': 'spoke to parent'})
+    resp = admin_client.get(f'/enquiries/{eid}/history',
+                            headers={'X-Requested-With': 'XMLHttpRequest'})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data['success'] is True
+    assert data['entries']
+    assert any('spoke to parent' in e['detail'] for e in data['entries'])
+    assert any('status' in e['detail'] for e in data['entries'])
+
+
+def test_enquiry_history_unknown_lead_404(admin_client, app):
+    assert admin_client.get('/enquiries/999999/history').status_code == 404
+
+
+def test_audit_log_records_enquiry_lifecycle(admin_client, app):
+    eid = _make_enquiry(app)
+    admin_client.post(f'/enquiries/edit/{eid}', data={
+        'student_name': 'Lead', 'email': 'lead@guha.test', 'phone': '9000000001',
+        'status': 'Contacted', 'notes': 'first call'})
+    admin_client.post(f'/enquiries/delete/{eid}')
+    with app.app_context():
+        rows = AuditLog.query.filter_by(entity_type='Enquiry', entity_id=eid).all()
+        actions = {r.action for r in rows}
+        assert 'UPDATE' in actions
+        assert 'DELETE' in actions
+        notes_change = [r for r in rows if r.changes and 'first call' in r.changes]
+        assert notes_change, 'note edit should be captured in audit changes'
