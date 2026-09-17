@@ -328,6 +328,23 @@ body.dark-mode ::-webkit-scrollbar-thumb { background: #3A3A5C; }
     transition-delay: 0s;
 }
 
+/* Initials avatar: same 32px footprint as .student-photo so rows without a
+   photo keep identical alignment instead of shifting left. */
+.student-initials {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(135deg, #1b6ef3, #7b3fe4);
+    user-select: none;
+}
+
 /* Brand — icon in gradient circle */
 .brand-title {
     font-size: 1.2rem;

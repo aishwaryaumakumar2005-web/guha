@@ -40,7 +40,7 @@
                         <div class="stat-number">{{ n }}</div>
                         <div class="stat-label">{{ label }}</div>
                     </div>
-                    <i class="bi {{ icon }} stat-icon"></i>
+                    <i class="bi {{ icon }} stat-icon" aria-hidden="true"></i>
                 </div>
             </a>
         </div>
@@ -49,12 +49,12 @@
 
     <!-- Compact filter bar -->
     <div class="glass-card p-3 mb-4">
-        <form method="GET" action="{{ url_for('student_lifecycle.lifecycle') }}" hx-boost="false" class="row g-2 align-items-end">
+        <form method="GET" action="{{ url_for('student_lifecycle.lifecycle') }}" hx-boost="false" id="lcFilterForm" class="row g-2 align-items-end">
             <input type="hidden" name="filter" value="{{ filter_key }}">
             <div class="col-md-6">
                 <label for="lcSearch" class="form-label small text-white mb-1">Search</label>
                 <div class="input-group input-group-sm">
-                    <span class="input-group-text bg-transparent text-white border-secondary"><i class="bi bi-search"></i></span>
+                    <span class="input-group-text bg-transparent text-white border-secondary" aria-hidden="true"><i class="bi bi-search" aria-hidden="true"></i></span>
                     <input type="search" id="lcSearch" name="q" value="{{ q }}" class="form-control" placeholder="Name, phone, email or roll no" aria-label="Search students">
                 </div>
             </div>
@@ -66,13 +66,13 @@
                 </select>
             </div>
             <div class="col-md-3 d-flex gap-2">
-                <button type="submit" class="btn btn-sm btn-premium flex-grow-1"><i class="bi bi-funnel me-1"></i>Apply</button>
-                <a href="{{ url_for('student_lifecycle.lifecycle', filter='all') }}" class="btn btn-sm btn-outline-premium" hx-boost="false">Reset</a>
+                <button type="submit" class="btn btn-sm btn-premium flex-grow-1"><i class="bi bi-funnel me-1" aria-hidden="true"></i>Apply</button>
+                <button type="button" class="btn btn-sm btn-outline-premium" onclick="lcResetSearch()" title="Clear search and course, keep this filter">Reset</button>
             </div>
         </form>
         <div class="small text-white mt-3 d-flex flex-wrap align-items-center gap-2" style="opacity:.75;">
-            <span><i class="bi bi-info-circle me-1"></i>Showing <strong>{{ shown }}</strong> of {{ total_all }} student(s){% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}{% if selected_course_id %} in the selected course{% endif %}.</span>
-            <a href="{{ url_for('admin.admin_console') }}#lifecycle-thresholds" class="text-info text-decoration-none" hx-boost="false"><i class="bi bi-sliders me-1"></i>Adjust Long Absent thresholds</a>
+            <span id="lcCountLine"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Showing <strong>{{ shown }}</strong> of {{ total_all }} student(s){% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}{% if selected_course_id %} in the selected course{% endif %}.</span>
+            <a href="{{ url_for('admin.admin_console') }}#lifecycle-thresholds" class="text-info text-decoration-none" hx-boost="false"><i class="bi bi-sliders me-1" aria-hidden="true"></i>Adjust Long Absent thresholds</a>
         </div>
     </div>
 
@@ -82,14 +82,14 @@
         <input type="hidden" name="bulk_reason" id="bulkReason" value="">
         <input type="hidden" name="filter" value="{{ filter_key }}">
         <input type="hidden" name="course_id" value="{{ selected_course_id or '' }}">
-        <div class="glass-card p-4" data-aos="fade-up">
+        <div class="glass-card p-4" data-aos="fade-up" id="lcTableCard">
             <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                <h4 class="mb-0 text-dark fw-bold"><i class="bi bi-diagram-3 me-2 text-dark"></i>Student Records</h4>
+                <h4 class="mb-0 text-dark fw-bold"><i class="bi bi-diagram-3 me-2 text-dark" aria-hidden="true"></i>Student Records</h4>
                 <div class="lc-bulk-bar" id="bulkBar" role="region" aria-label="Bulk actions">
                     <span class="text-white small"><strong id="bulkCount">0</strong> selected</span>
-                    <button type="button" class="btn btn-sm btn-action-success" onclick="bulkPrompt('complete')"><i class="bi bi-check2 me-1"></i>Complete</button>
-                    <button type="button" class="btn btn-sm btn-action-danger" onclick="bulkPrompt('drop')"><i class="bi bi-x me-1"></i>Drop</button>
-                    <button type="button" class="btn btn-sm btn-action-reenroll" onclick="bulkPrompt('reactivate')"><i class="bi bi-arrow-counterclockwise me-1"></i>Re-enroll</button>
+                    <button type="button" class="btn btn-sm btn-action-success" onclick="bulkPrompt('complete')"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Complete</button>
+                    <button type="button" class="btn btn-sm btn-action-danger" onclick="bulkPrompt('drop')"><i class="bi bi-x me-1" aria-hidden="true"></i>Drop</button>
+                    <button type="button" class="btn btn-sm btn-action-reenroll" onclick="bulkPrompt('reactivate')"><i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Re-enroll</button>
                     <button type="button" class="btn btn-sm btn-outline-light" onclick="clearBulk()">Clear</button>
                 </div>
             </div>
@@ -102,7 +102,7 @@
                             <th scope="col" aria-sort="none">Overall Status</th>
                             <th scope="col" aria-sort="none">Courses</th>
                             <th scope="col" aria-sort="none">Attendance ({{ thresholds.window }}d)
-                                <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline text-dark" onclick="event.stopPropagation()" data-bs-toggle="popover" data-bs-placement="top" data-bs-title="Long Absent rule" data-bs-content="Missed {{ thresholds.streak }}+ consecutive sessions, or below {{ '%.0f'|format(thresholds.rate) }}% attendance in {{ thresholds.window }} days (Half Day counts as half), or no attendance {{ thresholds.window }}+ days after enrollment. Tunable under Admin &rarr; Settings." aria-label="What counts as Long Absent?"><i class="bi bi-question-circle"></i></button>
+                                <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline text-dark" onclick="event.stopPropagation()" data-bs-toggle="popover" data-bs-placement="top" data-bs-title="Long Absent rule" data-bs-content="Missed {{ thresholds.streak }}+ consecutive sessions, or below {{ '%.0f'|format(thresholds.rate) }}% attendance in {{ thresholds.window }} days (Half Day counts as half), or no attendance {{ thresholds.window }}+ days after enrollment. Tunable under Admin &rarr; Settings." aria-label="What counts as Long Absent?"><i class="bi bi-question-circle" aria-hidden="true"></i></button>
                             </th>
                             <th scope="col" aria-sort="none" class="text-end">Last Activity</th>
                         </tr>
@@ -124,12 +124,12 @@
                             </td>
                             <td data-label="Status">
                                 {% set b = d.bucket %}
-                                {% if b == 'Enrolled' %}<span class="badge badge-custom badge-active"><i class="bi bi-check2-circle me-1"></i>Enrolled</span>
-                                {% elif b == 'Completed' %}<span class="badge badge-custom badge-cyan"><i class="bi bi-award me-1"></i>Completed</span>
-                                {% elif b == 'Long Absent' %}<span class="badge badge-custom badge-amber"><i class="bi bi-exclamation-triangle me-1"></i>Long Absent</span>
-                                {% elif b == 'Dropped' %}<span class="badge badge-custom badge-inactive"><i class="bi bi-x-octagon me-1"></i>Dropped</span>
-                                {% elif b == 'Not Enrolled' %}<span class="badge badge-custom badge-inactive"><i class="bi bi-person-dash me-1"></i>Not Enrolled</span>
-                                {% else %}<span class="badge badge-custom badge-inactive"><i class="bi bi-person-slash me-1"></i>{{ b }}</span>
+                                {% if b == 'Enrolled' %}<span class="badge badge-custom badge-active"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Enrolled</span>
+                                {% elif b == 'Completed' %}<span class="badge badge-custom badge-cyan"><i class="bi bi-award me-1" aria-hidden="true"></i>Completed</span>
+                                {% elif b == 'Long Absent' %}<span class="badge badge-custom badge-amber"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Long Absent</span>
+                                {% elif b == 'Dropped' %}<span class="badge badge-custom badge-inactive"><i class="bi bi-x-octagon me-1" aria-hidden="true"></i>Dropped</span>
+                                {% elif b == 'Not Enrolled' %}<span class="badge badge-custom badge-inactive"><i class="bi bi-person-dash me-1" aria-hidden="true"></i>Not Enrolled</span>
+                                {% else %}<span class="badge badge-custom badge-inactive"><i class="bi bi-person-slash me-1" aria-hidden="true"></i>{{ b }}</span>
                                 {% endif %}
                             </td>
                             <td data-label="Courses">
@@ -149,13 +149,13 @@
                                             {% endif %}
                                         </span>
                                         <div class="dropdown ms-auto">
-                                            <button class="btn btn-sm btn-outline-secondary py-0 px-1" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for {{ e.course.name }}"><i class="bi bi-three-dots-vertical"></i></button>
+                                            <button class="btn btn-sm btn-outline-secondary py-0 px-1" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for {{ e.course.name }}"><i class="bi bi-three-dots-vertical" aria-hidden="true"></i></button>
                                             <ul class="dropdown-menu dropdown-menu-end">
                                                 {% if e.status == 'Enrolled' %}
-                                                <li><button class="dropdown-item" type="button" data-lc-action="complete" data-sid="{{ d.student.id }}" data-cid="{{ e.course.id }}" data-student="{{ d.student.name }}" data-course="{{ e.course.name }}" onclick="lcFromButton(this)"><i class="bi bi-check2 me-2"></i>Mark completed</button></li>
-                                                <li><button class="dropdown-item text-danger" type="button" data-lc-action="drop" data-sid="{{ d.student.id }}" data-cid="{{ e.course.id }}" data-student="{{ d.student.name }}" data-course="{{ e.course.name }}" onclick="lcFromButton(this)"><i class="bi bi-x me-2"></i>Drop</button></li>
+                                                <li><button class="dropdown-item" type="button" data-lc-action="complete" data-sid="{{ d.student.id }}" data-cid="{{ e.course.id }}" data-student="{{ d.student.name }}" data-course="{{ e.course.name }}" onclick="lcFromButton(this)"><i class="bi bi-check2 me-2" aria-hidden="true"></i>Mark completed</button></li>
+                                                <li><button class="dropdown-item text-danger" type="button" data-lc-action="drop" data-sid="{{ d.student.id }}" data-cid="{{ e.course.id }}" data-student="{{ d.student.name }}" data-course="{{ e.course.name }}" onclick="lcFromButton(this)"><i class="bi bi-x me-2" aria-hidden="true"></i>Drop</button></li>
                                                 {% else %}
-                                                <li><button class="dropdown-item" type="button" data-lc-action="reactivate" data-sid="{{ d.student.id }}" data-cid="{{ e.course.id }}" data-student="{{ d.student.name }}" data-course="{{ e.course.name }}" onclick="lcFromButton(this)"><i class="bi bi-arrow-counterclockwise me-2"></i>Re-enroll</button></li>
+                                                <li><button class="dropdown-item" type="button" data-lc-action="reactivate" data-sid="{{ d.student.id }}" data-cid="{{ e.course.id }}" data-student="{{ d.student.name }}" data-course="{{ e.course.name }}" onclick="lcFromButton(this)"><i class="bi bi-arrow-counterclockwise me-2" aria-hidden="true"></i>Re-enroll</button></li>
                                                 {% endif %}
                                             </ul>
                                         </div>
@@ -176,8 +176,8 @@
                                     <span class="badge badge-custom {% if rate >= thresholds.rate %}badge-active{% elif rate >= thresholds.rate * 0.66 %}badge-amber{% else %}badge-inactive{% endif %}" aria-label="Attendance rate {{ '%.0f'|format(rate) }} percent">
                                         <i class="bi {% if rate >= thresholds.rate %}bi-check-circle{% elif rate >= thresholds.rate * 0.66 %}bi-dash-circle{% else %}bi-exclamation-triangle{% endif %} me-1" aria-hidden="true"></i>{{ '%.0f'|format(rate) }}%
                                     </span>
-                                    <div class="lc-att-bar flex-grow-1" style="min-width:60px;" title="{{ d.metrics.total_marks }} mark(s) in the last {{ thresholds.window }} days (Half Day = half)">
-                                        <span style="width: {{ rate|round(0)|int }}%; background: {{ bar }};"></span>
+                                    <div class="lc-att-bar flex-grow-1" style="min-width:60px;" role="progressbar" aria-label="Attendance rate {{ '%.0f'|format(rate) }} percent over {{ d.metrics.total_marks }} marks" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ rate|round(0)|int }}" title="{{ d.metrics.total_marks }} mark(s) in the last {{ thresholds.window }} days (Half Day = half)">
+                                        <span style="width: {{ rate|round(0)|int }}%; background: {{ bar }};" aria-hidden="true"></span>
                                     </div>
                                 </div>
                                 <div class="small text-secondary mt-1">{{ d.metrics.total_marks }} mark(s) &middot; worst {{ d.metrics.max_run }} absent</div>
@@ -256,6 +256,60 @@
     window.currentFilter = {{ filter_key|tojson }};
     var LC_DETAIL_BASE = {{ url_for('student_lifecycle.detail', sid=999999)|tojson }};
 
+    var lcFetchSeq = 0;
+    function lcFormUrl() {
+        var form = document.getElementById('lcFilterForm');
+        if (!form) return null;
+        return form.action + '?' + new URLSearchParams(new FormData(form)).toString();
+    }
+    // Fetch the filtered list and swap tbody + counts in place. Falls back
+    // to a classic submit when anything is unexpected (fetch failure,
+    // missing hooks, or a result set that needs a client pager built).
+    function lcFetchList() {
+        var url = lcFormUrl();
+        if (!url) return;
+        var my = ++lcFetchSeq;
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+            .then(function (html) {
+                if (my !== lcFetchSeq) return;
+                var doc = new DOMParser().parseFromString(html, 'text/html');
+                var freshBody = doc.querySelector('#lcTableCard tbody');
+                var card = document.getElementById('lcTableCard');
+                var curBody = card ? card.querySelector('tbody') : null;
+                if (!freshBody || !curBody) throw new Error('no table');
+                var t = card.querySelector('table');
+                var pageSize = (t && parseInt(t.dataset.pageSize, 10)) || 10;
+                if (freshBody.querySelectorAll('tr').length > pageSize && !(t && t._pagination)) {
+                    throw new Error('needs pager');
+                }
+                curBody.innerHTML = freshBody.innerHTML;
+                var freshCount = doc.getElementById('lcCountLine');
+                var curCount = document.getElementById('lcCountLine');
+                if (freshCount && curCount) curCount.innerHTML = freshCount.innerHTML;
+                clearBulk();
+                if (t && t._pagination && typeof renderTablePage === 'function') {
+                    t._pagination.rows = Array.from(curBody.querySelectorAll('tr'));
+                    t._pagination.currentPage = 1;
+                    t._pagination.searchQuery = '';
+                    renderTablePage(t);
+                }
+                if (window.history && window.history.replaceState) window.history.replaceState(null, '', url);
+            })
+            .catch(function () {
+                var form = document.getElementById('lcFilterForm');
+                if (form) form.submit();
+            });
+    }
+    // Reset clears search + course but stays on the current filter pill
+    // (one click already reaches "view all" via the Total tile).
+    function lcResetSearch() {
+        var search = document.getElementById('lcSearch');
+        var course = document.getElementById('lcCourse');
+        if (search) search.value = '';
+        if (course) course.value = '';
+        lcFetchList();
+    }
     function lcInit() {
         // Convert the base flash banner into a toast, matching the app's
         // notification language, then drop the banner.
@@ -285,30 +339,19 @@
                 bootstrap.Popover.getOrCreateInstance(btn).toggle();
             }, true);
         }
-        // Live search: debounce keystrokes into the server-side filter so the
-        // list narrows as the admin types (the base table's client-side search
-        // is suppressed via data-server-search).
+        // Live search: debounce keystrokes into lcFetchList(), which swaps
+        // the table in place (no reload, focus stays in the box). The base
+        // table's client-side search is suppressed via data-server-search;
+        // Apply still does a classic submit (no-JS path).
         var search = document.getElementById('lcSearch');
         if (search && search.form) {
-            var searchForm = search.form;
-            var lastQ = search.value;
             var timer = null;
             search.addEventListener('input', function () {
                 clearTimeout(timer);
-                timer = setTimeout(function () {
-                    if (search.value.trim() === lastQ.trim()) return;
-                    lastQ = search.value;
-                    searchForm.submit();
-                }, 450);
+                timer = setTimeout(function () { lcFetchList(); }, 450);
             });
             var course = document.getElementById('lcCourse');
-            if (course) course.addEventListener('change', function () { searchForm.submit(); });
-            if (search.value) {
-                search.focus();
-                var v = search.value;
-                search.value = '';
-                search.value = v;
-            }
+            if (course) course.addEventListener('change', function () { lcFetchList(); });
         }
         updateBulk();
     }
@@ -397,12 +440,16 @@
         html += '<h6>Attendance &middot; last ' + lcEsc(a.window) + ' days</h6>';
         var series = a.series || [];
         if (series.length) {
-            html += '<div class="lc-spark mb-2">';
+            var sparkLabel = 'Attendance history, most recent ' + series.length + ' marks'
+                + ' over the last ' + lcEsc(a.window) + ' days'
+                + ' (' + lcEsc(m.total_marks) + ' marks in window'
+                + ', worst absence run ' + lcEsc(m.max_run) + ')';
+            html += '<div class="lc-spark mb-2" role="img" aria-label="' + sparkLabel + '">';
             series.forEach(function (p) {
                 var cls = p.status === 'Present' ? 'lc-spark-present'
                     : p.status === 'Late' ? 'lc-spark-late'
                     : p.status === 'Half Day' ? 'lc-spark-half' : 'lc-spark-absent';
-                html += '<span class="lc-spark-cell ' + cls + '" title="'
+                html += '<span class="lc-spark-cell ' + cls + '" aria-hidden="true" title="'
                     + lcEsc(lcFmtDate(p.date)) + ' &mdash; ' + lcEsc(p.status) + '"></span>';
             });
             html += '</div>';
@@ -428,7 +475,7 @@
                 if (e.days != null) detail += ' (' + lcEsc(e.days) + 'd)';
                 if (e.status === 'Dropped' && e.drop_reason) detail += ' &middot; ' + lcEsc(e.drop_reason);
                 html += '<li class="lc-timeline-item lc-tl-' + lcEsc(st) + '">'
-                    + '<span class="lc-timeline-dot"></span>'
+                    + '<span class="lc-timeline-dot" aria-hidden="true"></span>'
                     + '<div class="fw-semibold">' + lcEsc(e.course) + '</div>'
                     + '<div class="small text-secondary">' + lcEsc(e.status) + ' &middot; ' + detail + '</div>'
                     + '</li>';

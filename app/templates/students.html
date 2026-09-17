@@ -59,6 +59,7 @@ Bulk import student records from Excel files with AI-powered data validation, du
             <button type="submit" class="btn btn-sm btn-outline-premium">Search</button>
         </form>
         {% if q %}<a href="{{ url_for('students.list') }}" class="btn btn-sm btn-outline-secondary">Clear</a>{% endif %}
+        {% if scope_courses %}<span class="text-white small" style="opacity:0.75;">Showing students from: {{ scope_courses|join(', ') }}</span>{% endif %}
     </div>
     {% endif %}
     <!-- Student Table Grid -->
@@ -91,10 +92,13 @@ Actions</th>
                                     <div class="d-flex align-items-center">
                                         {% if student.photo_data %}
                                             <img src="{{ url_for('students.student_photo', student_id=student.id) }}" alt="Photo of {{ student.name }}" class="student-photo rounded-circle object-fit-cover me-2" style="width: 32px; height: 32px;" loading="lazy">
+                                        {% else %}
+                                            <span class="student-initials me-2" aria-hidden="true">{{ student.name|first|upper }}</span>
                                         {% endif %}
                                         <span class="fw-medium text-white">
 {{ student.name }}</span>
                                     </div>
+                                    <div class="small text-white-50 text-truncate" style="max-width:220px;opacity:0.7;">{{ student.email }}</div>
                                 </td>
                                 <td data-label="Phone" class="text-white" style="opacity: 0.85;">
 {{ student.phone }}</td>
@@ -105,7 +109,7 @@ Actions</th>
 -</span>
                                     {% endif %}                                </td>
                                 <td data-label="Enrolled" class="text-white" style="opacity: 0.85;">
-{{ student.enrollment_date.strftime("%d %b %Y") if student.enrollment_date else 'Not set' }}</td>
+{{ student.enrollment_date.strftime("%d %b %Y") if student.enrollment_date else 'Not set' }}{% if student.date_of_birth %}<div class="small text-white-50" style="opacity:0.7;" title="Date of birth"><i class="bi bi-cake me-1" aria-hidden="true"></i>{{ student.date_of_birth.strftime("%d %b %Y") }}</div>{% endif %}</td>
                                 <td data-label="Status">
                                     <span class="badge badge-custom {% if student.status == 'Active' %}badge-active{% else %}badge-inactive{% endif %}">
                                         {{ student.status }}                                    </span>
@@ -114,31 +118,23 @@ Actions</th>
                                     <div class="d-flex justify-content-end gap-2">
                                         <!-- View Details Button -->
                                         <button class="btn btn-sm btn-outline-info"                                                 onclick="viewStudentDetails({{ student.id }})"                                                title="View Full Details" aria-label="View details for {{ student.name }}">
-                                            <i class="bi bi-eye-fill">
+                                            <i class="bi bi-eye-fill" aria-hidden="true">
 </i>
                                         </button>
-                                        <!-- AI Performance Insights Button -->
-                                        <button class="btn btn-sm btn-outline-premium"                                                 onclick="loadStudentPerformanceInsights({{ student.id }})"                                                title="AI Performance Insights" aria-label="AI performance insights for {{ student.name }}">
-                                            <i class="bi bi-graph-up-arrow">
-</i>
-                                        </button>
-                                        <!-- ID Card Generator Button -->
-                                        {% set course_list = student.courses|map(attribute='name')|join(', ') %}                                        <button class="btn btn-sm btn-outline-premium"                                                 data-idcard-name="{{ student.name }}"                                                data-idcard-email="{{ student.email }}"                                                data-idcard-phone="{{ student.phone }}"                                                data-idcard-qr="{{ student.qr_code_uuid }}"                                                data-idcard-courses="{{ course_list or 'Not Assigned' }}"                                                data-idcard-photo="{{ url_for('students.student_photo', student_id=student.id) if student.photo_data else '' }}"                                                onclick="showIDCardFromEl(this)"                                                title="Print ID Card" aria-label="Print ID card for {{ student.name }}">
-                                            <i class="bi bi-qr-code-scan">
-</i>
-                                        </button>
-                                        {% if not is_staff %}
-                                        <!-- Edit button -->
-                                        <button class="btn btn-sm btn-outline-info"                                                 data-bs-toggle="modal"                                                 data-bs-target="#editStudentModal{{ student.id }}"                                                title="Edit Student" aria-label="Edit student {{ student.name }}">
-                                            <i class="bi bi-pencil-square">
-</i>
-                                        </button>
-                                        <!-- Delete button -->
-                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Are you sure you want to completely remove this student record? This action cannot be undone.', function() { var f = document.createElement('form'); f.method = 'POST'; f.action = '{{ url_for('students.delete', id=student.id) }}'; document.body.appendChild(f); f.submit(); })" title="Delete Student" aria-label="Delete student {{ student.name }}">
-                                            <i class="bi bi-trash3-fill">
-</i>
-                                        </button>
-                                        {% endif %}
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions for {{ student.name }}" title="More actions">
+                                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                <li><button class="dropdown-item" type="button" onclick="loadStudentPerformanceInsights({{ student.id }})"><i class="bi bi-graph-up-arrow me-2" aria-hidden="true"></i>AI Performance Insights</button></li>
+                                                {% set course_list = student.courses|map(attribute='name')|join(', ') %}                                                <li><button class="dropdown-item" type="button"                                                 data-idcard-name="{{ student.name }}"                                                data-idcard-email="{{ student.email }}"                                                data-idcard-phone="{{ student.phone }}"                                                data-idcard-qr="{{ student.qr_code_uuid }}"                                                data-idcard-courses="{{ course_list or 'Not Assigned' }}"                                                data-idcard-photo="{{ url_for('students.student_photo', student_id=student.id) if student.photo_data else '' }}"                                                onclick="showIDCardFromEl(this)"><i class="bi bi-qr-code-scan me-2" aria-hidden="true"></i>Print ID Card</button></li>
+                                                {% if not is_staff %}
+                                                <li><button class="dropdown-item" type="button" onclick="openEditStudent(this)"                                                 data-edit-url="{{ url_for('students.edit', id=student.id) }}"                                                data-student-id="{{ student.id }}"                                                data-name="{{ student.name }}"                                                data-email="{{ student.email }}"                                                data-phone="{{ student.phone }}"                                                data-dob="{{ student.date_of_birth.isoformat() if student.date_of_birth else '' }}"                                                data-status="{{ student.status }}"                                                data-course-ids="{% for c in student.courses %}{{ c.id }}{% if not loop.last %},{% endif %}{% endfor %}"                                                data-has-photo="{{ '1' if student.photo_data else '' }}"                                                data-photo-url="{{ url_for('students.student_photo', student_id=student.id) if student.photo_data else '' }}"><i class="bi bi-pencil-square me-2" aria-hidden="true"></i>Edit Student</button></li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li><button class="dropdown-item text-danger" type="button" onclick="confirmAction('Are you sure you want to completely remove this student record? This action cannot be undone.', function() { var f = document.createElement('form'); f.method = 'POST'; f.action = '{{ url_for('students.delete', id=student.id) }}'; document.body.appendChild(f); f.submit(); })"><i class="bi bi-trash3-fill me-2" aria-hidden="true"></i>Delete Student</button></li>
+                                                {% endif %}
+                                            </ul>
+                                        </div>
                                     </div>
                                 </td>
                             </tr>
@@ -225,67 +221,66 @@ Enroll & Generate QR</button>
         </div>
     </div>
 </div>
-{% if students %}{% for student in students %}<!-- EDIT STUDENT MODAL -->
-<div class="modal fade" id="editStudentModal{{ student.id }}" tabindex="-1" aria-labelledby="editStudentModalLabel{{ student.id }}" aria-hidden="true">
+<!-- EDIT STUDENT MODAL (single instance, populated by openEditStudent) -->
+<div class="modal fade" id="editStudentModal" tabindex="-1" aria-labelledby="editStudentModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title text-white" id="editStudentModalLabel{{ student.id }}">
-Modify Student Details</h5>
+                <h5 class="modal-title text-white" id="editStudentModalLabel">
+Modify Student Details <span class="opacity-75" id="editStudentTitleName"></span></h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close">
 </button>
             </div>
-            <form action="{{ url_for('students.edit', id=student.id) }}" method="POST" enctype="multipart/form-data">
+            <form id="editStudentForm" action="" method="POST" enctype="multipart/form-data">
+                <input type="hidden" id="editStudentId" value="">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label text-white small">
+                        <label class="form-label text-white small" for="editName">
 Full Name</label>
-                        <input type="text" class="form-control" name="name" value="{{ student.name }}" maxlength="100" required autofocus>
+                        <input type="text" class="form-control" id="editName" name="name" value="" maxlength="100" required autofocus>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-white small">
+                        <label class="form-label text-white small" for="editEmail">
                         Email Address</label>
-                        <input type="email" class="form-control" name="email" value="{{ student.email }}" maxlength="100" required>
+                        <input type="email" class="form-control" id="editEmail" name="email" value="" maxlength="100" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-white small">
+                        <label class="form-label text-white small" for="editPhone">
 Phone Number</label>
-                        <input type="tel" class="form-control" name="phone" value="{{ student.phone }}" pattern="[0-9+\-\s]{10,20}" required>
+                        <input type="tel" class="form-control" id="editPhone" name="phone" value="" pattern="[0-9+\-\s]{10,20}" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-white small">Date of Birth <span class="opacity-75">(optional, for birthday wishes)</span></label>
-                        <input type="date" class="form-control" name="date_of_birth" value="{{ student.date_of_birth.isoformat() if student.date_of_birth else '' }}">
+                        <label class="form-label text-white small" for="editDob">Date of Birth <span class="opacity-75">(optional, for birthday wishes)</span></label>
+                        <input type="date" class="form-control" id="editDob" name="date_of_birth" value="">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-white small">
+                        <label class="form-label text-white small" for="editStatus">
 Status</label>
-                        <select class="form-select" name="status">
-                            <option value="Active" {% if student.status == 'Active' %}selected{% endif %}>
+                        <select class="form-select" id="editStatus" name="status">
+                            <option value="Active">
 Active</option>
-                            <option value="Inactive" {% if student.status == 'Inactive' %}selected{% endif %}>
+                            <option value="Inactive">
 Inactive</option>
-                            <option value="Archived" {% if student.status == 'Archived' %}selected{% endif %}>
+                            <option value="Archived">
 Archived</option>
                                     </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-white small">
+                        <label class="form-label text-white small" for="editCourses">
                         Courses Mapping</label>
-                        <select class="form-select ts-select" name="courses" multiple placeholder="Search courses...">
-                            {% for course in courses %}                                <option value="{{ course.id }}" {% if course in student.courses %}selected{% endif %}>{{ course.code }}: {{ course.name }}</option>
+                        <select class="form-select ts-select" id="editCourses" name="courses" multiple placeholder="Search courses...">
+                            {% for course in courses %}                                <option value="{{ course.id }}">{{ course.code }}: {{ course.name }}</option>
                             {% endfor %}                        </select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small d-block">Photo</label>
                         <div class="d-flex align-items-center gap-3">
-                            {% if student.photo_data %}
-                                <img src="{{ url_for('students.student_photo', student_id=student.id) }}" alt="Current photo of {{ student.name }}" class="rounded-circle object-fit-cover" style="width: 48px; height: 48px;">
-                            {% endif %}
+                            <img id="editPhotoPreview" src="" alt="Current student photo" class="rounded-circle object-fit-cover" style="width: 48px; height: 48px; display: none;">
                             <div class="flex-grow-1">
                                 <input type="file" class="form-control" name="photo" accept="image/png,image/jpeg,image/gif,image/webp">
                                 <div class="form-check mt-2">
-                                    <input class="form-check-input" type="checkbox" name="remove_photo" id="removePhoto{{ student.id }}" {% if not student.photo_data %}disabled{% endif %}>
-                                    <label class="form-check-label small text-white-50" for="removePhoto{{ student.id }}" style="opacity:0.8;">Remove current photo</label>
+                                    <input class="form-check-input" type="checkbox" name="remove_photo" id="editRemovePhoto" disabled>
+                                    <label class="form-check-label small text-white-50" for="editRemovePhoto" style="opacity:0.8;">Remove current photo</label>
                                 </div>
                             </div>
                         </div>
@@ -301,7 +296,7 @@ Save Changes</button>
         </div>
     </div>
 </div>
-{% endfor %}{% endif %}<!-- EXCEL UPLOAD MODAL -->
+<!-- EXCEL UPLOAD MODAL -->
 <div class="modal fade" id="uploadStudentsModal" tabindex="-1" aria-labelledby="uploadStudentsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -337,14 +332,14 @@ Courses</code>
                 </div>
                                 <form id="uploadStudentsForm" enctype="multipart/form-data">
                     <div class="mb-3">
-                        <label class="form-label small text-white">
-Excel File (.xlsx, .xls)</label>
-                        <div id="studentDropZone" class="drop-zone" onclick="document.getElementById('studentExcelInput').click()">
-                            <i class="bi bi-cloud-arrow-up-fill drop-zone-icon"></i>
+                        <label class="form-label small text-white" for="studentExcelInput">
+Excel File (.xlsx)</label>
+                        <div id="studentDropZone" class="drop-zone" role="button" tabindex="0" aria-label="Upload Excel file (.xlsx). Activate to browse, or drag and drop a file here." onclick="document.getElementById('studentExcelInput').click()" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); document.getElementById('studentExcelInput').click(); }">
+                            <i class="bi bi-cloud-arrow-up-fill drop-zone-icon" aria-hidden="true"></i>
                             <p class="drop-zone-title mb-1">Drag &amp; drop your Excel file here, or <span class="text-primary fw-semibold">browse</span></p>
-                            <p id="studentFileChosen" class="small mb-0 d-none text-success fw-semibold"></p>
+                            <p id="studentFileChosen" class="small mb-0 d-none text-success fw-semibold" role="status"></p>
                         </div>
-                        <input type="file" class="d-none" id="studentExcelInput" name="excel_file" accept=".xlsx,.xls" required>
+                        <input type="file" class="d-none" id="studentExcelInput" name="excel_file" accept=".xlsx" required aria-label="Excel file (.xlsx)">
                     </div>
                                         <div id="studentUploadProgressWrap" class="d-none mb-3">
                         <div class="d-flex justify-content-between small text-white mb-1">
@@ -354,7 +349,7 @@ Uploading &amp; validating...</span>
 0%</span>
                         </div>
                         <div class="progress" style="height: 8px;">
-                            <div id="studentUploadProgressBar" class="progress-bar" style="width: 0%;" role="progressbar"></div>
+                            <div id="studentUploadProgressBar" class="progress-bar" style="width: 0%;" role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
                         </div>
                     </div>
                                         <div class="mb-3 form-check">
@@ -370,7 +365,7 @@ Uploading &amp; validating...</span>
                 </form>
                                 <hr class="border-color">
                                 <!-- Validation Results -->
-                <div id="validationResults" class="d-none">
+                <div id="validationResults" class="d-none" role="status" aria-live="polite">
                     <h6 class="text-white small mb-3">
 <i class="bi bi-robot me-2">
 </i>
@@ -383,7 +378,7 @@ AI Validation Results</h6>
                 <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
 Cancel</button>
                 <button type="button" class="btn btn-premium" id="btnUploadExcel" onclick="uploadStudentExcel()">
-                    <i class="bi bi-upload me-2"></i>Validate & Import                </button>
+                    <i class="bi bi-upload me-2"></i>Upload & Import                </button>
             </div>
         </div>
     </div>
@@ -415,7 +410,7 @@ Cancel</button>
     });
     input.addEventListener('change', function () { showFile(input.files && input.files[0]); });
 })();
-function uploadStudentExcel() {    const form = document.getElementById('uploadStudentsForm');    const formData = new FormData(form);    const aiValidation = document.getElementById('aiValidationCheck').checked;    const autoCourseMapping = document.getElementById('autoCourseMappingCheck').checked;        formData.append('ai_validation', aiValidation);    formData.append('auto_course_mapping', autoCourseMapping);        const btn = document.getElementById('btnUploadExcel');    btn.disabled = true;    btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Processing...';        const progressWrap = document.getElementById('studentUploadProgressWrap');    const progressBar = document.getElementById('studentUploadProgressBar');    const progressPct = document.getElementById('studentUploadProgressPct');    progressWrap.classList.remove('d-none');    progressBar.style.width = '0%';    progressPct.textContent = '0%';        const xhr = new XMLHttpRequest();    xhr.open('POST', '/api/students/import-excel');    xhr.upload.addEventListener('progress', function (e) {        if (e.lengthComputable) {            const pct = Math.round((e.loaded / e.total) * 100);            progressBar.style.width = pct + '%';            progressPct.textContent = pct + '%';        }    });    xhr.addEventListener('load', function () {        progressBar.style.width = '100%';        progressPct.textContent = '100%';        let data = {};        try { data = JSON.parse(xhr.responseText); } catch (err) { data = {}; }        const validationDiv = document.getElementById('validationResults');        const validationContent = document.getElementById('validationContent');                validationDiv.classList.remove('d-none');                if (data.success) {            validationContent.innerHTML = `                <div class="alert alert-success">
+function uploadStudentExcel() {    const form = document.getElementById('uploadStudentsForm');    const formData = new FormData(form);    const aiValidation = document.getElementById('aiValidationCheck').checked;    const autoCourseMapping = document.getElementById('autoCourseMappingCheck').checked;        formData.append('ai_validation', aiValidation);    formData.append('auto_course_mapping', autoCourseMapping);        const btn = document.getElementById('btnUploadExcel');    btn.disabled = true;    btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Processing...';        const progressWrap = document.getElementById('studentUploadProgressWrap');    const progressBar = document.getElementById('studentUploadProgressBar');    const progressPct = document.getElementById('studentUploadProgressPct');    progressWrap.classList.remove('d-none');    progressBar.style.width = '0%';    progressBar.setAttribute('aria-valuenow', '0');    progressPct.textContent = '0%';        const xhr = new XMLHttpRequest();    xhr.open('POST', '/api/students/import-excel');    xhr.upload.addEventListener('progress', function (e) {        if (e.lengthComputable) {            const pct = Math.round((e.loaded / e.total) * 100);            progressBar.style.width = pct + '%';            progressBar.setAttribute('aria-valuenow', String(pct));            progressPct.textContent = pct + '%';        }    });    xhr.addEventListener('load', function () {        progressBar.style.width = '100%';        progressBar.setAttribute('aria-valuenow', '100');        progressPct.textContent = '100%';        let data = {};        try { data = JSON.parse(xhr.responseText); } catch (err) { data = {}; }        const validationDiv = document.getElementById('validationResults');        const validationContent = document.getElementById('validationContent');                validationDiv.classList.remove('d-none');                if (data.success) {            validationContent.innerHTML = `                <div class="alert alert-success">
                     <i class="bi bi-check-circle me-2"></i>                    <strong>
 Import Successful!</strong>
 <br>
@@ -436,12 +431,12 @@ ${warn}</li>
  0) {                errorHtml += '<strong> AI Suggestions:</strong> <ul class="mb-0 mt-2"> ';                data.suggestions.forEach(sugg =>
  {                    errorHtml += `<li>
 ${sugg}</li>
-`;                });                errorHtml += '</ul> ';            }                        errorHtml += '</div> ';            validationContent.innerHTML = errorHtml;        }                btn.disabled = false;        btn.innerHTML = '<i class="bi bi-upload me-2"></i>Validate & Import';    });    xhr.addEventListener('error', function () {        progressBar.style.width = '100%';        progressPct.textContent = 'Failed';        const validationDiv = document.getElementById('validationResults');        const validationContent = document.getElementById('validationContent');                validationDiv.classList.remove('d-none');        validationContent.innerHTML = `            <div class="alert alert-danger">
+`;                });                errorHtml += '</ul> ';            }                        errorHtml += '</div> ';            validationContent.innerHTML = errorHtml;        }                btn.disabled = false;        btn.innerHTML = '<i class="bi bi-upload me-2"></i>Upload & Import';    });    xhr.addEventListener('error', function () {        progressBar.style.width = '100%';        progressPct.textContent = 'Failed';        const validationDiv = document.getElementById('validationResults');        const validationContent = document.getElementById('validationContent');                validationDiv.classList.remove('d-none');        validationContent.innerHTML = `            <div class="alert alert-danger">
                 <i class="bi bi-exclamation-triangle me-2"></i>                <strong>
 Error uploading file</strong>
 <br>
                 Network error while uploading. Please try again.            </div>
-        `;                btn.disabled = false;        btn.innerHTML = '<i class="bi bi-upload me-2"></i>Validate & Import';    });    xhr.send(formData);}</script>
+        `;                btn.disabled = false;        btn.innerHTML = '<i class="bi bi-upload me-2"></i>Upload & Import';    });    xhr.send(formData);}</script>
 <!-- Student Full Details Modal -->
 <div class="modal fade" id="studentDetailsModal" tabindex="-1" aria-labelledby="studentDetailsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-xl">
@@ -604,6 +599,44 @@ ${rec}</li>
                     <i class="bi bi-exclamation-triangle me-2"></i>                    Error generating student performance insights. Please try again.                </div>
             `;        });}</script>
 <script>
+// Single edit modal, populated from the row's data-* attributes (dataset
+// decodes HTML entities back to exact strings — never interpolated into JS).
+function openEditStudent(btn) {
+    var d = btn.dataset;
+    var modalEl = document.getElementById('editStudentModal');
+    if (!modalEl) return;
+    document.getElementById('editStudentForm').action = d.editUrl;
+    document.getElementById('editStudentId').value = d.studentId || '';
+    document.getElementById('editStudentTitleName').textContent = d.name ? ('\u2014 ' + d.name) : '';
+    document.getElementById('editName').value = d.name || '';
+    document.getElementById('editEmail').value = d.email || '';
+    document.getElementById('editPhone').value = d.phone || '';
+    document.getElementById('editDob').value = d.dob || '';
+    document.getElementById('editStatus').value = d.status || 'Active';
+    var wanted = (d.courseIds || '').split(',').filter(function(v) { return v; });
+    var sel = document.getElementById('editCourses');
+    if (sel.tomselect) {
+        sel.tomselect.setValue(wanted);
+    } else {
+        Array.from(sel.options).forEach(function(o) { o.selected = wanted.indexOf(o.value) !== -1; });
+    }
+    var hasPhoto = !!d.hasPhoto;
+    var prev = document.getElementById('editPhotoPreview');
+    if (hasPhoto) {
+        prev.src = d.photoUrl;
+        prev.style.display = '';
+        prev.alt = 'Current photo of ' + (d.name || 'student');
+    } else {
+        prev.removeAttribute('src');
+        prev.style.display = 'none';
+    }
+    var rm = document.getElementById('editRemovePhoto');
+    rm.disabled = !hasPhoto;
+    rm.checked = false;
+    // Clear any stale duplicate warning from the previous student.
+    modalEl.querySelectorAll('.dup-warning').forEach(function(w) { w.textContent = ''; });
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+}
 document.addEventListener('DOMContentLoaded', function() {
     var fields = document.querySelectorAll('.modal input[name="email"], .modal input[name="phone"]');
     fields.forEach(function(input) {
@@ -617,8 +650,8 @@ document.addEventListener('DOMContentLoaded', function() {
         var modalEl = input.closest('.modal');
         var excludeId = null;
         if (modalEl) {
-            var m = /editStudentModal(\d+)/.exec(modalEl.id || '');
-            if (m) excludeId = m[1];
+            var hid = modalEl.querySelector('#editStudentId');
+            if (hid && hid.value) excludeId = hid.value;
         }
         var params = [];
         if (email) params.push('email=' + encodeURIComponent(email));

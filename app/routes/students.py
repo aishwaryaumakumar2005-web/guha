@@ -153,10 +153,18 @@ def list():
     pagination = base.order_by(Student.id).paginate(
         page=page, per_page=STUDENTS_PER_PAGE, error_out=False)
 
+    # Staff see the union of their courses with no course picker — show which
+    # courses scope the list so the view isn't a mystery.
+    scope_courses = []
+    if current_user.role == 'Staff':
+        _tutor = Tutor.query.filter_by(email=current_user.email).first()
+        if _tutor:
+            scope_courses = sorted(c.name for c in _tutor.courses)
+
     all_courses = Course.query.all()
     return render_template('students.html', students=pagination.items, courses=all_courses,
         is_staff=(current_user.role == 'Staff'), selected_course_id=course_filter,
-        pagination=pagination, q=q)
+        pagination=pagination, q=q, scope_courses=scope_courses)
 
 
 @students_bp.route('/api/students/export-excel')
