@@ -4,7 +4,7 @@ from datetime import datetime, date as date_cls
 from app.extensions import db
 from app.models import Enquiry, Course, Student, ensure_enrolled_on
 from app.helpers import admin_required, is_ajax_request
-from app.forms import EnquiryForm
+from app.forms import EnquiryForm, ENQUIRY_SOURCES, ENQUIRY_STATUSES
 
 enquiries_bp = Blueprint('enquiries', __name__)
 
@@ -16,6 +16,10 @@ def _parse_follow_up(raw):
         return date_cls.fromisoformat(str(raw).strip())
     except (ValueError, TypeError):
         return None
+
+
+# Stages that count as advisor contact for staleness purposes.
+_CONTACT_STAGES = {'Contacted', 'Visited', 'Converted', 'Lost'}
 
 @enquiries_bp.route('/enquiries', methods=['GET', 'POST'])
 @login_required
@@ -48,9 +52,10 @@ def list():
             return jsonify({"success": True, "message": message}), 201
         flash(message, "success")
         return redirect(url_for('enquiries.list'))
-    all_enquiries = Enquiry.query.all()
-    all_courses = Course.query.all()
-    return render_template('enquiries.html', enquiries=all_enquiries, courses=all_courses, today=date_cls.today())
+    all_enquiries = Enquiry.query.order_by(Enquiry.created_at.desc(), Enquiry.id.desc()).all()
+    all_courses = Course.query.order_by(Course.code).all()
+    return render_template('enquiries.html', enquiries=all_enquiries, courses=all_courses,
+                           sources=ENQUIRY_SOURCES, today=date_cls.today())
 
 @enquiries_bp.route('/enquiries/edit/<int:id>', methods=['POST'])
 @login_required
@@ -72,6 +77,8 @@ def edit(id):
     enquiry.status = request.form.get('status', 'New')
     enquiry.notes = request.form.get('notes', '').strip()
     enquiry.follow_up_date = _parse_follow_up(request.form.get('follow_up_date'))
+    # An advisor editing the lead counts as contact, so it stops being "stale".
+    enquiry.last_contacted_at = datetime.utcnow()
     db.session.commit()
     message = "Enquiry details updated!"
     if is_ajax_request():
@@ -86,6 +93,12 @@ def convert(id):
     enquiry = Enquiry.query.get_or_404(id)
     email = (enquiry.email or '').strip()
     phone = (enquiry.phone or '').strip()
+    if enquiry.status == 'Converted':
+        message = "This lead has already been converted to a student."
+        if is_ajax_request():
+            return jsonify({"success": False, "message": message}), 400
+        flash(message, "warning")
+        return redirect(url_for('students.list'))
     if not email:
         # Student.email is NOT NULL UNIQUE — converting without one would
         # either 500 on IntegrityError or poison the table with ''.
@@ -96,47 +109,52 @@ def convert(id):
         return redirect(url_for('enquiries.list'))
     student_exists = Student.query.filter(db.func.lower(Student.email) == email.lower()).first()
     if student_exists:
+        # Don't create a duplicate and don't mutate the lead — just warn so the
+        # advisor can reconcile it manually.
         message = f"Student with email '{email}' is already enrolled!"
         if is_ajax_request():
             return jsonify({"success": False, "message": message}), 400
         flash(message, "warning")
-    else:
-        new_student = Student(name=enquiry.student_name, email=email, phone=phone, status='Active')
-        course = Course.query.get(enquiry.course_id)
-        if course:
-            new_student.courses.append(course)
-        db.session.add(new_student)
-        db.session.flush()
-        ensure_enrolled_on(new_student.id)
-        enquiry.status = 'Converted'
-        db.session.commit()
-        message = f"Enquiry successfully converted! {new_student.name} is now enrolled."
-        phone_owner = Student.query.filter(
-            Student.phone == phone, Student.id != new_student.id).first() if phone else None
-        if phone_owner:
-            # Phone is not unique in the schema (shared family numbers are
-            # legitimate), so this stays a non-blocking heads-up.
-            note = f" Note: phone number is also used by {phone_owner.name}."
-            message += note
-            if is_ajax_request():
-                return jsonify({"success": True, "message": message, "warning": note.strip()}), 201
-            flash(message, "success")
-            flash(note.strip(), "warning")
-            return redirect(url_for('students.list'))
+        return redirect(url_for('students.list'))
+    new_student = Student(name=enquiry.student_name, email=email, phone=phone, status='Active')
+    course = Course.query.get(enquiry.course_id) if enquiry.course_id else None
+    if course:
+        new_student.courses.append(course)
+    db.session.add(new_student)
+    db.session.flush()
+    ensure_enrolled_on(new_student.id)
+    enquiry.status = 'Converted'
+    enquiry.converted_student_id = new_student.id
+    enquiry.last_contacted_at = datetime.utcnow()
+    db.session.commit()
+    message = f"Enquiry successfully converted! {new_student.name} is now enrolled."
+    phone_owner = Student.query.filter(
+        Student.phone == phone, Student.id != new_student.id).first() if phone else None
+    if phone_owner:
+        # Phone is not unique in the schema (shared family numbers are
+        # legitimate), so this stays a non-blocking heads-up.
+        note = f" Note: phone number is also used by {phone_owner.name}."
+        message += note
         if is_ajax_request():
-            return jsonify({"success": True, "message": message}), 201
+            return jsonify({"success": True, "message": message, "warning": note.strip()}), 201
         flash(message, "success")
+        flash(note.strip(), "warning")
+        return redirect(url_for('students.list'))
+    if is_ajax_request():
+        return jsonify({"success": True, "message": message}), 201
+    flash(message, "success")
     return redirect(url_for('students.list'))
 
-ENQUIRY_STAGES = ['New', 'Contacted', 'Visited', 'Converted', 'Lost']
+ENQUIRY_STAGES = ENQUIRY_STATUSES
 
 @enquiries_bp.route('/enquiries/kanban')
 @login_required
 @admin_required
 def kanban():
     columns = {s: Enquiry.query.filter_by(status=s).order_by(Enquiry.created_at.desc()).all() for s in ENQUIRY_STAGES}
-    all_courses = Course.query.all()
-    return render_template('enquiries_kanban.html', columns=columns, stages=ENQUIRY_STAGES, courses=all_courses)
+    all_courses = Course.query.order_by(Course.code).all()
+    return render_template('enquiries_kanban.html', columns=columns, stages=ENQUIRY_STAGES,
+                           courses=all_courses, sources=ENQUIRY_SOURCES)
 
 @enquiries_bp.route('/enquiries/status/<int:id>', methods=['POST'])
 @login_required
@@ -144,21 +162,28 @@ def kanban():
 def update_status(id):
     enquiry = Enquiry.query.get_or_404(id)
     new_status = request.form.get('status', '')
-    if new_status and new_status in ENQUIRY_STAGES:
-        enquiry.status = new_status
-        db.session.commit()
-    if is_ajax_request() or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return '', 200
+    if new_status not in ENQUIRY_STAGES:
+        message = "Unknown pipeline stage."
+        if is_ajax_request():
+            return jsonify({"success": False, "message": message}), 400
+        flash(message, "danger")
+        return redirect(url_for('enquiries.kanban'))
+    enquiry.status = new_status
+    if new_status in _CONTACT_STAGES:
+        enquiry.last_contacted_at = datetime.utcnow()
+    db.session.commit()
+    if is_ajax_request():
+        return jsonify({"success": True, "status": new_status}), 200
     return redirect(url_for('enquiries.kanban'))
 
-@enquiries_bp.route('/enquiries/delete/<int:id>')
+@enquiries_bp.route('/enquiries/delete/<int:id>', methods=['POST'])
 @login_required
 @admin_required
 def delete(id):
     enquiry = Enquiry.query.get_or_404(id)
     db.session.delete(enquiry)
     db.session.commit()
-    message = "Enquiry records deleted!"
+    message = "Enquiry record deleted!"
     if is_ajax_request():
         return jsonify({"success": True, "message": message}), 200
     flash(message, "success")

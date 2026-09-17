@@ -142,7 +142,10 @@ def delete(id):
         # whose foreign keys may not have been created with ON DELETE CASCADE.
         db.session.execute(student_courses.delete().where(student_courses.c.course_id == course.id))
         db.session.execute(tutor_courses.delete().where(tutor_courses.c.course_id == course.id))
-        Enquiry.query.filter_by(course_id=course.id).delete(synchronize_session=False)
+        # Preserve lead history: detach enquiries from the course instead of
+        # deleting them (course_id is nullable with ON DELETE SET NULL).
+        Enquiry.query.filter_by(course_id=course.id).update(
+            {'course_id': None}, synchronize_session=False)
         exam_ids = [exam.id for exam in Exam.query.filter_by(course_id=course.id).all()]
         if exam_ids:
             # Clear exam descendants first for compatibility with older schemas

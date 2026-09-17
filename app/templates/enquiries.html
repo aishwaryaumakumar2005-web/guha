@@ -108,10 +108,16 @@ Actions</th>
 {{ enq.email or "No email" }} • {{ enq.phone }}</div>
                                 </td>
                                 <td>
+                                    {% if enq.course %}
                                     <span class="badge badge-custom badge-cyan">
 {{ enq.course.code }}</span>
                                     <span class="small text-white d-block mt-1">
 {{ enq.course.name }}</span>
+                                    {% else %}
+                                    <span class="badge badge-custom badge-inactive">Unassigned</span>
+                                    <span class="small text-white d-block mt-1" style="opacity: 0.6;">
+Course removed</span>
+                                    {% endif %}
                                 </td>
                                 <td>
 <span class="text-white small">
@@ -136,33 +142,44 @@ Actions</th>
                                 </td>
                                 <td class="text-end">
                                     <div class="d-flex justify-content-end gap-2">
-                                        <!-- Convert to Student Button (Only if not already converted) -->
-                                        {% if enq.status != 'Converted' %}                                            <form action="{{ url_for('enquiries.convert', id=enq.id) }}" method="POST" class="d-inline">
-                                                <button type="submit" class="btn btn-sm btn-outline-success" title="Convert to Enrolled Student" onclick="return confirm('Convert {{ enq.student_name }} into a fully registered student?')">
-                                                    <i class="bi bi-person-check-fill">
-</i>
+                                        <!-- Convert / view converted student -->
+                                        {% if enq.status == 'Converted' %}
+                                            {% if enq.converted_student_id %}
+                                            <a href="{{ url_for('students.list') }}" class="btn btn-sm btn-outline-success" title="View enrolled student" aria-label="View enrolled student {{ enq.converted_student.name if enq.converted_student else enq.student_name }}">
+                                                <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                                            </a>
+                                            {% endif %}
+                                        {% elif enq.email %}
+                                            <form action="{{ url_for('enquiries.convert', id=enq.id) }}" method="POST" class="d-inline">
+                                                <button type="submit" class="btn btn-sm btn-outline-success" title="Convert to Enrolled Student" aria-label="Convert {{ enq.student_name }} to student" onclick="return confirm('Convert {{ enq.student_name }} into a fully registered student?')">
+                                                    <i class="bi bi-person-check-fill" aria-hidden="true"></i>
                                                 </button>
                                             </form>
-                                        {% endif %}                                        <!-- AI Assistant Trigger -->
-                                        <button class="btn btn-sm btn-outline-premium" onclick="generateEnquiryFollowUp({{ enq.id }})" title="AI Follow-up Draft">
-                                            <i class="bi bi-magic">
+                                        {% else %}
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Add an email address before converting" aria-label="Conversion requires an email address">
+                                                <i class="bi bi-person-check-fill" aria-hidden="true"></i>
+                                            </button>
+                                        {% endif %}
+                                        <!-- AI Assistant Trigger -->
+                                        <button class="btn btn-sm btn-outline-premium" onclick="generateEnquiryFollowUp({{ enq.id }})" title="AI Follow-up Draft" aria-label="Draft AI follow-up for {{ enq.student_name }}">
+                                            <i class="bi bi-magic" aria-hidden="true">
 </i>
                                         </button>
                                         <!-- Edit button -->
-                                        <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#editEnquiryModal{{ enq.id }}" title="Edit Lead">
-                                            <i class="bi bi-pencil-square">
+                                        <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#editEnquiryModal{{ enq.id }}" title="Edit Lead" aria-label="Edit lead {{ enq.student_name }}">
+                                            <i class="bi bi-pencil-square" aria-hidden="true">
 </i>
                                         </button>
                                         <!-- Delete button -->
-                                        <a href="{{ url_for('enquiries.delete', id=enq.id) }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to permanently delete this lead?')" title="Remove Lead">
-                                            <i class="bi bi-trash3-fill">
+                                        <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteEnquiryModal" data-enquiry-id="{{ enq.id }}" data-enquiry-name="{{ enq.student_name }}" title="Remove Lead" aria-label="Delete lead {{ enq.student_name }}">
+                                            <i class="bi bi-trash3-fill" aria-hidden="true">
 </i>
-                                        </a>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
                         {% endfor %}                    {% else %}                        <tr>
-                            {{ empty_state('No enquiries logged yet', "Log your first lead to start tracking potential students", 'enquiries', '#', 'Log Enquiry', 'bi-plus-circle-fill', 5, 'data-bs-toggle="modal" data-bs-target="#addEnquiryModal"') }}
+                            {{ empty_state('No enquiries logged yet', "Log your first lead to start tracking potential students", 'enquiries', '#', 'Log Enquiry', 'bi-plus-circle-fill', 6, 'data-bs-toggle="modal" data-bs-target="#addEnquiryModal"') }}
                         </tr>
                     {% endif %}                </tbody>
             </table>
@@ -250,15 +267,9 @@ Phone Number</label>
                         <label class="form-label small">
 Enquiry Lead Source</label>
                         <select class="form-select" name="source">
-                            <option value="Website">
-Website</option>
-                            <option value="Walk-in">
-Walk-in</option>
-                            <option value="Referral">
-Referral</option>
-                            <option value="Social Media">
-Social Media</option>
-                        </select>
+                            {% for src in sources %}<option value="{{ src }}">
+{{ src }}</option>
+                            {% endfor %}</select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label small">
@@ -323,6 +334,7 @@ Phone Number</label>
                         <label class="form-label small">
 Course Focus</label>
                         <select class="form-select ts-select" name="course_id" placeholder="Search course...">
+                            <option value="" {% if not enq.course_id %}selected{% endif %}>-- No course assigned --</option>
                             {% for course in courses %}                                <option value="{{ course.id }}" {% if course.id == enq.course_id %}selected{% endif %}>
 {{ course.code }}: {{ course.name }}</option>
                             {% endfor %}                        </select>
@@ -331,15 +343,9 @@ Course Focus</label>
                         <label class="form-label small">
 Enquiry Lead Source</label>
                         <select class="form-select" name="source">
-                            <option value="Website" {% if enq.source == 'Website' %}selected{% endif %}>
-Website</option>
-                            <option value="Walk-in" {% if enq.source == 'Walk-in' %}selected{% endif %}>
-Walk-in</option>
-                            <option value="Referral" {% if enq.source == 'Referral' %}selected{% endif %}>
-Referral</option>
-                            <option value="Social Media" {% if enq.source == 'Social Media' %}selected{% endif %}>
-Social Media</option>
-                        </select>
+                            {% for src in sources %}<option value="{{ src }}" {% if enq.source == src %}selected{% endif %}>
+{{ src }}</option>
+                            {% endfor %}</select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label small">
@@ -379,4 +385,51 @@ Save Changes</button>
         </div>
     </div>
 </div>
-{% endfor %}{% endif %}{% endblock %}
+{% endfor %}{% endif %}
+<!-- DELETE ENQUIRY MODAL -->
+<div class="modal fade" id="deleteEnquiryModal" tabindex="-1" aria-labelledby="deleteEnquiryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteEnquiryModalLabel">
+<i class="bi bi-trash3-fill me-2">
+</i>
+Delete Lead</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+</button>
+            </div>
+            <form method="POST" action="{{ url_for('enquiries.delete', id=0) }}" id="deleteEnquiryForm" hx-boost="false" data-no-ajax>
+                <div class="modal-body">
+                    <p class="mb-0">
+Permanently delete <strong id="deleteEnquiryName">
+this lead</strong>? This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+Delete Lead</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+    var modal = document.getElementById('deleteEnquiryModal');
+    if (!modal) return;
+    modal.addEventListener('show.bs.modal', function (evt) {
+        var btn = evt.relatedTarget;
+        if (!btn) return;
+        var id = btn.getAttribute('data-enquiry-id');
+        var name = btn.getAttribute('data-enquiry-name') || 'this lead';
+        var form = document.getElementById('deleteEnquiryForm');
+        if (form && id !== null) form.setAttribute('action', '/enquiries/delete/' + id);
+        var nameEl = document.getElementById('deleteEnquiryName');
+        if (nameEl) nameEl.textContent = name;
+    });
+})();
+</script>
+{% endblock %}

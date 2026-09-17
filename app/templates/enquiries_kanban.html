@@ -25,7 +25,7 @@
         {% for enquiry in columns[stage] %}
           {% include '_enquiry_card.html' %}
         {% else %}
-          <div class="text-center text-white-50 small py-4" style="opacity:0.4;"><i class="bi bi-inbox fs-4 d-block mb-1"></i>No leads</div>
+          <div class="kanban-empty text-center text-white-50 small py-4" style="opacity:0.4;"><i class="bi bi-inbox fs-4 d-block mb-1"></i>No leads</div>
         {% endfor %}
       </div>
     </div>
@@ -64,10 +64,7 @@
                     <div class="mb-3">
                         <label class="form-label small">Lead Source</label>
                         <select class="form-select" name="source">
-                            <option value="Website">Website</option>
-                            <option value="Walk-in">Walk-in</option>
-                            <option value="Referral">Referral</option>
-                            <option value="Social Media">Social Media</option>
+                            {% for src in sources %}<option value="{{ src }}">{{ src }}</option>{% endfor %}
                         </select>
                     </div>
                     <div class="mb-3">
@@ -96,39 +93,71 @@
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script>
 (function() {
-  const csrfToken = '{{ csrf_token() if csrf_token is defined else "" }}';
+  var emptyHtml = '<div class="kanban-empty text-center text-white-50 small py-4" style="opacity:0.4;"><i class="bi bi-inbox fs-4 d-block mb-1"></i>No leads</div>';
 
-  document.querySelectorAll('.kanban-cards').forEach(el => {
+  function toast(msg, type) {
+    if (typeof showToast === 'function') showToast(msg, type || 'success');
+  }
+
+  function refreshColumn(col) {
+    if (!col) return;
+    var cards = col.querySelectorAll('.kanban-card');
+    var empty = col.querySelector('.kanban-empty');
+    if (cards.length === 0 && !empty) {
+      col.insertAdjacentHTML('beforeend', emptyHtml);
+    } else if (cards.length > 0 && empty) {
+      empty.remove();
+    }
+    var column = col.closest('.kanban-column');
+    var badge = column ? column.querySelector('.badge') : null;
+    if (badge) badge.textContent = cards.length;
+  }
+
+  function revert(evt, card) {
+    evt.from.insertBefore(card, evt.from.children[evt.oldIndex] || null);
+    refreshColumn(evt.from);
+    refreshColumn(evt.to);
+  }
+
+  document.querySelectorAll('.kanban-cards').forEach(function(el) {
     new Sortable(el, {
       group: 'enquiries',
       animation: 200,
       ghostClass: 'kanban-ghost',
       dragClass: 'kanban-dragging',
       onEnd: function(evt) {
-        const card = evt.item;
-        const newStage = evt.to.dataset.stage;
-        const enquiryId = card.dataset.enquiryId;
+        var card = evt.item;
+        var newStage = evt.to.dataset.stage;
+        var enquiryId = card.dataset.enquiryId;
         if (!enquiryId || !newStage) return;
 
-        fetch('/enquiries/status/' + enquiryId, {
+        // Dropping into "Enrolled" must run the real conversion flow so a
+        // Student record is actually created (a bare status flip would not).
+        var isConvert = newStage === 'Converted';
+        var url = isConvert ? '/enquiries/convert/' + enquiryId : '/enquiries/status/' + enquiryId;
+        var body = isConvert ? '' : 'status=' + encodeURIComponent(newStage);
+
+        fetch(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
             'X-Requested-With': 'XMLHttpRequest'
           },
-          body: 'status=' + encodeURIComponent(newStage)
-        }).then(r => {
-          if (!r.ok) {
-            evt.from.insertBefore(card, evt.from.children[evt.oldIndex] || null);
-          } else {
-            // Update column counts
-            document.querySelectorAll('.kanban-column').forEach(col => {
-              const count = col.querySelectorAll('.kanban-card').length;
-              col.querySelector('.badge').textContent = count;
-            });
-          }
-        }).catch(() => {
-          evt.from.insertBefore(card, evt.from.children[evt.oldIndex] || null);
+          body: body
+        }).then(function(r) {
+          return r.json().catch(function() { return {}; }).then(function(data) {
+            if (!r.ok) {
+              revert(evt, card);
+              toast(data.message || 'Could not update this lead.', 'error');
+              return;
+            }
+            refreshColumn(evt.from);
+            refreshColumn(evt.to);
+            toast(data.message || ('Lead moved to ' + newStage + '.'), 'success');
+          });
+        }).catch(function() {
+          revert(evt, card);
+          toast('Network error while updating this lead.', 'error');
         });
       }
     });

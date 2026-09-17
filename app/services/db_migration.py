@@ -227,6 +227,9 @@ def migrate_schema_additions():
     additions = [
         ('course', 'capacity', 'INTEGER'),
         ('student', 'date_of_birth', 'DATE'),
+        ('enquiry', 'last_contacted_at', 'DATETIME'),
+        ('enquiry', 'converted_student_id', 'INTEGER'),
+        ('enquiry', 'updated_at', 'DATETIME'),
     ]
     for table, column, col_type in additions:
         if _table_exists(table) and not _has_column(table, column):
@@ -235,6 +238,71 @@ def migrate_schema_additions():
                 db.session.commit()
             except Exception:
                 db.session.rollback()
+
+
+def migrate_enquiry_course_nullable():
+    """Make enquiry.course_id nullable with ON DELETE SET NULL.
+
+    Legacy databases defined the column NOT NULL with ON DELETE CASCADE, so
+    deleting a course silently destroyed every lead that pointed at it. New
+    models use SET NULL; this rebuilds the table in place on SQLite (which
+    cannot alter a column constraint) and drops NOT NULL elsewhere. Existing
+    rows are preserved. Idempotent: only runs while NOT NULL is present.
+    """
+    if not _table_exists('enquiry') or not _has_column('enquiry', 'course_id'):
+        return
+    if db.engine.dialect.name != 'sqlite':
+        try:
+            db.session.execute(text('ALTER TABLE enquiry ALTER COLUMN course_id DROP NOT NULL'))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+        return
+
+    info = {r[1]: r for r in db.session.execute(text('PRAGMA table_info(enquiry)')).fetchall()}
+    # PRAGMA table_info row: (cid, name, type, notnull, dflt_value, pk)
+    if not info.get('course_id') or not bool(info['course_id'][3]):
+        return
+
+    existing = list(info.keys())
+    wanted = ['id', 'student_name', 'email', 'phone', 'course_id', 'source', 'status',
+              'notes', 'follow_up_date', 'last_contacted_at', 'converted_student_id',
+              'created_at', 'updated_at']
+    select_expr = ', '.join(c if c in existing else 'NULL' for c in wanted)
+    try:
+        db.session.execute(text('''
+            CREATE TABLE enquiry_new (
+                id INTEGER NOT NULL PRIMARY KEY,
+                student_name VARCHAR(100) NOT NULL,
+                email VARCHAR(100),
+                phone VARCHAR(20) NOT NULL,
+                course_id INTEGER,
+                source VARCHAR(50),
+                status VARCHAR(20),
+                notes TEXT,
+                follow_up_date DATE,
+                last_contacted_at DATETIME,
+                converted_student_id INTEGER,
+                created_at DATETIME,
+                updated_at DATETIME,
+                FOREIGN KEY(course_id) REFERENCES course (id) ON DELETE SET NULL,
+                FOREIGN KEY(converted_student_id) REFERENCES student (id) ON DELETE SET NULL
+            )
+        '''))
+        db.session.execute(text('INSERT INTO enquiry_new (%s) SELECT %s FROM enquiry'
+                                % (', '.join(wanted), select_expr)))
+        db.session.execute(text('DROP TABLE enquiry'))
+        db.session.execute(text('ALTER TABLE enquiry_new RENAME TO enquiry'))
+        db.session.execute(text('CREATE INDEX IF NOT EXISTS idx_enquiry_status ON enquiry(status)'))
+        db.session.execute(text('CREATE INDEX IF NOT EXISTS idx_enquiry_course ON enquiry(course_id)'))
+        db.session.execute(text('CREATE INDEX IF NOT EXISTS idx_enquiry_followup ON enquiry(follow_up_date)'))
+        # Backfill "last activity" from creation so staleness still works.
+        db.session.execute(text('UPDATE enquiry SET updated_at = COALESCE(updated_at, created_at) '
+                                'WHERE updated_at IS NULL'))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
 
 
 def migrate_photos_to_db():

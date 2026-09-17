@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
 from app.extensions import db
@@ -297,12 +297,12 @@ def api_todays_activities():
     
     # Admin activities (original logic)
     today = date.today()
-    three_days_ago = today - timedelta(days=3)
     month_ago = today - timedelta(days=30)
 
+    stale_cutoff = datetime.utcnow() - timedelta(days=3)
     stale_enquiries = Enquiry.query.filter(
         Enquiry.status.in_(['New', 'Contacted']),
-        Enquiry.created_at < three_days_ago
+        db.func.coalesce(Enquiry.last_contacted_at, Enquiry.created_at) < stale_cutoff
     ).count()
 
     new_enquiries_today = Enquiry.query.filter(

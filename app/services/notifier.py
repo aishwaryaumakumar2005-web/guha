@@ -136,15 +136,19 @@ class Notifier:
 
     def check_enquiry_followups(self):
         from app.models import Enquiry, SystemSetting
+        from app.extensions import db
         cfg = self._get_settings()
         admin_email = cfg['admin_email']
         if not admin_email:
             return 0
         cutoff = datetime.utcnow() - timedelta(days=3)
+        # Measure staleness from the last advisor contact, falling back to
+        # creation time, so a recently-touched lead isn't reported as stale.
+        last_activity = db.func.coalesce(Enquiry.last_contacted_at, Enquiry.created_at)
         stale = Enquiry.query.filter(
             Enquiry.status.in_(['New', 'Contacted']),
-            Enquiry.created_at < cutoff
-        ).order_by(Enquiry.created_at.asc()).all()
+            last_activity < cutoff
+        ).order_by(last_activity.asc()).all()
         if not stale:
             return 0
         rows = ''.join(

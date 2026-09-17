@@ -199,13 +199,21 @@ class ExpenseForm(Form):
     min_values = {'amount': 0, 'category_id': 1}
 
 
+# Single source of truth for lead sources. Every form that edits an enquiry
+# must offer this full list, otherwise saving would silently rewrite a lead's
+# source (e.g. a "Google Form" import reset to "Website").
+ENQUIRY_SOURCES = ['Website', 'Walk-in', 'Phone', 'Referral', 'Social Media', 'Google Form', 'Other']
+ENQUIRY_STATUSES = ['New', 'Contacted', 'Visited', 'Converted', 'Lost']
+
+
 class EnquiryForm(Form):
-    required = ['student_name', 'phone', 'course_id']
+    # course_id is intentionally optional: a lead can be detached from its
+    # course when that course is deleted, and must remain editable.
+    required = ['student_name', 'phone']
     phone = ['phone']
     email = ['email']
     integer = ['course_id']
-    choices = {'source': ['Walk-in', 'Phone', 'Google Form', 'Referral', 'Social Media', 'Website', 'Other'],
-               'status': ['New', 'Contacted', 'Visited', 'Converted', 'Lost']}
+    choices = {'source': list(ENQUIRY_SOURCES), 'status': list(ENQUIRY_STATUSES)}
     min_values = {'course_id': 1}
     max_length = {'student_name': 100, 'email': 100, 'phone': 20}
 
