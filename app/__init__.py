@@ -380,6 +380,14 @@ def create_app(config_object=None):
                     db.session.execute(db.text("CREATE INDEX IF NOT EXISTS idx_enquiry_followup ON enquiry(follow_up_date)"))
                 except Exception:
                     db.session.rollback()
+                try:
+                    db.session.execute(db.text("ALTER TABLE exam ADD COLUMN available_from DATE"))
+                except Exception:
+                    db.session.rollback()
+                try:
+                    db.session.execute(db.text("ALTER TABLE exam ADD COLUMN available_until DATE"))
+                except Exception:
+                    db.session.rollback()
                 db.session.commit()
             except Exception:
                 db.session.rollback()

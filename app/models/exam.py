@@ -14,6 +14,8 @@ class Exam(db.Model):
     num_questions = db.Column(db.Integer, default=0)
     duration_minutes = db.Column(db.Integer, default=0)
     is_published = db.Column(db.Boolean, default=False)
+    available_from = db.Column(db.Date, nullable=True)
+    available_until = db.Column(db.Date, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     course = db.relationship('Course', backref=db.backref('exams', lazy=True, cascade='all, delete-orphan'))

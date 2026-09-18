@@ -32,11 +32,45 @@
             </div>
         </div>
         {% set correct_count = attempt.answers|selectattr('is_correct', 'equalto', true)|list|length %}
-        {% set total_q = exam.questions|length %}
+        {% set total_q = exam.mcq_questions|length %}
         <div class="text-white-50 small">
             <span class="text-success">{{ correct_count }}</span> Correct,
             <span class="text-danger">{{ total_q - correct_count }}</span> Wrong
         </div>
+
+        {% if attempt.answers %}
+        <div class="text-start mt-4">
+            <h5 class="text-white fw-bold mb-3"><i class="bi bi-journal-check me-2"></i>Answer Review</h5>
+            <div class="table-responsive">
+                <table class="table table-dark table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th scope="col" style="width:40px;">#</th>
+                            <th scope="col">Question</th>
+                            <th scope="col" style="width:90px;">Your Answer</th>
+                            <th scope="col" style="width:90px;">Correct</th>
+                            <th scope="col" style="width:80px;">Result</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in attempt.answers|sort(attribute='mcq_question_id') %}
+                        <tr>
+                            <td class="text-white-50">{{ a.question.question_number }}</td>
+                            <td class="text-white small">{{ a.question.question_text }}</td>
+                            <td class="text-white-50 small">{{ a.selected_option or '<em>Not answered</em>' }}</td>
+                            <td class="text-white-50 small">{{ a.question.correct_option }}</td>
+                            <td>
+                                {% if a.is_correct %}<span class="text-success fw-semibold">Correct</span>
+                                {% elif a.selected_option %}<span class="text-danger fw-semibold">Wrong</span>
+                                {% else %}<span class="text-warning fw-semibold">Skipped</span>{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
         {% else %}
         <div style="width:120px;height:120px;border-radius:50%;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;border:4px solid rgba(255,255,255,0.2);">
             <i class="bi bi-dash-circle" style="font-size:3rem;color:var(--text-muted);"></i>

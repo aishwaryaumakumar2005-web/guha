@@ -27,7 +27,7 @@
                 </div>
                 <div class="col-md-4">
                     <label class="form-label text-white small">Number of Questions <span class="text-danger">*</span></label>
-                    <input type="number" class="form-control" name="num_questions" value="10" min="3" max="50" required>
+                    <input type="number" class="form-control" id="numQuestions" name="num_questions" value="10" min="3" max="50" required>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label text-white small">Duration (minutes) <span class="text-danger">*</span></label>
@@ -35,8 +35,18 @@
                 </div>
                 <div class="col-md-4">
                     <label class="form-label text-white small">Total Marks <span class="text-danger">*</span></label>
-                    <input type="number" step="0.5" class="form-control" name="total_marks" value="100" min="1" required>
-                    <small class="text-white-50">{{ ((100 / 10)|round(1)) }} marks per question (adjust as needed)</small>
+                    <input type="number" step="0.5" class="form-control" id="totalMarks" name="total_marks" value="100" min="1" required>
+                    <small class="text-white-50"><span id="marksPerQ">10.0</span> marks per question (adjust as needed)</small>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label text-white small">Available From <span class="text-white-50">(optional)</span></label>
+                    <input type="date" class="form-control" name="available_from">
+                    <small class="text-white-50">Students can only take the exam from this date.</small>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label text-white small">Available Until <span class="text-white-50">(optional)</span></label>
+                    <input type="date" class="form-control" name="available_until">
+                    <small class="text-white-50">Exam closes after this date.</small>
                 </div>
             </div>
             <div class="mt-4">
@@ -76,4 +86,15 @@
         </div>
     </div>
 </div>
+{% endblock %}{% block scripts %}
+<script>
+function updateMarksPerQ() {
+    var n = parseInt(document.getElementById('numQuestions').value, 10) || 0;
+    var t = parseFloat(document.getElementById('totalMarks').value) || 0;
+    document.getElementById('marksPerQ').textContent = n > 0 ? (t / n).toFixed(1) : '0.0';
+}
+document.getElementById('numQuestions').addEventListener('input', updateMarksPerQ);
+document.getElementById('totalMarks').addEventListener('input', updateMarksPerQ);
+updateMarksPerQ();
+</script>
 {% endblock %}

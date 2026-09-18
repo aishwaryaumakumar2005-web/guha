@@ -1,9 +1,11 @@
 import json
-from datetime import datetime, date
-from io import BytesIO
+from datetime import datetime, date, timedelta, timezone
+from io import BytesIO, StringIO
+import csv
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, send_file, current_app
 from flask_login import login_required, current_user
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from fpdf import FPDF
 from app.extensions import db
 from app.models import Course, Student, Exam, ExamScore, McqQuestion, McqAttempt, McqAnswer, ExamAssignment, Tutor
@@ -12,6 +14,41 @@ from app.helpers import admin_required
 from app.forms import ExamForm
 
 exams_bp = Blueprint('exams', __name__, url_prefix='/exams')
+
+
+def _staff_course_ids():
+    tutor = Tutor.query.filter_by(email=current_user.email).first()
+    return {c.id for c in tutor.courses} if tutor else set()
+
+
+def _staff_may_manage(exam):
+    return current_user.role.lower() == 'admin' or exam.course_id in _staff_course_ids()
+
+
+def _parse_optional_date(raw):
+    if not raw:
+        return None
+    try:
+        return datetime.strptime(str(raw).strip(), '%Y-%m-%d').date()
+    except ValueError:
+        return None
+
+
+def _finalize_expired(exam):
+    """Auto-complete in-progress attempts whose window has passed (moderate grace)."""
+    try:
+        now = datetime.utcnow().replace(tzinfo=timezone.utc)
+        for a in McqAttempt.query.filter_by(exam_id=exam.id, status='in_progress').all():
+            start = a.start_time or datetime.utcnow()
+            deadline = start.replace(tzinfo=timezone.utc) + timedelta(minutes=exam.duration_minutes or 0)
+            if now > deadline + timedelta(seconds=120):
+                a.status = 'completed'
+                if a.grade is None:
+                    a.grade = 'N/A'
+                    a.calculate_grade()
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 # ── Existing manual exam routes ────────────────────────────────────
 
@@ -23,12 +60,14 @@ def exam_list():
         tutor = Tutor.query.filter_by(email=current_user.email).first()
         if not tutor:
             return render_template('exams.html', exams=[], courses=[],
-                filter_course=None, filter_month=None, filter_year=None,
+                filter_course=None, filter_month=None, filter_year=None, filter_status=None, filter_q=None,
                 today=date.today(), section='list', is_staff=True)
         course_ids = [c.id for c in tutor.courses]
         filter_course = request.args.get('course_id', type=int)
         filter_month = request.args.get('month', type=int)
         filter_year = request.args.get('year', type=int)
+        filter_status = request.args.get('status', '')
+        filter_q = request.args.get('q', '').strip()
         query = Exam.query.filter(Exam.course_id.in_(course_ids))
         if filter_course and filter_course in course_ids:
             query = query.filter_by(course_id=filter_course)
@@ -36,10 +75,18 @@ def exam_list():
             query = query.filter(db.extract('month', Exam.exam_date) == filter_month, db.extract('year', Exam.exam_date) == filter_year)
         elif filter_year:
             query = query.filter(db.extract('year', Exam.exam_date) == filter_year)
+        if filter_status == 'published':
+            query = query.filter(Exam.is_published.is_(True))
+        elif filter_status == 'draft':
+            query = query.filter(Exam.is_published.is_(False))
+        if filter_q:
+            like = f'%{filter_q}%'
+            query = query.filter(db.or_(Exam.title.ilike(like), Exam.description.ilike(like)))
         exams = query.order_by(Exam.exam_date.desc()).all()
         courses = tutor.courses
         return render_template('exams.html', exams=exams, courses=courses,
             filter_course=filter_course, filter_month=filter_month, filter_year=filter_year,
+            filter_status=filter_status, filter_q=filter_q,
             today=date.today(), section='list', is_staff=True)
     elif current_user.role.lower() != 'admin':
         student = Student.query.filter_by(email=current_user.email).first()
@@ -54,11 +101,13 @@ def exam_list():
             if at:
                 attempt_map[e.id] = at
         return render_template('exams.html', exams=exams, attempt_map=attempt_map,
-            courses=[], filter_course=None, filter_month=None, filter_year=None,
+            courses=[], filter_course=None, filter_month=None, filter_year=None, filter_status=None, filter_q=None,
             today=date.today(), section='student_list')
     filter_course = request.args.get('course_id', type=int)
     filter_month = request.args.get('month', type=int)
     filter_year = request.args.get('year', type=int)
+    filter_status = request.args.get('status', '')
+    filter_q = request.args.get('q', '').strip()
     query = Exam.query
     if filter_course:
         query = query.filter_by(course_id=filter_course)
@@ -66,10 +115,18 @@ def exam_list():
         query = query.filter(db.extract('month', Exam.exam_date) == filter_month, db.extract('year', Exam.exam_date) == filter_year)
     elif filter_year:
         query = query.filter(db.extract('year', Exam.exam_date) == filter_year)
+    if filter_status == 'published':
+        query = query.filter(Exam.is_published.is_(True))
+    elif filter_status == 'draft':
+        query = query.filter(Exam.is_published.is_(False))
+    if filter_q:
+        like = f'%{filter_q}%'
+        query = query.filter(db.or_(Exam.title.ilike(like), Exam.description.ilike(like)))
     exams = query.order_by(Exam.exam_date.desc()).all()
     courses = Course.query.order_by(Course.name).all()
     return render_template('exams.html', exams=exams, courses=courses,
         filter_course=filter_course, filter_month=filter_month, filter_year=filter_year,
+        filter_status=filter_status, filter_q=filter_q,
         today=date.today(), section='list')
 
 @exams_bp.route('/create', methods=['POST'])
@@ -87,7 +144,9 @@ def create_exam():
     max_marks = form.cleaned_data.get('max_marks', 0)
     passing_marks = form.cleaned_data.get('passing_marks', 0)
     description = request.form.get('description', '').strip()
-    exam = Exam(course_id=course_id, title=title, exam_date=exam_date, max_marks=max_marks, passing_marks=passing_marks, description=description)
+    available_from = _parse_optional_date(request.form.get('available_from'))
+    available_until = _parse_optional_date(request.form.get('available_until'))
+    exam = Exam(course_id=course_id, title=title, exam_date=exam_date, max_marks=max_marks, passing_marks=passing_marks, description=description, available_from=available_from, available_until=available_until)
     db.session.add(exam)
     db.session.commit()
     flash(f"Exam '{title}' created.", "success")
@@ -109,6 +168,8 @@ def edit_exam(id):
     exam.max_marks = form.cleaned_data.get('max_marks', 0)
     exam.passing_marks = form.cleaned_data.get('passing_marks', 0)
     exam.description = request.form.get('description', '').strip()
+    exam.available_from = _parse_optional_date(request.form.get('available_from'))
+    exam.available_until = _parse_optional_date(request.form.get('available_until'))
     db.session.commit()
     flash(f"Exam '{exam.title}' updated.", "success")
     return redirect(url_for('exams.exam_list'))
@@ -126,25 +187,36 @@ def delete_exam(id):
 
 @exams_bp.route('/<int:id>/scores')
 @login_required
-@admin_required
 def exam_scores(id):
     exam = Exam.query.get_or_404(id)
+    if not _staff_may_manage(exam):
+        flash('You do not have access to this exam.', 'danger')
+        return redirect(url_for('exams.exam_list'))
     students = Student.query.join(Student.courses).filter(Course.id == exam.course_id).order_by(Student.name).all()
     score_map = {}
     for s in exam.scores:
         score_map[s.student_id] = s
     ranked = sorted(students, key=lambda s: score_map[s.id].marks_obtained if s.id in score_map else -1, reverse=True)
     rank_map = {}
-    for i, s in enumerate(ranked):
-        if s.id in score_map:
-            rank_map[s.id] = i + 1
+    prev_marks = None
+    prev_rank = 0
+    for pos, s in enumerate(ranked, 1):
+        if s.id not in score_map:
+            continue
+        marks = score_map[s.id].marks_obtained
+        if prev_marks is None or marks != prev_marks:
+            prev_rank = pos
+        rank_map[s.id] = prev_rank
+        prev_marks = marks
     return render_template('exams.html', exam=exam, students=students, score_map=score_map, rank_map=rank_map, section='scores', today=date.today())
 
 @exams_bp.route('/<int:id>/scores/save', methods=['POST'])
 @login_required
-@admin_required
 def save_scores(id):
     exam = Exam.query.get_or_404(id)
+    if not _staff_may_manage(exam):
+        flash('You do not have access to this exam.', 'danger')
+        return redirect(url_for('exams.exam_list'))
     student_ids = request.form.getlist('student_id[]')
     marks_list = request.form.getlist('marks[]')
     remarks_list = request.form.getlist('remarks[]')
@@ -165,23 +237,69 @@ def save_scores(id):
         if marks_val < 0 or marks_val > exam.max_marks:
             flash(f'Marks must be between 0 and {exam.max_marks:.0f}. Skipped student #{sid_int}.', 'warning')
             continue
+        rem = (rem.strip() or '')[:200]
         existing = ExamScore.query.filter_by(exam_id=exam.id, student_id=sid_int).first()
         if existing:
             existing.marks_obtained = marks_val
-            existing.remarks = rem.strip()
+            existing.remarks = rem
         else:
-            score = ExamScore(exam_id=exam.id, student_id=sid_int, marks_obtained=marks_val, remarks=rem.strip())
+            score = ExamScore(exam_id=exam.id, student_id=sid_int, marks_obtained=marks_val, remarks=rem)
             db.session.add(score)
         saved += 1
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash('Scores could not be saved. Check for duplicate rows and try again.', 'danger')
+        return redirect(url_for('exams.exam_scores', id=exam.id))
     flash(f"{saved} score(s) saved.", "success")
     return redirect(url_for('exams.exam_scores', id=exam.id))
 
+@exams_bp.route('/<int:id>/scores/export')
+@login_required
+def export_scores(id):
+    exam = Exam.query.get_or_404(id)
+    if not _staff_may_manage(exam):
+        flash('You do not have access to this exam.', 'danger')
+        return redirect(url_for('exams.exam_list'))
+    students = Student.query.join(Student.courses).filter(Course.id == exam.course_id).order_by(Student.name).all()
+    score_map = {s.student_id: s for s in exam.scores}
+    ranked = sorted(students, key=lambda s: score_map[s.id].marks_obtained if s.id in score_map else -1, reverse=True)
+    rank_map = {}
+    prev_marks = None
+    prev_rank = 0
+    for pos, s in enumerate(ranked, 1):
+        if s.id not in score_map:
+            continue
+        marks = score_map[s.id].marks_obtained
+        if prev_marks is None or marks != prev_marks:
+            prev_rank = pos
+        rank_map[s.id] = prev_rank
+        prev_marks = marks
+    buf = StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(['Rank', 'Student Name', 'Email', 'Marks', 'Max Marks', 'Percentage', 'Result', 'Remarks'])
+    for s in ranked:
+        sc = score_map.get(s.id)
+        if not sc:
+            continue
+        pct = round(sc.marks_obtained / exam.max_marks * 100, 1) if exam.max_marks else 0
+        writer.writerow([
+            rank_map.get(s.id, '-'), s.name, s.email,
+            f'{sc.marks_obtained:.2f}', f'{exam.max_marks:.2f}', f'{pct}%',
+            'Pass' if sc.marks_obtained >= exam.passing_marks else 'Fail',
+            sc.remarks or ''])
+    output = buf.getvalue().encode('utf-8-sig')
+    return send_file(BytesIO(output), mimetype='text/csv', as_attachment=True,
+        download_name=f'{exam.course.code}_{exam.exam_date.strftime("%Y%m%d")}_scores.csv')
+
 @exams_bp.route('/<int:id>/report')
 @login_required
-@admin_required
 def exam_report(id):
     exam = Exam.query.get_or_404(id)
+    if not _staff_may_manage(exam):
+        flash('You do not have access to this exam.', 'danger')
+        return redirect(url_for('exams.exam_list'))
     students = Student.query.join(Student.courses).filter(Course.id == exam.course_id).order_by(Student.name).all()
     score_map = {}
     for s in exam.scores:
@@ -377,6 +495,8 @@ def mcq_generate():
     num_questions = request.form.get('num_questions', type=int) or 10
     duration_mins = request.form.get('duration_mins', type=int) or 30
     total_marks = request.form.get('total_marks', type=float) or 100
+    available_from = _parse_optional_date(request.form.get('available_from'))
+    available_until = _parse_optional_date(request.form.get('available_until'))
 
     course = Course.query.get_or_404(course_id)
     questions = current_app.ai_engine.generate_mcq_questions(
@@ -391,7 +511,8 @@ def mcq_generate():
         course_id=course_id, title=title, exam_date=date.today(),
         max_marks=total_marks, passing_marks=round(total_marks * 0.35),
         exam_type='mcq', num_questions=len(questions),
-        duration_minutes=duration_mins, is_published=False
+        duration_minutes=duration_mins, is_published=False,
+        available_from=available_from, available_until=available_until,
     )
     db.session.add(exam)
     db.session.flush()
@@ -404,15 +525,29 @@ def mcq_generate():
 
 @exams_bp.route('/<int:id>/mcq/preview')
 @login_required
+@admin_required
 def mcq_preview(id):
     exam = Exam.query.get_or_404(id)
     return render_template('exams_mcq_preview.html', exam=exam)
+
+@exams_bp.route('/<int:id>/mcq/unpublish', methods=['POST'])
+@login_required
+@admin_required
+def mcq_unpublish(id):
+    exam = Exam.query.get_or_404(id)
+    exam.is_published = False
+    db.session.commit()
+    flash(f'"{exam.title}" is back to draft. Students can no longer take it.', 'info')
+    return redirect(url_for('exams.mcq_preview', id=exam.id))
 
 @exams_bp.route('/<int:id>/mcq/regenerate', methods=['POST'])
 @login_required
 @admin_required
 def mcq_regenerate(id):
     exam = Exam.query.get_or_404(id)
+    if McqAttempt.query.filter_by(exam_id=exam.id, status='completed').first():
+        flash('Cannot regenerate questions: students have already attempted this exam.', 'warning')
+        return redirect(url_for('exams.mcq_preview', id=exam.id))
     course = exam.course
     questions = current_app.ai_engine.generate_mcq_questions(
         course.name, course.description or '',
@@ -458,16 +593,30 @@ def mcq_edit_question(id):
 @login_required
 def mcq_take(id):
     exam = Exam.query.get_or_404(id)
+    if not exam.is_published:
+        flash('This exam has not been published yet.', 'warning')
+        return redirect(url_for('dashboard.dashboard'))
+    today = date.today()
+    if exam.available_from and today < exam.available_from:
+        flash('This exam has not opened yet.', 'warning')
+        return redirect(url_for('dashboard.dashboard'))
+    if exam.available_until and today > exam.available_until:
+        flash('This exam has closed.', 'warning')
+        return redirect(url_for('dashboard.dashboard'))
     student = Student.query.filter_by(email=current_user.email).first()
     if not student:
         flash('Only students can take exams.', 'danger')
+        return redirect(url_for('dashboard.dashboard'))
+    if exam.course not in student.courses:
+        flash('You are not enrolled in this exam\'s course.', 'danger')
         return redirect(url_for('dashboard.dashboard'))
     assignment = ExamAssignment.query.filter_by(exam_id=exam.id, student_id=student.id).first()
     if not assignment:
         flash('This exam is not assigned to you.', 'danger')
         return redirect(url_for('dashboard.dashboard'))
-    assignment.status = 'in_progress'
-    db.session.commit()
+    if assignment.due_date and today > assignment.due_date:
+        flash('This exam is past its due date.', 'danger')
+        return redirect(url_for('dashboard.dashboard'))
     existing = McqAttempt.query.filter_by(exam_id=exam.id, student_id=student.id, status='completed').first()
     if existing:
         flash('You have already completed this exam.', 'warning')
@@ -476,8 +625,12 @@ def mcq_take(id):
     if not attempt:
         attempt = McqAttempt(exam_id=exam.id, student_id=student.id, total_marks=exam.max_marks)
         db.session.add(attempt)
-        db.session.commit()
-    return render_template('exams_mcq_take.html', exam=exam, attempt=attempt)
+        db.session.flush()
+    assignment.status = 'in_progress'
+    db.session.commit()
+    start = attempt.start_time or datetime.utcnow()
+    end_epoch = int((start.replace(tzinfo=timezone.utc) + timedelta(minutes=exam.duration_minutes or 1)).timestamp())
+    return render_template('exams_mcq_take.html', exam=exam, attempt=attempt, end_epoch=end_epoch)
 
 @exams_bp.route('/<int:id>/mcq/submit', methods=['POST'])
 @login_required
@@ -489,6 +642,10 @@ def mcq_submit(id):
     attempt = McqAttempt.query.filter_by(exam_id=exam.id, student_id=student.id, status='in_progress').first()
     if not attempt:
         return jsonify({'error': 'No active attempt'}), 400
+    start = attempt.start_time or datetime.utcnow()
+    deadline = start.replace(tzinfo=timezone.utc) + timedelta(minutes=exam.duration_minutes or 0)
+    if datetime.utcnow().replace(tzinfo=timezone.utc) > deadline + timedelta(seconds=60):
+        return jsonify({'error': 'Time expired. Your attempt has been closed.'}), 400
     data = request.get_json()
     answers = data.get('answers', {}) if data else {}
     score = 0
@@ -511,6 +668,15 @@ def mcq_submit(id):
     assignment = ExamAssignment.query.filter_by(exam_id=exam.id, student_id=student.id).first()
     if assignment:
         assignment.status = 'completed'
+    # Unify scoring so manual reports / student performance PDFs include MCQ results.
+    score_row = ExamScore.query.filter_by(exam_id=exam.id, student_id=student.id).first()
+    if score_row:
+        score_row.marks_obtained = attempt.score
+        score_row.remarks = f'MCQ {attempt.grade} ({attempt.percentage}%)'
+    else:
+        db.session.add(ExamScore(
+            exam_id=exam.id, student_id=student.id,
+            marks_obtained=attempt.score, remarks=f'MCQ {attempt.grade} ({attempt.percentage}%)'))
     db.session.commit()
     return jsonify({
         'score': attempt.score,
@@ -523,6 +689,7 @@ def mcq_submit(id):
 @login_required
 def mcq_results(id):
     exam = Exam.query.get_or_404(id)
+    _finalize_expired(exam)
     student = Student.query.filter_by(email=current_user.email).first()
     attempt = McqAttempt.query.filter_by(exam_id=exam.id, student_id=student.id, status='completed').first() if student else None
     return render_template('exams_mcq_results.html', exam=exam, attempt=attempt)
@@ -532,6 +699,7 @@ def mcq_results(id):
 @admin_required
 def mcq_analysis(id):
     exam = Exam.query.get_or_404(id)
+    _finalize_expired(exam)
     attempts = McqAttempt.query.filter_by(exam_id=exam.id, status='completed').order_by(McqAttempt.percentage.desc()).all()
     return render_template('exams_mcq_analysis.html', exam=exam, attempts=attempts)
 
@@ -540,6 +708,7 @@ def mcq_analysis(id):
 @admin_required
 def mcq_question_stats(id):
     exam = Exam.query.get_or_404(id)
+    _finalize_expired(exam)
     attempts = McqAttempt.query.filter_by(exam_id=exam.id, status='completed').all()
     total = len(attempts)
     stats = []
@@ -569,6 +738,7 @@ def mcq_question_stats(id):
 @admin_required
 def mcq_report_pdf(id):
     exam = Exam.query.get_or_404(id)
+    _finalize_expired(exam)
     attempts = McqAttempt.query.filter_by(exam_id=exam.id, status='completed').order_by(McqAttempt.percentage.desc()).all()
     pdf = FPDF()
     pdf.alias_nb_pages()
@@ -658,6 +828,7 @@ def mcq_report_pdf(id):
 @admin_required
 def mcq_student_report_pdf(id, student_id):
     exam = Exam.query.get_or_404(id)
+    _finalize_expired(exam)
     student = Student.query.get_or_404(student_id)
     attempt = McqAttempt.query.filter_by(exam_id=exam.id, student_id=student.id, status='completed').first()
     if not attempt:
@@ -734,27 +905,51 @@ def mcq_student_report_pdf(id, student_id):
 @admin_required
 def mcq_assign(id):
     exam = Exam.query.get_or_404(id)
+    enrolled = Student.query.filter(Student.courses.any(id=exam.course_id)).order_by(Student.name).all()
+    allowed_ids = {s.id for s in enrolled}
     if request.method == 'POST':
         student_ids = request.form.getlist('student_ids')
-        count = 0
+        posted = set()
         for sid in student_ids:
             try:
-                sid_int = int(sid)
+                posted.add(int(sid))
             except (ValueError, TypeError):
                 continue
-            existing = ExamAssignment.query.filter_by(exam_id=exam.id, student_id=sid_int).first()
-            if not existing:
-                db.session.add(ExamAssignment(
-                    exam_id=exam.id, student_id=sid_int,
-                    assigned_by=current_user.id
-                ))
-                count += 1
+        posted &= allowed_ids
+        due_raw = request.form.get('due_date', '').strip()
+        due_date = None
+        if due_raw:
+            try:
+                due_date = datetime.strptime(due_raw, '%Y-%m-%d').date()
+            except ValueError:
+                due_date = None
+        before = {a.student_id for a in exam.assignments}
+        added = 0
+        removed = 0
+        changed = 0
+        for sid in allowed_ids:
+            assignment = ExamAssignment.query.filter_by(exam_id=exam.id, student_id=sid).first()
+            if sid in posted:
+                if not assignment:
+                    db.session.add(ExamAssignment(
+                        exam_id=exam.id, student_id=sid,
+                        assigned_by=current_user.id, due_date=due_date))
+                    added += 1
+                elif assignment.due_date != due_date:
+                    assignment.due_date = due_date
+                    changed += 1
+            elif assignment:
+                db.session.delete(assignment)
+                removed += 1
         db.session.commit()
-        flash(f'Exam assigned to {count} student(s).', 'success')
+        msg = f'{added} added, {removed} removed'
+        if changed:
+            msg += f', {changed} updated'
+        flash(f'Assignments: {msg}.', 'success')
         return redirect(url_for('exams.mcq_assign', id=exam.id))
-    assigned_ids = [a.student_id for a in exam.assignments]
-    students = Student.query.order_by(Student.name).all()
-    return render_template('exams_mcq_assign.html', exam=exam, students=students, assigned_ids=assigned_ids)
+    assigned_ids = {a.student_id for a in exam.assignments}
+    return render_template('exams_mcq_assign.html', exam=exam, students=enrolled,
+        assigned_ids=assigned_ids, today=date.today())
 
 
 @exams_bp.route('/<int:id>/mcq/solutions')
@@ -762,5 +957,6 @@ def mcq_assign(id):
 @admin_required
 def mcq_solutions(id):
     exam = Exam.query.get_or_404(id)
+    _finalize_expired(exam)
     attempts = McqAttempt.query.filter_by(exam_id=exam.id, status='completed').order_by(McqAttempt.percentage.desc()).all()
     return render_template('exams_mcq_solutions.html', exam=exam, attempts=attempts)

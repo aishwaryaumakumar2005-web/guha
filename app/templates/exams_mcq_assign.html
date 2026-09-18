@@ -12,16 +12,24 @@
         <div class="glass-card p-4 mb-4">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5 class="text-white fw-bold mb-0"><i class="bi bi-people me-2"></i>Select Students</h5>
-                <div class="d-flex gap-2">
+                <div class="d-flex gap-2 align-items-center">
+                    <div class="me-2">
+                        <label for="dueDate" class="form-label text-white-50 small mb-1">Due date (optional)</label>
+                        <input type="date" id="dueDate" name="due_date" class="form-control form-control-sm" value="{{ (exam.assignments|first).due_date.strftime('%Y-%m-%d') if exam.assignments and (exam.assignments|first).due_date else '' }}">
+                    </div>
                     <button type="button" class="btn btn-sm btn-outline-info" onclick="toggleAll(true)">Select All</button>
                     <button type="button" class="btn btn-sm btn-outline-light" onclick="toggleAll(false)">Clear</button>
                 </div>
             </div>
+            <p class="text-white-50 small mb-3">
+                Showing {{ students|length }} student(s) enrolled in <strong class="text-info">{{ exam.course.name }}</strong>.
+                Unchecking an already-assigned student removes their assignment.
+            </p>
             <div class="row g-2">
                 {% for s in students %}
                 <div class="col-md-4 col-lg-3">
                     <label class="d-flex align-items-center p-2 rounded" style="cursor:pointer;border:1px solid {% if s.id in assigned_ids %}rgba(27, 110, 243,0.4){% else %}rgba(255,255,255,0.08){% endif %};background:{% if s.id in assigned_ids %}rgba(27, 110, 243,0.06){% else %}rgba(255,255,255,0.02){% endif %};">
-                        <input type="checkbox" name="student_ids" value="{{ s.id }}" {% if s.id in assigned_ids %}checked{% endif %} style="margin-right:10px;width:18px;height:18px;">
+                        <input type="checkbox" name="student_ids" value="{{ s.id }}" {% if s.id in assigned_ids %}checked{% endif %} style="margin-right:10px;width:18px;height:18px;" aria-label="Assign {{ s.name }}">
                         <div>
                             <div class="text-white small fw-medium">{{ s.name }}</div>
                             <div class="text-white-50" style="font-size:0.7rem;">{{ s.email }}</div>
@@ -43,13 +51,14 @@
         {% if exam.assignments %}
         <div class="table-responsive">
             <table class="table table-dark table-hover mb-0">
-                <thead><tr><th>Student</th><th>Email</th><th>Status</th><th>Assigned At</th></tr></thead>
+                <thead><tr><th scope="col">Student</th><th scope="col">Email</th><th scope="col">Status</th><th scope="col">Due</th><th scope="col">Assigned At</th></tr></thead>
                 <tbody>
                     {% for a in exam.assignments %}
                     <tr>
                         <td class="text-white">{{ a.student.name }}</td>
                         <td class="text-white-50 small">{{ a.student.email }}</td>
                         <td><span class="badge {% if a.status == 'completed' %}bg-success{% elif a.status == 'in_progress' %}bg-info{% else %}bg-secondary{% endif %}">{{ a.status }}</span></td>
+                        <td class="text-white-50 small">{{ a.due_date.strftime('%d %b %Y') if a.due_date else '-' }}</td>
                         <td class="text-white-50 small">{{ a.assigned_at.strftime('%d %b %Y %I:%M %p') }}</td>
                     </tr>
                     {% endfor %}
