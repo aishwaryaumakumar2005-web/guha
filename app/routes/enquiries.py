@@ -4,7 +4,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required
 from datetime import datetime, date as date_cls
 from app.extensions import db
-from app.models import Enquiry, Course, Student, AuditLog, ensure_enrolled_on
+from app.models import Enquiry, Course, Student, AuditLog, ensure_enrolled_on, stamp_agreed_dues
 from app.helpers import admin_required, commit_with_retry, is_ajax_request
 from sqlalchemy.exc import IntegrityError
 from app.forms import (EnquiryForm, ENQUIRY_SOURCES, ENQUIRY_STATUSES,
@@ -204,6 +204,7 @@ def convert(id):
         db.session.add(fresh)
         db.session.flush()
         ensure_enrolled_on(fresh.id)
+        stamp_agreed_dues(fresh.id)
         lead.status = 'Converted'
         lead.converted_student_id = fresh.id
         lead.last_contacted_at = datetime.utcnow()

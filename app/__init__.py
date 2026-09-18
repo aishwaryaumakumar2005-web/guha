@@ -307,6 +307,20 @@ def create_app(config_object=None):
                 print("Migration migrate_indexes completed OK", flush=True)
             except Exception as e:
                 print("Migration migrate_indexes FAILED:", e, flush=True)
+
+            try:
+                from app.services.db_migration import migrate_agreed_dues_columns
+                migrate_agreed_dues_columns()
+                print("Migration migrate_agreed_dues_columns completed OK", flush=True)
+            except Exception as e:
+                print("Migration migrate_agreed_dues_columns FAILED:", e, flush=True)
+
+            try:
+                from app.services.db_migration import migrate_expense_student_id
+                migrate_expense_student_id()
+                print("Migration migrate_expense_student_id completed OK", flush=True)
+            except Exception as e:
+                print("Migration migrate_expense_student_id FAILED:", e, flush=True)
                 db.session.rollback()
             try:
                 from app.services.db_migration import migrate_enquiry_course_nullable
@@ -546,6 +560,23 @@ def create_app(config_object=None):
                 migrate_fee_concession_column()
             except Exception as e:
                 print('Failed to ensure fee_record.concession:', e, file=sys.stderr)
+
+        # Same self-heal for the agreed-dues snapshot columns, which the dues
+        # helper selects explicitly on legacy databases.
+        if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+            try:
+                from app.services.db_migration import migrate_agreed_dues_columns
+                migrate_agreed_dues_columns()
+            except Exception as e:
+                print('Failed to ensure agreed dues columns:', e, file=sys.stderr)
+
+        # Same self-heal for expense.student_id (W3 refund link).
+        if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+            try:
+                from app.services.db_migration import migrate_expense_student_id
+                migrate_expense_student_id()
+            except Exception as e:
+                print('Failed to ensure expense.student_id:', e, file=sys.stderr)
 
         from app.audit import register_audit_events
         register_audit_events()

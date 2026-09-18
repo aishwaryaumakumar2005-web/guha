@@ -4,6 +4,102 @@ from .payment_methods import DEFAULT_ACCOUNTS, METHOD_TYPE, classify_method, ACC
 import re
 
 
+def agreed_enrollment_items_bulk(student_ids):
+    """Batched agreed_enrollment_items: {student_id: [items]} in two queries.
+
+    For list pages (dues matrix, reminder batches) that previously loaded
+    student.courses eagerly; the single-student variant would pay N+1.
+    """
+    from app.models import student_courses, Course
+    student_ids = list(student_ids)
+    if not student_ids:
+        return {}
+    rows = db.session.query(student_courses).filter(
+        student_courses.c.student_id.in_(student_ids)).all()
+    if not rows:
+        return {}
+    assoc = {}
+    for row in rows:
+        assoc.setdefault(row.student_id, {})[row.course_id] = row
+    courses = Course.query.filter(Course.id.in_([r.course_id for r in rows])).all()
+    by_course = {c.id: c for c in courses}
+    out = {}
+    for sid, by in assoc.items():
+        items = []
+        for cid, snap in by.items():
+            course = by_course.get(cid)
+            if course is None:
+                continue
+            fee = course.fees
+            gst = course.gst_applicable
+            company_id = course.company_id
+            if snap is not None:
+                if snap.agreed_fee is not None:
+                    fee = snap.agreed_fee
+                if snap.agreed_gst is not None:
+                    gst = snap.agreed_gst
+                if snap.agreed_company_id is not None:
+                    company_id = snap.agreed_company_id
+            items.append({
+                'course_id': course.id,
+                'course': course,
+                'fee': fee,
+                'gst_applicable': bool(gst),
+                'company_id': company_id,
+            })
+        out[sid] = items
+    return out
+
+
+def agreed_enrollment_items(student_id):
+    """Per-course dues basis for a student: agreed snapshot first, live course row as fallback.
+
+    Returns a list of dicts: course_id, course (live row, for names/codes),
+    fee, gst_applicable, company_id. NULL snapshot fields (pre-W2 rows whose
+    backfill was skipped, or rows stamped before a column existed) fall back
+    to the live course row per-field — never all-or-nothing, so a partial
+    snapshot still freezes what it captured. NOTE: `is None` checks, not
+    truthiness: agreed_gst=False and agreed_fee=0.0 are real snapshots.
+    """
+    return agreed_enrollment_items_bulk([student_id]).get(student_id, [])
+
+
+def snapshot_company_id(item, gst_company_id, nongst_company_id):
+    """Attribute an agreed enrollment item to a billing company.
+
+    Mirrors the booking fallback for rows whose snapshot has no company:
+    GST-applicable items bill through the GST entity, others through the
+    non-GST one.
+    """
+    if item['company_id']:
+        return item['company_id']
+    return gst_company_id if item['gst_applicable'] else nongst_company_id
+
+
+def student_refunded_total(student_id):
+    """Total amount refunded to a student through Expenses linked to them (W3).
+
+    A refund is defined as any Expense carrying student_id; non-refund
+    expenses never set it.
+    """
+    from app.models import Expense
+    total = db.session.query(db.func.coalesce(db.func.sum(Expense.amount), 0)).filter(
+        Expense.student_id == student_id).scalar()
+    return round(total or 0.0, 2)
+
+
+def student_refunded_totals_bulk(student_ids):
+    """Batched student_refunded_total: {student_id: total} in one query."""
+    from app.models import Expense
+    student_ids = list(student_ids)
+    if not student_ids:
+        return {}
+    rows = db.session.query(Expense.student_id, db.func.sum(Expense.amount)).filter(
+        Expense.student_id.in_(student_ids)
+    ).group_by(Expense.student_id).all()
+    return {sid: round(total or 0.0, 2) for sid, total in rows}
+
+
 def company_bill_name(company):
     """Name as shown on bills — strips the trailing '(GST)' / '(NON GST)' bracket."""
     if not company or not company.name:

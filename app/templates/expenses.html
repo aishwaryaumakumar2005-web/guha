@@ -199,6 +199,18 @@ Record New Expense</h5>
                         <span id="add-payment-method-type" class="d-inline-flex align-items-center gap-1 mt-1" style="color:rgba(255,255,255,0.55);font-size:0.72rem;"></span>
                         <div class="form-text mt-1" id="add-balance-hint" style="color: var(--accent-cyan); opacity: 0.85;"></div>
                     </div>
+                    <div class="mb-3 refund-student-field" style="display:none;">
+                        <label class="form-label text-white small">
+  Refund To Student <span class="text-white-50">(optional)</span></label>
+                        <select class="form-select" name="student_id">
+                            <option value="">
+-- Select Student --</option>
+                            {% for s in students %}                                <option value="{{ s.id }}">
+{{ s.name }} ({{ s.roll_no or s.id }})</option>
+                            {% endfor %}                        </select>
+                        <div class="form-text" style="color:rgba(255,255,255,0.55);font-size:0.72rem;">
+Linking a student records this as a refund that reduces their outstanding dues.</div>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">
   Description</label>
@@ -254,6 +266,18 @@ Edit Expense</h5>
                         {{ payment_method_options(selected=exp.payment_method, id='edit-payment-method-' ~ exp.id, methods=payment_methods, labels=method_labels, default=default_payment_method, groups=method_groups, extra_attrs='data-method-indicator="edit-payment-method-' ~ exp.id ~ '-type"') }}
                         <span id="edit-payment-method-{{ exp.id }}-type" class="d-inline-flex align-items-center gap-1 mt-1" style="color:rgba(255,255,255,0.55);font-size:0.72rem;"></span>
                         <div class="form-text mt-1" id="edit-balance-hint-{{ exp.id }}" style="color: var(--accent-cyan); opacity: 0.85;"></div>
+                    </div>
+                    <div class="mb-3 refund-student-field" {% if not exp.student_id %}style="display:none;"{% endif %}>
+                        <label class="form-label text-white small">
+  Refund To Student <span class="text-white-50">(optional)</span></label>
+                        <select class="form-select" name="student_id">
+                            <option value="">
+-- Select Student --</option>
+                            {% for s in students %}                                <option value="{{ s.id }}" {% if exp.student_id == s.id %}selected{% endif %}>
+{{ s.name }} ({{ s.roll_no or s.id }})</option>
+                            {% endfor %}                        </select>
+                        <div class="form-text" style="color:rgba(255,255,255,0.55);font-size:0.72rem;">
+Linking a student records this as a refund that reduces their outstanding dues.</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">
@@ -418,6 +442,21 @@ var addSel = document.getElementById('add-payment-method');
             updateHint(e.target, 'edit-balance-hint-' + m.split('-').pop());
         }
     });
-})();</script>
+})();
+function toggleRefundField(select) {
+    var body = select.closest('.modal-body');
+    if (!body) return;
+    var field = body.querySelector('.refund-student-field');
+    if (!field) return;
+    var isRefund = false;
+    if (select.selectedOptions && select.selectedOptions[0]) {
+        isRefund = (select.selectedOptions[0].textContent || '').trim() === 'Refund';
+    }
+    field.style.display = isRefund ? '' : 'none';
+}
+document.addEventListener('change', function (e) {
+    if (e.target && e.target.name === 'category_id') toggleRefundField(e.target);
+});
+document.querySelectorAll('#addExpenseModal select[name="category_id"], [id^="editExpenseModal"] select[name="category_id"]').forEach(toggleRefundField);</script>
 {% endblock %}
 

@@ -24,14 +24,15 @@ def _edit_payload(**over):
 
 # ---- Fee-change impact warning ----
 
-def test_fee_change_warns_with_count(admin_client, app):
+def test_fee_change_warns_existing_keep_agreed(admin_client, app):
     cid = _cid(app)
     resp = admin_client.post(f'/courses/edit/{cid}',
                              data=_edit_payload(fees='6000'), headers=AJAX)
     assert resp.status_code == 200
     msg = resp.get_json()['message']
-    assert 'dues recalculated' in msg
-    assert '1 active enrollment' in msg
+    assert 'agreed price' in msg
+    assert 'new enrollments' in msg
+    assert 'recalculated' not in msg
     with app.app_context():
         assert Course.query.get(cid).fees == 6000.0
 

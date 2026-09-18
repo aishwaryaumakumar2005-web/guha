@@ -99,7 +99,9 @@ class AccountingService:
         if company is not None:
             has_gst = bool(company.is_gst_registered)
         else:
-            has_gst = any(c.gst_applicable for c in courses)
+            # Legacy company-less rows: GST profile from the agreed snapshot.
+            from .account_service import agreed_enrollment_items
+            has_gst = any(it['gst_applicable'] for it in agreed_enrollment_items(student.id))
         total_fee = sum(c.fees for c in courses)
 
         if has_gst:

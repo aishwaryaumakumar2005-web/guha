@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app, send_file
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import Student, Course, Tutor, Attendance, student_courses, ensure_enrolled_on
+from app.models import Student, Course, Tutor, Attendance, student_courses, ensure_enrolled_on, stamp_agreed_dues
 from app.helpers import admin_required, cell_text, commit_with_retry, is_ajax_request, save_photo_data, staff_can_view_student
 from sqlalchemy.exc import IntegrityError
 from app.forms import StudentForm
@@ -96,6 +96,7 @@ def list():
                 db.session.add(fresh)
                 db.session.flush()
                 ensure_enrolled_on(fresh.id)
+                stamp_agreed_dues(fresh.id)
                 db.session.commit()
                 return fresh
             try:
@@ -322,6 +323,9 @@ def edit(id):
     db.session.flush()
     if added_ids:
         ensure_enrolled_on(student.id, added_ids)
+        # Stamp any row left without a snapshot (covers drop-and-re-add of the
+        # same course in one save); re-run-safe because it only fills NULLs.
+        stamp_agreed_dues(student.id)
     db.session.commit()
     message = "Student details updated!"
     if is_ajax_request():
@@ -484,6 +488,7 @@ def import_excel():
                 db.session.add(new_student)
                 db.session.flush()
                 ensure_enrolled_on(new_student.id)
+                stamp_agreed_dues(new_student.id)
                 known.add(email_key)
                 imported += 1
             db.session.commit()

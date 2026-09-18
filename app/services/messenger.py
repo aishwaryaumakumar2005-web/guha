@@ -219,10 +219,12 @@ class Messenger:
 
     def batch_fee_reminders(self):
         from app.models import Student, FeeRecord
+        from app.services.account_service import agreed_enrollment_items, student_refunded_total
         recipients = []
         for s in Student.query.filter_by(status='Active').all():
-            total_fee = sum(c.fees for c in s.courses)
+            total_fee = sum(it['fee'] for it in agreed_enrollment_items(s.id))
             total_paid = sum(r.amount_paid for r in s.fee_records)
+            balance = total_fee - total_paid + student_refunded_total(s.id)
             balance = total_fee - total_paid
             if balance > 0 and s.phone:
                 recipients.append((s.name, s.phone, {'amount': balance, 'due_date': date.today().strftime('%d %b %Y')}))

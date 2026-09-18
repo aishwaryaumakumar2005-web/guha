@@ -2,7 +2,7 @@ from datetime import date, datetime, timedelta
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import User, Student, Tutor, Course, Enquiry, FeeRecord, Attendance, LeaveRequest, Exam, student_courses
+from app.models import User, Student, Tutor, Course, Enquiry, FeeRecord, Attendance, LeaveRequest, Exam, Expense, student_courses
 from app.helpers import admin_required, is_ajax_request
 from app.services.account_service import compute_account_summary
 from sqlalchemy import func, case
@@ -182,25 +182,35 @@ def _fee_dues():
         FeeRecord.student_id.label('sid'),
         db.func.sum(FeeRecord.amount_paid).label('paid')
     ).group_by(FeeRecord.student_id).subquery()
+    refund_sq = db.session.query(
+        Expense.student_id.label('sid'),
+        db.func.sum(Expense.amount).label('refunded')
+    ).filter(Expense.student_id.isnot(None)
+    ).group_by(Expense.student_id).subquery()
     rows = db.session.query(
         Student.name, Student.roll_no,
-        db.func.coalesce(db.func.sum(Course.fees), 0).label('total_fee'),
-        db.func.coalesce(paid_sq.c.paid, 0).label('paid')
+        db.func.coalesce(db.func.sum(
+            db.func.coalesce(student_courses.c.agreed_fee, Course.fees)
+        ), 0).label('total_fee'),
+        db.func.coalesce(paid_sq.c.paid, 0).label('paid'),
+        db.func.coalesce(refund_sq.c.refunded, 0).label('refunded')
     ).outerjoin(student_courses, student_courses.c.student_id == Student.id
     ).outerjoin(Course, Course.id == student_courses.c.course_id
     ).outerjoin(paid_sq, paid_sq.c.sid == Student.id
+    ).outerjoin(refund_sq, refund_sq.c.sid == Student.id
     ).filter(Student.status == 'Active'
-    ).group_by(Student.id, Student.name, Student.roll_no, paid_sq.c.paid
+    ).group_by(Student.id, Student.name, Student.roll_no, paid_sq.c.paid, refund_sq.c.refunded
     ).all()
     due_students = []
-    for name, roll_no, total_fee, paid in rows:
+    for name, roll_no, total_fee, paid, refunded in rows:
         total_fee = float(total_fee or 0)
         paid = float(paid or 0)
-        balance = total_fee - paid
+        refunded = float(refunded or 0)
+        balance = total_fee - paid + refunded
         if balance > 1:
             due_students.append({'name': name, 'roll_no': roll_no,
                                  'total_fee': total_fee, 'paid': paid,
-                                 'balance': balance})
+                                 'refunded': refunded, 'balance': balance})
     due_students.sort(key=lambda d: d['balance'], reverse=True)
     return due_students, round(sum(d['balance'] for d in due_students), 2)
 

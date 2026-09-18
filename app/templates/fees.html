@@ -152,7 +152,7 @@
                                     {% if item.gst_applicable %}₹{{ "{:,.2f}".format(item.gst_amount) }}{% else %}<span class="text-secondary">-</span>{% endif %}
                                 </td>
                                 <td class="text-white fw-semibold">₹{{ "{:,.2f}".format(item.total_fee) }}</td>
-                                <td class="text-white fw-semibold">₹{{ "{:,.2f}".format(item.total_paid) }}{% if item.total_concession > 0 %}<div class="small fw-normal" style="opacity: 0.75;">+₹{{ "{:,.2f}".format(item.total_concession) }} waiver</div>{% endif %}</td>
+                                <td class="text-white fw-semibold">₹{{ "{:,.2f}".format(item.total_paid) }}{% if item.total_concession > 0 %}<div class="small fw-normal" style="opacity: 0.75;">+₹{{ "{:,.2f}".format(item.total_concession) }} waiver</div>{% endif %}{% if item.total_refunded and item.total_refunded > 0 %}<div class="small fw-normal text-danger" style="opacity: 0.8;">−₹{{ "{:,.2f}".format(item.total_refunded) }} refunded</div>{% endif %}</td>
                                 <td class="fw-semibold">₹{{ "{:,.2f}".format(item.balance) }}</td>
                                 <td class="small {% if item.days_due > 90 %}text-danger{% elif item.days_due > 30 %}text-warning{% else %}text-secondary{% endif %}"{% if item.days_due %} title="Due since enrollment"{% endif %}>{% if item.days_due %}{{ item.days_due }}d{% else %}-{% endif %}</td>
                                 <td>

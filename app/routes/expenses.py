@@ -13,6 +13,21 @@ expenses_bp = Blueprint('expenses', __name__)
 
 DEFAULT_CATEGORIES = ['Rent', 'Salary', 'Electricity', 'Internet', 'Marketing', 'Maintenance', 'Refund', 'GST Auditor', 'GST expenses', 'Others']
 
+def _parse_student_id(raw):
+    """Validate the optional refund student link; ''/0 -> None, bogus -> None."""
+    if raw is None:
+        return None
+    try:
+        sid = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if sid <= 0:
+        return None
+    if Student.query.get(sid) is None:
+        return None
+    return sid
+
+
 def ensure_expense_categories():
     existing = {c.name for c in ExpenseCategory.query.with_entities(ExpenseCategory.name).all()}
     new_cats = [ExpenseCategory(name=n) for n in DEFAULT_CATEGORIES if n not in existing]
@@ -43,7 +58,10 @@ def list():
         description = request.form.get('description', '').strip()
         payment_method = request.form.get('payment_method', 'Cash').strip()
         expense_date = form.cleaned_data.get('expense_date', date.today())
-        new_expense = Expense(category_id=category_id, amount=amount, description=description, payment_method=payment_method, expense_date=expense_date, created_by=current_user.id)
+        # W3: optional student link = this Expense is a refund that reduces
+        # that student's dues.
+        student_id = _parse_student_id(request.form.get('student_id')) or None
+        new_expense = Expense(category_id=category_id, amount=amount, description=description, payment_method=payment_method, expense_date=expense_date, created_by=current_user.id, student_id=student_id)
         db.session.add(new_expense)
         db.session.commit()
         message = "Expense recorded successfully!"
@@ -83,7 +101,8 @@ def list():
         category_totals=category_totals, grand_total=grand_total, today=today,
         filter_category=filter_category, filter_month=filter_month or today.month,
         filter_year=filter_year or today.year, account_balances=compute_account_summary(),
-        expenses_total=expenses_total, list_limit=FINANCE_LIST_LIMIT)
+        expenses_total=expenses_total, list_limit=FINANCE_LIST_LIMIT,
+        students=Student.query.order_by(Student.name).all())
 
 @expenses_bp.route('/expenses/edit/<int:id>', methods=['POST'])
 @login_required
@@ -108,6 +127,7 @@ def edit(id):
     expense.description = request.form.get('description', '').strip()
     expense.payment_method = request.form.get('payment_method', 'Cash').strip()
     expense.expense_date = form.cleaned_data.get('expense_date', expense.expense_date)
+    expense.student_id = _parse_student_id(request.form.get('student_id'))
     db.session.commit()
     message = "Expense updated successfully!"
     if is_ajax_request():

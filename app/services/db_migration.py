@@ -353,6 +353,63 @@ def migrate_fee_concession_column():
             print(f"Migration migrate_fee_concession_column: FAILED to add fee_record.concession: {e}", flush=True)
 
 
+def migrate_agreed_dues_columns():
+    """Add agreed_fee / agreed_gst / agreed_company_id to student_courses.
+
+    W2: dues are agreed at enrollment; catalog edits affect new enrollments
+    only. Idempotent and additive-only. After adding, backfills every NULL
+    row from the live course row — freezing today's prices as the baseline,
+    so deploying changes no visible dues. Legacy BOOLEAN arrives as 0/1 on
+    SQLite, True/False on Postgres; readers must use IS NULL checks, never
+    truthiness, to distinguish "no snapshot" from "GST-exempt".
+    """
+    if not _table_exists('student_courses'):
+        return
+    for column, col_type in [('agreed_fee', 'FLOAT'),
+                             ('agreed_gst', 'BOOLEAN'),
+                             ('agreed_company_id', 'INTEGER')]:
+        if not _has_column('student_courses', column):
+            try:
+                db.session.execute(text('ALTER TABLE "student_courses" ADD COLUMN "%s" %s' % (column, col_type)))
+                db.session.commit()
+                print(f"Migration migrate_agreed_dues_columns: added student_courses.{column}", flush=True)
+            except Exception as e:
+                db.session.rollback()
+                print(f"Migration migrate_agreed_dues_columns: FAILED to add student_courses.{column}: {e}", flush=True)
+                return
+    try:
+        db.session.execute(text(
+            'UPDATE "student_courses" SET "agreed_fee" = '
+            '(SELECT "fees" FROM "course" WHERE "course"."id" = "student_courses"."course_id"), '
+            '"agreed_gst" = (SELECT "gst_applicable" FROM "course" WHERE "course"."id" = "student_courses"."course_id"), '
+            '"agreed_company_id" = (SELECT "company_id" FROM "course" WHERE "course"."id" = "student_courses"."course_id") '
+            'WHERE "agreed_fee" IS NULL'
+        ))
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"Migration migrate_agreed_dues_columns: FAILED to backfill: {e}", flush=True)
+
+
+def migrate_expense_student_id():
+    """Add student_id to expense (W3 refund link).
+
+    Nullable FK ON DELETE SET NULL; index added inline with the existing
+    __table_args__ pattern. Backfill is not needed: only new refund expenses
+    use this column. Idempotent.
+    """
+    if not _table_exists('expense'):
+        return
+    if not _has_column('expense', 'student_id'):
+        try:
+            db.session.execute(text('ALTER TABLE "expense" ADD COLUMN "student_id" INTEGER'))
+            db.session.commit()
+            print("Migration migrate_expense_student_id: added expense.student_id", flush=True)
+        except Exception as e:
+            db.session.rollback()
+            print(f"Migration migrate_expense_student_id: FAILED: {e}", flush=True)
+
+
 def migrate_enquiry_course_nullable():
     """Make enquiry.course_id nullable with ON DELETE SET NULL.
 

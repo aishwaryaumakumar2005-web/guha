@@ -5,8 +5,8 @@ from datetime import date
 
 from app.extensions import db
 from app.models import (
-    AuditLog, Expense, ExpenseCategory, FeeRecord, OwnerFunding,
-    Student, SystemSetting, User,
+    AuditLog, Course, Expense, ExpenseCategory, FeeRecord, OwnerFunding,
+    Student, SystemSetting, User, student_courses,
 )
 
 AJAX = {'X-Requested-With': 'XMLHttpRequest'}
@@ -811,3 +811,162 @@ def test_kpi_cash_vs_settled(admin_client, app):
     assert '20.0%' in html  # cash-only headline rate
     assert '36.9%' in html  # 2180 / 5900 settled
     assert 'settled incl. waivers' in html
+
+
+# ---------------------------------------------------------------------------
+# W2 — agreed-dues snapshot at enrollment
+# ---------------------------------------------------------------------------
+
+def test_w2_snapshot_columns_present(app):
+    from sqlalchemy import inspect
+    with app.app_context():
+        assoc = {c['name'] for c in inspect(db.engine).get_columns('student_courses')}
+        assert {'agreed_fee', 'agreed_gst', 'agreed_company_id'} <= assoc
+        expense = {c['name'] for c in inspect(db.engine).get_columns('expense')}
+        assert 'student_id' in expense
+
+
+def test_w2_stamp_freezes_catalog_price(admin_client, app):
+    sid = _student_id(app)
+    from app.models import stamp_agreed_dues
+    with app.app_context():
+        assert stamp_agreed_dues(sid) == 1
+        db.session.commit()
+        row = db.session.query(student_courses).filter_by(student_id=sid).first()
+        assert row.agreed_fee == 5000.0
+        assert row.agreed_gst == 1
+    # Mid-cycle catalog revision: price rises 5000 -> 8000.
+    with app.app_context():
+        Course.query.filter_by(code='PY').first().fees = 8000.0
+        db.session.commit()
+    html = admin_client.get('/fees').data.decode()
+    assert '5,900.00' in html      # agreed 5000 + 18% GST — unchanged
+    assert '9,440.00' not in html  # the new 8000 + 18% must not appear
+
+
+def test_w2_enrollment_route_stamps_agreed_dues(admin_client, app):
+    with app.app_context():
+        cid = Course.query.filter_by(code='PY').first().id
+    resp = admin_client.post('/students', data={
+        'name': 'W2 Alice', 'email': 'w2alice@guha.test', 'phone': '9123456789',
+        'status': 'Active', 'courses': [str(cid)],
+    })
+    assert resp.status_code == 302
+    with app.app_context():
+        s = Student.query.filter_by(email='w2alice@guha.test').first()
+        row = db.session.query(student_courses).filter_by(student_id=s.id).first()
+        assert row is not None
+        assert row.agreed_fee == 5000.0
+        assert row.agreed_gst == 1
+
+
+def test_w2_unsnapshotted_rows_fall_back_to_catalog(admin_client, app):
+    # Seeded student has no snapshot (seed bypasses stamping): dues still
+    # compute from the live course row until a snapshot is taken.
+    html = admin_client.get('/fees').data.decode()
+    assert '5,900.00' in html
+
+
+def test_w2_course_edit_message_no_longer_claims_recalc(admin_client, app):
+    with app.app_context():
+        cid = Course.query.filter_by(code='PY').first().id
+    resp = admin_client.post(f'/courses/edit/{cid}', data={
+        'name': 'Python Programming', 'code': 'PY',
+        'description': 'Beginner Python', 'duration_weeks': '8',
+        'duration_unit': 'weeks', 'fees': '8000', 'syllabus': 's',
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b'agreed price' in resp.data
+    assert b'recalculated' not in resp.data
+
+
+# ---------------------------------------------------------------------------
+# W3 — student-linked refund expenses
+# ---------------------------------------------------------------------------
+
+def _refund(app, client, sid, amount, category='Refund'):
+    with app.app_context():
+        cat = ExpenseCategory.query.filter_by(name=category).first()
+        if cat is None:
+            cat = ExpenseCategory(name=category)
+            db.session.add(cat)
+            db.session.commit()
+        cat_id = cat.id
+    return client.post('/expenses', data={
+        'category_id': str(cat_id), 'amount': str(amount),
+        'description': 'refund test', 'expense_date': date.today().isoformat(),
+        'payment_method': 'Cash', 'student_id': str(sid),
+    })
+
+
+def test_w3_refund_reopens_paid_in_full(admin_client, app):
+    sid = _student_id(app)
+    _post_fee(admin_client, sid, amount=5900.0)
+    assert 'Paid In Full' in admin_client.get('/fees').data.decode()
+    assert _refund(app, admin_client, sid, 2000).status_code == 302
+    with app.app_context():
+        exp = Expense.query.filter_by(student_id=sid).first()
+        assert exp is not None
+        assert exp.student_id == sid
+    html = admin_client.get('/fees').data.decode()
+    assert 'refunded' in html
+    assert '2,000.00' in html
+    assert 'Paid In Full' not in html
+    assert 'Partial Dues' in html
+    # balance = 5900 - 5900 + 2000 = 2000
+    assert '<td class="fw-semibold">₹2,000.00</td>' in html
+
+
+def test_w3_unlinked_expense_does_not_touch_dues(admin_client, app):
+    sid = _student_id(app)
+    with app.app_context():
+        cat = ExpenseCategory.query.filter_by(name='Rent').first().id
+    resp = admin_client.post('/expenses', data={
+        'category_id': str(cat), 'amount': '999',
+        'description': 'plain rent', 'expense_date': date.today().isoformat(),
+        'payment_method': 'Cash',
+    })
+    assert resp.status_code == 302
+    with app.app_context():
+        assert Expense.query.first().student_id is None
+    html = admin_client.get('/fees').data.decode()
+    assert '5,900.00' in html
+    assert '999.00' not in html
+
+
+def test_w3_bogus_student_link_ignored(admin_client, app):
+    resp = _refund(app, admin_client, 99999, 100)
+    assert resp.status_code == 302
+    with app.app_context():
+        assert Expense.query.first().student_id is None
+
+
+def test_w3_expense_edit_toggles_student_link(admin_client, app):
+    sid = _student_id(app)
+    with app.app_context():
+        cat = ExpenseCategory.query.filter_by(name='Rent').first().id
+    resp = admin_client.post('/expenses', data={
+        'category_id': str(cat), 'amount': '150',
+        'description': 'repurpose me', 'expense_date': date.today().isoformat(),
+        'payment_method': 'Cash',
+    })
+    assert resp.status_code == 302
+    with app.app_context():
+        eid = Expense.query.first().id
+    resp = admin_client.post(f'/expenses/edit/{eid}', data={
+        'category_id': str(cat), 'amount': '150',
+        'description': 'now a refund', 'expense_date': date.today().isoformat(),
+        'payment_method': 'Cash', 'student_id': str(sid),
+    })
+    assert resp.status_code == 302
+    with app.app_context():
+        assert Expense.query.get(eid).student_id == sid
+
+
+def test_w3_routes_validate_bad_method_unchanged(admin_client, app):
+    sid = _student_id(app)
+    resp = _refund(app, admin_client, sid, 500)
+    assert resp.status_code == 302
+    with app.app_context():
+        exp = Expense.query.filter_by(student_id=sid).first()
+        assert exp.payment_method == 'Cash'

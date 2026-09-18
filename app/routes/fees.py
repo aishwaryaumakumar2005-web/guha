@@ -6,7 +6,7 @@ from app.extensions import db
 from app.models import FeeRecord, Student, Course, SystemSetting, Tutor, student_courses, Company
 from app.helpers import admin_required, get_gst_rates, is_ajax_request, FINANCE_LIST_LIMIT
 from app.forms import FeeForm
-from app.services.account_service import compute_account_summary, ensure_default_companies, company_bill_name
+from app.services.account_service import compute_account_summary, ensure_default_companies, company_bill_name, agreed_enrollment_items, agreed_enrollment_items_bulk, snapshot_company_id, student_refunded_total, student_refunded_totals_bulk
 from sqlalchemy.orm import subqueryload
 
 fees_bp = Blueprint('fees', __name__)
@@ -37,13 +37,6 @@ def _parse_iso_date(raw):
         return None
 
 
-def _course_company_id(course, gst_company_id, nongst_company_id):
-    """Attribute a course to a billing company (mirrors the booking fallback)."""
-    if course.company_id:
-        return course.company_id
-    return gst_company_id if course.gst_applicable else nongst_company_id
-
-
 def _student_fee_summary(student, company=None):
     """Enrollment dues position for receipts: (due, cash_paid, concessions, balance).
 
@@ -51,25 +44,30 @@ def _student_fee_summary(student, company=None):
     B3 matrix rule (assigned courses + GST-profile legacy attribution) — so a
     receipt's footer agrees with the filtered matrix instead of mixing
     entities. Without it, the position is institute-global.
+    W2: dues use the agreed-at-enrollment snapshot, not live catalog prices.
+    W3: refunds (Expenses linked to the student) reduce what counts as paid,
+    so a refunded-overpayment flips back to a real balance instead of
+    lingering as a credit.
     """
     if not student:
         return 0.0, 0.0, 0.0, 0.0
     cgst_pct, sgst_pct = get_gst_rates()
     total_pct = cgst_pct + sgst_pct
-    courses = [c for c in student.courses]
+    items = agreed_enrollment_items(student.id)
     records = [r for r in student.fee_records]
     if company is not None:
-        courses = [c for c in courses
-                   if (c.company_id or None) == company.id
-                   or (not c.company_id and bool(c.gst_applicable) == bool(company.is_gst_registered))]
+        items = [it for it in items
+                 if (it['company_id'] or None) == company.id
+                 or (not it['company_id'] and bool(it['gst_applicable']) == bool(company.is_gst_registered))]
         records = [r for r in records
                    if _fee_record_in_company(r, company.id, company.is_gst_registered)]
-    taxable = round(sum(c.fees for c in courses), 2)
-    gst = round(sum(round(c.fees * total_pct / 100, 2) for c in courses if c.gst_applicable), 2)
+    taxable = round(sum(it['fee'] for it in items), 2)
+    gst = round(sum(round(it['fee'] * total_pct / 100, 2) for it in items if it['gst_applicable']), 2)
     due = round(taxable + gst, 2)
     paid = round(sum(r.amount_paid for r in records), 2)
     concessions = round(sum(r.concession or 0 for r in records), 2)
-    return due, paid, concessions, round(due - paid - concessions, 2)
+    refunded = student_refunded_total(student.id)
+    return due, paid, concessions, round(due - paid - concessions + refunded, 2)
 
 
 def _fee_record_in_company(record, company_id, company_is_gst):
@@ -142,14 +140,15 @@ def list():
         if not selected_company:
             student = Student.query.get(student_id)
             if student:
-                # Prefer company directly assigned to one of the student's courses
-                for c in student.courses:
-                    if c.company_id:
-                        selected_company = Company.query.get(c.company_id)
+                # Prefer company directly assigned to one of the student's
+                # enrollments (snapshot-aware).
+                for it in agreed_enrollment_items(student.id):
+                    if it['company_id']:
+                        selected_company = Company.query.get(it['company_id'])
                         break
             # Final fallback: pick by GST flag on any enrolled course
             if not selected_company and student:
-                if any(c.gst_applicable for c in student.courses):
+                if any(it['gst_applicable'] for it in agreed_enrollment_items(student.id)):
                     selected_company = Company.query.filter_by(is_gst_registered=True).first()
                 else:
                     selected_company = Company.query.filter_by(is_gst_registered=False).first() or Company.query.first()
@@ -231,17 +230,24 @@ def list():
     total_gst_pct = cgst_pct + sgst_pct
     selected_is_gst = bool(selected_company.is_gst_registered) if selected_company else False
     student_balances = []
-    for student in Student.query.options(subqueryload(Student.courses), subqueryload(Student.fee_records)).filter(Student.id.in_([s.id for s in all_students])).all():
-        courses = student.courses
+    student_objs = Student.query.options(subqueryload(Student.courses), subqueryload(Student.fee_records)).filter(Student.id.in_([s.id for s in all_students])).all()
+    # W2 batched agreed-dues snapshot: one pair of queries for the whole page.
+    agreed_map = agreed_enrollment_items_bulk([s.id for s in student_objs])
+    # Adding refunded totals
+    refunded_map = student_refunded_totals_bulk([s.id for s in student_objs])
+    for student in student_objs:
+        # W2: dues are agreed at enrollment, not live catalog prices. Catalog
+        # edits affect new enrollments only.
+        items = agreed_map.get(student.id, [])
         if company_id:
             # The matrix must agree with the filtered history above: only
             # dues billed through the selected entity count here.
-            courses = [c for c in courses
-                       if _course_company_id(c, gst_company_id, nongst_company_id) == company_id]
-        total_taxable = round(sum(c.fees for c in courses), 2)
+            items = [it for it in items
+                     if snapshot_company_id(it, gst_company_id, nongst_company_id) == company_id]
+        total_taxable = round(sum(it['fee'] for it in items), 2)
         gst_amount = round(sum(
-            round(c.fees * total_gst_pct / 100, 2)
-            for c in courses if c.gst_applicable
+            round(it['fee'] * total_gst_pct / 100, 2)
+            for it in items if it['gst_applicable']
         ), 2)
         total_fee = round(total_taxable + gst_amount, 2)
         in_scope = [r for r in student.fee_records
@@ -250,8 +256,13 @@ def list():
         # which is enough to flip Paid In Full to Partial Dues.
         total_paid = round(sum(r.amount_paid for r in in_scope), 2)
         total_concession = round(sum(r.concession or 0 for r in in_scope), 2)
-        balance = round(total_fee - total_paid - total_concession, 2)
-        overpaid = total_paid > total_fee
+        # W3: refunds (Expenses linked to the student) reduce what has been
+        # collected. Net collected = cash in - cash back; balance accounts for
+        # both sides of the ledger.
+        total_refunded = refunded_map.get(student.id, 0.0)
+        balance = round(total_fee - total_paid - total_concession + total_refunded, 2)
+        net_collected = round(total_paid - total_refunded, 2)
+        overpaid = net_collected > total_fee
         # Aging: days since enrollment while anything is still owed. No extra
         # schema — enrollment_date is the dues clock.
         days_due = 0
@@ -260,22 +271,20 @@ def list():
         student_balances.append({
             "student": student, "total_fee": total_fee, "total_taxable": total_taxable,
             "total_paid": total_paid, "total_concession": total_concession,
+            "total_refunded": total_refunded,
             "balance": balance, "overpaid": overpaid,
-            "credit": round(total_paid - total_fee, 2) if overpaid else 0.0,
+            "credit": round(net_collected - total_fee, 2) if overpaid else 0.0,
             "days_due": days_due,
-            "gst_amount": gst_amount, "gst_applicable": any(c.gst_applicable for c in courses)
+            "gst_amount": gst_amount, "gst_applicable": any(it['gst_applicable'] for it in items)
         })
     # U2: per-student billing-entity default for the record-payment modal, so
     # the company select follows the student instead of always opening on GST.
     default_company = {}
     for s in all_students:
-        cid = None
-        for c in s.courses:
-            if c.company_id:
-                cid = c.company_id
-                break
+        items = agreed_map.get(s.id, [])
+        cid = next((it['company_id'] for it in items if it['company_id']), None)
         if not cid:
-            cid = gst_company_id if any(c.gst_applicable for c in s.courses) else nongst_company_id
+            cid = gst_company_id if any(it['gst_applicable'] for it in items) else nongst_company_id
         if cid:
             default_company[s.id] = cid
     # U7: collection KPI strip. Month intake respects the company filter (and
@@ -289,8 +298,10 @@ def list():
         month_q = month_q.filter(FeeRecord.student_id.in_(student_ids))
     kpi_month = round(month_q.with_entities(db.func.sum(FeeRecord.amount_paid)).scalar() or 0.0, 2)
     kpi_due = round(sum(b['total_fee'] for b in student_balances), 2)
-    kpi_cash = round(sum(b['total_paid'] for b in student_balances), 2)
-    kpi_settled = round(sum(b['total_paid'] + b['total_concession'] for b in student_balances), 2)
+    # W3: collection KPIs are NET of refunds — cash handed back can't inflate
+    # the collection rate or the "settled" figure.
+    kpi_cash = round(sum(b['total_paid'] - b['total_refunded'] for b in student_balances), 2)
+    kpi_settled = round(sum(b['total_paid'] + b['total_concession'] - b['total_refunded'] for b in student_balances), 2)
     kpi = {
         'month_collected': kpi_month,
         'outstanding': round(sum(b['balance'] for b in student_balances if b['balance'] > 0), 2),
@@ -334,7 +345,7 @@ def receipt(id):
     
     company = record.company
     if not company and record.student:
-        if any(c.gst_applicable for c in record.student.courses):
+        if any(it['gst_applicable'] for it in agreed_enrollment_items(record.student.id)):
             company = Company.query.filter_by(is_gst_registered=True).first()
         else:
             company = Company.query.filter_by(is_gst_registered=False).first()

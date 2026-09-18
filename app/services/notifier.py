@@ -141,16 +141,21 @@ class Notifier:
         students = Student.query.filter_by(status='Active').all()
         for s in students:
             # Same dues math as the fees matrix: GST-inclusive due minus cash
-            # collected minus concessions granted.
-            total_taxable = round(sum(c.fees for c in s.courses), 2)
+            # collected minus concessions granted. W2: uses agreed-at-enrollment
+            # snapshot, so a mid-cycle catalog edit can't reprice reminders.
+            from app.services.account_service import agreed_enrollment_items
+            items = agreed_enrollment_items(s.id)
+            total_taxable = round(sum(it['fee'] for it in items), 2)
             gst_amount = round(sum(
-                round(c.fees * total_pct / 100, 2)
-                for c in s.courses if c.gst_applicable
+                round(it['fee'] * total_pct / 100, 2)
+                for it in items if it['gst_applicable']
             ), 2)
             total_fee = round(total_taxable + gst_amount, 2)
             total_paid = round(sum(r.amount_paid for r in s.fee_records), 2)
             total_concession = round(sum(r.concession or 0 for r in s.fee_records), 2)
-            balance = round(total_fee - total_paid - total_concession, 2)
+            from app.services.account_service import student_refunded_total
+            total_refunded = student_refunded_total(s.id)
+            balance = round(total_fee - total_paid - total_concession + total_refunded, 2)
             if balance > 0:
                 reminders.append((s, total_fee, total_paid, balance))
         if not reminders:
