@@ -328,3 +328,109 @@ def test_receipt_admin_sees_all(admin_client, app):
     own_rid, other_rid = _seed_outsider(app)
     assert admin_client.get(f'/fees/receipt/{own_rid}').status_code == 200
     assert admin_client.get(f'/fees/receipt/{other_rid}').status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# B3 — Func P1: company-scoped balances, account management
+# ---------------------------------------------------------------------------
+
+def _company_ids(app):
+    from app.models import Company
+    with app.app_context():
+        gst = Company.query.filter_by(code='COMP-GST').first()
+        nongst = Company.query.filter_by(code='COMP-NGST').first()
+        # Companies are seeded on first /fees visit.
+        return (gst.id if gst else None, nongst.id if nongst else None)
+
+
+def test_balances_scoped_to_company(admin_client, app):
+    sid = _student_id(app)
+    admin_client.get('/fees')  # seed companies
+    gst_id, nongst_id = _company_ids(app)
+    assert gst_id and nongst_id
+    _post_fee(admin_client, sid, amount=1180.0)
+    gst_html = admin_client.get(f'/fees?company_id={gst_id}').data.decode()
+    assert '1,180.00' in gst_html       # paid through the GST entity
+    assert '5,900.00' in gst_html       # 5000 + 18% due through GST entity
+    assert 'Student Balances Matrix —' in gst_html
+    other_html = admin_client.get(f'/fees?company_id={nongst_id}').data.decode()
+    assert '1,180.00' not in other_html
+    assert '5,900.00' not in other_html
+
+
+def test_account_rename_orphans_bucket_without_crash(admin_client, app):
+    from app.models import Account
+    sid = _student_id(app)
+    _post_fee(admin_client, sid, amount=1180.0, method='Cash')
+    with app.app_context():
+        cash_id = Account.query.filter_by(name='Cash').first().id
+    resp = admin_client.post(f'/accounts/edit/{cash_id}', data={
+        'name': 'Petty Cash', 'account_type': 'Cash',
+        'company_id': '', 'opening_balance': '0', 'is_active': '1',
+    })
+    assert resp.status_code == 302
+    # No finance page may 500 on the orphaned bucket...
+    for url in ('/accounts', '/accounts/Cash', '/fees', '/expenses', '/funding'):
+        assert admin_client.get(url).status_code == 200, url
+    html = admin_client.get('/accounts').data.decode()
+    assert 'Petty Cash' in html
+    assert '1,180.00' in html  # orphan 'Cash' bucket keeps its money visible
+    assert 'without a matching account row' in html
+
+
+def test_account_edit_duplicate_name_rejected(admin_client, app):
+    from app.models import Account
+    with app.app_context():
+        cash_id = Account.query.filter_by(name='Cash').first().id
+    resp = admin_client.post(f'/accounts/edit/{cash_id}', data={
+        'name': 'UPI', 'account_type': 'Cash',
+        'company_id': '', 'opening_balance': '0', 'is_active': '1',
+    }, headers=AJAX)
+    assert resp.status_code == 400
+    with app.app_context():
+        assert Account.query.get(cash_id).name == 'Cash'
+
+
+def test_account_edit_get_405(admin_client, app):
+    from app.models import Account
+    with app.app_context():
+        cash_id = Account.query.filter_by(name='Cash').first().id
+    assert admin_client.get(f'/accounts/edit/{cash_id}').status_code == 405
+
+
+def test_account_edit_opening_reflects(admin_client, app):
+    from app.models import Account
+    with app.app_context():
+        cash_id = Account.query.filter_by(name='Cash').first().id
+    resp = admin_client.post(f'/accounts/edit/{cash_id}', data={
+        'name': 'Cash', 'account_type': 'Cash',
+        'company_id': '', 'opening_balance': '500', 'is_active': '1',
+    })
+    assert resp.status_code == 302
+    html = admin_client.get('/accounts/Cash').data.decode()
+    assert '500.00' in html
+
+
+# ---------------------------------------------------------------------------
+# B3 — UI P1: reconciling receipt, company preselect
+# ---------------------------------------------------------------------------
+
+def test_receipt_installment_line_reconciles(admin_client, app):
+    sid = _student_id(app)
+    _post_fee(admin_client, sid, amount=1180.0, remarks='capstone')
+    with app.app_context():
+        rid = FeeRecord.query.first().id
+    html = admin_client.get(f'/fees/receipt/{rid}').data.decode()
+    assert 'Course fee installment' in html
+    assert 'Balance due' in html
+    assert 'Paid to date' in html
+    assert '5900.00' in html    # enrollment total (receipt uses %.2f)
+    assert '4720.00' in html    # 5900 - 1180 balance
+    assert '5000.00' not in html  # no full-fee line masquerading as this payment
+
+
+def test_company_preselected_per_student(admin_client, app):
+    admin_client.get('/fees')  # seed companies
+    gst_id, _ = _company_ids(app)
+    html = admin_client.get('/fees').data.decode()
+    assert f'data-company-id="{gst_id}"' in html

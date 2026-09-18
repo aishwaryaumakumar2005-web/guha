@@ -26,6 +26,44 @@ def _split_gst(amount, company):
     return taxable_amount, gst_amount
 
 
+def _course_company_id(course, gst_company_id, nongst_company_id):
+    """Attribute a course to a billing company (mirrors the booking fallback)."""
+    if course.company_id:
+        return course.company_id
+    return gst_company_id if course.gst_applicable else nongst_company_id
+
+
+def _student_fee_summary(student):
+    """Enrollment dues position for receipts: (total_due, paid_to_date, balance).
+
+    Informational context so a part-payment receipt states where the student
+    stands; computed from current enrollment like the balances matrix.
+    """
+    if not student:
+        return 0.0, 0.0, 0.0
+    cgst_pct, sgst_pct = get_gst_rates()
+    total_pct = cgst_pct + sgst_pct
+    taxable = sum(c.fees for c in student.courses)
+    gst = sum(round(c.fees * total_pct / 100, 2) for c in student.courses if c.gst_applicable)
+    due = taxable + gst
+    paid = sum(r.amount_paid for r in student.fee_records)
+    return due, paid, due - paid
+
+
+def _fee_record_in_company(record, company_id, company_is_gst):
+    """Check a fee record against an active company filter.
+
+    Legacy pre-company rows (company_id NULL) are attributed by GST profile,
+    matching the booking rule that GST-applicable collections go through the
+    GST-registered entity.
+    """
+    if company_id is None:
+        return True
+    if record.company_id:
+        return record.company_id == company_id
+    return bool(company_is_gst) == bool((record.gst_amount or 0) > 0)
+
+
 def _stored_gst_split(record):
     """Reprint-safe (cgst, sgst) from the record's stored split.
 
@@ -121,10 +159,16 @@ def list():
     
     # GET request - filter based on user role
     company_filter = request.args.get('company_id')
+    company_id = int(company_filter) if company_filter and company_filter.isdigit() else None
+
     query = FeeRecord.query
 
-    if company_filter and company_filter.isdigit():
-        query = query.filter(FeeRecord.company_id == int(company_filter))
+    if company_id:
+        query = query.filter(FeeRecord.company_id == company_id)
+
+    selected_company = comp_map.get(company_id) if company_id else None
+    gst_company_id = next((c.id for c in companies if c.is_gst_registered), None)
+    nongst_company_id = next((c.id for c in companies if not c.is_gst_registered), None)
 
     if current_user.role == 'Staff':
         tutor = Tutor.query.filter_by(email=current_user.email).first()
@@ -133,7 +177,7 @@ def list():
             student_subquery = db.session.query(student_courses.c.student_id).filter(
                 student_courses.c.course_id.in_(course_ids)
             ).distinct()
-            all_students = Student.query.filter(Student.id.in_(student_subquery), Student.status == 'Active').all()
+            all_students = Student.query.options(subqueryload(Student.courses)).filter(Student.id.in_(student_subquery), Student.status == 'Active').all()
             student_ids = [s.id for s in all_students]
             all_records = query.filter(FeeRecord.student_id.in_(student_ids)).order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).all()
         else:
@@ -141,28 +185,50 @@ def list():
             all_records = []
     else:
         all_records = query.options(subqueryload(FeeRecord.student).subqueryload(Student.courses), subqueryload(FeeRecord.company)).order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).all()
-        all_students = Student.query.filter_by(status='Active').all()
-    
+        all_students = Student.query.options(subqueryload(Student.courses)).filter_by(status='Active').all()
+
     cgst_pct, sgst_pct = get_gst_rates()
     total_gst_pct = cgst_pct + sgst_pct
+    selected_is_gst = bool(selected_company.is_gst_registered) if selected_company else False
     student_balances = []
     for student in Student.query.options(subqueryload(Student.courses), subqueryload(Student.fee_records)).filter(Student.id.in_([s.id for s in all_students])).all():
-        total_taxable = sum(c.fees for c in student.courses)
+        courses = student.courses
+        if company_id:
+            # The matrix must agree with the filtered history above: only
+            # dues billed through the selected entity count here.
+            courses = [c for c in courses
+                       if _course_company_id(c, gst_company_id, nongst_company_id) == company_id]
+        total_taxable = sum(c.fees for c in courses)
         gst_amount = sum(
             round(c.fees * total_gst_pct / 100, 2)
-            for c in student.courses if c.gst_applicable
+            for c in courses if c.gst_applicable
         )
         total_fee = total_taxable + gst_amount
-        total_paid = sum(r.amount_paid for r in student.fee_records)
+        total_paid = sum(r.amount_paid for r in student.fee_records
+                         if _fee_record_in_company(r, company_id, selected_is_gst))
         balance = total_fee - total_paid
         student_balances.append({
             "student": student, "total_fee": total_fee, "total_taxable": total_taxable,
             "total_paid": total_paid, "balance": balance,
-            "gst_amount": gst_amount, "gst_applicable": any(c.gst_applicable for c in student.courses)
+            "gst_amount": gst_amount, "gst_applicable": any(c.gst_applicable for c in courses)
         })
+    # U2: per-student billing-entity default for the record-payment modal, so
+    # the company select follows the student instead of always opening on GST.
+    default_company = {}
+    for s in all_students:
+        cid = None
+        for c in s.courses:
+            if c.company_id:
+                cid = c.company_id
+                break
+        if not cid:
+            cid = gst_company_id if any(c.gst_applicable for c in s.courses) else nongst_company_id
+        if cid:
+            default_company[s.id] = cid
     return render_template(
         'fees.html', records=all_records, students=all_students, balances=student_balances,
-        companies=companies, selected_company_id=int(company_filter) if company_filter and company_filter.isdigit() else None,
+        companies=companies, selected_company_id=company_id,
+        selected_company=selected_company, default_company=default_company,
         today=date.today(), is_staff=(current_user.role == 'Staff'),
         account_balances=(compute_account_summary() if current_user.role == 'Admin' else [])
     )
@@ -205,6 +271,9 @@ def receipt(id):
     else:
         taxable_val = record.taxable_amount or (record.amount_paid / 1.18)
 
+    due_total, paid_total, balance_due = _student_fee_summary(record.student)
+    course_names = ', '.join(f"{c.name} ({c.code})" for c in record.student.courses) if record.student and record.student.courses else ''
+
     return render_template(
         'partials/_receipt_modal.html',
         record=record,
@@ -214,7 +283,11 @@ def receipt(id):
         sgst_pct=sgst_pct,
         cgst_val=cgst_val,
         sgst_val=sgst_val,
-        taxable_val=taxable_val
+        taxable_val=taxable_val,
+        due_total=due_total,
+        paid_total=paid_total,
+        balance_due=balance_due,
+        course_names=course_names
     )
 
 @fees_bp.route('/fees/edit/<int:id>', methods=['POST'])

@@ -1,6 +1,6 @@
 from app.extensions import db
 from app.models import Account, FeeRecord, Expense, OwnerFunding, Company
-from .payment_methods import DEFAULT_ACCOUNTS, classify_method
+from .payment_methods import DEFAULT_ACCOUNTS, METHOD_TYPE, classify_method
 import re
 
 
@@ -137,18 +137,18 @@ _invalidation_registered = False
 
 
 def register_cache_invalidation():
-    """Hook ledger cache drops to ORM writes on the three money models.
+    """Hook ledger cache drops to ORM writes on accounts and money models.
 
     Event-driven (not per-route) so every writer is covered: fee/expense/
-    funding routes, payroll confirm/delete, admin bulk import, and any
-    future code path. Safe to call multiple times (test app rebuilds).
+    funding routes, account edits, payroll confirm/delete, admin bulk import,
+    and any future code path. Safe to call multiple times (test app rebuilds).
     """
     global _invalidation_registered
     if _invalidation_registered:
         return
     from sqlalchemy import event as sa_event
-    from app.models import FeeRecord, Expense, OwnerFunding
-    for cls in (FeeRecord, Expense, OwnerFunding):
+    from app.models import Account, FeeRecord, Expense, OwnerFunding
+    for cls in (Account, FeeRecord, Expense, OwnerFunding):
         for evt in ('after_insert', 'after_update', 'after_delete'):
             sa_event.listen(cls, evt, _clear_caches_on_write)
     _invalidation_registered = True
@@ -172,9 +172,13 @@ def compute_account_summary():
     for method, b in raw.items():
         aname = classify_method(method)
         used_methods.add(aname)
-        assigned[aname]['income'] += b['income']
-        assigned[aname]['expense'] += b['expense']
-        assigned[aname]['count'] += b.get('count', 1)
+        # setdefault, not [aname]: a renamed or deleted account row must
+        # never 500 the ledger — its bucket survives below as an orphan row
+        # so no money disappears from the books.
+        bucket = assigned.setdefault(aname, {'income': 0.0, 'expense': 0.0, 'count': 0})
+        bucket['income'] += b['income']
+        bucket['expense'] += b['expense']
+        bucket['count'] += b.get('count', 1)
 
     summary = []
     for acc in accounts:
@@ -194,6 +198,29 @@ def compute_account_summary():
             'balance': round(acc.opening_balance + income - expense, 2),
             'txn_count': b.get('count', 0),
             'is_active': acc.is_active,
+        })
+    seen = {acc.name for acc in accounts}
+    for aname, b in assigned.items():
+        if aname in seen:
+            continue
+        if not (b['income'] or b['expense'] or b['count']):
+            continue
+        # Bucket with postings but no account row (renamed/deleted account):
+        # surfaced explicitly so the money stays visible instead of 500ing.
+        summary.append({
+            'id': None,
+            'name': aname,
+            'account_type': METHOD_TYPE.get(aname, 'Other'),
+            'company_id': None,
+            'company_name': 'Unassigned',
+            'is_gst_registered': False,
+            'opening_balance': 0.0,
+            'income': round(b['income'], 2),
+            'expense': round(b['expense'], 2),
+            'balance': round(b['income'] - b['expense'], 2),
+            'txn_count': b.get('count', 0),
+            'is_active': True,
+            'orphan': True,
         })
     summary.sort(key=lambda r: (not r['is_active'], r['name'] in ('Others', 'UPI'), r['name']))
     _summary_cache["data"] = summary

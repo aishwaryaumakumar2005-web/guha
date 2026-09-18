@@ -65,7 +65,7 @@
 
     <!-- Student Balances Matrix (full width on top) -->
     <div class="glass-card p-4 mb-4" data-aos="fade-up">
-        <h4 class="mb-4 text-white fw-bold"><i class="bi bi-person-check-fill me-2 text-white"></i>Student Balances Matrix</h4>
+        <h4 class="mb-4 text-white fw-bold"><i class="bi bi-person-check-fill me-2 text-white"></i>Student Balances Matrix{% if selected_company %} — {{ selected_company.name }}{% endif %}</h4>
         <div class="table-container">
             <table class="table table-custom sortable" data-page-size="10">
                 <thead>
@@ -225,20 +225,21 @@
                         <select class="form-select ts-select" name="student_id" id="fee-student-select" placeholder="Search student..." required autofocus>
                             <option value="">-- Choose Student --</option>
                             {% for student in students %}
-                                <option value="{{ student.id }}">{{ student.name }} (Enrolled in {{ student.courses|length }} batch(es))</option>
+                                <option value="{{ student.id }}" data-company-id="{{ default_company.get(student.id, '') }}">{{ student.name }} (Enrolled in {{ student.courses|length }} batch(es))</option>
                             {% endfor %}
                         </select>
                     </div>
                     {% if companies %}
                     <div class="mb-3">
                         <label class="form-label small">Operating Entity / Company</label>
-                        <select class="form-select" name="company_id">
+                        <select class="form-select" name="company_id" id="fee-company-select">
                             {% for c in companies %}
                                 <option value="{{ c.id }}" {% if c.is_gst_registered %}selected{% endif %}>
                                     {{ c.name }}
                                 </option>
                             {% endfor %}
                         </select>
+                        <div class="form-text">Auto-selected from the student's enrollment — change it only to override.</div>
                     </div>
                     {% endif %}
                     <div class="mb-3">
@@ -367,11 +368,34 @@ function quickCollect(btn) {
         sel.value = String(studentId);
         if (sel.tomselect) sel.tomselect.setValue(String(studentId));
     }
+    syncFeeCompany();
     var modalEl = document.getElementById('recordPaymentModal');
     if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
     var amount = document.querySelector('#recordPaymentModal input[name="amount_paid"]');
     if (amount) { amount.value = ''; amount.focus(); }
 }
+
+function syncFeeCompany() {
+    var sel = document.getElementById('fee-student-select');
+    var csel = document.getElementById('fee-company-select');
+    if (!sel || !csel) return;
+    var opt = sel.options[sel.selectedIndex];
+    var cid = opt ? opt.getAttribute('data-company-id') : null;
+    if (cid) csel.value = cid;
+}
+
+(function initFeeCompanySync() {
+    function bind() {
+        var sel = document.getElementById('fee-student-select');
+        if (!sel || sel.hasAttribute('data-company-bound')) return;
+        sel.setAttribute('data-company-bound', '1');
+        sel.addEventListener('change', syncFeeCompany);
+        if (sel.tomselect) sel.tomselect.on('change', syncFeeCompany);
+    }
+    document.addEventListener('DOMContentLoaded', bind);
+    document.addEventListener('htmx:afterSettle', bind);
+    bind();
+})();
 
 function openEditFee(btn) {
     var d = btn ? btn.dataset : {};

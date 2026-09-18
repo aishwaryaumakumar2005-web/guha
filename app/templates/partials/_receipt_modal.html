@@ -91,7 +91,8 @@
         </div>
       </div>
 
-      <!-- Item Table -->
+      <!-- Item Table: this receipt covers ONE installment. Course totals live
+           in the enrollment summary below so part-payments reconcile. -->
       <div class="table-responsive mb-4">
         <table class="table table-bordered table-striped">
           <thead class="thead-dark">
@@ -102,35 +103,18 @@
             </tr>
           </thead>
           <tbody>
-            {% if record.student and record.student.courses %}
-              {% for course in record.student.courses %}
-              <tr>
-                <td>
-                  <strong>{{ course.name }}</strong> <small class="text-muted">({{ course.code }})</small>
-                </td>
-                {% if company and company.is_gst_registered %}
-                <td class="text-center">
-                  {% if course.gst_applicable %}
-                    <span class="badge badge-success">Applicable (18%)</span>
-                  {% else %}
-                    <span class="badge badge-secondary">Exempt</span>
-                  {% endif %}
-                </td>
-                {% endif %}
-                <td class="text-right">₹ {{ "%.2f"|format(course.fees) }}</td>
-              </tr>
-              {% endfor %}
-            {% else %}
-              <tr>
-                <td>Course Fee Installment</td>
-                {% if company and company.is_gst_registered %}
-                <td class="text-center">
-                  {% if company.is_gst_registered %}Applicable{% else %}Non-GST{% endif %}
-                </td>
-                {% endif %}
-                <td class="text-right">₹ {{ "%.2f"|format(record.amount_paid) }}</td>
-              </tr>
-            {% endif %}
+            <tr>
+              <td>
+                <strong>Course fee installment</strong>
+                <br><small class="text-muted">{{ course_names or 'Course Fee' }} — {{ record.remarks or 'Fee payment' }}</small>
+              </td>
+              {% if company and company.is_gst_registered %}
+              <td class="text-center">
+                <span class="badge badge-success">Applicable ({{ (cgst_pct + sgst_pct)|round|int }}%)</span>
+              </td>
+              {% endif %}
+              <td class="text-right">₹ {{ "%.2f"|format(taxable_val if (company and company.is_gst_registered) else record.amount_paid) }}</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -161,6 +145,26 @@
             <li class="list-group-item d-flex justify-content-between align-items-center bg-light font-weight-bold">
               <span class="h6 font-weight-bold mb-0">Total Paid Received</span>
               <span class="h5 text-success font-weight-bold mb-0">₹ {{ "%.2f"|format(record.amount_paid) }}</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Enrollment position: where this installment leaves the student. -->
+      <div class="row mb-2">
+        <div class="col-md-6">
+          <ul class="list-group list-group-flush border rounded">
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <span class="text-muted">Total course fee (enrollment)</span>
+              <span>₹ {{ "%.2f"|format(due_total if due_total is defined else 0) }}</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <span class="text-muted">Paid to date (incl. this receipt)</span>
+              <span>₹ {{ "%.2f"|format(paid_total if paid_total is defined else record.amount_paid) }}</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <span class="text-muted">Balance due</span>
+              <strong>₹ {{ "%.2f"|format(balance_due if balance_due is defined else 0) }}</strong>
             </li>
           </ul>
         </div>
