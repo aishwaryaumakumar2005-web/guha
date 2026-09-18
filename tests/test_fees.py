@@ -621,3 +621,127 @@ def test_receipt_shows_concessions(admin_client, app):
     html = admin_client.get(f'/fees/receipt/{rid}').data.decode()
     assert 'Concessions / waivers' in html
     assert '3720.00' in html  # 5900 - 1180 - 1000
+
+
+# ---------------------------------------------------------------------------
+# B5 — P3: date filter, indexes, KPIs, receipt settings, coverage
+# ---------------------------------------------------------------------------
+
+def test_date_range_filter_narrows_history(admin_client, app):
+    from datetime import timedelta
+    sid = _student_id(app)
+    _post_fee(admin_client, sid, amount=1180.0)
+    with app.app_context():
+        db.session.add(FeeRecord(student_id=sid, amount_paid=777.0,
+                                 payment_date=date.today() - timedelta(days=40),
+                                 payment_method='Cash'))
+        db.session.commit()
+    html = admin_client.get(
+        f'/fees?from_date={date.today().isoformat()}').data.decode()
+    assert '1,180.00' in html
+    assert '777.00' not in html
+    # Malformed dates are ignored, not 500s.
+    html = admin_client.get('/fees?from_date=not-a-date&to_date=xx').data.decode()
+    assert '1,180.00' in html and '777.00' in html
+    # Dead placeholder div is gone, replaced by a working form.
+    assert 'dateRangeFilterContainer' not in html
+    assert 'name="from_date"' in html
+
+
+def test_finance_indexes_present(app):
+    from sqlalchemy import inspect
+    from app.extensions import db
+    with app.app_context():
+        insp = inspect(db.engine)
+        assert {'idx_fee_company', 'idx_fee_payment_method'} <= {
+            c['name'] for c in insp.get_indexes('fee_record')}
+        assert {'idx_expense_payment_method'} <= {
+            c['name'] for c in insp.get_indexes('expense')}
+        assert {'idx_funding_method'} <= {
+            c['name'] for c in insp.get_indexes('owner_funding')}
+
+
+def test_kpi_strip_values(admin_client, app):
+    sid = _student_id(app)
+    _post_fee(admin_client, sid, amount=1180.0)
+    html = admin_client.get('/fees').data.decode()
+    assert 'Collected this month' in html
+    assert 'Outstanding now' in html
+    assert '4,720.00' in html   # 5900 - 1180 outstanding
+    assert '20.0%' in html      # 1180 / 5900 collected
+    assert 'Receipts' in html
+
+
+def test_receipt_details_from_settings(admin_client, app):
+    sid = _student_id(app)
+    _post_fee(admin_client, sid, amount=1180.0)
+    with app.app_context():
+        rid = FeeRecord.query.first().id
+        db.session.add(SystemSetting(key='ORG_STATE', value='Karnataka'))
+        db.session.add(SystemSetting(key='ORG_STATE_CODE', value='29'))
+        db.session.commit()
+    html = admin_client.get(f'/fees/receipt/{rid}').data.decode()
+    assert 'Karnataka (29)' in html
+    assert 'Tamil Nadu (33)' not in html
+    assert 'yazh_academy_logo' in html  # file present -> rendered
+
+
+def test_expense_create_edit_and_filters(admin_client, app):
+    with app.app_context():
+        cat = ExpenseCategory.query.first().id
+    resp = admin_client.post('/expenses', data={
+        'category_id': str(cat), 'amount': '250',
+        'description': 'filter me',
+        'expense_date': date.today().isoformat(),
+        'payment_method': 'UPI',
+    })
+    assert resp.status_code == 302
+    with app.app_context():
+        eid = Expense.query.first().id
+    # Category + month filters narrow the list.
+    html = admin_client.get(f'/expenses?category_id={cat}').data.decode()
+    assert 'filter me' in html
+    html = admin_client.get('/expenses?category_id=99999').data.decode()
+    assert 'filter me' not in html
+    # Edit validation rejects bad category.
+    resp = admin_client.post(f'/expenses/edit/{eid}', data={
+        'category_id': '99999', 'amount': '250',
+        'description': 'filter me',
+        'expense_date': date.today().isoformat(),
+        'payment_method': 'UPI',
+    }, headers=AJAX)
+    assert resp.status_code == 400
+    # Edit happy path works.
+    resp = admin_client.post(f'/expenses/edit/{eid}', data={
+        'category_id': str(cat), 'amount': '300',
+        'description': 'edited desc',
+        'expense_date': date.today().isoformat(),
+        'payment_method': 'Cash',
+    })
+    assert resp.status_code == 302
+    with app.app_context():
+        assert Expense.query.get(eid).amount == 300.0
+
+
+def test_funding_create_and_totals(admin_client, app):
+    resp = admin_client.post('/funding', data={
+        'amount': '5000', 'method': 'Bank Transfer', 'purpose': 'infra',
+        'funding_date': date.today().isoformat(),
+    })
+    assert resp.status_code == 302
+    html = admin_client.get('/funding').data.decode()
+    assert 'infra' in html
+    assert '5,000.00' in html  # month_total + total_invested aggregates
+    with app.app_context():
+        rec = OwnerFunding.query.first()
+        assert rec.method == 'Bank Transfer'
+        assert rec.created_by == _admin_id(app)
+
+
+def test_account_icon_and_mode_labels(admin_client, app):
+    sid = _student_id(app)
+    _post_fee(admin_client, sid, amount=1180.0, method='UPI')
+    html = admin_client.get('/accounts').data.decode()
+    assert 'bi-phone' in html  # shared ACCOUNT_TYPE_ICONS via summary dict
+    upi_html = admin_client.get('/accounts/UPI').data.decode()
+    assert '>UPI<' in upi_html  # canonical label, not raw 'upi'

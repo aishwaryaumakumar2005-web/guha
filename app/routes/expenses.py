@@ -34,6 +34,11 @@ def list():
                 flash(msg, 'danger')
             return redirect(url_for('expenses.list'))
         category_id = form.cleaned_data.get('category_id')
+        if ExpenseCategory.query.get(category_id) is None:
+            if is_ajax_request():
+                return jsonify({"success": False, "errors": ["Selected category does not exist"]}), 400
+            flash("Selected category does not exist", 'danger')
+            return redirect(url_for('expenses.list'))
         amount = form.cleaned_data.get('amount', 0)
         description = request.form.get('description', '').strip()
         payment_method = request.form.get('payment_method', 'Cash').strip()
@@ -92,7 +97,13 @@ def edit(id):
         for msg in form.error_messages:
             flash(msg, 'danger')
         return redirect(url_for('expenses.list'))
-    expense.category_id = form.cleaned_data.get('category_id')
+    category_id = form.cleaned_data.get('category_id')
+    if ExpenseCategory.query.get(category_id) is None:
+        if is_ajax_request():
+            return jsonify({"success": False, "errors": ["Selected category does not exist"]}), 400
+        flash("Selected category does not exist", 'danger')
+        return redirect(url_for('expenses.list'))
+    expense.category_id = category_id
     expense.amount = form.cleaned_data.get('amount', 0)
     expense.description = request.form.get('description', '').strip()
     expense.payment_method = request.form.get('payment_method', 'Cash').strip()

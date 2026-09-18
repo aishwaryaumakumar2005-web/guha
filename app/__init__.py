@@ -300,6 +300,13 @@ def create_app(config_object=None):
                 print("Migration migrate_fee_concession_column completed OK", flush=True)
             except Exception as e:
                 print("Migration migrate_fee_concession_column FAILED:", e, flush=True)
+
+            try:
+                from app.services.db_migration import migrate_indexes
+                migrate_indexes()
+                print("Migration migrate_indexes completed OK", flush=True)
+            except Exception as e:
+                print("Migration migrate_indexes FAILED:", e, flush=True)
                 db.session.rollback()
             try:
                 from app.services.db_migration import migrate_enquiry_course_nullable

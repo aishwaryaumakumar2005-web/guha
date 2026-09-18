@@ -15,6 +15,7 @@ class Expense(db.Model):
     __table_args__ = (
         db.Index('idx_expense_date', 'expense_date'),
         db.Index('idx_expense_category', 'category_id'),
+        db.Index('idx_expense_payment_method', 'payment_method'),
     )
     id = db.Column(db.Integer, primary_key=True)
     category_id = db.Column(db.Integer, db.ForeignKey('expense_category.id', ondelete='CASCADE'), nullable=False)

@@ -17,8 +17,10 @@
   <div class="card border-0 shadow-sm rounded-lg overflow-hidden" style="max-width:820px;margin:0 auto;">
     <div class="card-header p-4" style="background:#f1f3f6;border-bottom:4px solid #1e3c72;">
       <div class="d-flex align-items-center">
-        <img src="{{ url_for('static', filename='uploads/yazh_academy_logo.png') }}" alt="Logo"
+        {% if logo_url %}
+        <img src="{{ logo_url }}" alt="Logo"
              style="width:66px;height:66px;object-fit:contain;margin-right:16px;border-radius:10px;background:#fff;padding:5px;box-shadow:0 1px 4px rgba(0,0,0,.12);">
+        {% endif %}
         <div class="mr-auto">
           <h3 class="font-weight-bold mb-1" style="color:#1e3c72;letter-spacing:.3px;">{{ bill_name if bill_name else 'Institute Fee Receipt' }}</h3>
           <div style="font-size:1.05rem;font-weight:700;color:#2a5298;">(Powered By Guha India)</div>
@@ -35,14 +37,14 @@
       </div>
       <div class="row mt-3">
         <div class="col-12">
-          <div style="border:1px solid #cfd6df; border-left:4px solid #1e3c72; background:#ffffff; border-radius:6px; padding:8px 12px; max-width:580px;">
-            <div style="font-size:.92rem; color:#222; line-height:1.45; word-break:break-word;"><i class="fas fa-map-marker-alt mr-1" style="color:#1e3c72;"></i> {{ company.address if company and company.address else '1st floor, KKG Complex, SPT Mani Nagar, Gandhi Nagar Post, Arch Gate, Neyveli, Tamilnadu 607308, India' }}</div>
-            {% if company and company.is_gst_registered %}
-              <div style="font-size:.82rem; color:#555; margin-top:3px;">GSTIN: <strong>{{ company.gstin or '33ABAFG1922E1Z2' }}</strong> &nbsp;|&nbsp; Mobile: {{ company.phone or '8248779596' }} &nbsp;|&nbsp; Email: {{ company.email or 'md@guhaindia.in' }}</div>
-            {% else %}
-              <div style="font-size:.82rem; color:#555; margin-top:3px;">Mobile: {{ company.phone or '8248779596' }} &nbsp;|&nbsp; Email: {{ company.email or 'md@guhaindia.in' }}</div>
-            {% endif %}
-          </div>
+            <div style="border:1px solid #cfd6df; border-left:4px solid #1e3c72; background:#ffffff; border-radius:6px; padding:8px 12px; max-width:580px;">
+              <div style="font-size:.92rem; color:#222; line-height:1.45; word-break:break-word;"><i class="fas fa-map-marker-alt mr-1" style="color:#1e3c72;"></i> {{ company.address if company and company.address else org_address }}</div>
+              {% if company and company.is_gst_registered %}
+                <div style="font-size:.82rem; color:#555; margin-top:3px;">GSTIN: <strong>{{ company.gstin or org_gstin }}</strong> &nbsp;|&nbsp; Mobile: {{ (company.phone if company else None) or org_phone }} &nbsp;|&nbsp; Email: {{ (company.email if company else None) or org_email }}</div>
+              {% else %}
+                <div style="font-size:.82rem; color:#555; margin-top:3px;">Mobile: {{ (company.phone if company else None) or org_phone }} &nbsp;|&nbsp; Email: {{ (company.email if company else None) or org_email }}</div>
+              {% endif %}
+            </div>
         </div>
       </div>
     </div>
@@ -65,7 +67,7 @@
         <div class="col-md-4 mb-2">
           <div class="border rounded p-2 h-100" style="background:#fafbfc;">
             <div class="text-uppercase small text-muted font-weight-bold">Place of Supply</div>
-            <div class="font-weight-bold text-dark">Tamil Nadu (33)</div>
+            <div class="font-weight-bold text-dark">{{ place_of_supply if place_of_supply is defined else 'Tamil Nadu (33)' }}</div>
           </div>
         </div>
       </div>

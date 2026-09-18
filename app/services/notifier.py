@@ -142,15 +142,15 @@ class Notifier:
         for s in students:
             # Same dues math as the fees matrix: GST-inclusive due minus cash
             # collected minus concessions granted.
-            total_taxable = sum(c.fees for c in s.courses)
-            gst_amount = sum(
+            total_taxable = round(sum(c.fees for c in s.courses), 2)
+            gst_amount = round(sum(
                 round(c.fees * total_pct / 100, 2)
                 for c in s.courses if c.gst_applicable
-            )
-            total_fee = total_taxable + gst_amount
-            total_paid = sum(r.amount_paid for r in s.fee_records)
-            total_concession = sum(r.concession or 0 for r in s.fee_records)
-            balance = total_fee - total_paid - total_concession
+            ), 2)
+            total_fee = round(total_taxable + gst_amount, 2)
+            total_paid = round(sum(r.amount_paid for r in s.fee_records), 2)
+            total_concession = round(sum(r.concession or 0 for r in s.fee_records), 2)
+            balance = round(total_fee - total_paid - total_concession, 2)
             if balance > 0:
                 reminders.append((s, total_fee, total_paid, balance))
         if not reminders:

@@ -70,7 +70,49 @@
     </div>
 
     <!-- Date Range Filter -->
-    <div id="dateRangeFilterContainer"></div>
+    <form method="GET" action="{{ url_for('fees.list') }}" class="glass-card p-3 mb-4 d-flex flex-wrap gap-2 align-items-end">
+        {% if selected_company_id %}<input type="hidden" name="company_id" value="{{ selected_company_id }}">{% endif %}
+        <div>
+            <label class="form-label small mb-1 text-white" for="fee-from">From</label>
+            <input type="date" class="form-control form-control-sm" id="fee-from" name="from_date" value="{{ from_date or '' }}" max="{{ today.strftime('%Y-%m-%d') }}">
+        </div>
+        <div>
+            <label class="form-label small mb-1 text-white" for="fee-to">To</label>
+            <input type="date" class="form-control form-control-sm" id="fee-to" name="to_date" value="{{ to_date or '' }}" max="{{ today.strftime('%Y-%m-%d') }}">
+        </div>
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-premium btn-sm"><i class="bi bi-funnel me-1"></i>Apply</button>
+            <a href="{{ url_for('fees.list') }}{% if selected_company_id %}?company_id={{ selected_company_id }}{% endif %}" class="btn btn-outline-secondary btn-sm">Clear</a>
+        </div>
+    </form>
+
+    <!-- Collection KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-3">
+            <div class="glass-card p-3 text-center">
+                <div class="text-white-50 small text-uppercase">Collected this month</div>
+                <div class="fw-bold fs-5 text-white">₹{{ "{:,.2f}".format(kpi.month_collected) }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="glass-card p-3 text-center">
+                <div class="text-white-50 small text-uppercase">Outstanding now</div>
+                <div class="fw-bold fs-5 {% if kpi.outstanding > 0 %}text-warning{% else %}text-white{% endif %}">₹{{ "{:,.2f}".format(kpi.outstanding) }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="glass-card p-3 text-center">
+                <div class="text-white-50 small text-uppercase">Collection %</div>
+                <div class="fw-bold fs-5 text-white">{{ kpi.collection_pct }}%</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="glass-card p-3 text-center">
+                <div class="text-white-50 small text-uppercase">Receipts</div>
+                <div class="fw-bold fs-5 text-white">{{ kpi.receipts }}</div>
+            </div>
+        </div>
+    </div>
 
     <!-- Student Balances Matrix (full width on top) -->
     <div class="glass-card p-4 mb-4" data-aos="fade-up">
@@ -148,7 +190,7 @@
     <!-- Recent Payment History -->
     <div class="glass-card p-4 mb-4" data-aos="fade-up">
         <h4 class="mb-1 text-white fw-bold"><i class="bi bi-clock-history me-2 text-white"></i>Recent Payment History</h4>
-        <p class="text-white-50 small mb-3">Showing the latest {{ [records|length, list_limit]|min }} of {{ history_total }} records{% if history_total > list_limit %} — use the company filter above to narrow{% endif %}.</p>
+        <p class="text-white-50 small mb-3">Showing the latest {{ [records|length, list_limit]|min }} of {{ history_total }} records{% if history_total > list_limit %} — use the filters above to narrow{% endif %}.</p>
         <div class="table-container" style="max-height: 400px; overflow-y: auto;">
             <table class="table table-custom sortable" data-page-size="10">
                 <thead>

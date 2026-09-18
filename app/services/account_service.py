@@ -1,6 +1,6 @@
 from app.extensions import db
 from app.models import Account, FeeRecord, Expense, OwnerFunding, Company
-from .payment_methods import DEFAULT_ACCOUNTS, METHOD_TYPE, classify_method
+from .payment_methods import DEFAULT_ACCOUNTS, METHOD_TYPE, classify_method, ACCOUNT_TYPE_ICONS
 import re
 
 
@@ -200,6 +200,7 @@ def compute_account_summary():
             'id': acc.id,
             'name': acc.name,
             'account_type': acc.account_type,
+            'icon': ACCOUNT_TYPE_ICONS.get(acc.account_type, 'wallet-fill'),
             'company_id': acc.company_id,
             'company_name': acc.company.name if acc.company else 'Unassigned',
             'is_gst_registered': bool(acc.company.is_gst_registered) if acc.company else False,
@@ -222,6 +223,7 @@ def compute_account_summary():
             'id': None,
             'name': aname,
             'account_type': METHOD_TYPE.get(aname, 'Other'),
+            'icon': ACCOUNT_TYPE_ICONS.get(METHOD_TYPE.get(aname, 'Other'), 'wallet-fill'),
             'company_id': None,
             'company_name': 'Unassigned',
             'is_gst_registered': False,

@@ -1,5 +1,6 @@
 from datetime import datetime, date
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, abort
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, abort, current_app
+import os
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import FeeRecord, Student, Course, SystemSetting, Tutor, student_courses, Company
@@ -26,6 +27,16 @@ def _split_gst(amount, company):
     return taxable_amount, gst_amount
 
 
+def _parse_iso_date(raw):
+    """Parse an optional YYYY-MM-DD filter param; malformed values are ignored."""
+    if not raw:
+        return None
+    try:
+        return datetime.strptime(raw, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        return None
+
+
 def _course_company_id(course, gst_company_id, nongst_company_id):
     """Attribute a course to a billing company (mirrors the booking fallback)."""
     if course.company_id:
@@ -43,12 +54,12 @@ def _student_fee_summary(student):
         return 0.0, 0.0, 0.0, 0.0
     cgst_pct, sgst_pct = get_gst_rates()
     total_pct = cgst_pct + sgst_pct
-    taxable = sum(c.fees for c in student.courses)
-    gst = sum(round(c.fees * total_pct / 100, 2) for c in student.courses if c.gst_applicable)
-    due = taxable + gst
-    paid = sum(r.amount_paid for r in student.fee_records)
-    concessions = sum(r.concession or 0 for r in student.fee_records)
-    return due, paid, concessions, due - paid - concessions
+    taxable = round(sum(c.fees for c in student.courses), 2)
+    gst = round(sum(round(c.fees * total_pct / 100, 2) for c in student.courses if c.gst_applicable), 2)
+    due = round(taxable + gst, 2)
+    paid = round(sum(r.amount_paid for r in student.fee_records), 2)
+    concessions = round(sum(r.concession or 0 for r in student.fee_records), 2)
+    return due, paid, concessions, round(due - paid - concessions, 2)
 
 
 def _fee_record_in_company(record, company_id, company_is_gst):
@@ -170,10 +181,20 @@ def list():
     if company_id:
         query = query.filter(FeeRecord.company_id == company_id)
 
+    # B12: real date-range filter on the payment history (replaces the dead
+    # dateRangeFilterContainer div). Dues matrix below stays all-time.
+    from_date = _parse_iso_date(request.args.get('from_date'))
+    to_date = _parse_iso_date(request.args.get('to_date'))
+    if from_date:
+        query = query.filter(FeeRecord.payment_date >= from_date)
+    if to_date:
+        query = query.filter(FeeRecord.payment_date <= to_date)
+
     selected_company = comp_map.get(company_id) if company_id else None
     gst_company_id = next((c.id for c in companies if c.is_gst_registered), None)
     nongst_company_id = next((c.id for c in companies if not c.is_gst_registered), None)
 
+    student_ids = None
     if current_user.role == 'Staff':
         tutor = Tutor.query.filter_by(email=current_user.email).first()
         if tutor:
@@ -190,6 +211,7 @@ def list():
             all_students = []
             all_records = []
             history_total = 0
+            student_ids = []
     else:
         history_total = query.order_by(None).count()
         all_records = query.options(subqueryload(FeeRecord.student).subqueryload(Student.courses), subqueryload(FeeRecord.company)).order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).limit(FINANCE_LIST_LIMIT).all()
@@ -206,17 +228,19 @@ def list():
             # dues billed through the selected entity count here.
             courses = [c for c in courses
                        if _course_company_id(c, gst_company_id, nongst_company_id) == company_id]
-        total_taxable = sum(c.fees for c in courses)
-        gst_amount = sum(
+        total_taxable = round(sum(c.fees for c in courses), 2)
+        gst_amount = round(sum(
             round(c.fees * total_gst_pct / 100, 2)
             for c in courses if c.gst_applicable
-        )
-        total_fee = total_taxable + gst_amount
+        ), 2)
+        total_fee = round(total_taxable + gst_amount, 2)
         in_scope = [r for r in student.fee_records
                     if _fee_record_in_company(r, company_id, selected_is_gst)]
-        total_paid = sum(r.amount_paid for r in in_scope)
-        total_concession = sum(r.concession or 0 for r in in_scope)
-        balance = total_fee - total_paid - total_concession
+        # Round every float aggregate: sums of 2dp floats can drift a cent,
+        # which is enough to flip Paid In Full to Partial Dues.
+        total_paid = round(sum(r.amount_paid for r in in_scope), 2)
+        total_concession = round(sum(r.concession or 0 for r in in_scope), 2)
+        balance = round(total_fee - total_paid - total_concession, 2)
         overpaid = total_paid > total_fee
         # Aging: days since enrollment while anything is still owed. No extra
         # schema — enrollment_date is the dues clock.
@@ -244,12 +268,33 @@ def list():
             cid = gst_company_id if any(c.gst_applicable for c in s.courses) else nongst_company_id
         if cid:
             default_company[s.id] = cid
+    # U7: collection KPI strip. Month intake respects the company filter (and
+    # staff scope); dues aggregates come from the (equally scoped) matrix.
+    today = date.today()
+    month_start = date(today.year, today.month, 1)
+    month_q = FeeRecord.query.filter(FeeRecord.payment_date >= month_start)
+    if company_id:
+        month_q = month_q.filter(FeeRecord.company_id == company_id)
+    if student_ids is not None:
+        month_q = month_q.filter(FeeRecord.student_id.in_(student_ids))
+    kpi_month = round(month_q.with_entities(db.func.sum(FeeRecord.amount_paid)).scalar() or 0.0, 2)
+    kpi_due = round(sum(b['total_fee'] for b in student_balances), 2)
+    kpi_settled = round(sum(b['total_paid'] + b['total_concession'] for b in student_balances), 2)
+    kpi = {
+        'month_collected': kpi_month,
+        'outstanding': round(sum(b['balance'] for b in student_balances if b['balance'] > 0), 2),
+        'collection_pct': round(kpi_settled / kpi_due * 100, 1) if kpi_due else 0.0,
+        'receipts': history_total,
+    }
     return render_template(
         'fees.html', records=all_records, students=all_students, balances=student_balances,
         companies=companies, selected_company_id=company_id,
         selected_company=selected_company, default_company=default_company,
         history_total=history_total, list_limit=FINANCE_LIST_LIMIT,
-        today=date.today(), is_staff=(current_user.role == 'Staff'),
+        from_date=from_date.isoformat() if from_date else '',
+        to_date=to_date.isoformat() if to_date else '',
+        kpi=kpi,
+        today=today, is_staff=(current_user.role == 'Staff'),
         account_balances=(compute_account_summary() if current_user.role == 'Admin' else [])
     )
 
@@ -294,6 +339,13 @@ def receipt(id):
     due_total, paid_total, concessions_total, balance_due = _student_fee_summary(record.student)
     course_names = ', '.join(f"{c.name} ({c.code})" for c in record.student.courses) if record.student and record.student.courses else ''
 
+    # U8: receipt furniture comes from settings/company, never literals.
+    accounting = getattr(current_app, 'accounting', None)
+    org = accounting._get_settings() if accounting else {}
+    place_of_supply = f"{org.get('org_state') or 'Tamil Nadu'} ({org.get('org_state_code') or '33'})"
+    logo_file = os.path.join(current_app.static_folder or '', 'uploads', 'yazh_academy_logo.png')
+    logo_url = url_for('static', filename='uploads/yazh_academy_logo.png') if os.path.exists(logo_file) else None
+
     return render_template(
         'partials/_receipt_modal.html',
         record=record,
@@ -308,7 +360,13 @@ def receipt(id):
         paid_total=paid_total,
         concessions_total=concessions_total,
         balance_due=balance_due,
-        course_names=course_names
+        course_names=course_names,
+        org_address=org.get('org_address') or '',
+        org_phone=org.get('org_mobile') or '',
+        org_email=org.get('org_email') or '',
+        org_gstin=org.get('org_gstin') or '',
+        place_of_supply=place_of_supply,
+        logo_url=logo_url
     )
 
 @fees_bp.route('/fees/edit/<int:id>', methods=['POST'])

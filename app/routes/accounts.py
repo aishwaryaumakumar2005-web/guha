@@ -6,11 +6,22 @@ from app.helpers import admin_required, is_ajax_request
 from app.services.account_service import (
     compute_account_summary, account_breakdown, ensure_default_accounts, matching_methods,
 )
+from app.services.payment_methods import classify_method
 
 
 accounts_bp = Blueprint('accounts', __name__)
 
 ACCOUNT_TYPES = ('Cash', 'Bank', 'UPI', 'Card', 'Other')
+
+
+def _display_modes(methods):
+    """Human labels for recorded modes: exact canonical spellings render
+    canonically ('upi' -> 'UPI'); genuine variants keep their raw spelling."""
+    labels = set()
+    for m in methods or []:
+        canonical = classify_method(m)
+        labels.add(canonical if (m or '').strip().lower() == canonical.lower() else m)
+    return sorted(labels)
 
 
 @accounts_bp.route('/accounts')
@@ -26,6 +37,7 @@ def index():
     return render_template(
         'accounts.html', accounts=summary, active_name=default_name,
         breakdown=breakdown, active_methods=active_methods,
+        active_method_labels=_display_modes(active_methods),
         companies=companies, account_types=ACCOUNT_TYPES,
     )
 
@@ -42,6 +54,7 @@ def detail(account_name):
     return render_template(
         'accounts.html', accounts=summary, active_name=account_name,
         breakdown=breakdown, active_methods=active_methods,
+        active_method_labels=_display_modes(active_methods),
         companies=companies, account_types=ACCOUNT_TYPES,
     )
 

@@ -4,6 +4,10 @@ from app.extensions import db
 
 class OwnerFunding(db.Model):
     __tablename__ = 'owner_funding'
+    __table_args__ = (
+        db.Index('idx_funding_method', 'method'),
+        db.Index('idx_funding_date', 'funding_date'),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     amount = db.Column(db.Float, nullable=False)

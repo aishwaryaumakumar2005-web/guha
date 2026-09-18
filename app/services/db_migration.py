@@ -117,6 +117,7 @@ def migrate_indexes():
     """Add indexes for frequently-filtered columns used by finance/account pages."""
     for table, col, extra in [
         ('fee_record', 'payment_method', 'idx_fee_payment_method'),
+        ('fee_record', 'company_id', 'idx_fee_company'),
         ('expense', 'payment_method', 'idx_expense_payment_method'),
         ('owner_funding', 'method', 'idx_funding_method'),
         ('payroll_record', 'payment_method', 'idx_payroll_payment_method'),
