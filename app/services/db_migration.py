@@ -247,6 +247,27 @@ def migrate_schema_additions():
                 print(f"Migration migrate_schema_additions: FAILED to add {table}.{column}: {e}", flush=True)
 
 
+def migrate_exam_window_columns():
+    """Add exam.available_from / exam.available_until (nullable) on existing DBs.
+
+    The ORM maps these columns, so a database created before they existed (e.g. a
+    Postgres/Neon DB restored from an old backup) 500s on every exam query until
+    the columns are added. Idempotent and additive-only: skips columns that
+    already exist, works on SQLite and PostgreSQL, and logs loudly on failure.
+    """
+    if not _table_exists('exam'):
+        return
+    for column, col_type in [('available_from', 'DATE'), ('available_until', 'DATE')]:
+        if not _has_column('exam', column):
+            try:
+                db.session.execute(text('ALTER TABLE "exam" ADD COLUMN "%s" %s' % (column, col_type)))
+                db.session.commit()
+                print(f"Migration migrate_exam_window_columns: added exam.{column}", flush=True)
+            except Exception as e:
+                db.session.rollback()
+                print(f"Migration migrate_exam_window_columns: FAILED to add exam.{column}: {e}", flush=True)
+
+
 def migrate_enquiry_course_nullable():
     """Make enquiry.course_id nullable with ON DELETE SET NULL.
 

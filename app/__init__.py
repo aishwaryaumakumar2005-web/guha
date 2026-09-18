@@ -267,6 +267,13 @@ def create_app(config_object=None):
                 print("Migration migrate_schema_additions FAILED:", e, flush=True)
                 db.session.rollback()
             try:
+                from app.services.db_migration import migrate_exam_window_columns
+                migrate_exam_window_columns()
+                print("Migration migrate_exam_window_columns completed OK", flush=True)
+            except Exception as e:
+                print("Migration migrate_exam_window_columns FAILED:", e, flush=True)
+                db.session.rollback()
+            try:
                 from app.services.db_migration import migrate_enquiry_course_nullable
                 migrate_enquiry_course_nullable()
                 print("Migration migrate_enquiry_course_nullable completed OK", flush=True)
@@ -380,14 +387,6 @@ def create_app(config_object=None):
                     db.session.execute(db.text("CREATE INDEX IF NOT EXISTS idx_enquiry_followup ON enquiry(follow_up_date)"))
                 except Exception:
                     db.session.rollback()
-                try:
-                    db.session.execute(db.text("ALTER TABLE exam ADD COLUMN available_from DATE"))
-                except Exception:
-                    db.session.rollback()
-                try:
-                    db.session.execute(db.text("ALTER TABLE exam ADD COLUMN available_until DATE"))
-                except Exception:
-                    db.session.rollback()
                 db.session.commit()
             except Exception:
                 db.session.rollback()
@@ -466,6 +465,17 @@ def create_app(config_object=None):
             except Exception as e:
                 print('Failed to inspect database tables:', e, file=sys.stderr)
                 sys.exit(1)
+
+        # Keep exam window columns present even when production auto-migrations
+        # are disabled. The ORM selects them, so legacy databases (e.g. Postgres
+        # restored from a pre-feature backup) would otherwise 500 on every exam
+        # page. The fix is additive and idempotent: two nullable columns.
+        if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+            try:
+                from app.services.db_migration import migrate_exam_window_columns
+                migrate_exam_window_columns()
+            except Exception as e:
+                print('Failed to ensure exam.window columns:', e, file=sys.stderr)
 
         from app.audit import register_audit_events
         register_audit_events()
