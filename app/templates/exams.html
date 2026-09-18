@@ -5,6 +5,9 @@
 .rank-1 { background: #ffd700; color: #000; }
 .rank-2 { background: #c0c0c0; color: #000; }
 .rank-3 { background: #cd7f32; color: #fff; }
+.exam-card.glass-card { overflow: visible; }
+.exam-card.glass-card::before,
+.exam-card.glass-card::after { border-radius: 28px; }
 </style>
 <div class="container-fluid p-0">
     {% if section == 'student_list' %}
@@ -227,7 +230,7 @@
         {% set score_pct = (scored_count / enrolled_count * 100)|round(0) if enrolled_count > 0 else 0 %}
         {% set days_left = (e.exam_date - today).days %}
         <div class="col-md-6 col-xl-4">
-            <div class="glass-card p-4 h-100">
+            <div class="exam-card glass-card p-4 h-100">
                 <div class="d-flex justify-content-between align-items-start mb-2">
                     <div>
                         <h5 class="fw-bold text-white mb-1">{{ e.title }}</h5>
