@@ -70,19 +70,10 @@
                 <i class="bi bi-calendar-check stat-icon" aria-hidden="true"></i>
             </div>
         </div>
-        {% if current_user.role == 'Admin' %}
-        <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll stagger-5">
-            <div class="summary-card enrollments">
-                <div><div class="stat-number">{{ stats.admin_pending_leaves }}</div><div class="stat-label">Pending</div></div>
-                <div class="stat-sub">Leave requests to review</div>
-                <i class="bi bi-hourglass-split stat-icon" aria-hidden="true"></i>
-            </div>
-        </div>
-        {% endif %}
 
         {% if current_user.role == 'Admin' %}
         <!-- Outstanding / Pending Fees -->
-        <div class="bento-card bento-xl-3 bento-md-12 animate-on-scroll">
+        <div class="bento-card bento-xl-4 bento-md-12 animate-on-scroll">
             <div class="glass-card p-4 h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0 fw-bold"><i class="bi bi-cash-stack me-2" style="color:hsl(0,100%,60%);" aria-hidden="true"></i>Outstanding Fees</h5>
@@ -116,7 +107,7 @@
         </div>
 
         <!-- Course Capacity Utilisation -->
-        <div class="bento-card bento-xl-3 bento-md-12 animate-on-scroll stagger-1">
+        <div class="bento-card bento-xl-4 bento-md-12 animate-on-scroll stagger-1">
             <div class="glass-card p-4 h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0 fw-bold"><i class="bi bi-bar-chart-fill me-2" style="color:hsl(200,100%,55%);" aria-hidden="true"></i>Course Capacity</h5>
@@ -155,7 +146,7 @@
         </div>
 
         <!-- Birthdays & Anniversaries -->
-        <div class="bento-card bento-xl-3 bento-md-12 animate-on-scroll stagger-2">
+        <div class="bento-card bento-xl-4 bento-md-12 animate-on-scroll stagger-2">
             <div class="glass-card p-4 h-100">
                 <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
                     <h5 class="mb-0 fw-bold"><i class="bi bi-gift-fill me-2" style="color:hsl(290,100%,65%);" aria-hidden="true"></i>Birthdays &amp; Anniversaries</h5>
