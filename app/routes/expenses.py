@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import Expense, ExpenseCategory, Tutor, Student, Course, FeeRecord, TutorPayrollSettings, tutor_courses, student_courses
-from app.helpers import admin_required, is_ajax_request
+from app.helpers import admin_required, is_ajax_request, FINANCE_LIST_LIMIT
 from app.forms import ExpenseForm
 from app.services.account_service import compute_account_summary
 from sqlalchemy import distinct
@@ -59,7 +59,8 @@ def list():
         )
     elif filter_year:
         query = query.filter(db.extract('year', Expense.expense_date) == filter_year)
-    all_expenses = query.order_by(Expense.expense_date.desc()).all()
+    all_expenses = query.order_by(Expense.expense_date.desc()).limit(FINANCE_LIST_LIMIT).all()
+    expenses_total = query.order_by(None).count()
     categories = ExpenseCategory.query.all()
     today = date.today()
     month = filter_month or today.month
@@ -76,7 +77,8 @@ def list():
     return render_template('expenses.html', expenses=all_expenses, categories=categories,
         category_totals=category_totals, grand_total=grand_total, today=today,
         filter_category=filter_category, filter_month=filter_month or today.month,
-        filter_year=filter_year or today.year, account_balances=compute_account_summary())
+        filter_year=filter_year or today.year, account_balances=compute_account_summary(),
+        expenses_total=expenses_total, list_limit=FINANCE_LIST_LIMIT)
 
 @expenses_bp.route('/expenses/edit/<int:id>', methods=['POST'])
 @login_required
@@ -156,6 +158,10 @@ def salary_calculator():
             if percentage is None:
                 settings = TutorPayrollSettings.query.filter_by(tutor_id=selected_tutor.id).first()
                 percentage = (settings.commission_percentage or 10.0) if settings and settings.commission_percentage else 10.0
+            # Clamp: a forged percentage must not mint absurd salaries (nor
+            # negative ones). Settings form caps at 100 going forward; this
+            # also covers legacy out-of-range rows.
+            percentage = max(0.0, min(100.0, percentage))
             students = Student.query.join(Student.courses).join(Course.tutors).filter(Tutor.id == selected_tutor.id).all()
             student_ids = [s.id for s in students]
             if student_ids:
@@ -183,6 +189,7 @@ def salary_calculator():
                 split_salary = split_collected * (percentage / 100.0)
     if percentage is None:
         percentage = 10.0
+    percentage = max(0.0, min(100.0, percentage))
     return render_template('salary_calculator.html', tutors=tutors, selected_tutor=selected_tutor,
         selected_tutor_id=selected_tutor_id, percentage=percentage, filter_type=filter_type,
         filter_month=filter_month, filter_year=filter_year, start_date=start_date, end_date=end_date,

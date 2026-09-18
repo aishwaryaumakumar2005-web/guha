@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import FeeRecord, Student, Course, SystemSetting, Tutor, student_courses, Company
-from app.helpers import admin_required, get_gst_rates, is_ajax_request
+from app.helpers import admin_required, get_gst_rates, is_ajax_request, FINANCE_LIST_LIMIT
 from app.forms import FeeForm
 from app.services.account_service import compute_account_summary, ensure_default_companies, company_bill_name
 from sqlalchemy.orm import subqueryload
@@ -34,20 +34,21 @@ def _course_company_id(course, gst_company_id, nongst_company_id):
 
 
 def _student_fee_summary(student):
-    """Enrollment dues position for receipts: (total_due, paid_to_date, balance).
+    """Enrollment dues position for receipts: (due, cash_paid, concessions, balance).
 
     Informational context so a part-payment receipt states where the student
     stands; computed from current enrollment like the balances matrix.
     """
     if not student:
-        return 0.0, 0.0, 0.0
+        return 0.0, 0.0, 0.0, 0.0
     cgst_pct, sgst_pct = get_gst_rates()
     total_pct = cgst_pct + sgst_pct
     taxable = sum(c.fees for c in student.courses)
     gst = sum(round(c.fees * total_pct / 100, 2) for c in student.courses if c.gst_applicable)
     due = taxable + gst
     paid = sum(r.amount_paid for r in student.fee_records)
-    return due, paid, due - paid
+    concessions = sum(r.concession or 0 for r in student.fee_records)
+    return due, paid, concessions, due - paid - concessions
 
 
 def _fee_record_in_company(record, company_id, company_is_gst):
@@ -104,6 +105,8 @@ def list():
             flash("Selected student does not exist", 'danger')
             return redirect(url_for('fees.list'))
         amount = form.cleaned_data.get('amount_paid', 0)
+        # Waiver granted on this receipt: settles dues without cash movement.
+        concession = form.cleaned_data.get('concession', 0) or 0
         remarks = request.form.get('remarks', '').strip()
         # FeeForm.choices already rejected anything outside PAYMENT_METHODS, so
         # the raw value is safe for ledger bucketing from here on.
@@ -142,6 +145,7 @@ def list():
             payment_date=payment_date,
             payment_method=payment_method,
             remarks=remarks,
+            concession=concession,
             created_by=current_user.id
         )
         db.session.add(new_record)
@@ -179,12 +183,16 @@ def list():
             ).distinct()
             all_students = Student.query.options(subqueryload(Student.courses)).filter(Student.id.in_(student_subquery), Student.status == 'Active').all()
             student_ids = [s.id for s in all_students]
-            all_records = query.filter(FeeRecord.student_id.in_(student_ids)).order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).all()
+            scoped = query.filter(FeeRecord.student_id.in_(student_ids))
+            history_total = scoped.order_by(None).count()
+            all_records = scoped.order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).limit(FINANCE_LIST_LIMIT).all()
         else:
             all_students = []
             all_records = []
+            history_total = 0
     else:
-        all_records = query.options(subqueryload(FeeRecord.student).subqueryload(Student.courses), subqueryload(FeeRecord.company)).order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).all()
+        history_total = query.order_by(None).count()
+        all_records = query.options(subqueryload(FeeRecord.student).subqueryload(Student.courses), subqueryload(FeeRecord.company)).order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).limit(FINANCE_LIST_LIMIT).all()
         all_students = Student.query.options(subqueryload(Student.courses)).filter_by(status='Active').all()
 
     cgst_pct, sgst_pct = get_gst_rates()
@@ -204,12 +212,23 @@ def list():
             for c in courses if c.gst_applicable
         )
         total_fee = total_taxable + gst_amount
-        total_paid = sum(r.amount_paid for r in student.fee_records
-                         if _fee_record_in_company(r, company_id, selected_is_gst))
-        balance = total_fee - total_paid
+        in_scope = [r for r in student.fee_records
+                    if _fee_record_in_company(r, company_id, selected_is_gst)]
+        total_paid = sum(r.amount_paid for r in in_scope)
+        total_concession = sum(r.concession or 0 for r in in_scope)
+        balance = total_fee - total_paid - total_concession
+        overpaid = total_paid > total_fee
+        # Aging: days since enrollment while anything is still owed. No extra
+        # schema — enrollment_date is the dues clock.
+        days_due = 0
+        if balance > 0 and student.enrollment_date:
+            days_due = max(0, (date.today() - student.enrollment_date).days)
         student_balances.append({
             "student": student, "total_fee": total_fee, "total_taxable": total_taxable,
-            "total_paid": total_paid, "balance": balance,
+            "total_paid": total_paid, "total_concession": total_concession,
+            "balance": balance, "overpaid": overpaid,
+            "credit": round(total_paid - total_fee, 2) if overpaid else 0.0,
+            "days_due": days_due,
             "gst_amount": gst_amount, "gst_applicable": any(c.gst_applicable for c in courses)
         })
     # U2: per-student billing-entity default for the record-payment modal, so
@@ -229,6 +248,7 @@ def list():
         'fees.html', records=all_records, students=all_students, balances=student_balances,
         companies=companies, selected_company_id=company_id,
         selected_company=selected_company, default_company=default_company,
+        history_total=history_total, list_limit=FINANCE_LIST_LIMIT,
         today=date.today(), is_staff=(current_user.role == 'Staff'),
         account_balances=(compute_account_summary() if current_user.role == 'Admin' else [])
     )
@@ -271,7 +291,7 @@ def receipt(id):
     else:
         taxable_val = record.taxable_amount or (record.amount_paid / 1.18)
 
-    due_total, paid_total, balance_due = _student_fee_summary(record.student)
+    due_total, paid_total, concessions_total, balance_due = _student_fee_summary(record.student)
     course_names = ', '.join(f"{c.name} ({c.code})" for c in record.student.courses) if record.student and record.student.courses else ''
 
     return render_template(
@@ -286,6 +306,7 @@ def receipt(id):
         taxable_val=taxable_val,
         due_total=due_total,
         paid_total=paid_total,
+        concessions_total=concessions_total,
         balance_due=balance_due,
         course_names=course_names
     )
@@ -310,6 +331,7 @@ def edit(id):
         return redirect(url_for('fees.list'))
     amount = form.cleaned_data.get('amount_paid', 0)
     payment_date = form.cleaned_data.get('payment_date', record.payment_date)
+    concession = form.cleaned_data.get('concession', 0) or 0
     # FeeForm.choices already validated this value (see create path).
     payment_method = request.form.get('payment_method') or record.payment_method
     remarks = request.form.get('remarks', '').strip()
@@ -328,6 +350,7 @@ def edit(id):
     record.payment_date = payment_date
     record.payment_method = payment_method
     record.remarks = remarks
+    record.concession = concession
     # receipt_number is intentionally preserved: an edit corrects the booking,
     # it must not burn a new invoice number. The UPDATE is auto-audited.
     db.session.commit()

@@ -25,7 +25,10 @@ def download_invoice(fee_id):
 def export_tally():
     from_date = request.args.get('from_date')
     to_date = request.args.get('to_date')
+    company_id = request.args.get('company_id')
     query = FeeRecord.query
+    if company_id and company_id.isdigit():
+        query = query.filter(FeeRecord.company_id == int(company_id))
     if from_date:
         from datetime import datetime
         query = query.filter(FeeRecord.payment_date >= datetime.strptime(from_date, '%Y-%m-%d').date())
@@ -47,7 +50,10 @@ def export_tally():
 def export_zoho():
     from_date = request.args.get('from_date')
     to_date = request.args.get('to_date')
+    company_id = request.args.get('company_id')
     query = FeeRecord.query
+    if company_id and company_id.isdigit():
+        query = query.filter(FeeRecord.company_id == int(company_id))
     if from_date:
         from datetime import datetime
         query = query.filter(FeeRecord.payment_date >= datetime.strptime(from_date, '%Y-%m-%d').date())

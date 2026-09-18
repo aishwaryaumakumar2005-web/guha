@@ -130,16 +130,27 @@ class Notifier:
 
     def check_fee_due(self):
         from app.models import Student, FeeRecord, SystemSetting
+        from app.helpers import get_gst_rates
         cfg = self._get_settings()
         admin_email = cfg['admin_email']
         if not admin_email:
             return 0
+        cgst_pct, sgst_pct = get_gst_rates()
+        total_pct = cgst_pct + sgst_pct
         reminders = []
         students = Student.query.filter_by(status='Active').all()
         for s in students:
-            total_fee = sum(c.fees for c in s.courses)
+            # Same dues math as the fees matrix: GST-inclusive due minus cash
+            # collected minus concessions granted.
+            total_taxable = sum(c.fees for c in s.courses)
+            gst_amount = sum(
+                round(c.fees * total_pct / 100, 2)
+                for c in s.courses if c.gst_applicable
+            )
+            total_fee = total_taxable + gst_amount
             total_paid = sum(r.amount_paid for r in s.fee_records)
-            balance = total_fee - total_paid
+            total_concession = sum(r.concession or 0 for r in s.fee_records)
+            balance = total_fee - total_paid - total_concession
             if balance > 0:
                 reminders.append((s, total_fee, total_paid, balance))
         if not reminders:

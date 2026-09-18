@@ -162,6 +162,12 @@
               <span class="text-muted">Paid to date (incl. this receipt)</span>
               <span>₹ {{ "%.2f"|format(paid_total if paid_total is defined else record.amount_paid) }}</span>
             </li>
+            {% if concessions_total is defined and concessions_total %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <span class="text-muted">Concessions / waivers</span>
+              <span>₹ {{ "%.2f"|format(concessions_total) }}</span>
+            </li>
+            {% endif %}
             <li class="list-group-item d-flex justify-content-between align-items-center">
               <span class="text-muted">Balance due</span>
               <strong>₹ {{ "%.2f"|format(balance_due if balance_due is defined else 0) }}</strong>

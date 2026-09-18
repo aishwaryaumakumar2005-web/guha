@@ -434,3 +434,190 @@ def test_company_preselected_per_student(admin_client, app):
     gst_id, _ = _company_ids(app)
     html = admin_client.get('/fees').data.decode()
     assert f'data-company-id="{gst_id}"' in html
+
+
+# ---------------------------------------------------------------------------
+# B4 — P2: no-op ensure, future dates, salary clamp
+# ---------------------------------------------------------------------------
+
+def test_ensure_default_accounts_no_commit_on_noop(app):
+    from sqlalchemy import event
+    from app.extensions import db
+    from app.services.account_service import ensure_default_accounts
+    with app.app_context():
+        ensure_default_accounts()  # settle state (may commit)
+        calls = []
+
+        def _count(s):
+            calls.append(1)
+
+        event.listen(db.session, 'after_commit', _count)
+        try:
+            ensure_default_accounts()
+        finally:
+            event.remove(db.session, 'after_commit', _count)
+        assert calls == []
+
+
+def test_future_payment_date_rejected(admin_client, app):
+    from datetime import timedelta
+    sid = _student_id(app)
+    future = (date.today() + timedelta(days=5)).isoformat()
+    for url, data in (
+        ('/fees', {'student_id': str(sid), 'amount_paid': '500',
+                   'payment_date': future, 'payment_method': 'Cash'}),
+        ('/expenses', {'category_id': '1', 'amount': '100',
+                       'description': 'future', 'expense_date': future,
+                       'payment_method': 'Cash'}),
+        ('/funding', {'amount': '5000', 'method': 'Cash',
+                      'purpose': 'future', 'funding_date': future}),
+    ):
+        resp = admin_client.post(url, data=data, headers=AJAX)
+        assert resp.status_code == 400, url
+    with app.app_context():
+        assert FeeRecord.query.count() == 0
+        assert Expense.query.count() == 0
+        assert OwnerFunding.query.count() == 0
+
+
+def test_salary_calculator_percentage_clamped(admin_client, app):
+    from app.models import Tutor
+    with app.app_context():
+        tid = Tutor.query.first().id
+    html = admin_client.get(
+        f'/salary-calculator?tutor_id={tid}&percentage=999').data.decode()
+    assert 'value="100.0"' in html
+    html = admin_client.get(
+        f'/salary-calculator?tutor_id={tid}&percentage=-5').data.decode()
+    assert 'value="0.0"' in html
+
+
+def test_payroll_settings_percentage_capped(admin_client, app):
+    from app.models import Tutor, TutorPayrollSettings
+    with app.app_context():
+        tid = Tutor.query.first().id
+    admin_client.post(f'/payroll/settings/{tid}', data={
+        'base_salary': '10000', 'commission_percentage': '150',
+        'tds_percentage': '10', 'bonus': '0', 'other_deductions': '0',
+    })
+    with app.app_context():
+        settings = TutorPayrollSettings.query.filter_by(tutor_id=tid).first()
+        assert settings is None or settings.commission_percentage != 150
+
+
+# ---------------------------------------------------------------------------
+# B4 — Func P2: bounded lists, exports, dues (overpaid/aging/concession)
+# ---------------------------------------------------------------------------
+
+def test_fees_history_capped_with_total(admin_client, app):
+    sid = _student_id(app)
+    with app.app_context():
+        for i in range(205):
+            db.session.add(FeeRecord(student_id=sid, amount_paid=10.0,
+                                     payment_date=date.today(),
+                                     payment_method='Cash'))
+        db.session.commit()
+    html = admin_client.get('/fees').data.decode()
+    assert 'latest 200 of 205 records' in html
+
+
+def test_expenses_funding_lists_show_totals(admin_client, app):
+    with app.app_context():
+        cat = ExpenseCategory.query.first().id
+        for i in range(3):
+            db.session.add(Expense(category_id=cat, amount=10.0,
+                                   description=f'e{i}',
+                                   expense_date=date.today(),
+                                   payment_method='Cash'))
+        db.session.commit()
+    html = admin_client.get('/expenses').data.decode()
+    assert 'latest 3 of 3 records' in html
+    html = admin_client.get('/funding').data.decode()
+    assert 'latest 0 of 0 records' in html
+
+
+def test_breakdown_shows_type_totals(admin_client, app):
+    sid = _student_id(app)
+    _post_fee(admin_client, sid, amount=1180.0, method='Cash',
+              remarks='ledger-row-xyz')
+    html = admin_client.get('/accounts/Cash').data.decode()
+    assert '1 fees' in html
+    # Regression: matching_methods compared canonical vs normalized names, so
+    # the per-account ledger silently matched nothing (always empty).
+    assert 'ledger-row-xyz' in html
+
+
+def test_exports_respect_company_filter(admin_client, app):
+    sid = _student_id(app)
+    admin_client.get('/fees')  # seed companies
+    gst_id, nongst_id = _company_ids(app)
+    _post_fee(admin_client, sid, amount=1180.0)
+    html = admin_client.get('/fees').data.decode()
+    assert 'export/tally' in html and 'export/zoho' in html
+    tally = admin_client.get(f'/fees/export/tally?company_id={gst_id}')
+    assert tally.status_code == 200
+    assert 'attachment' in tally.headers.get('Content-Disposition', '')
+    empty = admin_client.get(f'/fees/export/tally?company_id={nongst_id}')
+    assert empty.status_code == 302  # no rows -> redirected with warning
+    zoho = admin_client.get(f'/fees/export/zoho?company_id={gst_id}')
+    assert zoho.status_code == 200
+    assert 'attachment' in zoho.headers.get('Content-Disposition', '')
+
+
+def test_overpaid_status_visible(admin_client, app):
+    sid = _student_id(app)
+    _post_fee(admin_client, sid, amount=7000.0)  # due is 5900
+    html = admin_client.get('/fees').data.decode()
+    assert 'Overpaid' in html
+    assert '1,100.00' in html  # credit
+    assert 'Paid In Full' not in html
+
+
+def test_aging_shown_for_dues(admin_client, app):
+    from datetime import timedelta
+    sid = _student_id(app)
+    with app.app_context():
+        student = Student.query.get(sid)
+        student.enrollment_date = date.today() - timedelta(days=45)
+        db.session.commit()
+    html = admin_client.get('/fees').data.decode()
+    assert '45d' in html
+
+
+def test_concession_settles_dues(admin_client, app):
+    sid = _student_id(app)
+    resp = admin_client.post('/fees', data={
+        'student_id': str(sid), 'amount_paid': '180', 'concession': '1000',
+        'payment_date': date.today().isoformat(), 'payment_method': 'Cash',
+    })
+    assert resp.status_code == 302
+    html = admin_client.get('/fees').data.decode()
+    assert '+₹1,000.00 waiver' in html
+    assert '₹4,720.00' in html  # 5900 - 180 - 1000 outstanding
+    with app.app_context():
+        row = FeeRecord.query.filter_by(student_id=sid).first()
+        assert row.concession == 1000.0
+
+
+def test_negative_concession_rejected(admin_client, app):
+    sid = _student_id(app)
+    resp = admin_client.post('/fees', data={
+        'student_id': str(sid), 'amount_paid': '180', 'concession': '-50',
+        'payment_date': date.today().isoformat(), 'payment_method': 'Cash',
+    }, headers=AJAX)
+    assert resp.status_code == 400
+    with app.app_context():
+        assert FeeRecord.query.count() == 0
+
+
+def test_receipt_shows_concessions(admin_client, app):
+    sid = _student_id(app)
+    admin_client.post('/fees', data={
+        'student_id': str(sid), 'amount_paid': '1180', 'concession': '1000',
+        'payment_date': date.today().isoformat(), 'payment_method': 'Cash',
+    })
+    with app.app_context():
+        rid = FeeRecord.query.first().id
+    html = admin_client.get(f'/fees/receipt/{rid}').data.decode()
+    assert 'Concessions / waivers' in html
+    assert '3720.00' in html  # 5900 - 1180 - 1000

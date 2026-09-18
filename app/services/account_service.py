@@ -16,6 +16,7 @@ def normalize_method(method):
 
 
 def ensure_default_companies():
+    created = False
     c1 = Company.query.filter_by(code='COMP-GST').first()
     if not c1:
         c1 = Company(
@@ -29,7 +30,8 @@ def ensure_default_companies():
             invoice_prefix='GTS-GST/'
         )
         db.session.add(c1)
-    
+        created = True
+
     c2 = Company.query.filter_by(code='COMP-NGST').first()
     if not c2:
         c2 = Company(
@@ -43,7 +45,11 @@ def ensure_default_companies():
             invoice_prefix='GTS-NGST/'
         )
         db.session.add(c2)
-    db.session.commit()
+        created = True
+    # Same no-op rule as ensure_default_accounts: never open a write
+    # transaction when there was nothing to seed.
+    if created:
+        db.session.commit()
     return c1, c2
 
 
@@ -65,9 +71,14 @@ def ensure_default_accounts():
             )
             db.session.commit()
         else:
+            updated = False
             for acc in Account.query.filter(Account.company_id.is_(None)).all():
                 acc.company_id = c1.id if 'Bank' in acc.name or 'Card' in acc.name else c2.id
-            db.session.commit()
+                updated = True
+            # A no-op ensure must not open a write transaction on every page
+            # view — commit only when something actually changed.
+            if updated:
+                db.session.commit()
     except Exception:
         db.session.rollback()
 
@@ -255,7 +266,9 @@ def matching_methods(account_name):
         if m:
             observed.add(normalize_method(m))
     target = normalize_method(account_name)
-    result = [m for m in observed if match_account(m) == target or (not target and match_account(m) == 'Others')]
+    result = [m for m in observed
+              if normalize_method(match_account(m)) == target
+              or (not target and match_account(m) == 'Others')]
     _matching_cache[key] = {'data': result, 'time': time()}
     return result
 
@@ -270,7 +283,8 @@ def account_breakdown(account_name, limit=200):
         return entry['data']
     methods = matching_methods(account_name)
     if not methods:
-        return {'income': [], 'expenses': [], 'funding': []}
+        return {'income': [], 'expenses': [], 'funding': [],
+                'limit': limit, 'totals': {'income': 0, 'expenses': 0, 'funding': 0}}
 
     fee_q = FeeRecord.query
     exp_q = Expense.query
@@ -279,10 +293,24 @@ def account_breakdown(account_name, limit=200):
     ors_exp = db.or_(*(db.func.lower(db.func.coalesce(Expense.payment_method, '')) == m for m in methods))
     ors_fund = db.or_(*(db.func.lower(db.func.coalesce(OwnerFunding.method, '')) == m for m in methods))
 
-    fees = fee_q.options(joinedload(FeeRecord.student)).filter(ors_fee).order_by(FeeRecord.payment_date.desc()).limit(limit).all()
-    exp = exp_q.options(joinedload(Expense.category)).filter(ors_exp).order_by(Expense.expense_date.desc()).limit(limit).all()
-    fund = fund_q.filter(ors_fund).order_by(OwnerFunding.funding_date.desc()).limit(limit).all()
-    data = {'income': fees, 'expenses': exp, 'funding': fund}
+    fee_base = fee_q.filter(ors_fee)
+    exp_base = exp_q.filter(ors_exp)
+    fund_base = fund_q.filter(ors_fund)
+
+    fees = fee_base.options(joinedload(FeeRecord.student)).order_by(FeeRecord.payment_date.desc()).limit(limit).all()
+    exp = exp_base.options(joinedload(Expense.category)).order_by(Expense.expense_date.desc()).limit(limit).all()
+    fund = fund_base.order_by(OwnerFunding.funding_date.desc()).limit(limit).all()
+    data = {
+        'income': fees,
+        'expenses': exp,
+        'funding': fund,
+        'limit': limit,
+        'totals': {
+            'income': fee_base.order_by(None).count(),
+            'expenses': exp_base.order_by(None).count(),
+            'funding': fund_base.order_by(None).count(),
+        },
+    }
     _breakdown_cache[key] = {'data': data, 'time': time()}
     return data
 

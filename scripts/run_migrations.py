@@ -52,7 +52,7 @@ def main():
             except Exception:
                 db_migration = None
 
-            for fn in ('migrate_renames', 'migrate_company_names', 'migrate_photos_to_db', 'migrate_schema_additions', 'migrate_exam_window_columns', 'migrate_leave_action_columns', 'migrate_leave_type_column', 'migrate_fee_created_by_column'):
+            for fn in ('migrate_renames', 'migrate_company_names', 'migrate_photos_to_db', 'migrate_schema_additions', 'migrate_exam_window_columns', 'migrate_leave_action_columns', 'migrate_leave_type_column', 'migrate_fee_created_by_column', 'migrate_fee_concession_column'):
                 if db_migration and hasattr(db_migration, fn):
                     print(f"Preparing to run {fn}()")
                     if args.apply:

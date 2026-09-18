@@ -333,6 +333,25 @@ def migrate_fee_created_by_column():
             print(f"Migration migrate_fee_created_by_column: FAILED to add fee_record.created_by: {e}", flush=True)
 
 
+def migrate_fee_concession_column():
+    """Add fee_record.concession (nullable float) on existing DBs.
+
+    Same self-heal rationale as the other fee_record columns: the ORM maps
+    it, so legacy databases 500 on fee queries until it exists. Idempotent
+    and additive-only. Legacy rows keep NULL, read as 0 (no waiver).
+    """
+    if not _table_exists('fee_record'):
+        return
+    if not _has_column('fee_record', 'concession'):
+        try:
+            db.session.execute(text('ALTER TABLE "fee_record" ADD COLUMN "concession" FLOAT'))
+            db.session.commit()
+            print("Migration migrate_fee_concession_column: added fee_record.concession", flush=True)
+        except Exception as e:
+            db.session.rollback()
+            print(f"Migration migrate_fee_concession_column: FAILED to add fee_record.concession: {e}", flush=True)
+
+
 def migrate_enquiry_course_nullable():
     """Make enquiry.course_id nullable with ON DELETE SET NULL.
 

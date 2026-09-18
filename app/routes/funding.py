@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import OwnerFunding
-from app.helpers import admin_required, is_ajax_request
+from app.helpers import admin_required, is_ajax_request, FINANCE_LIST_LIMIT
 from app.forms import OwnerFundingForm
 from app.services.account_service import compute_account_summary
 
@@ -37,18 +37,21 @@ def list():
             return jsonify({"success": True, "message": message}), 201
         flash(message, "success")
         return redirect(url_for('funding.list'))
+    fundings_total = OwnerFunding.query.order_by(None).count()
     all_fundings = OwnerFunding.query.order_by(
         OwnerFunding.funding_date.desc(), OwnerFunding.id.desc()
-    ).all()
-    total_invested = sum(f.amount for f in all_fundings)
+    ).limit(FINANCE_LIST_LIMIT).all()
+    # Totals stay global (SQL aggregates) even when the list below is capped.
+    total_invested = db.session.query(db.func.sum(OwnerFunding.amount)).scalar() or 0.0
     today = date.today()
-    month_total = sum(
-        f.amount for f in all_fundings
-        if f.funding_date.year == today.year and f.funding_date.month == today.month
-    )
+    month_total = db.session.query(db.func.sum(OwnerFunding.amount)).filter(
+        db.extract('year', OwnerFunding.funding_date) == today.year,
+        db.extract('month', OwnerFunding.funding_date) == today.month
+    ).scalar() or 0.0
     return render_template('funding.html', fundings=all_fundings,
         total_invested=total_invested, month_total=month_total, today=today,
-        account_balances=compute_account_summary())
+        account_balances=compute_account_summary(),
+        fundings_total=fundings_total, list_limit=FINANCE_LIST_LIMIT)
 
 
 @funding_bp.route('/funding/delete/<int:id>', methods=['POST'])

@@ -17,6 +17,9 @@ class FeeRecord(db.Model):
     payment_date = db.Column(db.Date, default=date.today, nullable=False)
     payment_method = db.Column(db.String(50), default='Cash')
     remarks = db.Column(db.String(200))
+    # Concession / waiver granted on this receipt: counts as settled for dues
+    # (balance = due - paid - concessions) but is NOT cash collected.
+    concession = db.Column(db.Float, default=0.0)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
 
     creator = db.relationship('User', backref='fee_records', lazy=True)

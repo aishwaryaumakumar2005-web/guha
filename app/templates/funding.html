@@ -36,16 +36,17 @@ This Month</div>
                 <div class="text-secondary small fw-semibold text-uppercase tracking-wider">
 Contributions</div>
                 <div class="fw-bold fs-5 text-white">
-{{ fundings|length }}</div>
+{{ fundings_total }}</div>
             </div>
         </div>
     </div>
     <!-- Contributions Table -->
     <div class="glass-card p-4" data-aos="fade-up">
-        <h4 class="mb-4 text-dark fw-bold">
+        <h4 class="mb-1 text-dark fw-bold">
 <i class="bi bi-piggy-bank-fill me-2 text-dark">
 </i>
 Investment History</h4>
+        <p class="text-secondary small mb-3">Showing the latest {{ [fundings|length, list_limit]|min }} of {{ fundings_total }} records.</p>
         <div class="table-container">
             <table class="table table-custom sortable" data-page-size="10">
                 <thead>
@@ -117,7 +118,7 @@ Record Capital Investment</h5>
                     <div class="mb-3">
                         <label class="form-label text-white small">
   Investment Date</label>
-                        <input type="date" class="form-control" name="funding_date" value="{{ today.strftime('%Y-%m-%d') }}" required>
+                        <input type="date" class="form-control" name="funding_date" value="{{ today.strftime('%Y-%m-%d') }}" max="{{ today.strftime('%Y-%m-%d') }}" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">

@@ -39,6 +39,15 @@
                 <button class="btn btn-premium" data-bs-toggle="modal" data-bs-target="#recordPaymentModal">
                     <i class="bi bi-wallet2 me-2"></i>Record Payment
                 </button>
+                <div class="dropdown">
+                    <button class="btn btn-outline-light dropdown-toggle" data-bs-toggle="dropdown" title="Export fee records for accounting">
+                        <i class="bi bi-download me-1"></i>Export
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
+                        <li><a class="dropdown-item" href="{{ url_for('accounting.export_tally') }}{% if selected_company_id %}?company_id={{ selected_company_id }}{% endif %}">Tally XML{% if selected_company_id %} (filtered entity){% endif %}</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('accounting.export_zoho') }}{% if selected_company_id %}?company_id={{ selected_company_id }}{% endif %}">Zoho CSV{% if selected_company_id %} (filtered entity){% endif %}</a></li>
+                    </ul>
+                </div>
             {% endif %}
         </div>
     </div>
@@ -76,6 +85,7 @@
                         <th>Total Due</th>
                         <th>Total Paid</th>
                         <th>Outstanding</th>
+                        <th title="Days since enrollment while dues remain">Aging</th>
                         <th>Status</th>
                         <th class="text-end">Action</th>
                     </tr>
@@ -99,14 +109,18 @@
                                     {% if item.gst_applicable %}₹{{ "{:,.2f}".format(item.gst_amount) }}{% else %}<span class="text-secondary">-</span>{% endif %}
                                 </td>
                                 <td class="text-white fw-semibold">₹{{ "{:,.2f}".format(item.total_fee) }}</td>
-                                <td class="text-white fw-semibold">₹{{ "{:,.2f}".format(item.total_paid) }}</td>
+                                <td class="text-white fw-semibold">₹{{ "{:,.2f}".format(item.total_paid) }}{% if item.total_concession > 0 %}<div class="small fw-normal" style="opacity: 0.75;">+₹{{ "{:,.2f}".format(item.total_concession) }} waiver</div>{% endif %}</td>
                                 <td class="fw-semibold">₹{{ "{:,.2f}".format(item.balance) }}</td>
+                                <td class="small {% if item.days_due > 90 %}text-danger{% elif item.days_due > 30 %}text-warning{% else %}text-secondary{% endif %}"{% if item.days_due %} title="Due since enrollment"{% endif %}>{% if item.days_due %}{{ item.days_due }}d{% else %}-{% endif %}</td>
                                 <td>
-                                    {% if item.balance <= 0 and item.total_fee > 0 %}
+                                    {% if item.overpaid %}
+                                        <span class="badge badge-custom badge-active">Overpaid</span>
+                                        <div class="small mt-1" style="color: var(--accent-emerald);">₹{{ "{:,.2f}".format(item.credit) }} credit</div>
+                                    {% elif item.balance <= 0 and item.total_fee > 0 %}
                                         <span class="badge badge-custom badge-active">Paid In Full</span>
-                                    {% elif item.balance > 0 and item.total_paid > 0 %}
+                                    {% elif item.balance > 0 and (item.total_paid > 0 or item.total_concession > 0) %}
                                         <span class="badge badge-custom badge-amber">Partial Dues</span>
-                                    {% elif item.balance > 0 and item.total_paid == 0 %}
+                                    {% elif item.balance > 0 %}
                                         <span class="badge badge-custom badge-inactive">Unpaid Full</span>
                                     {% else %}
                                         <span class="text-muted small">-</span>
@@ -123,7 +137,7 @@
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="8" class="text-center text-white py-4">No enrolled student balance structures registered.</td>
+                            <td colspan="9" class="text-center text-white py-4">No enrolled student balance structures registered.</td>
                         </tr>
                     {% endif %}
                 </tbody>
@@ -133,7 +147,8 @@
 
     <!-- Recent Payment History -->
     <div class="glass-card p-4 mb-4" data-aos="fade-up">
-        <h4 class="mb-4 text-white fw-bold"><i class="bi bi-clock-history me-2 text-white"></i>Recent Payment History</h4>
+        <h4 class="mb-1 text-white fw-bold"><i class="bi bi-clock-history me-2 text-white"></i>Recent Payment History</h4>
+        <p class="text-white-50 small mb-3">Showing the latest {{ [records|length, list_limit]|min }} of {{ history_total }} records{% if history_total > list_limit %} — use the company filter above to narrow{% endif %}.</p>
         <div class="table-container" style="max-height: 400px; overflow-y: auto;">
             <table class="table table-custom sortable" data-page-size="10">
                 <thead>
@@ -183,6 +198,7 @@
                                         data-amount="{{ record.amount_paid }}"
                                         data-date="{{ record.payment_date.strftime('%Y-%m-%d') }}"
                                         data-method="{{ record.payment_method }}"
+                                        data-concession="{{ record.concession or 0 }}"
                                         data-remarks="{{ record.remarks or '' }}"
                                         title="Edit fee record (receipt number is preserved)">
                                         <i class="bi bi-pencil"></i>
@@ -247,8 +263,13 @@
                         <input type="number" step="0.01" class="form-control" name="amount_paid" placeholder="e.g. 150.00" min="0.01" max="999999" required>
                     </div>
                     <div class="mb-3">
+                        <label class="form-label small">Concession / Waiver Granted (₹)</label>
+                        <input type="number" step="0.01" class="form-control" name="concession" placeholder="e.g. 500.00" min="0" max="999999" value="0">
+                        <div class="form-text">Settles dues without cash movement — tracked separately from collected cash.</div>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label small">Payment Transaction Date</label>
-                        <input type="date" class="form-control" name="payment_date" value="{{ today.strftime('%Y-%m-%d') }}" required>
+                        <input type="date" class="form-control" name="payment_date" value="{{ today.strftime('%Y-%m-%d') }}" max="{{ today.strftime('%Y-%m-%d') }}" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label small">Payment Mode</label>
@@ -305,8 +326,12 @@
                         <input type="number" step="0.01" class="form-control" name="amount_paid" id="edit-fee-amount" min="0.01" max="999999" required>
                     </div>
                     <div class="mb-3">
+                        <label class="form-label small" for="edit-fee-concession">Concession / Waiver Granted (₹)</label>
+                        <input type="number" step="0.01" class="form-control" name="concession" id="edit-fee-concession" min="0" max="999999">
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label small" for="edit-fee-date">Payment Transaction Date</label>
-                        <input type="date" class="form-control" name="payment_date" id="edit-fee-date" required>
+                        <input type="date" class="form-control" name="payment_date" id="edit-fee-date" max="{{ today.strftime('%Y-%m-%d') }}" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label small" for="edit-fee-method">Payment Mode</label>
@@ -407,6 +432,7 @@ function openEditFee(btn) {
     var companySel = document.getElementById('edit-fee-company');
     if (companySel && d.companyId) companySel.value = d.companyId;
     document.getElementById('edit-fee-amount').value = d.amount || '';
+    document.getElementById('edit-fee-concession').value = d.concession || '0';
     document.getElementById('edit-fee-date').value = d.date || '';
     document.getElementById('edit-fee-remarks').value = d.remarks || '';
     var msel = document.getElementById('edit-fee-method');

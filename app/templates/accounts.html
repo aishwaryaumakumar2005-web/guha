@@ -54,7 +54,7 @@
     <!-- Ledger for selected account -->
     <div class="glass-card p-4" data-aos="fade-up">
         <h4 class="mb-1 text-dark fw-bold"><i class="bi bi-journal-text me-2 text-dark"></i>Activity — {{ active_name }}</h4>
-        <p class="text-secondary small mb-3">Income and expense movements for this account. Showing the most recent 200 records per type.</p>
+        <p class="text-secondary small mb-3">Income and expense movements for this account. Showing the most recent {{ breakdown.limit }} per type ({{ breakdown.totals.income }} fees · {{ breakdown.totals.expenses }} expenses · {{ breakdown.totals.funding }} funding).</p>
 
         {% set active_acc = accounts|selectattr('name', 'equalto', active_name)|first %}
         {% set total_in = active_acc.income if active_acc else 0 %}

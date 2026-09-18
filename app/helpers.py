@@ -7,6 +7,11 @@ from app.extensions import db
 
 ALLOWED_PHOTO_EXT = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
+# Cap on rows rendered by the finance list pages (fees history, expenses,
+# funding). Pages show "latest N of M" with a nudge to the filters instead
+# of loading unbounded tables into the DOM.
+FINANCE_LIST_LIMIT = 200
+
 
 def save_photo_data(file_storage, max_mb=4):
     """Validate an uploaded photo and return (raw_bytes, mime) for DB storage, or None."""

@@ -188,11 +188,18 @@ class ForgotPasswordForm(Form):
 class FeeForm(Form):
     required = ['student_id', 'amount_paid']
     integer = ['student_id', 'company_id']
-    float = ['amount_paid']
+    float = ['amount_paid', 'concession']
     date = ['payment_date']
     choices = {'payment_method': list(PAYMENT_METHODS)}
-    min_values = {'amount_paid': 0.01, 'student_id': 1}
+    min_values = {'amount_paid': 0.01, 'concession': 0, 'student_id': 1}
     max_length = {'remarks': 200}
+
+    def validate(self):
+        super().validate()
+        pay_date = self.cleaned_data.get('payment_date')
+        if pay_date and pay_date > date.today():
+            self._error('payment_date', 'Payment date cannot be in the future')
+        return len(self.errors) == 0
 
 
 class ExpenseForm(Form):
@@ -202,6 +209,13 @@ class ExpenseForm(Form):
     date = ['expense_date']
     choices = {'payment_method': list(PAYMENT_METHODS)}
     min_values = {'amount': 0.01, 'category_id': 1}
+
+    def validate(self):
+        super().validate()
+        exp_date = self.cleaned_data.get('expense_date')
+        if exp_date and exp_date > date.today():
+            self._error('expense_date', 'Expense date cannot be in the future')
+        return len(self.errors) == 0
 
 
 # Single source of truth for lead sources. Every form that edits an enquiry
@@ -285,6 +299,7 @@ class PayrollProcessForm(Form):
 class PayrollSettingsForm(Form):
     float = ['base_salary', 'commission_percentage', 'tds_percentage', 'bonus', 'other_deductions']
     min_values = {'base_salary': 0, 'commission_percentage': 0, 'tds_percentage': 0, 'bonus': 0, 'other_deductions': 0}
+    max_values = {'commission_percentage': 100, 'tds_percentage': 100}
     max_length = {'bank_name': 100, 'account_number': 50, 'ifsc_code': 20}
 
 
@@ -294,3 +309,10 @@ class OwnerFundingForm(Form):
     date = ['funding_date']
     choices = {'method': list(PAYMENT_METHODS)}
     min_values = {'amount': 1}
+
+    def validate(self):
+        super().validate()
+        fund_date = self.cleaned_data.get('funding_date')
+        if fund_date and fund_date > date.today():
+            self._error('funding_date', 'Funding date cannot be in the future')
+        return len(self.errors) == 0
