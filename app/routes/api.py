@@ -99,6 +99,7 @@ def api_tutor_details(tutor_id):
     days_present = sum(1 for r in attendance_records if r.status == 'Present')
     days_absent = sum(1 for r in attendance_records if r.status == 'Absent')
     days_late = sum(1 for r in attendance_records if r.status == 'Late')
+    days_half_day = sum(1 for r in attendance_records if r.status == 'Half Day')
     salary_cat = ExpenseCategory.query.filter_by(name="Salary").first()
     # Names are free text: escape LIKE wildcards or a tutor named '%'
     # would match every salary row in the table. (Deeper fix: link salary
@@ -112,7 +113,7 @@ def api_tutor_details(tutor_id):
         'id': tutor.id, 'emp_code': tutor.emp_code, 'name': tutor.name, 'email': tutor.email, 'phone': tutor.phone,
         'specialization': tutor.specialization or 'N/A', 'status': tutor.status, 'qr_code_uuid': tutor.qr_code_uuid,
         'courses': [{'id': c.id, 'name': c.name, 'code': c.code, 'duration': f'{c.duration_weeks} {c.duration_unit or "weeks"}'} for c in tutor.courses],
-        'attendance': {'total_days': total_days, 'present': days_present, 'absent': days_absent, 'late': days_late},
+        'attendance': {'total_days': total_days, 'present': days_present, 'absent': days_absent, 'late': days_late, 'half_day': days_half_day},
         'salary': {'total_paid': total_salary_paid, 'recent_payments': [{'date': s.expense_date.strftime('%d %b %Y'), 'amount': s.amount, 'description': s.description[:60]} for s in salary_payments[:10]]}
     })
 
