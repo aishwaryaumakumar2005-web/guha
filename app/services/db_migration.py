@@ -268,6 +268,28 @@ def migrate_exam_window_columns():
                 print(f"Migration migrate_exam_window_columns: FAILED to add exam.{column}: {e}", flush=True)
 
 
+def migrate_leave_action_columns():
+    """Add leave_request.approved_by / actioned_at / remarks (all nullable).
+
+    The ORM maps these columns, so a database created before they existed (e.g. a
+    Postgres/Neon DB restored from an old backup) 500s on every leave_request
+    query until the columns are added. Idempotent and additive-only: skips columns
+    that already exist, works on SQLite and PostgreSQL, and logs loudly on failure.
+    """
+    if not _table_exists('leave_request'):
+        return
+    ts_type = 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'
+    for column, col_type in [('approved_by', 'INTEGER'), ('actioned_at', ts_type), ('remarks', 'TEXT')]:
+        if not _has_column('leave_request', column):
+            try:
+                db.session.execute(text('ALTER TABLE "leave_request" ADD COLUMN "%s" %s' % (column, col_type)))
+                db.session.commit()
+                print(f"Migration migrate_leave_action_columns: added leave_request.{column}", flush=True)
+            except Exception as e:
+                db.session.rollback()
+                print(f"Migration migrate_leave_action_columns: FAILED to add leave_request.{column}: {e}", flush=True)
+
+
 def migrate_enquiry_course_nullable():
     """Make enquiry.course_id nullable with ON DELETE SET NULL.
 

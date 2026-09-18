@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+from datetime import date, datetime
 
 from .services.payment_methods import PAYMENT_METHODS
 
@@ -234,10 +234,21 @@ class LeaveForm(Form):
 
     def validate(self):
         base_valid = super().validate()
+        from flask import current_app
         sd = self.cleaned_data.get('start_date')
         ed = self.cleaned_data.get('end_date')
         if sd and ed and sd > ed:
             self._error('end_date', 'End date must be on or after start date')
+        if sd and sd < date.today():
+            self._error('start_date', 'Start date cannot be in the past')
+        if sd and ed and ed >= sd:
+            max_days = current_app.config.get('LEAVE_MAX_DAYS', 30)
+            if (ed - sd).days + 1 > max_days:
+                self._error('end_date', f'Leave cannot exceed {max_days} days at a time')
+        reason = str(self.data.get('reason') or '').strip()
+        max_reason = current_app.config.get('LEAVE_MAX_REASON', 500)
+        if len(reason) > max_reason:
+            self._error('reason', f'Reason cannot exceed {max_reason} characters')
         return len(self.errors) == 0
 
 

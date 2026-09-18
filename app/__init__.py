@@ -274,6 +274,13 @@ def create_app(config_object=None):
                 print("Migration migrate_exam_window_columns FAILED:", e, flush=True)
                 db.session.rollback()
             try:
+                from app.services.db_migration import migrate_leave_action_columns
+                migrate_leave_action_columns()
+                print("Migration migrate_leave_action_columns completed OK", flush=True)
+            except Exception as e:
+                print("Migration migrate_leave_action_columns FAILED:", e, flush=True)
+                db.session.rollback()
+            try:
                 from app.services.db_migration import migrate_enquiry_course_nullable
                 migrate_enquiry_course_nullable()
                 print("Migration migrate_enquiry_course_nullable completed OK", flush=True)
@@ -476,6 +483,17 @@ def create_app(config_object=None):
                 migrate_exam_window_columns()
             except Exception as e:
                 print('Failed to ensure exam.window columns:', e, file=sys.stderr)
+
+        # Same self-heal for the leave-review action columns (approved_by /
+        # actioned_at / remarks). The ORM selects them, so a legacy database
+        # restored from a pre-feature backup would otherwise 500 on /leaves.
+        # Additive and idempotent.
+        if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+            try:
+                from app.services.db_migration import migrate_leave_action_columns
+                migrate_leave_action_columns()
+            except Exception as e:
+                print('Failed to ensure leave_request action columns:', e, file=sys.stderr)
 
         from app.audit import register_audit_events
         register_audit_events()

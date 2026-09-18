@@ -12,6 +12,8 @@ class Config:
     SQLALCHEMY_ENGINE_OPTIONS = {'pool_pre_ping': True}
     TEMPLATES_AUTO_RELOAD = False
     CRON_SECRET = os.environ.get('CRON_SECRET', 'change-me-in-production')
+    LEAVE_MAX_DAYS = 30
+    LEAVE_MAX_REASON = 500
 
 
 class DevConfig(Config):

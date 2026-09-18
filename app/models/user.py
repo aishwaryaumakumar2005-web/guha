@@ -12,7 +12,8 @@ class User(db.Model, UserMixin):
     email = db.Column(db.String(100))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    leave_requests = db.relationship('LeaveRequest', backref='staff', cascade="all, delete-orphan", lazy=True)
+    leave_requests = db.relationship('LeaveRequest', backref='staff', foreign_keys='LeaveRequest.user_id', cascade="all, delete-orphan", lazy=True)
+    approved_leave_requests = db.relationship('LeaveRequest', backref='approver', foreign_keys='LeaveRequest.approved_by', lazy=True)
 
     def __repr__(self):
         return f"<User {self.username} ({self.role})>"
@@ -30,6 +31,9 @@ class LeaveRequest(db.Model):
     reason = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(20), nullable=False, default='Pending')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    approved_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+    actioned_at = db.Column(db.DateTime, nullable=True)
+    remarks = db.Column(db.Text, nullable=True)
 
     def __repr__(self):
         return f"<LeaveRequest Staff:{self.user_id} Status:{self.status}>"
