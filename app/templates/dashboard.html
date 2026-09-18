@@ -63,7 +63,7 @@
             </div>
         </div>
         {% endif %}
-        <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll stagger-4">
+        <div class="bento-card bento-xl-{{ 4 if current_user.role != 'Admin' else 3 }} bento-md-6 animate-on-scroll stagger-4">
             <div class="summary-card staff">
                 <div><div class="stat-number">{{ ('%d%%' % stats.avg_student_attendance) if stats.avg_student_attendance is not none else '—' }}</div><div class="stat-label">Attendance</div></div>
                 <div class="stat-sub">Last 14 days</div>
@@ -82,7 +82,7 @@
 
         {% if current_user.role == 'Admin' %}
         <!-- Outstanding / Pending Fees -->
-        <div class="bento-card bento-xl-4 bento-md-12 animate-on-scroll">
+        <div class="bento-card bento-xl-3 bento-md-12 animate-on-scroll">
             <div class="glass-card p-4 h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0 fw-bold"><i class="bi bi-cash-stack me-2" style="color:hsl(0,100%,60%);" aria-hidden="true"></i>Outstanding Fees</h5>
@@ -116,7 +116,7 @@
         </div>
 
         <!-- Course Capacity Utilisation -->
-        <div class="bento-card bento-xl-4 bento-md-12 animate-on-scroll stagger-1">
+        <div class="bento-card bento-xl-3 bento-md-12 animate-on-scroll stagger-1">
             <div class="glass-card p-4 h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0 fw-bold"><i class="bi bi-bar-chart-fill me-2" style="color:hsl(200,100%,55%);" aria-hidden="true"></i>Course Capacity</h5>
@@ -155,7 +155,7 @@
         </div>
 
         <!-- Birthdays & Anniversaries -->
-        <div class="bento-card bento-xl-4 bento-md-12 animate-on-scroll stagger-2">
+        <div class="bento-card bento-xl-3 bento-md-12 animate-on-scroll stagger-2">
             <div class="glass-card p-4 h-100">
                 <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
                     <h5 class="mb-0 fw-bold"><i class="bi bi-gift-fill me-2" style="color:hsl(290,100%,65%);" aria-hidden="true"></i>Birthdays &amp; Anniversaries</h5>
@@ -307,7 +307,7 @@
 
         {% else %}
         <!-- Staff View -->
-        <div class="bento-card bento-xl-6 bento-md-12 animate-on-scroll">
+        <div class="bento-card bento-xl-4 bento-md-12 animate-on-scroll">
             <div class="glass-card p-4 h-100">
                 <h5 class="mb-4 fw-bold"><i class="bi bi-lightning-fill me-2" style="color:hsl(200,100%,50%);" aria-hidden="true"></i>Quick Actions</h5>
                 <div class="d-grid gap-3">
@@ -322,7 +322,7 @@
                 </div>
             </div>
         </div>
-        <div class="bento-card bento-xl-6 bento-md-12 animate-on-scroll stagger-1">
+        <div class="bento-card bento-xl-4 bento-md-12 animate-on-scroll stagger-1">
             <div class="glass-card p-4 h-100">
                 <h5 class="mb-4 fw-bold"><i class="bi bi-shield-check me-2" style="color:hsl(200,100%,50%);" aria-hidden="true"></i>Your Access</h5>
                 <ul class="list-unstyled mb-0 small" style="line-height:2;">
