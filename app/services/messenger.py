@@ -175,6 +175,16 @@ class Messenger:
                 results['errors'].append(f"Failed for {name} ({phone})")
         return results
 
+    def send_leave_status(self, phone, staff_name, dates_text, status, remarks=None):
+        msg = (
+            f"Leave Request {status}\n"
+            f"Dear {staff_name},\n"
+            f"Your leave request for {dates_text} has been marked as {status}."
+            + (f"\nRemarks: {remarks}" if remarks else "")
+            + "\n- Guha Academy"
+        )
+        return self._send_sms_direct(phone, msg)
+
     def _send_sms_direct(self, phone, text):
         cfg = self._get_settings()
         token = cfg['whatsapp_token']

@@ -26,6 +26,14 @@
                 <h4 class="mb-4 text-dark fw-bold"><i class="bi bi-calendar-plus me-2 text-dark"></i>Request Leave</h4>
                 <form action="{{ url_for('leaves.leaves') }}" method="POST">
                     <div class="mb-3">
+                        <label for="leave_type" class="form-label text-secondary fw-semibold small">Leave Type</label>
+                        <select class="form-control" id="leave_type" name="leave_type">
+                            {% for t in leave_types %}
+                            <option value="{{ t }}">{{ t }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
                         <label for="start_date" class="form-label text-secondary fw-semibold small">Start Date</label>
                         <input type="date" class="form-control" id="start_date" name="start_date" required>
                     </div>
@@ -41,6 +49,22 @@
                     <button type="submit" class="btn btn-premium w-100">Submit Application</button>
                 </form>
             </div>
+            {% if leave_balance %}
+            <div class="glass-card p-4 mt-4" data-aos="fade-up">
+                <h4 class="mb-3 text-dark fw-bold"><i class="bi bi-pie-chart-fill me-2 text-dark"></i>Leave Balance {{ today.year }}</h4>
+                <div class="d-flex flex-column gap-2">
+                    {% for t in leave_types %}
+                    {% if t in leave_balance %}
+                    {% set b = leave_balance[t] %}
+                    <div class="d-flex justify-content-between align-items-center p-2 rounded" style="background:rgba(255,255,255,0.04);">
+                        <span class="small fw-semibold text-dark">{{ t }}</span>
+                        <span class="small text-secondary"><strong>{{ b.used }}</strong> / {{ b.entitlement }} used <span class="fw-semibold" style="color:hsl(150,100%,40%);">&middot; {{ b.remaining }} left</span></span>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
         </div>
         {% endif %}
         <!-- Leaves List -->
@@ -61,6 +85,7 @@
                                 {% if current_user.role == 'Admin' %}<th scope="col">Staff Member</th>{% endif %}
                                 <th scope="col">Dates</th>
                                 <th scope="col">Duration</th>
+                                <th scope="col">Type</th>
                                 <th scope="col">Reason</th>
                                 <th scope="col">Status</th>
                                 {% if current_user.role == 'Admin' %}<th scope="col" class="text-center">Actions</th>{% endif %}
@@ -78,8 +103,25 @@
                                         {% endif %}
                                         <td class="text-dark">{{ leave.start_date.strftime("%d %b %Y") }} to {{ leave.end_date.strftime("%d %b %Y") }}</td>
                                         <td class="text-secondary fw-semibold">{{ (leave.end_date - leave.start_date).days + 1 }} Days</td>
+                                        <td class="text-secondary">{{ leave.leave_type or 'Casual' }}</td>
                                         <td class="text-secondary small">{{ leave.reason }}</td>
-                                        <td><span class="badge badge-custom badge-amber">Pending</span></td>
+                                        <td>
+                                            <span class="badge badge-custom badge-amber">Pending</span>
+                                            {% if current_user.role == 'Admin' and leave.created_at %}
+                                                {% set age_days = (today - leave.created_at.date()).days %}
+                                                {% if age_days > aging_days %}
+                                                    <span class="badge badge-custom badge-danger">{{ age_days }}d pending</span>
+                                                {% endif %}
+                                            {% endif %}
+                                            {% if current_user.role != 'Admin' %}
+                                            <form method="POST" action="{{ url_for('leaves.withdraw_leave', leave_id=leave.id) }}" class="d-inline-block mt-1"
+                                                  onsubmit="return confirm('Cancel this leave request? This cannot be undone.');">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger px-2" title="Cancel this request">
+                                                    <i class="bi bi-x-lg"></i> Cancel
+                                                </button>
+                                            </form>
+                                            {% endif %}
+                                        </td>
                                         {% if current_user.role == 'Admin' %}
                                         <td class="text-center">
                                             <button type="button" class="btn btn-sm btn-success me-2 px-3"
@@ -101,7 +143,7 @@
                                     </tr>
                                 {% endfor %}
                             {% else %}
-                                {% set leave_colspan = 6 if current_user.role == 'Admin' else 4 %}
+                                {% set leave_colspan = 7 if current_user.role == 'Admin' else 5 %}
                                 <tr>
                                     {% if current_user.role == 'Admin' %}
                                         {{ empty_state('Nothing to review', "Leave requests submitted by staff members will appear here once submitted", 'leaves', none, none, none, leave_colspan) }}
@@ -116,10 +158,15 @@
             </div>
             <!-- Leave History -->
             <div class="glass-card p-4" data-aos="fade-up">
-                <h4 class="mb-4 text-dark fw-bold">
-                    <i class="bi bi-clock-history me-2 text-dark"></i>
-                    {% if current_user.role == 'Admin' %}Request History{% else %}My Leave History{% endif %}
-                </h4>
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 class="mb-0 text-dark fw-bold">
+                        <i class="bi bi-clock-history me-2 text-dark"></i>
+                        {% if current_user.role == 'Admin' %}Request History{% else %}My Leave History{% endif %}
+                    </h4>
+                    <a href="{{ url_for('leaves.export_leaves') }}" class="btn btn-sm btn-outline-premium" title="Download leave history as CSV">
+                        <i class="bi bi-download me-1"></i>Export CSV
+                    </a>
+                </div>
                 {% if history_total > list_limit %}
                 <p class="text-white-50 small mb-3">Showing the {{ list_limit }} most recent requests ({{ history_total }} total).</p>
                 {% endif %}
@@ -130,6 +177,7 @@
                                 {% if current_user.role == 'Admin' %}<th scope="col">Staff Member</th>{% endif %}
                                 <th scope="col">Dates</th>
                                 <th scope="col">Duration</th>
+                                <th scope="col">Type</th>
                                 <th scope="col">Reason</th>
                                 <th scope="col">Status</th>
                             </tr>
@@ -146,6 +194,7 @@
                                         {% endif %}
                                         <td class="text-dark">{{ leave.start_date.strftime("%d %b %Y") }} to {{ leave.end_date.strftime("%d %b %Y") }}</td>
                                         <td class="text-secondary fw-semibold">{{ (leave.end_date - leave.start_date).days + 1 }} Days</td>
+                                        <td class="text-secondary">{{ leave.leave_type or 'Casual' }}</td>
                                         <td class="text-secondary small">
                                             {{ leave.reason }}
                                             {% if leave.remarks %}<div class="small text-muted mt-1"><i class="bi bi-chat-left-text me-1"></i>{{ leave.remarks }}</div>{% endif %}
@@ -167,7 +216,7 @@
                                     </tr>
                                 {% endfor %}
                             {% else %}
-                                {% set hist_colspan = 5 if current_user.role == 'Admin' else 4 %}
+                                {% set hist_colspan = 6 if current_user.role == 'Admin' else 5 %}
                                 <tr>
                                     {{ empty_state('No leave history', 'Past leave applications and their status will appear here', 'leaves', none, none, none, hist_colspan) }}
                                 </tr>

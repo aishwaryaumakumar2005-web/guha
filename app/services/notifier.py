@@ -58,6 +58,34 @@ class Notifier:
         return self._send_email(to_email, "Test Email from Guha Academy",
             "<h2>SMTP Configuration Verified</h2><p>Your email settings are working correctly.</p>")
 
+    def notify_leave_status(self, to_email, staff_name, dates_text, status, remarks=None):
+        """Best-effort email to a staff member when their leave is actioned.
+
+        Never raises: returns False when SMTP is unconfigured or delivery fails
+        so an actioned leave request is never rolled back by a notification.
+        """
+        badge = {'Approved': '<span style="color:#1f9d55">Approved</span>',
+                 'Rejected': '<span style="color:#d64545">Rejected</span>'}.get(
+            status, status)
+        lines = []
+        if remarks:
+            lines.append(f'<tr><th style="text-align:left;color:#666;">Remarks</th><td>{remarks}</td></tr>')
+        html = f"""
+        <h2>Leave Request {badge}</h2>
+        <p>Dear {staff_name},</p>
+        <p>Your leave request has been marked as <strong>{status}</strong>.</p>
+        <table cellpadding="6" cellspacing="0" style="border-collapse:collapse;min-width:260px">
+        <tr><th style="text-align:left;color:#666;">Leave dates</th><td>{dates_text}</td></tr>
+        {''.join(lines)}
+        </table>
+        <p style="margin-top:16px;color:#666;">This is an automated message from Guha Academy.</p>
+        """
+        try:
+            return self._send_email(to_email, f"Leave Request {status}", html)
+        except Exception as e:
+            print(f"Leave notification failed for {to_email}: {e}")
+            return False
+
     def check_low_attendance(self):
         from app.models import Student, Attendance, SystemSetting
         cfg = self._get_settings()

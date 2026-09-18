@@ -228,9 +228,13 @@ class EnquiryForm(Form):
     max_length = {'student_name': 100, 'email': 100, 'phone': 20}
 
 
+LEAVE_TYPES = ['Casual', 'Sick', 'Privilege', 'Emergency', 'Other']
+
+
 class LeaveForm(Form):
     required = ['start_date', 'end_date', 'reason']
     date = ['start_date', 'end_date']
+    choices = {'leave_type': LEAVE_TYPES}
 
     def validate(self):
         base_valid = super().validate()

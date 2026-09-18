@@ -290,6 +290,28 @@ def migrate_leave_action_columns():
                 print(f"Migration migrate_leave_action_columns: FAILED to add leave_request.{column}: {e}", flush=True)
 
 
+def migrate_leave_type_column():
+    """Add leave_request.leave_type (nullable) on existing DBs.
+
+    The ORM maps this column, so databases created before leave types existed
+    (e.g. a Postgres/Neon DB restored from an old backup) 500 on every
+    leave_request query until it is added. Idempotent and additive-only: skips
+    the column when it already exists, works on SQLite and PostgreSQL, and
+    logs loudly on failure. Legacy rows keep a NULL value, which the app
+    renders as the default leave type.
+    """
+    if not _table_exists('leave_request'):
+        return
+    if not _has_column('leave_request', 'leave_type'):
+        try:
+            db.session.execute(text('ALTER TABLE "leave_request" ADD COLUMN "leave_type" VARCHAR(20)'))
+            db.session.commit()
+            print("Migration migrate_leave_type_column: added leave_request.leave_type", flush=True)
+        except Exception as e:
+            db.session.rollback()
+            print(f"Migration migrate_leave_type_column: FAILED to add leave_request.leave_type: {e}", flush=True)
+
+
 def migrate_enquiry_course_nullable():
     """Make enquiry.course_id nullable with ON DELETE SET NULL.
 

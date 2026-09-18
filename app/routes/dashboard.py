@@ -252,6 +252,11 @@ def _staff_leave_counts(user):
     return pending, approved
 
 
+def _staff_leave_days_this_month(user_id):
+    from app.routes.leaves import _days_on_leave_this_month
+    return _days_on_leave_this_month(user_id)
+
+
 @dashboard_bp.route('/')
 @login_required
 def dashboard():
@@ -270,6 +275,8 @@ def dashboard():
             'staff_leaves', lambda: _staff_leave_counts(current_user), (0, 0))
         stats['pending_leaves_count'] = pending_leaves_count
         stats['approved_leaves_count'] = approved_leaves_count
+        stats['leave_days_used_month'] = _safe(
+            'staff_leave_days', lambda: _staff_leave_days_this_month(current_user.id), 0)
         top_courses = []
         due_students = []
         total_outstanding = 0.0
@@ -286,6 +293,9 @@ def dashboard():
         capacity_courses, overflow_capacity = _safe('capacity', _capacity, ([], 0))
         birthdays_today, anniversaries_today = _safe(
             'celebrations', lambda: _celebrations(today), ([], []))
+        stats['admin_pending_leaves'] = _safe(
+            'admin_pending_leaves',
+            lambda: LeaveRequest.query.filter_by(status='Pending').count(), 0)
 
     return render_template('dashboard.html',
         stats=stats, recent_enquiries=recent_enquiries,

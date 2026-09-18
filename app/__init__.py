@@ -281,6 +281,13 @@ def create_app(config_object=None):
                 print("Migration migrate_leave_action_columns FAILED:", e, flush=True)
                 db.session.rollback()
             try:
+                from app.services.db_migration import migrate_leave_type_column
+                migrate_leave_type_column()
+                print("Migration migrate_leave_type_column completed OK", flush=True)
+            except Exception as e:
+                print("Migration migrate_leave_type_column FAILED:", e, flush=True)
+                db.session.rollback()
+            try:
                 from app.services.db_migration import migrate_enquiry_course_nullable
                 migrate_enquiry_course_nullable()
                 print("Migration migrate_enquiry_course_nullable completed OK", flush=True)
@@ -494,6 +501,14 @@ def create_app(config_object=None):
                 migrate_leave_action_columns()
             except Exception as e:
                 print('Failed to ensure leave_request action columns:', e, file=sys.stderr)
+
+        # Same self-heal for leave_request.leave_type.
+        if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+            try:
+                from app.services.db_migration import migrate_leave_type_column
+                migrate_leave_type_column()
+            except Exception as e:
+                print('Failed to ensure leave_request.leave_type:', e, file=sys.stderr)
 
         from app.audit import register_audit_events
         register_audit_events()

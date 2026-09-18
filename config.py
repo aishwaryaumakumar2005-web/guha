@@ -14,6 +14,10 @@ class Config:
     CRON_SECRET = os.environ.get('CRON_SECRET', 'change-me-in-production')
     LEAVE_MAX_DAYS = 30
     LEAVE_MAX_REASON = 500
+    LEAVE_AGING_DAYS = 7
+    LEAVE_ENTITLEMENTS = {
+        'Staff': {'Casual': 12, 'Sick': 8, 'Privilege': 20, 'Emergency': 5, 'Other': 10},
+    }
 
 
 class DevConfig(Config):
