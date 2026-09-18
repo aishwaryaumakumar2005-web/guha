@@ -223,3 +223,108 @@ def test_quickcollect_xss_safe(admin_client, app):
     assert 'onclick="quickCollect(this)"' in html
     assert 'data-student-name="O&#39;Brien' in html
     assert "quickCollect(1, '" not in html
+
+
+# ---------------------------------------------------------------------------
+# B2 — P1 fixes: tiles, cache invalidation, zero amounts, receipt scoping
+# ---------------------------------------------------------------------------
+
+def test_accounts_tiles_show_income(admin_client, app):
+    sid = _student_id(app)
+    _post_fee(admin_client, sid, amount=1180.0, method='Cash')
+    html = admin_client.get('/accounts/Cash').data.decode()
+    # The Activity tiles/badges carry the ₹ prefix (top cards do not) — this
+    # exact string only renders when the set-before-use fix is in place.
+    assert '+₹1,180.00' in html
+
+
+def test_ledger_cache_invalidated_on_write(admin_client, app):
+    from app.services.account_service import compute_account_summary
+    sid = _student_id(app)
+    admin_client.get('/fees')  # prime the summary cache while DB is empty
+    _post_fee(admin_client, sid, amount=1180.0, method='Cash')
+    summary = compute_account_summary()
+    cash = next(a for a in summary if a['name'] == 'Cash')
+    assert cash['income'] == 1180.0
+
+
+def test_zero_amount_fee_rejected(admin_client, app):
+    sid = _student_id(app)
+    resp = admin_client.post('/fees', data={
+        'student_id': str(sid), 'amount_paid': '0',
+        'payment_date': date.today().isoformat(), 'payment_method': 'Cash',
+    }, headers=AJAX)
+    assert resp.status_code == 400
+    with app.app_context():
+        assert FeeRecord.query.count() == 0
+    # Boundary 0.01 is still accepted.
+    resp = admin_client.post('/fees', data={
+        'student_id': str(sid), 'amount_paid': '0.01',
+        'payment_date': date.today().isoformat(), 'payment_method': 'Cash',
+    })
+    assert resp.status_code == 302
+    with app.app_context():
+        assert FeeRecord.query.count() == 1
+
+
+def test_zero_amount_expense_rejected(admin_client, app):
+    with app.app_context():
+        cat = ExpenseCategory.query.first().id
+    resp = admin_client.post('/expenses', data={
+        'category_id': str(cat), 'amount': '0',
+        'description': 'zero test',
+        'expense_date': date.today().isoformat(),
+        'payment_method': 'Cash',
+    }, headers=AJAX)
+    assert resp.status_code == 400
+    with app.app_context():
+        assert Expense.query.count() == 0
+
+
+def test_funding_invalid_method_rejected(admin_client, app):
+    resp = admin_client.post('/funding', data={
+        'amount': '5000', 'method': 'BarterSystem', 'purpose': 'x',
+        'funding_date': date.today().isoformat(),
+    }, headers=AJAX)
+    assert resp.status_code == 400
+    with app.app_context():
+        assert OwnerFunding.query.count() == 0
+
+
+def _seed_outsider(app):
+    """Second student on a course the seeded staff tutor does NOT teach."""
+    from app.models import Course
+    with app.app_context():
+        sid = Student.query.filter_by(name='Test Student').first().id
+        other_course = Course(
+            name='Other Course', code='OC', description='d',
+            duration_weeks=4, duration_unit='weeks', fees=1000.0,
+            gst_applicable=False,
+        )
+        db.session.add(other_course)
+        db.session.flush()
+        outsider = Student(name='Outsider', email='out@guha.test',
+                           phone='8888888888', status='Active')
+        db.session.add(outsider)
+        db.session.flush()
+        outsider.courses.append(other_course)
+        db.session.add(FeeRecord(student_id=sid, amount_paid=1180.0,
+                                 payment_date=date.today(), payment_method='Cash'))
+        db.session.add(FeeRecord(student_id=outsider.id, amount_paid=500.0,
+                                 payment_date=date.today(), payment_method='Cash'))
+        db.session.commit()
+        rows = {r.student_id: r.id for r in FeeRecord.query.all()}
+        return rows[sid], rows[outsider.id]
+
+
+def test_receipt_staff_scoping(staff_client, app):
+    own_rid, other_rid = _seed_outsider(app)
+    # Staff sees own-course receipts, 404 on anyone else's.
+    assert staff_client.get(f'/fees/receipt/{own_rid}').status_code == 200
+    assert staff_client.get(f'/fees/receipt/{other_rid}').status_code == 404
+
+
+def test_receipt_admin_sees_all(admin_client, app):
+    own_rid, other_rid = _seed_outsider(app)
+    assert admin_client.get(f'/fees/receipt/{own_rid}').status_code == 200
+    assert admin_client.get(f'/fees/receipt/{other_rid}').status_code == 200

@@ -1,5 +1,5 @@
 from datetime import datetime, date
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, abort
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import FeeRecord, Student, Course, SystemSetting, Tutor, student_courses, Company
@@ -171,6 +171,20 @@ def list():
 @login_required
 def receipt(id):
     record = FeeRecord.query.get_or_404(id)
+    if current_user.role == 'Staff':
+        # Same course-scope as the list page: staff may only reprint
+        # receipts for students in their own courses. 404 (not 403) to
+        # avoid confirming whether an out-of-scope receipt id exists.
+        tutor = Tutor.query.filter_by(email=current_user.email).first()
+        allowed = set()
+        if tutor:
+            course_ids = [c.id for c in tutor.courses]
+            if course_ids:
+                allowed = {r[0] for r in db.session.query(
+                    student_courses.c.student_id).filter(
+                        student_courses.c.course_id.in_(course_ids)).distinct().all()}
+        if record.student_id not in allowed:
+            abort(404)
     cgst_pct, sgst_pct = get_gst_rates()
     
     company = record.company

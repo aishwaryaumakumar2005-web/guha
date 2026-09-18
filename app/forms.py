@@ -191,7 +191,7 @@ class FeeForm(Form):
     float = ['amount_paid']
     date = ['payment_date']
     choices = {'payment_method': list(PAYMENT_METHODS)}
-    min_values = {'amount_paid': 0, 'student_id': 1}
+    min_values = {'amount_paid': 0.01, 'student_id': 1}
     max_length = {'remarks': 200}
 
 
@@ -201,7 +201,7 @@ class ExpenseForm(Form):
     float = ['amount']
     date = ['expense_date']
     choices = {'payment_method': list(PAYMENT_METHODS)}
-    min_values = {'amount': 0, 'category_id': 1}
+    min_values = {'amount': 0.01, 'category_id': 1}
 
 
 # Single source of truth for lead sources. Every form that edits an enquiry

@@ -527,7 +527,8 @@ def create_app(config_object=None):
 
         from app.audit import register_audit_events
         register_audit_events()
-        from app.services.account_service import ensure_default_accounts
+        from app.services.account_service import ensure_default_accounts, register_cache_invalidation
+        register_cache_invalidation()
         ensure_default_accounts()
 
     @app.before_request

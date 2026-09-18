@@ -42,9 +42,9 @@
         <h4 class="mb-1 text-dark fw-bold"><i class="bi bi-journal-text me-2 text-dark"></i>Activity — {{ active_name }}</h4>
         <p class="text-secondary small mb-3">Income and expense movements for this account. Showing the most recent 200 records per type.</p>
 
+        {% set active_acc = accounts|selectattr('name', 'equalto', active_name)|first %}
         {% set total_in = active_acc.income if active_acc else 0 %}
         {% set total_out = active_acc.expense if active_acc else 0 %}
-        {% set active_acc = accounts|selectattr('name', 'equalto', active_name)|first %}
         <div class="row g-3 mb-3">
             <div class="col-6 col-lg-3"><div class="glass-card p-3 text-center"><div class="text-secondary small text-uppercase">Opening</div><div class="fw-bold fs-5" style="color:{{ method_colors.get(active_name, '#DDD') }};">₹{{ "{:,.2f}".format(active_acc.opening_balance if active_acc else 0) }}</div></div></div>
             <div class="col-6 col-lg-3"><div class="glass-card p-3 text-center"><div class="text-secondary small text-uppercase">Income</div><div class="fw-bold fs-5" style="color:var(--accent-emerald);">+₹{{ "{:,.2f}".format(total_in) }}</div></div></div>

@@ -116,6 +116,44 @@ def _raw_balances():
 _summary_cache = {"data": None, "time": 0}
 
 
+def invalidate_account_caches():
+    """Drop all cached ledger aggregates.
+
+    Called automatically on every FeeRecord/Expense/OwnerFunding write (see
+    register_cache_invalidation) so balances never lie after a booking. The
+    TTLs remain as a second layer for multi-worker staleness.
+    """
+    _summary_cache["data"] = None
+    _summary_cache["time"] = 0
+    _matching_cache.clear()
+    _breakdown_cache.clear()
+
+
+def _clear_caches_on_write(mapper, connection, target):
+    invalidate_account_caches()
+
+
+_invalidation_registered = False
+
+
+def register_cache_invalidation():
+    """Hook ledger cache drops to ORM writes on the three money models.
+
+    Event-driven (not per-route) so every writer is covered: fee/expense/
+    funding routes, payroll confirm/delete, admin bulk import, and any
+    future code path. Safe to call multiple times (test app rebuilds).
+    """
+    global _invalidation_registered
+    if _invalidation_registered:
+        return
+    from sqlalchemy import event as sa_event
+    from app.models import FeeRecord, Expense, OwnerFunding
+    for cls in (FeeRecord, Expense, OwnerFunding):
+        for evt in ('after_insert', 'after_update', 'after_delete'):
+            sa_event.listen(cls, evt, _clear_caches_on_write)
+    _invalidation_registered = True
+
+
 def compute_account_summary():
     """Per-account balance cards. Balances are derived live from source records."""
     from time import time
