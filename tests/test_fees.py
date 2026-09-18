@@ -6,7 +6,7 @@ from datetime import date
 from app.extensions import db
 from app.models import (
     AuditLog, Course, Expense, ExpenseCategory, FeeRecord, OwnerFunding,
-    Student, SystemSetting, User, student_courses,
+    PayrollRecord, Student, SystemSetting, Tutor, User, student_courses,
 )
 
 AJAX = {'X-Requested-With': 'XMLHttpRequest'}
@@ -169,6 +169,38 @@ def test_expense_delete_post_only(admin_client, app):
         assert Expense.query.get(eid) is None
         assert AuditLog.query.filter_by(
             entity_type='Expense', action='DELETE', entity_id=eid).first() is not None
+
+
+def test_expense_linked_to_payroll_not_deleted(admin_client, app):
+    with app.app_context():
+        salary_cat = ExpenseCategory(name='Salary', description='Payroll')
+        db.session.add(salary_cat)
+        db.session.commit()
+        cat_id = salary_cat.id
+        tutor_id = Tutor.query.first().id
+    admin_client.post('/expenses', data={
+        'category_id': str(cat_id), 'amount': '25000',
+        'description': 'salary linked to payroll',
+        'expense_date': date.today().isoformat(),
+        'payment_method': 'Cash',
+    })
+    with app.app_context():
+        eid = Expense.query.filter_by(description='salary linked to payroll').first().id
+        db.session.add(PayrollRecord(
+            tutor_id=tutor_id, month=9, year=2026, net_amount=25000.0,
+            status='Paid', payment_method='Cash', expense_id=eid,
+        ))
+        db.session.commit()
+    assert admin_client.post(f'/expenses/delete/{eid}').status_code == 302
+    with app.app_context():
+        assert Expense.query.get(eid) is not None
+        assert PayrollRecord.query.filter_by(expense_id=eid).first() is not None
+    resp = admin_client.post(f'/expenses/delete/{eid}', headers=AJAX)
+    assert resp.status_code == 409
+    assert resp.get_json()['success'] is False
+    with app.app_context():
+        assert Expense.query.get(eid) is not None
+        assert PayrollRecord.query.filter_by(expense_id=eid).first() is not None
 
 
 def test_funding_delete_post_only_and_audited(admin_client, app):

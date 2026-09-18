@@ -140,6 +140,13 @@ def edit(id):
 @admin_required
 def delete(id):
     expense = Expense.query.get_or_404(id)
+    if expense.payroll_records:
+        message = ("This expense is linked to a paid payroll record. "
+                   "Reverse the payroll record instead of deleting the expense.")
+        if is_ajax_request():
+            return jsonify({"success": False, "errors": [message]}), 409
+        flash(message, "danger")
+        return redirect(url_for('expenses.list'))
     db.session.delete(expense)
     db.session.commit()
     message = "Expense record deleted!"
