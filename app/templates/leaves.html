@@ -4,7 +4,24 @@
 <li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li>
 <li class="breadcrumb-item active" aria-current="page">Leaves</li>
 {% endblock %}
-{% block content %}<div class="container-fluid p-0">
+{% block content %}<style>
+    .leave-calendar { display: flex; flex-direction: column; gap: 8px; }
+    .lc-head, .lc-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+    .lc-head span { text-align: center; font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; color: #7a869e; }
+    .lc-day { min-height: 72px; border: 1px solid rgba(13, 39, 64, .12); border-radius: 10px; padding: 6px; background: rgba(255, 255, 255, .05); }
+    body.dark-mode .lc-day { border-color: rgba(255, 255, 255, .08); }
+    .lc-day.lc-empty { border-style: dashed; background: transparent; }
+    .lc-day.lc-weekend { opacity: .55; }
+    .lc-day.lc-today { outline: 2px solid #FFB347; outline-offset: -2px; }
+    .lc-daynum { font-size: .78rem; font-weight: 700; color: #1E1E2F; margin-bottom: 4px; }
+    body.dark-mode .lc-daynum { color: #ffffff; }
+    .lc-chip { display: block; font-size: .62rem; font-weight: 600; border-radius: 999px; padding: 1px 7px; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+    .lc-approved { background: #00BFA6; color: #00231f; }
+    .lc-pending { background: #FFB347; color: #3a2700; }
+    .lc-more { font-size: .62rem; color: #7a869e; font-weight: 600; }
+    .reason-cell { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+<div class="container-fluid p-0">
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
@@ -18,11 +35,106 @@
             </p>
         </div>
     </div>
+    <!-- U2: Summary cards -->
+    <div class="row mb-4">
+        {% for card in summary_cards %}
+        <div class="col-xl-3 col-md-4 col-6 mb-3">
+            <div class="summary-card {{ card.theme }}">
+                <div><div class="stat-number">{{ card.value }}</div><div class="stat-label">{{ card.label }}</div></div>
+                <div class="stat-sub">{{ card.sub }}</div>
+                <i class="bi {{ card.icon }} stat-icon" aria-hidden="true"></i>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <!-- U1: Filters -->
+    <div class="glass-card p-4 mb-4" data-aos="fade-up">
+        <form method="GET" action="{{ url_for('leaves.leaves') }}" class="row g-3 align-items-end">
+            <div class="col-lg-2 col-md-4">
+                <label for="f_status" class="form-label text-secondary fw-semibold small">Status</label>
+                <select class="form-control" id="f_status" name="status">
+                    {% for s in ['All', 'Pending', 'Approved', 'Rejected'] %}
+                    <option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-lg-2 col-md-4">
+                <label for="f_month" class="form-label text-secondary fw-semibold small">Month</label>
+                <input type="month" class="form-control" id="f_month" name="month" value="{{ filters.month }}">
+            </div>
+            {% if current_user.role == 'Admin' %}
+            <div class="col-lg-2 col-md-4">
+                <label for="f_staff" class="form-label text-secondary fw-semibold small">Staff</label>
+                <select class="form-control" id="f_staff" name="user_id">
+                    <option value="">All staff</option>
+                    {% for u in staff_users %}
+                    <option value="{{ u.id }}" {% if filters.user_id|string == u.id|string %}selected{% endif %}>{{ u.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <div class="col-lg-3 col-md-6">
+                <label for="f_q" class="form-label text-secondary fw-semibold small">Search</label>
+                <input type="search" class="form-control" id="f_q" name="q" value="{{ filters.q }}" placeholder="Name, username or reason">
+            </div>
+            <div class="col-lg-3 col-md-6 d-flex gap-2">
+                <button type="submit" class="btn btn-premium flex-fill"><i class="bi bi-funnel me-1"></i>Apply</button>
+                <a href="{{ url_for('leaves.leaves') }}" class="btn btn-outline-secondary">Clear</a>
+            </div>
+        </form>
+    </div>
+    <!-- U5: Calendar / monthly view -->
+    <div class="glass-card p-4 mb-4" data-aos="fade-up">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <h4 class="mb-0 text-dark fw-bold">
+                <i class="bi bi-calendar3 me-2 text-dark"></i>
+                {% if current_user.role == 'Admin' %}Staff Leave Calendar{% else %}My Leave Calendar{% endif %}
+            </h4>
+            <div class="d-flex align-items-center gap-2">
+                <a class="btn btn-sm btn-outline-premium" href="{{ url_for('leaves.leaves', cal=cal_prev, **filter_args) }}"><i class="bi bi-chevron-left"></i></a>
+                <span class="text-dark fw-semibold px-1">{{ cal_label }}</span>
+                <a class="btn btn-sm btn-outline-premium" href="{{ url_for('leaves.leaves', cal=cal_next, **filter_args) }}"><i class="bi bi-chevron-right"></i></a>
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('leaves.leaves', cal=today.strftime('%Y-%m'), **filter_args) }}">Today</a>
+            </div>
+        </div>
+        <div class="leave-calendar">
+            <div class="lc-head">
+                <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+            </div>
+            {% for week in cal_weeks %}
+            <div class="lc-row">
+                {% for cell in week %}
+                    {% if cell %}
+                    <div class="lc-day {{ 'lc-today' if cell.today }} {{ 'lc-weekend' if cell.date.weekday() >= 5 }}" title="{{ cell.date.strftime('%d %b %Y') }}">
+                        <div class="lc-daynum">{{ cell.day }}</div>
+                        {% for e in cell.entries[:3] %}
+                            {% set chip = 'lc-approved' if e.status == 'Approved' else 'lc-pending' %}
+                            <div class="lc-chip {{ chip }}" title="{{ e.staff }} &middot; {{ e.leave_type }} &middot; {{ e.status }}">{{ e.staff if current_user.role == 'Admin' else e.leave_type }}</div>
+                        {% endfor %}
+                        {% if cell.entries|length > 3 %}
+                            {% set extra = cell.entries[3:]|map(attribute='staff')|join(', ') %}
+                            <div class="lc-more" title="{{ extra }}">+{{ cell.entries|length - 3 }} more</div>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <div class="lc-day lc-empty"></div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+        <div class="d-flex align-items-center gap-3 mt-3 small text-secondary">
+            <span class="d-inline-flex align-items-center gap-1"><span class="lc-chip lc-approved d-inline-block m-0">Approved</span></span>
+            <span class="d-inline-flex align-items-center gap-1"><span class="lc-chip lc-pending d-inline-block m-0">Pending</span></span>
+            <span class="d-inline-flex align-items-center gap-1"><span class="border rounded px-2 py-0" style="outline:2px solid #FFB347; outline-offset:-2px;">Today</span></span>
+            <span class="d-inline-flex align-items-center gap-1 text-secondary">Weekends are dimmed</span>
+        </div>
+    </div>
     <div class="row">
         <!-- Leave Form (Only for Staff) -->
         {% if current_user.role == 'Staff' %}
         <div class="col-xl-4 col-md-5 mb-4">
-            <div class="glass-card p-4" data-aos="fade-up">
+            <div class="glass-card p-4" id="request-form" data-aos="fade-up">
                 <h4 class="mb-4 text-dark fw-bold"><i class="bi bi-calendar-plus me-2 text-dark"></i>Request Leave</h4>
                 <form action="{{ url_for('leaves.leaves') }}" method="POST">
                     <div class="mb-3">
@@ -32,14 +144,15 @@
                             <option value="{{ t }}">{{ t }}</option>
                             {% endfor %}
                         </select>
+                        <div class="form-text text-secondary">The type you pick is counted against that leave allowance.</div>
                     </div>
                     <div class="mb-3">
                         <label for="start_date" class="form-label text-secondary fw-semibold small">Start Date</label>
-                        <input type="date" class="form-control" id="start_date" name="start_date" required>
+                        <input type="date" class="form-control" id="start_date" name="start_date" min="{{ today.isoformat() }}" required>
                     </div>
                     <div class="mb-3">
-                        <label for="end_date" class="form-label text-secondary fw-semibold small">End Date</label>
-                        <input type="date" class="form-control" id="end_date" name="end_date" required>
+                        <label for="end_date" class="form-label text-secondary fw-semibold small">End Date <span class="text-muted">(optional for a single day)</span></label>
+                        <input type="date" class="form-control" id="end_date" name="end_date" min="{{ today.isoformat() }}">
                         <div id="dayCount" class="form-text text-secondary" aria-live="polite"></div>
                     </div>
                     <div class="mb-4">
@@ -104,7 +217,7 @@
                                         <td class="text-dark">{{ leave.start_date.strftime("%d %b %Y") }} to {{ leave.end_date.strftime("%d %b %Y") }}</td>
                                         <td class="text-secondary fw-semibold">{{ (leave.end_date - leave.start_date).days + 1 }} Days</td>
                                         <td class="text-secondary">{{ leave.leave_type or 'Casual' }}</td>
-                                        <td class="text-secondary small">{{ leave.reason }}</td>
+                                        <td class="text-secondary small reason-cell" title="{{ leave.reason }}">{{ leave.reason }}</td>
                                         <td>
                                             <span class="badge badge-custom badge-amber">Pending</span>
                                             {% if current_user.role == 'Admin' and leave.created_at %}
@@ -146,9 +259,14 @@
                                 {% set leave_colspan = 7 if current_user.role == 'Admin' else 5 %}
                                 <tr>
                                     {% if current_user.role == 'Admin' %}
-                                        {{ empty_state('Nothing to review', "Leave requests submitted by staff members will appear here once submitted", 'leaves', none, none, none, leave_colspan) }}
+                                        {% set bal_people = staff_balance_names %}
+                                        {% if bal_people %}
+                                            {{ empty_state('Nothing to review', "No requests are waiting. Staff with balance remaining: " ~ bal_people ~ ".", 'leaves', url_for('tutors.list'), 'View Staff', 'people-fill', leave_colspan) }}
+                                        {% else %}
+                                            {{ empty_state('Nothing to review', "All staff have used their yearly leave allowance.", 'leaves', url_for('dashboard.dashboard'), 'Go to Dashboard', 'speedometer2', leave_colspan) }}
+                                        {% endif %}
                                     {% else %}
-                                        {{ empty_state('No pending applications', "Submit your first leave request using the form on this page", 'leaves', none, none, none, leave_colspan) }}
+                                        {{ empty_state('No pending applications', "Submit your first request below — now posting a single-day leave is even simpler.", 'leaves', '#request-form', 'Request Leave', 'calendar-plus', leave_colspan) }}
                                     {% endif %}
                                 </tr>
                             {% endif %}
@@ -158,12 +276,12 @@
             </div>
             <!-- Leave History -->
             <div class="glass-card p-4" data-aos="fade-up">
-                <div class="d-flex justify-content-between align-items-center mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                     <h4 class="mb-0 text-dark fw-bold">
                         <i class="bi bi-clock-history me-2 text-dark"></i>
                         {% if current_user.role == 'Admin' %}Request History{% else %}My Leave History{% endif %}
                     </h4>
-                    <a href="{{ url_for('leaves.export_leaves') }}" class="btn btn-sm btn-outline-premium" title="Download leave history as CSV">
+                    <a href="{{ url_for('leaves.export_leaves', **export_args) }}" class="btn btn-sm btn-outline-premium" title="Download filtered leave history as CSV">
                         <i class="bi bi-download me-1"></i>Export CSV
                     </a>
                 </div>
@@ -195,17 +313,15 @@
                                         <td class="text-dark">{{ leave.start_date.strftime("%d %b %Y") }} to {{ leave.end_date.strftime("%d %b %Y") }}</td>
                                         <td class="text-secondary fw-semibold">{{ (leave.end_date - leave.start_date).days + 1 }} Days</td>
                                         <td class="text-secondary">{{ leave.leave_type or 'Casual' }}</td>
-                                        <td class="text-secondary small">
+                                        <td class="text-secondary small reason-cell" title="{{ leave.reason }}">
                                             {{ leave.reason }}
-                                            {% if leave.remarks %}<div class="small text-muted mt-1"><i class="bi bi-chat-left-text me-1"></i>{{ leave.remarks }}</div>{% endif %}
+                                            {% if leave.remarks %}<div class="small text-muted mt-1" style="white-space:normal;"><i class="bi bi-chat-left-text me-1"></i>{{ leave.remarks }}</div>{% endif %}
                                         </td>
                                         <td>
                                             {% if leave.status == 'Approved' %}
                                                 <span class="badge badge-custom badge-active">Approved</span>
                                             {% elif leave.status == 'Rejected' %}
                                                 <span class="badge badge-custom badge-inactive">Rejected</span>
-                                            {% else %}
-                                                <span class="badge badge-custom badge-amber">Pending</span>
                                             {% endif %}
                                             {% if leave.status in ('Approved', 'Rejected') and leave.actioned_at %}
                                             <div class="small text-muted mt-1">
@@ -218,7 +334,7 @@
                             {% else %}
                                 {% set hist_colspan = 6 if current_user.role == 'Admin' else 5 %}
                                 <tr>
-                                    {{ empty_state('No leave history', 'Past leave applications and their status will appear here', 'leaves', none, none, none, hist_colspan) }}
+                                    {{ empty_state('No matching requests', 'Adjust the filters above or submit a new leave request to see it here.', 'leaves', none, none, none, hist_colspan) }}
                                 </tr>
                             {% endif %}
                         </tbody>
@@ -257,57 +373,97 @@
 {% endblock %}
 {% block scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+function initLeavesUi() {
     var sd = document.getElementById('start_date');
     var ed = document.getElementById('end_date');
     var dayCount = document.getElementById('dayCount');
 
-    function datesValid() {
-        if (!sd || !ed) return;
-        if (sd.value && ed.value && ed.value < sd.value) {
-            ed.setCustomValidity('End date must be on or after start date');
-        } else {
-            ed.setCustomValidity('');
+    function weekendsInRange(s, e) {
+        var n = 0, cur = new Date(s);
+        while (cur <= e) {
+            var wd = cur.getDay();
+            if (wd === 0 || wd === 6) n++;
+            cur.setDate(cur.getDate() + 1);
         }
-        if (dayCount) {
-            if (sd.value && ed.value && ed.value >= sd.value) {
-                var diff = (new Date(ed.value) - new Date(sd.value)) / 86400000 + 1;
-                dayCount.textContent = 'This will count as ' + diff + ' day' + (diff === 1 ? '' : 's') + ' of leave.';
-            } else {
-                dayCount.textContent = '';
+        return n;
+    }
+
+    function previewDays() {
+        if (!sd || !ed) return;
+        if (sd.value) ed.min = sd.value;
+        if (sd.value) {
+            var endVal = ed.value || sd.value;
+            if (endVal < sd.value) {
+                if (dayCount) dayCount.textContent = '';
+                return;
             }
+            var diff = Math.round((new Date(endVal) - new Date(sd.value)) / 86400000) + 1;
+            var wk = weekendsInRange(new Date(sd.value), new Date(endVal));
+            var msg;
+            if (!ed.value) {
+                msg = 'Single-day leave (1 day).' + (wk > 0 ? ' That day is a weekend.' : '');
+            } else {
+                msg = 'This will count as ' + diff + ' day' + (diff === 1 ? '' : 's') + ' of leave.';
+                if (wk > 0) msg += ' Includes ' + wk + ' weekend day' + (wk > 1 ? 's' : '') + '.';
+            }
+            if (dayCount) dayCount.textContent = msg;
+        } else if (dayCount) {
+            dayCount.textContent = '';
         }
     }
-    if (sd) sd.addEventListener('input', datesValid);
-    if (ed) ed.addEventListener('input', datesValid);
+    if (sd) sd.addEventListener('input', previewDays);
+    if (ed) ed.addEventListener('input', previewDays);
+    previewDays();
 
     var modal = document.getElementById('leaveActionModal');
-    if (!modal) return;
-    var form = document.getElementById('leaveActionForm');
-    var textEl = document.getElementById('leaveActionText');
-    var submitEl = document.getElementById('leaveActionSubmit');
-    var remarksEl = document.getElementById('leaveRemarks');
-    modal.addEventListener('show.bs.modal', function(ev) {
-        var btn = ev.relatedTarget;
-        if (!btn || !btn.hasAttribute('data-action-url')) return;
-        var action = btn.getAttribute('data-action');
-        var staff = btn.getAttribute('data-staff') || 'this staff member';
-        var approve = action === 'approve';
-        form.action = btn.getAttribute('data-action-url');
-        form.setAttribute('data-action', action);
-        textEl.textContent = approve
-            ? 'Approve the leave request for ' + staff + '?'
-            : 'Reject the leave request for ' + staff + '?';
-        submitEl.className = 'btn ' + (approve ? 'btn-success' : 'btn-danger');
-        submitEl.innerHTML = approve
-            ? '<i class="bi bi-check-lg"></i> Confirm Approve'
-            : '<i class="bi bi-x-lg"></i> Confirm Reject';
-    });
-    modal.addEventListener('hidden.bs.modal', function() {
-        if (remarksEl) remarksEl.value = '';
-        form.action = '';
-        form.removeAttribute('data-action');
-    });
-});
+    if (modal && !modal.hasAttribute('data-bound')) {
+        modal.setAttribute('data-bound', '1');
+        var form = document.getElementById('leaveActionForm');
+        var textEl = document.getElementById('leaveActionText');
+        var submitEl = document.getElementById('leaveActionSubmit');
+        var remarksEl = document.getElementById('leaveRemarks');
+        modal.addEventListener('show.bs.modal', function(ev) {
+            var btn = ev.relatedTarget;
+            if (!btn || !btn.hasAttribute('data-action-url')) return;
+            var action = btn.getAttribute('data-action');
+            var staff = btn.getAttribute('data-staff') || 'this staff member';
+            var approve = action === 'approve';
+            form.action = btn.getAttribute('data-action-url');
+            form.setAttribute('data-action', action);
+            textEl.textContent = approve
+                ? 'Approve the leave request for ' + staff + '?'
+                : 'Reject the leave request for ' + staff + '?';
+            submitEl.className = 'btn ' + (approve ? 'btn-success' : 'btn-danger');
+            submitEl.innerHTML = approve
+                ? '<i class="bi bi-check-lg"></i> Confirm Approve'
+                : '<i class="bi bi-x-lg"></i> Confirm Reject';
+            // U3: lock the row while a decision is being taken, so another admin
+            // acting on the same leave sees a stale-but-blocked UI, not a double submit.
+            var row = btn.closest('tr');
+            if (row) {
+                row.querySelectorAll('button[data-action]').forEach(function(b) {
+                    if (!b.disabled) {
+                        b.disabled = true;
+                        b.setAttribute('data-locked', '1');
+                        b.classList.add('opacity-50');
+                    }
+                });
+            }
+        });
+        modal.addEventListener('hidden.bs.modal', function() {
+            if (remarksEl) remarksEl.value = '';
+            form.action = '';
+            form.removeAttribute('data-action');
+            document.querySelectorAll('button[data-action][data-locked]').forEach(function(b) {
+                b.disabled = false;
+                b.removeAttribute('data-locked');
+                b.classList.remove('opacity-50');
+            });
+        });
+    }
+}
+
+document.addEventListener('DOMContentLoaded', initLeavesUi);
+document.addEventListener('htmx:afterSettle', initLeavesUi);
 </script>
 {% endblock %}

@@ -232,7 +232,7 @@ LEAVE_TYPES = ['Casual', 'Sick', 'Privilege', 'Emergency', 'Other']
 
 
 class LeaveForm(Form):
-    required = ['start_date', 'end_date', 'reason']
+    required = ['start_date', 'reason']
     date = ['start_date', 'end_date']
     choices = {'leave_type': LEAVE_TYPES}
 
@@ -241,6 +241,9 @@ class LeaveForm(Form):
         from flask import current_app
         sd = self.cleaned_data.get('start_date')
         ed = self.cleaned_data.get('end_date')
+        if ed is None:
+            ed = sd
+            self.cleaned_data['end_date'] = sd
         if sd and ed and sd > ed:
             self._error('end_date', 'End date must be on or after start date')
         if sd and sd < date.today():

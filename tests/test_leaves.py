@@ -523,3 +523,183 @@ def test_staff_dashboard_shows_days_used_card(staff_client, app):
     html = staff_client.get('/').data.decode()
     assert 'Leave days' in html
     assert 'Used so far' in html
+
+
+# ---------------------------------------------------------------------------
+# U1 — filters (status / month / staff / search), on list and export
+# ---------------------------------------------------------------------------
+
+def test_status_filter_hides_non_matching_history(admin_client, app):
+    sid = _staff_id(app)
+    f = date.today() + timedelta(days=1)
+    _add_leave(app, sid, f, f, status='Approved', reason='keep-approved')
+    _add_leave(app, sid, f + timedelta(days=6), f + timedelta(days=6),
+               status='Rejected', reason='hide-rejected')
+    html = admin_client.get('/leaves?status=Approved').data.decode()
+    assert 'keep-approved' in html
+    assert 'hide-rejected' not in html
+
+
+def test_staff_filter_admin_only(admin_client, app):
+    sid = _staff_id(app)
+    aid = _admin_id(app)
+    f = date.today() + timedelta(days=1)
+    _add_leave(app, sid, f, f, status='Approved', reason='staff-leave')
+    _add_leave(app, aid, f + timedelta(days=7), f + timedelta(days=7),
+               status='Approved', reason='admin-leave')
+    html = admin_client.get(f'/leaves?user_id={sid}').data.decode()
+    assert 'staff-leave' in html
+    assert 'admin-leave' not in html
+
+
+def test_search_filter_by_reason(admin_client, app):
+    sid = _staff_id(app)
+    f = date.today() + timedelta(days=1)
+    _add_leave(app, sid, f, f, status='Approved', reason='unique-alpha')
+    _add_leave(app, sid, f + timedelta(days=6), f + timedelta(days=6),
+               status='Approved', reason='other-beta')
+    html = admin_client.get('/leaves?q=alpha').data.decode()
+    assert 'unique-alpha' in html
+    assert 'other-beta' not in html
+
+
+def test_month_filter(admin_client, app):
+    sid = _staff_id(app)
+    today = date.today()
+    nm = (today.replace(day=1) + timedelta(days=40)).replace(day=15)
+    f = today + timedelta(days=1)
+    _add_leave(app, sid, nm, nm, status='Approved', reason='next-month-leave')
+    _add_leave(app, sid, f, f, status='Approved', reason='current-month-leave')
+    html = admin_client.get(f'/leaves?month={nm.strftime("%Y-%m")}').data.decode()
+    assert 'next-month-leave' in html
+    assert 'current-month-leave' not in html
+
+
+def test_export_respects_search_filter(admin_client, app):
+    sid = _staff_id(app)
+    f = date.today() + timedelta(days=1)
+    _add_leave(app, sid, f, f, status='Approved', reason='alpha-export')
+    _add_leave(app, sid, f + timedelta(days=6), f + timedelta(days=6),
+               status='Approved', reason='beta-export')
+    text = admin_client.get('/leaves/export?q=alpha').data.decode('utf-8-sig')
+    assert 'alpha-export' in text
+    assert 'beta-export' not in text
+
+
+# ---------------------------------------------------------------------------
+# U2 — summary cards
+# ---------------------------------------------------------------------------
+
+def test_summary_cards_present_admin(admin_client):
+    html = admin_client.get('/leaves').data.decode()
+    for label in ('On leave today', 'Days pending', 'Upcoming leaves'):
+        assert label in html
+
+
+def test_summary_cards_present_staff(staff_client):
+    html = staff_client.get('/leaves').data.decode()
+    for label in ('Balance left', 'Days used', 'Days pending',
+                  'Upcoming leaves', 'On leave today'):
+        assert label in html
+
+
+def test_on_leave_today_count_reflects_approved_covering_today(admin_client, app):
+    sid = _staff_id(app)
+    t = date.today()
+    _add_leave(app, sid, t, t, status='Approved', reason='today-leave')
+    html = admin_client.get('/leaves').data.decode()
+    assert 'today-leave' in html
+    assert 'On leave today' in html
+
+
+# ---------------------------------------------------------------------------
+# U4 — request form: optional end date, live preview, weekend warning
+# ---------------------------------------------------------------------------
+
+def test_single_day_without_end_date(staff_client, app):
+    start = date.today() + timedelta(days=1)
+    resp = staff_client.post('/leaves', data={
+        'start_date': start.isoformat(),
+        'reason': 'one day',
+    })
+    assert resp.status_code == 302
+    with app.app_context():
+        row = LeaveRequest.query.filter_by(user_id=_staff_id(app)).first()
+        assert row is not None
+        assert row.start_date == start
+        assert row.end_date == start
+
+
+def test_form_marks_end_date_optional_and_min(staff_client):
+    html = staff_client.get('/leaves').data.decode()
+    assert 'optional for a single day' in html
+    assert f'min="{date.today().isoformat()}"' in html
+    assert 'weekend day' in html
+
+
+# ---------------------------------------------------------------------------
+# U5 — calendar/monthly view
+# ---------------------------------------------------------------------------
+
+def test_calendar_staff_shows_own_leave(staff_client, app):
+    sid = _staff_id(app)
+    today = date.today()
+    d = (today.replace(day=1) + timedelta(days=40)).replace(day=15)
+    _add_leave(app, sid, d, d, status='Approved', leave_type='Sick')
+    html = staff_client.get(f'/leaves?cal={d.strftime("%Y-%m")}').data.decode()
+    assert 'My Leave Calendar' in html
+    assert 'lc-approved' in html
+    assert 'Sick' in html
+
+
+def test_calendar_admin_shows_staff_overlay(admin_client, app):
+    sid = _staff_id(app)
+    today = date.today()
+    d = (today.replace(day=1) + timedelta(days=40)).replace(day=15)
+    _add_leave(app, sid, d, d, status='Pending', leave_type='Casual')
+    html = admin_client.get(f'/leaves?cal={d.strftime("%Y-%m")}').data.decode()
+    assert 'Staff Leave Calendar' in html
+    assert 'lc-pending' in html
+
+
+def test_calendar_month_nav_links(staff_client):
+    html = staff_client.get('/leaves').data.decode()
+    assert 'cal=' in html
+
+
+# ---------------------------------------------------------------------------
+# U6 — empty-state CTAs
+# ---------------------------------------------------------------------------
+
+def test_staff_empty_pending_cta_to_form(staff_client):
+    html = staff_client.get('/leaves').data.decode()
+    assert 'id="request-form"' in html
+    assert 'Request Leave' in html
+
+
+def test_admin_empty_pending_shows_staff_with_balance(admin_client, app):
+    html = admin_client.get('/leaves').data.decode()
+    assert 'Staff with balance remaining' in html
+    assert '/tutors' in html
+
+
+# ---------------------------------------------------------------------------
+# U7 — reason truncation with tooltip; no dead Pending branch in history
+# ---------------------------------------------------------------------------
+
+def test_reason_cell_has_tooltip(staff_client, app):
+    sid = _staff_id(app)
+    f = date.today() + timedelta(days=1)
+    long_reason = 'x' * 80
+    _add_leave(app, sid, f, f, status='Approved', reason=long_reason)
+    html = staff_client.get('/leaves').data.decode()
+    assert 'reason-cell' in html
+    assert f'title="{long_reason}"' in html
+
+
+def test_history_has_no_pending_badge_when_none_pending(admin_client, app):
+    sid = _staff_id(app)
+    f = date.today() + timedelta(days=1)
+    _add_leave(app, sid, f, f, status='Approved')
+    html = admin_client.get('/leaves').data.decode()
+    assert 'badge-amber">Pending</span>' not in html
