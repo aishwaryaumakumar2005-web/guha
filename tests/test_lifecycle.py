@@ -300,9 +300,17 @@ def test_complete_writes_audit_log(admin_client, app):
 
 def _mark(app, person_type, person_id, day_offset, status='Absent'):
     with app.app_context():
-        db.session.add(Attendance(
+        # Attendance is unique per person+date: re-marking a day upserts
+        # rather than appending a duplicate row (last write wins).
+        rec = Attendance.query.filter_by(
             person_type=person_type, person_id=person_id,
-            date=date.today() - timedelta(days=day_offset), status=status))
+            date=date.today() - timedelta(days=day_offset)).first()
+        if rec:
+            rec.status = status
+        else:
+            db.session.add(Attendance(
+                person_type=person_type, person_id=person_id,
+                date=date.today() - timedelta(days=day_offset), status=status))
         db.session.commit()
 
 

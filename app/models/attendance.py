@@ -6,6 +6,7 @@ class Attendance(db.Model):
     __table_args__ = (
         db.Index('idx_attendance_person_date', 'person_type', 'person_id', 'date'),
         db.Index('idx_attendance_date', 'date'),
+        db.UniqueConstraint('person_type', 'person_id', 'date', name='uq_attendance_person_date'),
     )
     id = db.Column(db.Integer, primary_key=True)
     person_type = db.Column(db.String(10), nullable=False)

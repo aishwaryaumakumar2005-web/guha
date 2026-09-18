@@ -1,13 +1,32 @@
 {% extends 'base.html' %}{% block title %}Attendance Console{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item active" aria-current="page">Attendance</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+    <div id="att-sr-live" class="visually-hidden" role="status" aria-live="polite"></div>
     <!-- Header Row -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
         <div>
             <h2 class="text-white fw-bold">
 Attendance Console</h2>
             <p class="text-white mb-0">
 Track student and instructor daily attendances. Support manual rosters and live webcam QR scanning.</p>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <!-- Day navigation -->
+            <div class="btn-group" role="group" aria-label="Choose attendance day">
+                <a class="btn btn-outline-light" href="{{ prev_url }}" aria-label="{{ prev_day.strftime('%d %b') }}, previous day">
+<i class="bi bi-chevron-left" aria-hidden="true"></i>
+</a>
+                <button class="btn btn-outline-light" type="button" id="att-date-display" {% if day != today %}onclick="window.location.href='{{ today_url }}'" title="Back to today"{% endif %}>
+                    {{ day.strftime("%d %b %Y") }}{% if day != today %}<i class="bi bi-arrow-counterclockwise ms-1" aria-hidden="true"></i>{% endif %}
+                </button>
+                {% if day < today %}
+                <a class="btn btn-outline-light" href="{{ next_url }}" aria-label="{{ next_day.strftime('%d %b') }}, next day">
+<i class="bi bi-chevron-right" aria-hidden="true"></i>
+</a>
+                {% else %}
+                <button class="btn btn-outline-light" type="button" disabled aria-label="Next day disabled">
+<i class="bi bi-chevron-right" aria-hidden="true"></i>
+</button>
+                {% endif %}
+            </div>
             <!-- Tutor filter dropdown -->
             <form class="d-flex align-items-center" method="GET" action="{{ url_for('attendance.attendance') }}">
                 <label for="tutor-select" class="text-white me-2 mb-0">
@@ -18,9 +37,14 @@ All Tutors</option>
                     {% for tutor in tutors %}                        <option value="{{ tutor.id }}" {% if current_tutor_id == tutor.id %}selected{% endif %}>
 {{ tutor.name }}</option>
                     {% endfor %}                </select>
+                {% if day != today %}<input type="hidden" name="date" value="{{ day.isoformat() }}">{% endif %}
                 <button type="submit" class="btn btn-premium">
 Apply</button>
             </form>
+            <!-- QR scanner launcher -->
+            <button id="btn-start-scanner" class="btn btn-outline-premium" type="button" onclick="startAttendanceQRScanner()">
+                <i class="bi bi-qr-code-scan me-1" aria-hidden="true"></i>
+Start Scanner            </button>
         </div>
     </div>
     <!-- AI Attendance Analysis Banner -->
@@ -44,12 +68,17 @@ Generate Insights                </button>
     </div>
     <!-- Live QR Scanning Viewport Panel (Collapsible drawer overlay) -->
     <div class="glass-card p-4 mb-4 border border-dark border-opacity-25 d-none animate-fade-in" id="scanner-panel" style="background: rgba(0, 240, 255, 0.015);">
-        <div class="row">
-            <div class="col-lg-6 mb-3">
-                <h5 class="text-dark fw-bold mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="text-dark fw-bold mb-0">
 <i class="bi bi-qr-code-scan me-2">
 </i>
 Webcam Scanner Viewport</h5>
+            <button id="btn-stop-scanner" class="btn btn-sm btn-outline-danger d-none" type="button" onclick="stopAttendanceQRScanner()">
+                <i class="bi bi-stop-circle me-1" aria-hidden="true"></i>
+Stop Scanner            </button>
+        </div>
+        <div class="row">
+            <div class="col-lg-6 mb-3">
                 <div class="scanner-viewport-wrapper">
                     <!-- Scanner guide crosshairs -->
                     <div class="scanner-guide">
@@ -65,7 +94,7 @@ Webcam Scanner Viewport</h5>
 </i>
 Present your generated physical/mobile QR ID card within the box boundary.</small>
             </div>
-                        <div class="col-lg-6 mb-3">
+            <div class="col-lg-6 mb-3">
                 <h5 class="text-dark fw-bold mb-3">
 <i class="bi bi-journal-check me-2">
 </i>
@@ -81,7 +110,6 @@ Live Scan Stream Log</h5>
     </div>
     <!-- Main Attendance Control Hub -->
     <div class="row">
-        <!-- Manual Rosters Tab Panel -->
         <div class="col-xl-12 mb-4">
             <div class="glass-card p-4 h-100">
                 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -94,7 +122,7 @@ Manual Grid Checklist</h4>
 </i>
 Today: {{ today.strftime("%d %b %Y") }}</span>
                 </div>
-                                <!-- Nav tabs -->
+                <!-- Nav tabs -->
                 <ul class="nav nav-pills mb-3 border-bottom border-color pb-2" id="attendanceTabs" role="tablist">
                     <li class="nav-item" role="presentation">
                         <button class="nav-link active text-white" id="students-tab" data-bs-toggle="pill" data-bs-target="#students-pane" type="button" role="tab" aria-controls="students-pane" aria-selected="true">
@@ -109,83 +137,125 @@ Students Directory                        </button>
 Tutors Directory                        </button>
                     </li>
                 </ul>
-                                <!-- Tab contents -->
+                <!-- Tab contents -->
                 <div class="tab-content" id="attendanceTabContent">
                     <!-- Students Roster Pane -->
                     <div class="tab-pane fade show active" id="students-pane" role="tabpanel" aria-labelledby="students-tab">
-                        <div class="table-container" style="max-height: 400px; overflow-y: auto;">
-                            <table class="table table-custom sortable" data-page-size="10">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                            <div class="attendance-summary d-flex flex-wrap gap-2" id="students-summary">
+</div>
+                            <div class="d-flex flex-wrap gap-2">
+                                <input type="search" class="form-control form-control-sm att-search" data-search-for="students" placeholder="Search students..." aria-label="Search students" style="width:200px;">
+                                <button class="btn btn-sm btn-outline-premium att-bulk" data-bulk-type="students" data-bulk-status="Present" type="button">
+<i class="bi bi-check-all me-1" aria-hidden="true"></i>
+Mark all present</button>
+                                <button class="btn btn-sm btn-outline-secondary att-bulk" data-bulk-type="students" data-bulk-status="Absent" type="button">
+<i class="bi bi-x-circle me-1" aria-hidden="true"></i>
+Mark all absent</button>
+                                <button class="btn btn-sm btn-outline-info att-export" data-export-type="students" type="button">
+<i class="bi bi-download me-1" aria-hidden="true"></i>
+Export CSV</button>
+                            </div>
+                        </div>
+                        <div class="table-container" style="max-height: 440px; overflow-y: auto;">
+                            <table class="table table-custom">
                                 <thead>
                                     <tr>
-                                        <th>
+                                        <th scope="col">
 Student Name</th>
-                                        <th>
+                                        <th scope="col">
 Enrolled Courses</th>
-                                        <th>
-Check-in Check</th>
-                                        <th>
+                                        <th scope="col">
+Check-in Status</th>
+                                        <th scope="col">
 Logged Status</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% if students %}                                        {% for student in students %}                                            {% set is_marked_present = marked_students.get(student.id) == 'Present' %}                                            <tr>
-                                                <td class="fw-medium text-white">
+                                    {% if students %}                                        {% for student in students %}                                            {% set current = marked_students.get(student.id) %}                                            <tr>
+                                                <td data-label="Student Name" class="fw-medium text-white">
 {{ student.name }}</td>
-                                                <td>
+                                                <td data-label="Enrolled Courses">
                                                     {% for c in student.courses %}<span class="badge badge-custom badge-cyan me-1">
 {{ c.code }}</span>
 {% endfor %}                                                </td>
-                                                <td>
-                                                    <div class="form-check form-switch">
-                                                        <input class="form-check-input attendance-toggle-switch" type="checkbox" role="switch"                                                               id="att-checkbox-student-{{ student.name }}"                                                               data-person-type="student"                                                               data-person-id="{{ student.id }}"                                                               {% if is_marked_present %}checked{% endif %}>
-                                                    </div>
+                                                <td data-label="Check-in Status">
+                                                    <select class="form-select form-select-sm attendance-status-select" id="att-select-student-{{ student.id }}" data-person-type="student" data-person-id="{{ student.id }}" aria-label="Set status for {{ student.name }}">
+                                                        <option value="" {% if not current %}selected{% endif %} disabled>
+Set status…</option>
+                                                        {% for s in status_options %}                                                            <option value="{{ s }}" {% if current == s %}selected{% endif %}>
+{{ s }}</option>
+                                                        {% endfor %}                                                    </select>
                                                 </td>
-                                                <td>
-                                                    <span id="status-label-student-{{ student.id }}"                                                           class="badge badge-custom {% if is_marked_present %}badge-active{% else %}badge-inactive{% endif %}">
-                                                        {{ marked_students.get(student.id, 'Absent') }}                                                    </span>
-                                                </td>
+                                                <td data-label="Logged Status">
+                                                    {% if current %}                                                    <span id="status-label-student-{{ student.id }}" class="badge badge-custom {{ status_badge[current] }}">
+{{ current }}</span>
+                                                    {% else %}                                                    <span id="status-label-student-{{ student.id }}" class="badge badge-custom badge-inactive">
+Not marked</span>
+                                                    {% endif %}                                                </td>
                                             </tr>
-                                        {% endfor %}                                    {% else %}                                        <tr>
+                                        {% endfor %}                                    {% else %}                                        <tr class="att-empty-row">
                                             <td colspan="4" class="text-center text-muted py-4">
-No active students enrolled.</td>
+No active students in this roster.</td>
                                         </tr>
                                     {% endif %}                                </tbody>
                             </table>
                         </div>
                     </div>
-                                        <!-- Tutors Roster Pane -->
+                    <!-- Tutors Roster Pane -->
                     <div class="tab-pane fade" id="tutors-pane" role="tabpanel" aria-labelledby="tutors-tab">
-                        <div class="table-container" style="max-height: 400px; overflow-y: auto;">
-                            <table class="table table-custom sortable" data-page-size="10">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                            <div class="attendance-summary d-flex flex-wrap gap-2" id="tutors-summary">
+</div>
+                            <div class="d-flex flex-wrap gap-2">
+                                <input type="search" class="form-control form-control-sm att-search" data-search-for="tutors" placeholder="Search instructors..." aria-label="Search instructors" style="width:200px;">
+                                <button class="btn btn-sm btn-outline-premium att-bulk" data-bulk-type="tutors" data-bulk-status="Present" type="button">
+<i class="bi bi-check-all me-1" aria-hidden="true"></i>
+Mark all present</button>
+                                <button class="btn btn-sm btn-outline-secondary att-bulk" data-bulk-type="tutors" data-bulk-status="Absent" type="button">
+<i class="bi bi-x-circle me-1" aria-hidden="true"></i>
+Mark all absent</button>
+                                <button class="btn btn-sm btn-outline-info att-export" data-export-type="tutors" type="button">
+<i class="bi bi-download me-1" aria-hidden="true"></i>
+Export CSV</button>
+                            </div>
+                        </div>
+                        <div class="table-container" style="max-height: 440px; overflow-y: auto;">
+                            <table class="table table-custom">
                                 <thead>
                                     <tr>
-                                        <th>
+                                        <th scope="col">
 Instructor</th>
-                                        <th>
+                                        <th scope="col">
 Specialization</th>
-                                        <th>
-Daily Check-in</th>
-                                        <th>
+                                        <th scope="col">
+Check-in Status</th>
+                                        <th scope="col">
 Logged Status</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% if tutors %}                                        {% for tutor in tutors %}                                            {% set is_marked_present = marked_tutors.get(tutor.id) == 'Present' %}                                            <tr>
-                                                <td class="fw-medium text-white">
+                                    {% if tutors %}                                        {% for tutor in tutors %}                                            {% set current = marked_tutors.get(tutor.id) %}                                            <tr>
+                                                <td data-label="Instructor" class="fw-medium text-white">
 {{ tutor.name }}</td>
-                                                <td class="text-white">
+                                                <td data-label="Specialization" class="text-white">
 {{ tutor.specialization or "All courses" }}</td>
-                                                <td>
-                                                    <div class="form-check form-switch">
-                                                        <input class="form-check-input attendance-toggle-switch" type="checkbox" role="switch"                                                               id="att-checkbox-tutor-{{ tutor.name }}"                                                               data-person-type="tutor"                                                               data-person-id="{{ tutor.id }}"                                                               {% if is_marked_present %}checked{% endif %}>
-                                                    </div>
+                                                <td data-label="Check-in Status">
+                                                    <select class="form-select form-select-sm attendance-status-select" id="att-select-tutor-{{ tutor.id }}" data-person-type="tutor" data-person-id="{{ tutor.id }}" aria-label="Set status for {{ tutor.name }}">
+                                                        <option value="" {% if not current %}selected{% endif %} disabled>
+Set status…</option>
+                                                        {% for s in status_options %}                                                            <option value="{{ s }}" {% if current == s %}selected{% endif %}>
+{{ s }}</option>
+                                                        {% endfor %}                                                    </select>
                                                 </td>
-                                                <td>
-                                                    <span id="status-label-tutor-{{ tutor.id }}"                                                           class="badge badge-custom {% if is_marked_present %}badge-active{% else %}badge-inactive{% endif %}">
-                                                        {{ marked_tutors.get(tutor.id, 'Absent') }}                                                    </span>
-                                                </td>
+                                                <td data-label="Logged Status">
+                                                    {% if current %}                                                    <span id="status-label-tutor-{{ tutor.id }}" class="badge badge-custom {{ status_badge[current] }}">
+{{ current }}</span>
+                                                    {% else %}                                                    <span id="status-label-tutor-{{ tutor.id }}" class="badge badge-custom badge-inactive">
+Not marked</span>
+                                                    {% endif %}                                                </td>
                                             </tr>
-                                        {% endfor %}                                    {% else %}                                        <tr>
+                                        {% endfor %}                                    {% else %}                                        <tr class="att-empty-row">
                                             <td colspan="4" class="text-center text-muted py-4">
 No active instructors registered.</td>
                                         </tr>
@@ -198,26 +268,26 @@ No active instructors registered.</td>
         </div>
     </div>
 </div>
-<!-- Attendance manual toggles etc. below -->
-<script data-ts="white-fix-v3">
+<input type="hidden" id="att-page-date" value="{{ day.isoformat() }}">
+{% if is_admin %}<input type="hidden" id="att-is-admin" value="1">{% endif %}
 <!-- AI Attendance Analysis Modal -->
 <div class="modal fade" id="aiAttendanceAnalysisModal" tabindex="-1" aria-labelledby="aiAttendanceAnalysisModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="aiAttendanceAnalysisModalLabel">
-<i class="bi bi-graph-up-arrow text-dark me-2">
+                <h5 class="modal-title text-white" id="aiAttendanceAnalysisModalLabel">
+<i class="bi bi-graph-up-arrow me-2 text-white">
 </i>
 AI Attendance Pattern Analysis</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close">
 </button>
             </div>
             <div class="modal-body p-4">
                 <div id="attendanceAnalysisContent">
-                    <div class="d-flex align-items-center text-secondary">
+                    <div class="d-flex align-items-center text-white-50">
                         <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true">
 </span>
-                        Analyzing attendance patterns and generating insights...                    </div>
+                        Ready to analyze attendance patterns.                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -228,71 +298,263 @@ Close</button>
     </div>
 </div>
 <script>
-function loadAttendanceAnalysis() {    const modal = new bootstrap.Modal(document.getElementById('aiAttendanceAnalysisModal'));    const contentDiv = document.getElementById('attendanceAnalysisContent');        contentDiv.innerHTML = `        <div class="d-flex align-items-center text-secondary">
-            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true">
-</span>
-            Analyzing attendance patterns and generating insights...        </div>
-    `;        modal.show();        fetch('/api/attendance/ai-analysis')        .then(response =>
- response.json())        .then(data =>
- {            let html = `                <div class="row mb-4">
-                    <div class="col-md-6">
-                        <div class="p-3 rounded border border-color bg-dark bg-opacity-25" style="background-color: #0d2740 !important;">
-                            <h6 class="text-white small fw-bold mb-2">
-<i class="bi bi-percent me-2 text-info">
-</i>
-Overall Attendance Rate</h6>
-                            <div class="text-white fw-bold fs-4">
-${data.overall_attendance_rate.toFixed(1)}%</div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="p-3 rounded border border-color bg-dark bg-opacity-25" style="background-color: #0d2740 !important;">
-                            <h6 class="text-white small fw-bold mb-2">
-<i class="bi bi-graph-up me-2 text-success">
-</i>
-Attendance Trend</h6>
-                            <div class="text-white fw-bold fs-4">
-${data.attendance_trend}</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="mb-4">
-                    <h6 class="text-white fw-bold mb-3">
-<i class="bi bi-lightbulb-fill me-2 text-warning">
-</i>
-AI Intervention Suggestions</h6>
-                    <ul class="mb-0">
-                        ${data.interventions.map(intervention =>
- `<li class="mb-2 text-white" style="opacity: 0.9;">
-${intervention}</li>
-`).join('')}                    </ul>
-                </div>
-                <div class="mb-4">
-                    <h6 class="text-white fw-bold mb-3">
-<i class="bi bi-calendar-range me-2 text-primary">
-</i>
-Schedule Recommendations</h6>
-                    <ul class="mb-0">
-                        ${data.schedule_recommendations.map(rec =>
- `<li class="mb-2 text-white" style="opacity: 0.9;">
-${rec}</li>
-`).join('')}                    </ul>
-                </div>
-            `;                        if (data.risk_students >
- 0) {                html += `                    <div class="mb-4">
-                        <h6 class="text-white fw-bold mb-3">
-<i class="bi bi-exclamation-triangle-fill me-2 text-danger">
-</i>
-Students Requiring Intervention</h6>
-                        <div class="alert alert-warning">
-                            <i class="bi bi-exclamation-triangle me-2">
-</i>
-                            ${data.risk_students} students are at risk due to poor attendance patterns.                        </div>
-                    </div>
-                `;            }                        contentDiv.innerHTML = html;        })        .catch(error =>
- {            console.error('Error:', error);            contentDiv.innerHTML = `                <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle me-2">
-</i>
-                    Error generating attendance analysis. Please try again.                </div>
-            `;        });}</script>
+window.ATTENDANCE_BADGE = {'Present':'badge-active','Absent':'badge-danger','Late':'badge-amber','Half Day':'badge-cyan','Leave':'badge-inactive'};
+window.ATTENDANCE_ICON = {'Present':'check-circle-fill','Absent':'x-circle-fill','Late':'clock-fill','Half Day':'sun-half','Leave':'calendar-x-fill','Not marked':'dash-circle'};
+window.ATTENDANCE_PAGE_DATE = (document.getElementById('att-page-date') || {}).value || '';
+
+function attAnnounce(msg) {
+    var el = document.getElementById('att-sr-live');
+    if (el) el.textContent = msg;
+}
+
+function attSetBadge(pType, pId, status) {
+    var label = document.getElementById('status-label-' + pType + '-' + pId);
+    if (!label) return;
+    if (status) {
+        label.textContent = status;
+        label.className = 'badge badge-custom ' + (window.ATTENDANCE_BADGE[status] || 'badge-inactive');
+    } else {
+        label.textContent = 'Not marked';
+        label.className = 'badge badge-custom badge-inactive';
+    }
+}
+
+function attUpdatePaneSummary(paneId, summaryId) {
+    var counts = {'Present':0,'Absent':0,'Late':0,'Half Day':0,'Leave':0,'Not marked':0};
+    var sels = document.querySelectorAll('#' + paneId + ' .attendance-status-select');
+    sels.forEach(function (s) { counts[s.value || 'Not marked']++; });
+    var box = document.getElementById(summaryId);
+    if (!box) return;
+    var order = ['Present','Absent','Late','Half Day','Leave','Not marked'];
+    var total = 0;
+    order.forEach(function (k) { total += counts[k]; });
+    box.innerHTML = order.map(function (k) {
+        var badge = (k === 'Not marked') ? 'badge-inactive' : (window.ATTENDANCE_BADGE[k] || 'badge-inactive');
+        return '<span class="badge badge-custom ' + badge + '"><i class="bi bi-' + window.ATTENDANCE_ICON[k] + ' me-1" aria-hidden="true"></i>' + k + ' <span>' + counts[k] + '/' + total + '</span></span>';
+    }).join('');
+}
+
+function attUpdateSummaries() {
+    attUpdatePaneSummary('students-pane', 'students-summary');
+    attUpdatePaneSummary('tutors-pane', 'tutors-summary');
+}
+window.updateAllSummaries = attUpdateSummaries;
+
+function attResolveSelect(sel, status) {
+    if (status) {
+        var opts = Array.prototype.slice.call(sel.options);
+        var match = opts.filter(function (o) { return o.value === status; })[0];
+        if (match) { sel.value = match.value; return; }
+    }
+    sel.selectedIndex = 0;
+}
+
+function attSyncStatus(sel) {
+    var prev = sel.dataset.prevStatus || '';
+    var pType = sel.dataset.personType;
+    var pId = sel.dataset.personId;
+    var status = sel.value;
+    sel.disabled = true;
+    attSetBadge(pType, pId, status);
+    attUpdateSummaries();
+
+    fetch('/api/attendance/mark', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            person_type: pType,
+            person_id: parseInt(pId, 10),
+            status: status,
+            date: window.ATTENDANCE_PAGE_DATE || undefined
+        })
+    })
+    .then(function (r) { return r.json().then(function (d) { return {status: r.status, data: d}; }); })
+    .then(function (res) {
+        sel.disabled = false;
+        if (res.data.success) {
+            sel.dataset.prevStatus = status;
+            attAnnounce(pType + ' #' + pId + ' marked ' + status);
+            showToast(res.data.message || ('Marked as ' + status), 'success');
+        } else {
+            attResolveSelect(sel, prev);
+            attSetBadge(pType, pId, prev);
+            attUpdateSummaries();
+            showToast(res.data.error || 'Failed to update attendance', 'danger');
+        }
+    })
+    .catch(function () {
+        sel.disabled = false;
+        attResolveSelect(sel, prev);
+        attSetBadge(pType, pId, prev);
+        attUpdateSummaries();
+        showToast('Network error updating attendance.', 'danger');
+    });
+}
+
+function attMarkBulk(btn, pType, status) {
+    var pane = document.getElementById(pType + '-pane');
+    var sels = Array.prototype.slice.call(pane.querySelectorAll('.attendance-status-select'));
+    if (!sels.length) return;
+    var original = btn.innerHTML;
+    btn.disabled = true;
+    btn.textContent = 'Working…';
+    var done = 0, failed = 0;
+    var chain = Promise.resolve();
+    sels.forEach(function (sel) {
+        chain = chain.then(function () {
+            return fetch('/api/attendance/mark', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    person_type: sel.dataset.personType,
+                    person_id: parseInt(sel.dataset.personId, 10),
+                    status: status,
+                    date: window.ATTENDANCE_PAGE_DATE || undefined
+                })
+            })
+            .then(function (r) { return r.json().then(function (d) { return {status: r.status, data: d}; }); })
+            .then(function (res) {
+                if (res.data.success) {
+                    sel.dataset.prevStatus = status;
+                    sel.value = status;
+                    attSetBadge(sel.dataset.personType, sel.dataset.personId, status);
+                    done++;
+                } else {
+                    failed++;
+                }
+            })
+            .catch(function () { failed++; });
+        });
+    });
+    chain.then(function () {
+        btn.disabled = false;
+        btn.innerHTML = original;
+        attUpdateSummaries();
+        var msg = String(done) + ' marked ' + status + (failed ? (', ' + String(failed) + ' failed') : '');
+        attAnnounce(msg);
+        showToast(msg, failed ? 'warning' : 'success');
+    });
+}
+
+function attExportCSV(pType) {
+    var pane = document.getElementById(pType + '-pane');
+    var rows = Array.prototype.slice.call(pane.querySelectorAll('tbody tr')).filter(function (r) { return !r.classList.contains('att-empty-row'); });
+    var csv = [['Name', 'Courses', 'Status', 'Logged Status']];
+    rows.forEach(function (row) {
+        var cells = row.querySelectorAll('td');
+        var name = cells[0] ? cells[0].textContent.trim() : '';
+        var courses = cells[1] ? cells[1].textContent.trim().replace(/\s+/g, ' ') : '';
+        var sel = cells[2] ? cells[2].querySelector('select') : null;
+        var status = sel ? (sel.value || 'Not marked') : 'Not marked';
+        var logged = cells[3] ? cells[3].textContent.trim() : 'Not marked';
+        csv.push([name, courses, status, logged]);
+    });
+    var text = csv.map(function (row) {
+        return row.map(function (c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(',');
+    }).join('\n');
+    var blob = new Blob([text], {type: 'text/csv;charset=utf-8;'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'attendance-' + pType + '-' + (window.ATTENDANCE_PAGE_DATE || 'today') + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    // Live status sync
+    document.querySelectorAll('.attendance-status-select').forEach(function (sel) {
+        sel.dataset.prevStatus = sel.value || '';
+        sel.addEventListener('change', function () { attSyncStatus(sel); });
+    });
+    // Row search
+    document.querySelectorAll('.att-search').forEach(function (input) {
+        input.addEventListener('input', function () {
+            var pane = document.getElementById(this.dataset.searchFor + '-pane');
+            if (!pane) return;
+            var q = this.value.trim().toLowerCase();
+            pane.querySelectorAll('tbody tr').forEach(function (row) {
+                if (row.classList.contains('att-empty-row')) return;
+                row.style.display = (row.textContent.toLowerCase().indexOf(q) !== -1) ? '' : 'none';
+            });
+        });
+    });
+    // Bulk actions
+    document.querySelectorAll('.att-bulk').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            attMarkBulk(btn, this.dataset.bulkType, this.dataset.bulkStatus);
+        });
+    });
+    // CSV export
+    document.querySelectorAll('.att-export').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            attExportCSV(this.dataset.exportType);
+        });
+    });
+    attUpdateSummaries();
+});
+
+function attEscape(t) {
+    var d = document.createElement('div');
+    d.textContent = String(t == null ? '' : t);
+    return d.innerHTML;
+}
+
+function loadAttendanceAnalysis() {
+    var modalEl = document.getElementById('aiAttendanceAnalysisModal');
+    if (!modalEl) return;
+    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    var contentDiv = document.getElementById('attendanceAnalysisContent');
+    contentDiv.innerHTML = '<div class="d-flex align-items-center text-white-50">' +
+        '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' +
+        'Analyzing attendance patterns and generating insights...</div>';
+    modal.show();
+    fetch('/api/attendance/ai-analysis')
+        .then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        })
+        .then(function (data) {
+            var rate = (typeof data.overall_attendance_rate === 'number') ? data.overall_attendance_rate.toFixed(1) : '0.0';
+            var interventions = (data.interventions || []).map(function (i) {
+                return '<li class="mb-2 text-white" style="opacity: 0.9;">' + attEscape(i) + '</li>';
+            }).join('');
+            var recs = (data.schedule_recommendations || []).map(function (r) {
+                return '<li class="mb-2 text-white" style="opacity: 0.9;">' + attEscape(r) + '</li>';
+            }).join('');
+            var html =
+                '<div class="row mb-4">' +
+                    '<div class="col-md-6 mb-2">' +
+                        '<div class="p-3 rounded border border-color bg-dark bg-opacity-25" style="background-color: #0d2740 !important;">' +
+                            '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-percent me-2 text-info" aria-hidden="true"></i>Overall Attendance Rate</h6>' +
+                            '<div class="text-white fw-bold fs-4">' + rate + '%</div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="col-md-6 mb-2">' +
+                        '<div class="p-3 rounded border border-color bg-dark bg-opacity-25" style="background-color: #0d2740 !important;">' +
+                            '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-graph-up me-2 text-success" aria-hidden="true"></i>Attendance Trend</h6>' +
+                            '<div class="text-white fw-bold fs-4">' + attEscape(String(data.attendance_trend || 'Stable')) + '</div>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="mb-4">' +
+                    '<h6 class="text-white fw-bold mb-3"><i class="bi bi-lightbulb-fill me-2 text-warning" aria-hidden="true"></i>AI Intervention Suggestions</h6>' +
+                    '<ul class="mb-0 list-unstyled">' + interventions + '</ul>' +
+                '</div>' +
+                '<div class="mb-4">' +
+                    '<h6 class="text-white fw-bold mb-3"><i class="bi bi-calendar-range me-2 text-primary" aria-hidden="true"></i>Schedule Recommendations</h6>' +
+                    '<ul class="mb-0 list-unstyled">' + recs + '</ul>' +
+                '</div>';
+            if (Number(data.risk_students) > 0) {
+                html += '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>' +
+                    attEscape(String(data.risk_students) + ' students are at risk due to poor attendance patterns.') + '</div>';
+            }
+            contentDiv.innerHTML = html;
+        })
+        .catch(function () {
+            contentDiv.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>' +
+                'Error generating attendance analysis. Please try again.</div>';
+        });
+}
+</script>
 {% endblock %}

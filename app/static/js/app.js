@@ -1063,8 +1063,8 @@ function startAttendanceQRScanner() {
     
     // Toggle controls
     scannerPanel.classList.remove('d-none');
-    startBtn.classList.add('d-none');
-    stopBtn.classList.remove('d-none');
+    if (startBtn) startBtn.classList.add('d-none');
+    if (stopBtn) stopBtn.classList.remove('d-none');
     
     scanLog.innerHTML = '<div class="text-secondary"><i class="bi bi-clock-history me-1"></i> Waiting for barcode signatures...</div>';
     
@@ -1094,16 +1094,24 @@ function stopAttendanceQRScanner() {
     const startBtn = document.getElementById('btn-start-scanner');
     const stopBtn = document.getElementById('btn-stop-scanner');
     
+    function closeScannerUI() {
+        if (html5QrcodeScanner) {
+            html5QrcodeScanner = null;
+        }
+        if (scannerPanel) scannerPanel.classList.add('d-none');
+        if (startBtn) startBtn.classList.remove('d-none');
+        if (stopBtn) stopBtn.classList.add('d-none');
+    }
+    
     if (!html5QrcodeScanner) return;
     
-    html5QrcodeScanner.stop().then(() => {
-        html5QrcodeScanner = null;
-        scannerPanel.classList.add('d-none');
-        startBtn.classList.remove('d-none');
-        stopBtn.classList.add('d-none');
-    }).catch(err => {
-        console.error("Stop scanner error:", err);
-    });
+    try {
+        html5QrcodeScanner.stop().then(closeScannerUI).catch(closeScannerUI);
+    } catch (err) {
+        // The library throws synchronously when a camera start never
+        // completed; still close the UI cleanly.
+        closeScannerUI();
+    }
 }
 
 // Keep track of last scanned signatures to avoid repeated processing of same QR within 8 seconds
@@ -1134,12 +1142,16 @@ function processQRScan(uuidStr) {
         if (data.success) {
             playSuccessBeep();
             
+            const personId = data.person_id;
+            const roleKey = String(data.role || '').toLowerCase();
+            const roleLabel = roleKey.charAt(0).toUpperCase() + roleKey.slice(1);
+            
             // Add success feed item
             const item = document.createElement('div');
             item.className = 'border border-success rounded-3 p-3 mb-2 bg-success bg-opacity-10 d-flex justify-content-between align-items-center animate-fade-in';
             item.innerHTML = `
                 <div>
-                    <span class="badge badge-custom badge-active me-2">${data.role}</span>
+                    <span class="badge badge-custom badge-active me-2">${roleLabel}</span>
                     <strong class="text-emerald">${data.name}</strong>
                     <div class="small text-secondary mt-1">${data.message}</div>
                 </div>
@@ -1152,16 +1164,20 @@ function processQRScan(uuidStr) {
             }
             logFeed.insertBefore(item, logFeed.firstChild);
             
-            // Update the checklist table UI if we are on the attendance dashboard manual list
-            const rowCheckbox = document.getElementById(`att-checkbox-${data.role.toLowerCase()}-${data.name}`);
-            if (rowCheckbox) {
-                rowCheckbox.checked = true;
-                const label = document.getElementById(`status-label-${data.role.toLowerCase()}-${data.name}`);
-                if (label) {
-                    label.innerText = 'Present';
-                    label.className = 'badge badge-custom badge-active';
-                }
+            // Update the checklist table UI if we are on the attendance dashboard
+            // manual list. Roster ids are numeric-based; the API returns the person
+            // id so the exact row (student or tutor) is located and synced.
+            const rowSelect = document.getElementById(`att-select-${roleKey}-${personId}`);
+            if (rowSelect) {
+                rowSelect.value = 'Present';
+                rowSelect.dataset.prevStatus = 'Present';
             }
+            const label = document.getElementById(`status-label-${roleKey}-${personId}`);
+            if (label) {
+                label.textContent = 'Present';
+                label.className = 'badge badge-custom badge-active';
+            }
+            if (window.updateAllSummaries) window.updateAllSummaries();
         } else {
             const item = document.createElement('div');
             item.className = 'border border-danger rounded-3 p-3 mb-2 bg-danger bg-opacity-10';

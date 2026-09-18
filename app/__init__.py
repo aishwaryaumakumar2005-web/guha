@@ -280,6 +280,20 @@ def create_app(config_object=None):
                 db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_fee_student ON fee_record(student_id)'))
                 db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_attendance_person_date ON attendance(person_type, person_id, date)'))
                 db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date)'))
+                try:
+                    # Dedup legacy race duplicates, then enforce uniqueness.
+                    db.session.execute(db.text(
+                        "DELETE FROM attendance WHERE id NOT IN ("
+                        "SELECT MIN(id) FROM attendance "
+                        "GROUP BY person_type, person_id, date)"))
+                except Exception:
+                    db.session.rollback()
+                try:
+                    db.session.execute(db.text(
+                        'CREATE UNIQUE INDEX IF NOT EXISTS uq_attendance_person_date '
+                        'ON attendance(person_type, person_id, date)'))
+                except Exception:
+                    db.session.rollback()
                 db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_enquiry_status ON enquiry(status)'))
                 db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_enquiry_course ON enquiry(course_id)'))
                 db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_leave_user_status ON leave_request(user_id, status)'))
