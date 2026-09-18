@@ -142,7 +142,7 @@
             {% if company and company.is_gst_registered %}
               <li class="list-group-item d-flex justify-content-between align-items-center">
                 <span class="text-muted">Taxable Subtotal</span>
-                <strong>₹ {{ "%.2f"|format(record.taxable_amount or (record.amount_paid / 1.18)) }}</strong>
+                <strong>₹ {{ "%.2f"|format(taxable_val if taxable_val is defined else (record.taxable_amount or (record.amount_paid / 1.18))) }}</strong>
               </li>
               <li class="list-group-item d-flex justify-content-between align-items-center">
                 <span class="text-muted">CGST ({{ cgst_pct }}%)</span>

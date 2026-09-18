@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from app.extensions import db
 
 
@@ -7,7 +7,7 @@ class OwnerFunding(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     amount = db.Column(db.Float, nullable=False)
-    funding_date = db.Column(db.Date, default=datetime.utcnow().date, nullable=False)
+    funding_date = db.Column(db.Date, default=date.today, nullable=False)
     method = db.Column(db.String(50), default='Cash', nullable=False)
     purpose = db.Column(db.Text)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'))

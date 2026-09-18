@@ -81,7 +81,7 @@ Action</th>
                             <td class="small text-secondary">
 {{ f.creator.name if f.creator else 'System' }}</td>
                             <td class="text-end">
-                                <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Reverse and delete this capital contribution record? This action cannot be undone.', function() { window.location.href = '{{ url_for('funding.delete', id=f.id) }}'; })">
+                                <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Reverse and delete this capital contribution record? This action cannot be undone.', function() { var f = document.createElement('form'); f.method = 'POST'; f.action = '{{ url_for('funding.delete', id=f.id) }}'; document.body.appendChild(f); f.submit(); })">
                                     <i class="bi bi-x-square-fill">
 </i>
                                 </button>

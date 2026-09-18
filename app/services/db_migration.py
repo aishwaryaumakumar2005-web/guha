@@ -312,6 +312,27 @@ def migrate_leave_type_column():
             print(f"Migration migrate_leave_type_column: FAILED to add leave_request.leave_type: {e}", flush=True)
 
 
+def migrate_fee_created_by_column():
+    """Add fee_record.created_by (nullable) on existing DBs.
+
+    The ORM maps this column, so databases created before it existed (e.g. a
+    Postgres/Neon DB restored from an old backup) 500 on every fee query
+    until it is added. Idempotent and additive-only: skips the column when it
+    already exists, works on SQLite and PostgreSQL, and logs loudly on
+    failure. Legacy rows keep NULL (collector unknown).
+    """
+    if not _table_exists('fee_record'):
+        return
+    if not _has_column('fee_record', 'created_by'):
+        try:
+            db.session.execute(text('ALTER TABLE "fee_record" ADD COLUMN "created_by" INTEGER'))
+            db.session.commit()
+            print("Migration migrate_fee_created_by_column: added fee_record.created_by", flush=True)
+        except Exception as e:
+            db.session.rollback()
+            print(f"Migration migrate_fee_created_by_column: FAILED to add fee_record.created_by: {e}", flush=True)
+
+
 def migrate_enquiry_course_nullable():
     """Make enquiry.course_id nullable with ON DELETE SET NULL.
 

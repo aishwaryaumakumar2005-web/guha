@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date
 from app.extensions import db
 
 
@@ -14,9 +14,12 @@ class FeeRecord(db.Model):
     amount_paid = db.Column(db.Float, nullable=False)
     taxable_amount = db.Column(db.Float, default=0.0)
     gst_amount = db.Column(db.Float, default=0.0)
-    payment_date = db.Column(db.Date, default=datetime.utcnow().date, nullable=False)
+    payment_date = db.Column(db.Date, default=date.today, nullable=False)
     payment_method = db.Column(db.String(50), default='Cash')
     remarks = db.Column(db.String(200))
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+
+    creator = db.relationship('User', backref='fee_records', lazy=True)
 
     def __repr__(self):
         return f"<FeeRecord Student:{self.student_id} Amount:{self.amount_paid}>"

@@ -102,7 +102,7 @@ def edit(id):
     flash(message, "success")
     return redirect(url_for('expenses.list'))
 
-@expenses_bp.route('/expenses/delete/<int:id>')
+@expenses_bp.route('/expenses/delete/<int:id>', methods=['POST'])
 @login_required
 @admin_required
 def delete(id):

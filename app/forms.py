@@ -200,6 +200,7 @@ class ExpenseForm(Form):
     integer = ['category_id']
     float = ['amount']
     date = ['expense_date']
+    choices = {'payment_method': list(PAYMENT_METHODS)}
     min_values = {'amount': 0, 'category_id': 1}
 
 

@@ -51,7 +51,7 @@ def list():
         account_balances=compute_account_summary())
 
 
-@funding_bp.route('/funding/delete/<int:id>')
+@funding_bp.route('/funding/delete/<int:id>', methods=['POST'])
 @login_required
 @admin_required
 def delete(id):

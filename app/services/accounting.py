@@ -77,11 +77,21 @@ class AccountingService:
         total_fee = sum(c.fees for c in courses)
 
         if has_gst:
-            total_pct = cfg['cgst_pct'] + cfg['sgst_pct']
-            total = fee_record.amount_paid
-            taxable = round(total * 100 / (100 + total_pct), 2)
-            cgst = round(taxable * cfg['cgst_pct'] / 100, 2)
-            sgst = round(taxable * cfg['sgst_pct'] / 100, 2)
+            if fee_record.taxable_amount:
+                # Reprint-safe: reuse the booked split so a later rate change
+                # can never rewrite this invoice. CGST == SGST intra-state.
+                total = fee_record.amount_paid
+                taxable = fee_record.taxable_amount
+                _gst = fee_record.gst_amount or 0.0
+                cgst = round(_gst / 2, 2)
+                sgst = round(_gst - cgst, 2)
+            else:
+                # Legacy rows booked before splits were stored.
+                total_pct = cfg['cgst_pct'] + cfg['sgst_pct']
+                total = fee_record.amount_paid
+                taxable = round(total * 100 / (100 + total_pct), 2)
+                cgst = round(taxable * cfg['cgst_pct'] / 100, 2)
+                sgst = round(taxable * cfg['sgst_pct'] / 100, 2)
         else:
             taxable = fee_record.amount_paid
             total = taxable

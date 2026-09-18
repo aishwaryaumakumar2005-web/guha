@@ -286,6 +286,13 @@ def create_app(config_object=None):
                 print("Migration migrate_leave_type_column completed OK", flush=True)
             except Exception as e:
                 print("Migration migrate_leave_type_column FAILED:", e, flush=True)
+
+            try:
+                from app.services.db_migration import migrate_fee_created_by_column
+                migrate_fee_created_by_column()
+                print("Migration migrate_fee_created_by_column completed OK", flush=True)
+            except Exception as e:
+                print("Migration migrate_fee_created_by_column FAILED:", e, flush=True)
                 db.session.rollback()
             try:
                 from app.services.db_migration import migrate_enquiry_course_nullable
@@ -509,6 +516,14 @@ def create_app(config_object=None):
                 migrate_leave_type_column()
             except Exception as e:
                 print('Failed to ensure leave_request.leave_type:', e, file=sys.stderr)
+
+        # Same self-heal for fee_record.created_by (who collected the payment).
+        if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+            try:
+                from app.services.db_migration import migrate_fee_created_by_column
+                migrate_fee_created_by_column()
+            except Exception as e:
+                print('Failed to ensure fee_record.created_by:', e, file=sys.stderr)
 
         from app.audit import register_audit_events
         register_audit_events()

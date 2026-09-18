@@ -82,12 +82,12 @@ def register_audit_events():
     from app.models import (
         Student, Tutor, Course, Enquiry, FeeRecord,
         Expense, ExpenseCategory, Exam, ExamScore, ExamAssignment,
-        User, LeaveRequest, PayrollRecord
+        User, LeaveRequest, PayrollRecord, OwnerFunding
     )
     models = [
         Student, Tutor, Course, Enquiry, FeeRecord,
         Expense, ExpenseCategory, Exam, ExamScore, ExamAssignment,
-        User, LeaveRequest, PayrollRecord
+        User, LeaveRequest, PayrollRecord, OwnerFunding
     ]
     for cls in models:
         event.listen(cls, 'after_insert', _audit_insert)

@@ -10,6 +10,33 @@ from sqlalchemy.orm import subqueryload
 
 fees_bp = Blueprint('fees', __name__)
 
+def _split_gst(amount, company):
+    """Split an inclusive-of-tax amount into (taxable, gst) for `company`.
+
+    Single source for the create + edit paths so both book identical splits.
+    """
+    if company and company.is_gst_registered:
+        cgst_pct, sgst_pct = get_gst_rates()
+        total_gst_pct = cgst_pct + sgst_pct
+        taxable_amount = round(amount / (1 + (total_gst_pct / 100)), 2)
+        gst_amount = round(amount - taxable_amount, 2)
+    else:
+        taxable_amount = amount
+        gst_amount = 0.0
+    return taxable_amount, gst_amount
+
+
+def _stored_gst_split(record):
+    """Reprint-safe (cgst, sgst) from the record's stored split.
+
+    Splits the booked gst_amount evenly (CGST == SGST for intra-state
+    supply) so cgst + sgst always equals the stored value, no matter what
+    the current GST settings say. Reprints must never recompute history.
+    """
+    gst = float(record.gst_amount or 0)
+    cgst = round(gst / 2, 2)
+    return cgst, round(gst - cgst, 2)
+
 @fees_bp.route('/fees', methods=['GET', 'POST'])
 @login_required
 def list():
@@ -33,9 +60,16 @@ def list():
                 flash(msg, 'danger')
             return redirect(url_for('fees.list'))
         student_id = form.cleaned_data.get('student_id')
+        if Student.query.get(student_id) is None:
+            if is_ajax_request():
+                return jsonify({"success": False, "errors": ["Selected student does not exist"]}), 400
+            flash("Selected student does not exist", 'danger')
+            return redirect(url_for('fees.list'))
         amount = form.cleaned_data.get('amount_paid', 0)
         remarks = request.form.get('remarks', '').strip()
-        payment_method = request.form.get('payment_method', 'UPI')
+        # FeeForm.choices already rejected anything outside PAYMENT_METHODS, so
+        # the raw value is safe for ledger bucketing from here on.
+        payment_method = request.form.get('payment_method') or 'UPI'
         payment_date = form.cleaned_data.get('payment_date', date.today())
         req_company_id = request.form.get('company_id')
         
@@ -59,14 +93,7 @@ def list():
                     selected_company = Company.query.filter_by(is_gst_registered=False).first() or Company.query.first()
         
         cgst_pct, sgst_pct = get_gst_rates()
-        total_gst_pct = cgst_pct + sgst_pct
-
-        if selected_company and selected_company.is_gst_registered:
-            taxable_amount = round(amount / (1 + (total_gst_pct / 100)), 2)
-            gst_amount = round(amount - taxable_amount, 2)
-        else:
-            taxable_amount = amount
-            gst_amount = 0.0
+        taxable_amount, gst_amount = _split_gst(amount, selected_company)
 
         new_record = FeeRecord(
             student_id=student_id,
@@ -76,7 +103,8 @@ def list():
             gst_amount=gst_amount,
             payment_date=payment_date,
             payment_method=payment_method,
-            remarks=remarks
+            remarks=remarks,
+            created_by=current_user.id
         )
         db.session.add(new_record)
         db.session.flush()
@@ -155,6 +183,13 @@ def receipt(id):
     
     cgst_val = round((record.taxable_amount or (record.amount_paid / 1.18)) * (cgst_pct / 100), 2) if company and company.is_gst_registered else 0.0
     sgst_val = round((record.taxable_amount or (record.amount_paid / 1.18)) * (sgst_pct / 100), 2) if company and company.is_gst_registered else 0.0
+    # Reprints use the stored split — never recompute history from current rates.
+    stored_taxable = float(record.taxable_amount or 0)
+    if company and company.is_gst_registered and stored_taxable:
+        taxable_val = stored_taxable
+        cgst_val, sgst_val = _stored_gst_split(record)
+    else:
+        taxable_val = record.taxable_amount or (record.amount_paid / 1.18)
 
     return render_template(
         'partials/_receipt_modal.html',
@@ -164,10 +199,58 @@ def receipt(id):
         cgst_pct=cgst_pct,
         sgst_pct=sgst_pct,
         cgst_val=cgst_val,
-        sgst_val=sgst_val
+        sgst_val=sgst_val,
+        taxable_val=taxable_val
     )
 
-@fees_bp.route('/fees/delete/<int:id>')
+@fees_bp.route('/fees/edit/<int:id>', methods=['POST'])
+@login_required
+@admin_required
+def edit(id):
+    record = FeeRecord.query.get_or_404(id)
+    form = FeeForm(request.form)
+    if not form.validate():
+        if is_ajax_request():
+            return jsonify({"success": False, "errors": form.error_messages}), 400
+        for msg in form.error_messages:
+            flash(msg, 'danger')
+        return redirect(url_for('fees.list'))
+    student_id = form.cleaned_data.get('student_id')
+    if Student.query.get(student_id) is None:
+        if is_ajax_request():
+            return jsonify({"success": False, "errors": ["Selected student does not exist"]}), 400
+        flash("Selected student does not exist", 'danger')
+        return redirect(url_for('fees.list'))
+    amount = form.cleaned_data.get('amount_paid', 0)
+    payment_date = form.cleaned_data.get('payment_date', record.payment_date)
+    # FeeForm.choices already validated this value (see create path).
+    payment_method = request.form.get('payment_method') or record.payment_method
+    remarks = request.form.get('remarks', '').strip()
+    company = record.company
+    req_company_id = request.form.get('company_id')
+    if req_company_id and req_company_id.isdigit():
+        found = Company.query.get(int(req_company_id))
+        if found:
+            company = found
+    taxable_amount, gst_amount = _split_gst(amount, company)
+    record.student_id = student_id
+    record.company_id = company.id if company else None
+    record.amount_paid = amount
+    record.taxable_amount = taxable_amount
+    record.gst_amount = gst_amount
+    record.payment_date = payment_date
+    record.payment_method = payment_method
+    record.remarks = remarks
+    # receipt_number is intentionally preserved: an edit corrects the booking,
+    # it must not burn a new invoice number. The UPDATE is auto-audited.
+    db.session.commit()
+    message = "Fee record updated successfully!"
+    if is_ajax_request():
+        return jsonify({"success": True, "message": message}), 200
+    flash(message, "success")
+    return redirect(url_for('fees.list'))
+
+@fees_bp.route('/fees/delete/<int:id>', methods=['POST'])
 @login_required
 @admin_required
 def delete(id):
