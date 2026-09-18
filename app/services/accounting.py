@@ -22,6 +22,19 @@ def _safe_pct(raw, default=9.0):
     return default
 
 
+def build_invoice_item_rows(desc, has_gst, hsn, taxable, cgst, sgst, total):
+    """Build the invoice items table rows for one receipt.
+
+    Always a single installment row valued from the stored split, so the
+    items trivially sum to the totals row. Pure function — the W1
+    reconciliation guarantee is unit-tested here, not inside the PDF bytes.
+    """
+    if has_gst:
+        return [[desc, hsn, f'Rs. {taxable:,.2f}', f'Rs. {cgst:,.2f}',
+                 f'Rs. {sgst:,.2f}', f'Rs. {total:,.2f}']]
+    return [[desc, hsn, f'Rs. {taxable:,.2f}', f'Rs. {total:,.2f}']]
+
+
 class AccountingService:
     def __init__(self, app=None):
         self.app = app
@@ -63,6 +76,19 @@ class AccountingService:
         cfg = self._get_settings()
         year = date.today().year
         return f"{cfg['invoice_prefix']}-{year}-{next_no:04d}"
+
+    @staticmethod
+    def invoice_item_description(fee_record, max_len=40):
+        """One-line description for the invoice items table.
+
+        Names the installment (not full course fees — see W1) and truncates
+        to fit the fixed-width PDF description cell, which cannot wrap.
+        Pure function so the reconciling logic is directly unit-testable.
+        """
+        courses = list(fee_record.student.courses) if fee_record.student else []
+        names = ', '.join(c.name for c in courses)
+        desc = f"Course fee installment ({names})" if names else "Course fee installment"
+        return desc[:max_len]
 
     def generate_invoice_pdf(self, fee_record):
         cfg = self._get_settings()
@@ -193,7 +219,7 @@ class AccountingService:
         text_color(25, 25, 25)
         pdf.set_x(120); pdf.cell(0, 6, f"Mode: {fee_record.payment_method}", new_x="LMARGIN", new_y="NEXT")
         pdf.set_x(120); pdf.cell(0, 6, "Terms: Due on Receipt", new_x="LMARGIN", new_y="NEXT")
-        pdf.set_x(120); pdf.cell(0, 6, "Place of Supply: Tamil Nadu (33)", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_x(120); pdf.cell(0, 6, f"Place of Supply: {cfg['org_state']} ({cfg['org_state_code']})", new_x="LMARGIN", new_y="NEXT")
         if has_gst:
             pdf.set_x(120); pdf.cell(0, 6, "Reverse Charge: No", new_x="LMARGIN", new_y="NEXT")
         if fee_record.remarks:
@@ -238,15 +264,12 @@ class AccountingService:
             pdf.ln()
 
         table_header()
-        if has_gst:
-            for course in courses:
-                cgst_c = round(course.fees * cfg['cgst_pct'] / 100, 2)
-                sgst_c = round(course.fees * cfg['sgst_pct'] / 100, 2)
-                total_c = course.fees + cgst_c + sgst_c
-                table_row([course.name, cfg['org_hsn'], f'Rs. {course.fees:,.2f}', f'Rs. {cgst_c:,.2f}', f'Rs. {sgst_c:,.2f}', f'Rs. {total_c:,.2f}'], fill=True)
-        else:
-            course_names = ', '.join(c.name for c in courses) if courses else 'Course Fee'
-            table_row([course_names, cfg['org_hsn'], f'Rs. {taxable:,.2f}', f'Rs. {total:,.2f}'], fill=True)
+        # W1: one installment line, not full course fees. Line items must sum
+        # to the totals row (which uses the stored split); listing every
+        # course at full price made part-payments self-contradictory.
+        desc = self.invoice_item_description(fee_record)
+        for row in build_invoice_item_rows(desc, has_gst, cfg['org_hsn'], taxable, cgst, sgst, total):
+            table_row(row, fill=True)
 
         # Totals
         pdf.ln(2)

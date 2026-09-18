@@ -745,3 +745,69 @@ def test_account_icon_and_mode_labels(admin_client, app):
     assert 'bi-phone' in html  # shared ACCOUNT_TYPE_ICONS via summary dict
     upi_html = admin_client.get('/accounts/UPI').data.decode()
     assert '>UPI<' in upi_html  # canonical label, not raw 'upi'
+
+
+# ---------------------------------------------------------------------------
+# W1/W4/W5 follow-ups
+# ---------------------------------------------------------------------------
+
+def test_invoice_rows_reconcile():
+    from app.services.accounting import build_invoice_item_rows
+    import re
+
+    def _num(s):
+        return float(s.replace('Rs.', '').replace(',', '').strip())
+
+    rows = build_invoice_item_rows('Course fee installment (X)', True, '999293',
+                                   1000.0, 90.0, 90.0, 1180.0)
+    assert len(rows) == 1  # one installment row, never per-course full fees
+    amount, cgst, sgst, total = (_num(rows[0][2]), _num(rows[0][3]),
+                                 _num(rows[0][4]), _num(rows[0][5]))
+    assert round(amount + cgst + sgst, 2) == total
+    rows = build_invoice_item_rows('Course fee installment', False, '999293',
+                                   500.0, 0, 0, 500.0)
+    assert len(rows) == 1
+    assert _num(rows[0][2]) == _num(rows[0][3])
+
+
+def test_invoice_item_description_truncates(admin_client, app):
+    sid = _student_id(app)
+    _post_fee(admin_client, sid, amount=1180.0)
+    with app.app_context():
+        rec = FeeRecord.query.first()
+        desc = app.accounting.invoice_item_description(rec)
+    assert desc.startswith('Course fee installment')
+    assert len(desc) <= 40  # fixed-width PDF cell cannot wrap
+
+
+def test_receipt_footer_scoped_to_entity(admin_client, app):
+    from app.models import Course
+    sid = _student_id(app)
+    with app.app_context():
+        extra = Course(name='Extra NonGST', code='EX', description='d',
+                       duration_weeks=4, duration_unit='weeks', fees=2000.0,
+                       gst_applicable=False)
+        db.session.add(extra)
+        db.session.flush()
+        student = Student.query.get(sid)
+        student.courses.append(extra)
+        db.session.commit()
+    _post_fee(admin_client, sid, amount=1180.0)  # books to the GST entity
+    with app.app_context():
+        rid = FeeRecord.query.first().id
+    html = admin_client.get(f'/fees/receipt/{rid}').data.decode()
+    assert '5900.00' in html    # GST-scoped dues only
+    assert '6900.00' not in html  # not the global enrollment total
+    assert '2000.00' not in html  # other entity's course leaks nowhere
+
+
+def test_kpi_cash_vs_settled(admin_client, app):
+    sid = _student_id(app)
+    admin_client.post('/fees', data={
+        'student_id': str(sid), 'amount_paid': '1180', 'concession': '1000',
+        'payment_date': date.today().isoformat(), 'payment_method': 'Cash',
+    })
+    html = admin_client.get('/fees').data.decode()
+    assert '20.0%' in html  # cash-only headline rate
+    assert '36.9%' in html  # 2180 / 5900 settled
+    assert 'settled incl. waivers' in html

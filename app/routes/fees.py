@@ -44,21 +44,31 @@ def _course_company_id(course, gst_company_id, nongst_company_id):
     return gst_company_id if course.gst_applicable else nongst_company_id
 
 
-def _student_fee_summary(student):
+def _student_fee_summary(student, company=None):
     """Enrollment dues position for receipts: (due, cash_paid, concessions, balance).
 
-    Informational context so a part-payment receipt states where the student
-    stands; computed from current enrollment like the balances matrix.
+    When `company` is given, dues are scoped to that entity — mirroring the
+    B3 matrix rule (assigned courses + GST-profile legacy attribution) — so a
+    receipt's footer agrees with the filtered matrix instead of mixing
+    entities. Without it, the position is institute-global.
     """
     if not student:
         return 0.0, 0.0, 0.0, 0.0
     cgst_pct, sgst_pct = get_gst_rates()
     total_pct = cgst_pct + sgst_pct
-    taxable = round(sum(c.fees for c in student.courses), 2)
-    gst = round(sum(round(c.fees * total_pct / 100, 2) for c in student.courses if c.gst_applicable), 2)
+    courses = [c for c in student.courses]
+    records = [r for r in student.fee_records]
+    if company is not None:
+        courses = [c for c in courses
+                   if (c.company_id or None) == company.id
+                   or (not c.company_id and bool(c.gst_applicable) == bool(company.is_gst_registered))]
+        records = [r for r in records
+                   if _fee_record_in_company(r, company.id, company.is_gst_registered)]
+    taxable = round(sum(c.fees for c in courses), 2)
+    gst = round(sum(round(c.fees * total_pct / 100, 2) for c in courses if c.gst_applicable), 2)
     due = round(taxable + gst, 2)
-    paid = round(sum(r.amount_paid for r in student.fee_records), 2)
-    concessions = round(sum(r.concession or 0 for r in student.fee_records), 2)
+    paid = round(sum(r.amount_paid for r in records), 2)
+    concessions = round(sum(r.concession or 0 for r in records), 2)
     return due, paid, concessions, round(due - paid - concessions, 2)
 
 
@@ -279,11 +289,15 @@ def list():
         month_q = month_q.filter(FeeRecord.student_id.in_(student_ids))
     kpi_month = round(month_q.with_entities(db.func.sum(FeeRecord.amount_paid)).scalar() or 0.0, 2)
     kpi_due = round(sum(b['total_fee'] for b in student_balances), 2)
+    kpi_cash = round(sum(b['total_paid'] for b in student_balances), 2)
     kpi_settled = round(sum(b['total_paid'] + b['total_concession'] for b in student_balances), 2)
     kpi = {
         'month_collected': kpi_month,
         'outstanding': round(sum(b['balance'] for b in student_balances if b['balance'] > 0), 2),
-        'collection_pct': round(kpi_settled / kpi_due * 100, 1) if kpi_due else 0.0,
+        # W5: the headline rate is cash actually collected; waivers are shown
+        # separately so forgiveness can never masquerade as collection.
+        'collection_pct': round(kpi_cash / kpi_due * 100, 1) if kpi_due else 0.0,
+        'settled_pct': round(kpi_settled / kpi_due * 100, 1) if kpi_due else 0.0,
         'receipts': history_total,
     }
     return render_template(
@@ -336,7 +350,7 @@ def receipt(id):
     else:
         taxable_val = record.taxable_amount or (record.amount_paid / 1.18)
 
-    due_total, paid_total, concessions_total, balance_due = _student_fee_summary(record.student)
+    due_total, paid_total, concessions_total, balance_due = _student_fee_summary(record.student, company)
     course_names = ', '.join(f"{c.name} ({c.code})" for c in record.student.courses) if record.student and record.student.courses else ''
 
     # U8: receipt furniture comes from settings/company, never literals.
