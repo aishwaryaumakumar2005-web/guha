@@ -39,38 +39,49 @@
         <div class="col-md-2 col-6">
             <div class="glass-card p-3 text-center">
                 <div class="text-white-50 small fw-semibold text-uppercase">Total Base</div>
-                <div class="fw-bold fs-5 text-white">₹{{ "{:,.0f}".format(totals.base) }}</div>
+                <div class="fw-bold fs-5 text-white">₹{{ "{:,.2f}".format(totals.base) }}</div>
             </div>
         </div>
         <div class="col-md-2 col-6">
             <div class="glass-card p-3 text-center">
                 <div class="text-white-50 small fw-semibold text-uppercase">Commission</div>
-                <div class="fw-bold fs-5 text-white">₹{{ "{:,.0f}".format(totals.commission) }}</div>
+                <div class="fw-bold fs-5 text-white">₹{{ "{:,.2f}".format(totals.commission) }}</div>
             </div>
         </div>
         <div class="col-md-2 col-6">
             <div class="glass-card p-3 text-center">
                 <div class="text-white-50 small fw-semibold text-uppercase">Bonus</div>
-                <div class="fw-bold fs-5 text-white">₹{{ "{:,.0f}".format(totals.bonus) }}</div>
+                <div class="fw-bold fs-5 text-white">₹{{ "{:,.2f}".format(totals.bonus) }}</div>
             </div>
         </div>
         <div class="col-md-2 col-6">
             <div class="glass-card p-3 text-center">
                 <div class="text-white-50 small fw-semibold text-uppercase">TDS</div>
-                <div class="fw-bold fs-5 text-white">₹{{ "{:,.0f}".format(totals.tds) }}</div>
+                <div class="fw-bold fs-5 text-white">₹{{ "{:,.2f}".format(totals.tds) }}</div>
             </div>
         </div>
         <div class="col-md-2 col-6">
             <div class="glass-card p-3 text-center">
                 <div class="text-white-50 small fw-semibold text-uppercase">Other Ded</div>
-                <div class="fw-bold fs-5 text-white">₹{{ "{:,.0f}".format(totals.other) }}</div>
+                <div class="fw-bold fs-5 text-white">₹{{ "{:,.2f}".format(totals.other) }}</div>
             </div>
         </div>
         <div class="col-md-2 col-6">
             <div class="glass-card p-3 text-center" style="border-left: 4px solid var(--accent-emerald);">
                 <div class="text-white-50 small fw-semibold text-uppercase">Net Payable</div>
-                <div class="fw-bold fs-5" style="color: #1b6ef3;">₹{{ "{:,.0f}".format(totals.net) }}</div>
+                <div class="fw-bold fs-5" style="color: #1b6ef3;">₹{{ "{:,.2f}".format(totals.net) }}</div>
             </div>
+        </div>
+    </div>
+
+    <!-- Net-payable trend (last 24 months) -->
+    <div class="glass-card p-4 mb-4">
+        <div class="d-flex justify-content-between align-items-start mb-3">
+            <h5 class="text-white fw-bold mb-0"><i class="bi bi-graph-up me-2 text-info"></i>Monthly Net Payable</h5>
+            <span class="text-white-50 small">Last 24 months</span>
+        </div>
+        <div style="height: 240px;">
+            <canvas id="payrollTrendChart" aria-label="Monthly net payable trend over the last 24 months"></canvas>
         </div>
     </div>
 
@@ -111,6 +122,15 @@
         </form>
     </div>
 
+    <!-- Status summary chips -->
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <span class="text-white-50 small me-1">Records:</span>
+        <a href="{{ url_for('payroll.payroll_list', month=filter_month, year=filter_year) }}" class="badge text-decoration-none {{ 'badge-inactive' if not filter_status else 'badge-inactive' }}" style="{{ 'outline:2px solid #fff;' if not filter_status }}">All {{ status_counts.Draft + status_counts.Paid + status_counts.Cancelled }}</a>
+        <a href="{{ url_for('payroll.payroll_list', month=filter_month, year=filter_year, status='Draft') }}" class="badge text-decoration-none badge-cyan" style="{{ 'outline:2px solid #fff;' if filter_status == 'Draft' }}">Draft {{ status_counts.Draft }}</a>
+        <a href="{{ url_for('payroll.payroll_list', month=filter_month, year=filter_year, status='Paid') }}" class="badge text-decoration-none badge-active" style="{{ 'outline:2px solid #fff;' if filter_status == 'Paid' }}">Paid {{ status_counts.Paid }}</a>
+        <a href="{{ url_for('payroll.payroll_list', month=filter_month, year=filter_year, status='Cancelled') }}" class="badge text-decoration-none badge-danger" style="{{ 'outline:2px solid #fff;' if filter_status == 'Cancelled' }}">Cancelled {{ status_counts.Cancelled }}</a>
+    </div>
+
     {% if missing_tutors %}
     <div class="alert alert-warning d-flex align-items-center mb-4" style="background:rgba(224,168,0,0.12);border:1px solid rgba(224,168,0,0.35);">
         <i class="bi bi-exclamation-triangle-fill me-2" style="color:#e0a800;"></i>
@@ -125,7 +145,7 @@
 
     <!-- Payroll Table -->
     <div class="glass-card p-0 overflow-hidden">
-        <table class="table table-dark table-hover mb-0">
+        <table class="table table-custom sortable table-dark table-hover mb-0" data-page-size="10" data-export-url="{{ url_for('payroll.export_payroll', month=filter_month, year=filter_year, status=filter_status) }}">
             <thead>
                 <tr>
                     <th>Tutor</th>
@@ -137,6 +157,7 @@
                     <th class="text-end">Other Ded</th>
                     <th class="text-end">Net</th>
                     <th>Payment Mode</th>
+                    <th>Paid Date</th>
                     <th>Status</th>
                     <th class="text-center">Actions</th>
                 </tr>
@@ -145,16 +166,27 @@
                 {% if records %}
                 {% for r in records %}
                 {% set gross = r.base_amount + r.commission_amount + r.bonus_amount %}
+                {% set month_label = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][r.month-1] %}
                 <tr>
-                    <td><a href="{{ url_for('tutors.list') }}" class="text-info text-decoration-none">{{ r.tutor.name }}</a>{% if r.notes %}<i class="bi bi-sticky-fill ms-1 text-white-50" title="{{ r.notes }}" data-bs-toggle="tooltip"></i>{% endif %}</td>
-                    <td class="text-end text-white">₹{{ "{:,.0f}".format(r.base_amount) }}</td>
-                    <td class="text-end text-white">₹{{ "{:,.0f}".format(r.commission_amount) }}</td>
-                    <td class="text-end text-white">₹{{ "{:,.0f}".format(r.bonus_amount) }}</td>
-                    <td class="text-end text-white">₹{{ "{:,.0f}".format(gross) }}</td>
-                    <td class="text-end text-danger">-₹{{ "{:,.0f}".format(r.tds_amount) }}</td>
-                    <td class="text-end text-danger">-₹{{ "{:,.0f}".format(r.other_deductions) }}</td>
-                    <td class="text-end fw-bold" style="color: #1b6ef3;">₹{{ "{:,.0f}".format(r.net_amount) }}</td>
+                    <td>
+                        <div class="fw-medium text-white">{{ r.tutor.name }}{% if r.notes %}<i class="bi bi-sticky-fill ms-1 text-white-50" title="{{ r.notes }}" data-bs-toggle="tooltip"></i>{% endif %}</div>
+                        <div class="small text-white-50">{{ month_label }} {{ r.year }} &middot; YTD ₹{{ "{:,.2f}".format(ytd_nets.get(r.tutor_id, 0)) }}</div>
+                    </td>
+                    <td class="text-end text-white">₹{{ "{:,.2f}".format(r.base_amount) }}</td>
+                    <td class="text-end text-white">₹{{ "{:,.2f}".format(r.commission_amount) }}</td>
+                    <td class="text-end text-white">₹{{ "{:,.2f}".format(r.bonus_amount) }}</td>
+                    <td class="text-end text-white">₹{{ "{:,.2f}".format(gross) }}</td>
+                    <td class="text-end text-danger">-₹{{ "{:,.2f}".format(r.tds_amount) }}</td>
+                    <td class="text-end text-danger">-₹{{ "{:,.2f}".format(r.other_deductions) }}</td>
+                    <td class="text-end fw-bold">
+                        {% if r.net_amount <= 0 %}
+                        <span class="status-cancelled" title="Nothing payable for this period"><i class="bi bi-exclamation-triangle-fill me-1"></i>₹{{ "{:,.2f}".format(r.net_amount) }}</span>
+                        {% else %}
+                        <span style="color: #1b6ef3;">₹{{ "{:,.2f}".format(r.net_amount) }}</span>
+                        {% endif %}
+                    </td>
                     <td><span class="badge badge-custom badge-cyan">{{ r.payment_method or 'Cash' }}</span></td>
+                    <td class="text-white-50">{{ r.paid_date.strftime('%d %b %Y') if r.paid_date else '—' }}</td>
                     <td>
                         {% if r.status == 'Draft' %}<span class="status-draft fw-semibold">Draft</span>
                         {% elif r.status == 'Paid' %}<span class="status-paid fw-semibold">Paid</span>
@@ -168,25 +200,18 @@
                             <a href="{{ url_for('payroll.payslip_pdf', id=r.id) }}" class="btn btn-outline-info" title="Download Payslip" hx-boost="false" data-no-ajax><i class="bi bi-file-pdf"></i></a>
                             {% if r.status == 'Draft' %}
                             <button class="btn btn-outline-success" title="Confirm & Record Expense" data-bs-toggle="modal" data-bs-target="#confirmModal" data-confirm-id="{{ r.id }}" data-confirm-url="{{ url_for('payroll.confirm_payroll', id=r.id) }}"><i class="bi bi-check-lg"></i></button>
-                            <form method="POST" action="{{ url_for('payroll.recalc_payroll', id=r.id) }}" class="d-inline" onsubmit="return confirm('Recalculate {{ r.tutor.name }}\'s draft from the latest fees and settings?');">
-                                <button type="submit" class="btn btn-outline-secondary" title="Recalculate Draft"><i class="bi bi-arrow-repeat"></i></button>
-                            </form>
-                            <form method="POST" action="{{ url_for('payroll.cancel_payroll', id=r.id) }}" class="d-inline" onsubmit="return confirm('Cancel this payroll record?');">
-                                <button type="submit" class="btn btn-outline-danger" title="Cancel"><i class="bi bi-x-lg"></i></button>
-                            </form>
+                            <button type="button" class="btn btn-outline-secondary" title="Recalculate Draft" data-action-url="{{ url_for('payroll.recalc_payroll', id=r.id) }}" data-action-msg="Recalculate {{ r.tutor.name }}'s draft for {{ month_label }} {{ r.year }} from the latest fees and settings?"><i class="bi bi-arrow-repeat"></i></button>
+                            <button type="button" class="btn btn-outline-danger" title="Cancel" data-action-url="{{ url_for('payroll.cancel_payroll', id=r.id) }}" data-action-msg="Cancel this payroll record for {{ r.tutor.name }} ({{ month_label }} {{ r.year }})?"><i class="bi bi-x-lg"></i></button>
                             {% endif %}
-                            <form method="POST" action="{{ url_for('payroll.delete_payroll', id=r.id) }}" class="d-inline" onsubmit="return confirm('Delete this payroll record for {{ r.tutor.name }}?{% if r.status == 'Paid' %} The recorded salary expense will also be removed.{% endif %}');">
-                                {% if r.status == 'Paid' %}<input type="hidden" name="confirm" value="1">{% endif %}
-                                <button type="submit" class="btn btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
-                            </form>
+                            <button type="button" class="btn btn-outline-danger" title="Delete" data-action-url="{{ url_for('payroll.delete_payroll', id=r.id) }}" data-action-msg="Delete this payroll record for {{ r.tutor.name }} ({{ month_label }} {{ r.year }})?{% if r.status == 'Paid' %} The recorded salary expense will also be removed.{% endif %}" {% if r.status == 'Paid' %}data-action-confirm="1"{% endif %}><i class="bi bi-trash"></i></button>
                             <button class="btn btn-outline-secondary" title="Notes" data-bs-toggle="modal" data-bs-target="#notesModal" data-notes-id="{{ r.id }}" data-notes-url="{{ url_for('payroll.update_notes', id=r.id) }}"><i class="bi bi-sticky"></i></button>
-                            <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#settingsModal{{ r.tutor_id }}" title="Settings"><i class="bi bi-gear"></i></button>
+                            <button class="btn btn-outline-secondary" title="Payroll Settings" data-bs-toggle="modal" data-bs-target="#settingsModal" data-settings-key="{{ r.tutor_id }}"><i class="bi bi-gear"></i></button>
                         </div>
                     </td>
                 </tr>
                 {% endfor %}
                 {% else %}
-                {{ empty_state('No payroll records for this period', 'Click "Process Payroll" above to generate payroll for the selected period', 'payroll', none, none, none, 11) }}
+                {{ empty_state('No payroll records for this period', 'Click "Process Payroll" above to generate payroll for the selected period', 'payroll', none, none, none, 12) }}
                 {% endif %}
             </tbody>
         </table>
@@ -208,7 +233,7 @@
                         <select name="tutor_id" class="form-select" required autofocus>
                             <option value="">-- Select Tutor --</option>
                             {% for t in tutors %}
-                            <option value="{{ t.id }}">{{ t.name }}{% if t.payroll_settings %} (Base: ₹{{ "{:,.0f}".format(t.payroll_settings.base_salary) }}){% endif %}</option>
+                            <option value="{{ t.id }}">{{ t.name }}{% if t.payroll_settings %} (Base: ₹{{ "{:,.2f}".format(t.payroll_settings.base_salary) }}){% endif %}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -261,10 +286,13 @@
             <form method="POST" action="{{ url_for('payroll.process_all_payroll') }}" hx-boost="false" data-no-ajax>
                 <div class="modal-body">
                     <p class="text-white-50 small">This will create Draft payroll records for all active tutors for the selected period. Existing records will be skipped.</p>
+                    <div class="alert alert-warning d-flex align-items-center py-2 small mb-3" style="background:rgba(224,168,0,0.10);border:1px solid rgba(224,168,0,0.30);" id="processAll-existing-wrap">
+                        <i class="bi bi-info-circle me-2" style="color:#e0a800;"></i><span id="processAll-existing"></span>
+                    </div>
                     <div class="row">
                         <div class="col-6 mb-3">
                             <label class="form-label text-white small">Month</label>
-                            <select name="month" class="form-select" required autofocus>
+                            <select name="month" id="processAll-month" class="form-select" required autofocus>
                                 {% for m in range(1, 13) %}
                                 <option value="{{ m }}" {% if filter_month == m %}selected{% endif %}>{{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m-1] }}</option>
                                 {% endfor %}
@@ -272,7 +300,7 @@
                         </div>
                         <div class="col-6 mb-3">
                             <label class="form-label text-white small">Year</label>
-                            <select name="year" class="form-select" required>
+                            <select name="year" id="processAll-year" class="form-select" required>
                                 {% for y in range(today.year - 2, today.year + 2) %}
                                 <option value="{{ y }}" {% if filter_year == y %}selected{% endif %}>{{ y }}</option>
                                 {% endfor %}
@@ -341,10 +369,13 @@
             <form method="POST" action="{{ url_for('payroll.confirm_all_payroll') }}" hx-boost="false" data-no-ajax>
                 <div class="modal-body">
                     <p class="text-white-50 small">Confirms every Draft record for the selected period, booking a salary expense for each. Records with a negative net or insufficient account balance are skipped.</p>
+                    <div class="alert alert-info d-flex align-items-center py-2 small mb-3" style="background:rgba(27,110,243,0.10);border:1px solid rgba(27,110,243,0.35);" id="confirmAll-existing-wrap">
+                        <i class="bi bi-info-circle me-2" style="color:#1b6ef3;"></i><span id="confirmAll-existing"></span>
+                    </div>
                     <div class="row">
                         <div class="col-6 mb-3">
                             <label class="form-label text-white small">Month</label>
-                            <select name="month" class="form-select" required>
+                            <select name="month" id="confirmAll-month" class="form-select" required>
                                 {% for m in range(1, 13) %}
                                 <option value="{{ m }}" {% if filter_month == m %}selected{% endif %}>{{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m-1] }}</option>
                                 {% endfor %}
@@ -352,7 +383,7 @@
                         </div>
                         <div class="col-6 mb-3">
                             <label class="form-label text-white small">Year</label>
-                            <select name="year" class="form-select" required>
+                            <select name="year" id="confirmAll-year" class="form-select" required>
                                 {% for y in range(today.year - 2, today.year + 2) %}
                                 <option value="{{ y }}" {% if filter_year == y %}selected{% endif %}>{{ y }}</option>
                                 {% endfor %}
@@ -451,55 +482,55 @@
     </div>
 </div>
 
-<!-- Settings Modals per Tutor -->
-{% for t in tutors %}
-<div class="modal fade" id="settingsModal{{ t.id }}" tabindex="-1">
+<!-- Shared Payroll Settings Modal (JS-fed per tutor) -->
+<div class="modal fade" id="settingsModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title text-white"><i class="bi bi-gear me-2"></i>Payroll Settings: {{ t.name }}</h5>
+                <h5 class="modal-title text-white"><i class="bi bi-gear me-2"></i>Payroll Settings</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" action="{{ url_for('payroll.update_settings', tutor_id=t.id) }}">
+            <form method="POST" id="settingsForm" action="" hx-boost="false" data-no-ajax>
                 <div class="modal-body">
+                    <p class="text-white-50 small mb-3" id="settingsInfo"></p>
                     <div class="row">
                         <div class="col-6 mb-3">
                             <label class="form-label text-white small">Base Salary (Monthly) <span class="text-danger">*</span></label>
-                            <input type="number" step="0.01" class="form-control" name="base_salary" value="{{ t.payroll_settings.base_salary if t.payroll_settings else 0 }}" min="0" required autofocus>
+                            <input type="number" step="0.01" class="form-control" name="base_salary" id="setting-base" min="0" required autofocus>
                         </div>
                         <div class="col-6 mb-3">
                             <label class="form-label text-white small">Commission %</label>
-                            <input type="number" step="0.1" class="form-control" name="commission_percentage" value="{{ t.payroll_settings.commission_percentage if t.payroll_settings else 0 }}" min="0" max="100">
+                            <input type="number" step="0.1" class="form-control" name="commission_percentage" id="setting-commission" min="0" max="100">
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-6 mb-3">
                             <label class="form-label text-white small">TDS %</label>
-                            <input type="number" step="0.1" class="form-control" name="tds_percentage" value="{{ t.payroll_settings.tds_percentage if t.payroll_settings else 10 }}" min="0" max="100">
+                            <input type="number" step="0.1" class="form-control" name="tds_percentage" id="setting-tds" min="0" max="100">
                         </div>
                         <div class="col-6 mb-3">
                             <label class="form-label text-white small">Bonus</label>
-                            <input type="number" step="0.01" class="form-control" name="bonus" value="{{ t.payroll_settings.bonus if t.payroll_settings else 0 }}">
+                            <input type="number" step="0.01" class="form-control" name="bonus" id="setting-bonus">
                         </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">Other Deductions</label>
-                        <input type="number" step="0.01" class="form-control" name="other_deductions" value="{{ t.payroll_settings.other_deductions if t.payroll_settings else 0 }}">
+                        <input type="number" step="0.01" class="form-control" name="other_deductions" id="setting-deductions">
                     </div>
                     <hr class="border-secondary">
                     <h6 class="text-white small fw-semibold mb-2">Bank Details (for payslip)</h6>
                     <div class="row">
                         <div class="col-12 mb-2">
                             <label class="form-label text-white small">Bank Name</label>
-                            <input type="text" class="form-control" name="bank_name" value="{{ t.payroll_settings.bank_name if t.payroll_settings else '' }}">
+                            <input type="text" class="form-control" name="bank_name" id="setting-bank">
                         </div>
                         <div class="col-6 mb-2">
                             <label class="form-label text-white small">Account Number</label>
-                            <input type="text" class="form-control" name="account_number" value="{{ t.payroll_settings.account_number if t.payroll_settings else '' }}">
+                            <input type="text" class="form-control" name="account_number" id="setting-account">
                         </div>
                         <div class="col-6 mb-2">
                             <label class="form-label text-white small">IFSC Code</label>
-                            <input type="text" class="form-control" name="ifsc_code" value="{{ t.payroll_settings.ifsc_code if t.payroll_settings else '' }}">
+                            <input type="text" class="form-control" name="ifsc_code" id="setting-ifsc">
                         </div>
                     </div>
                 </div>
@@ -511,7 +542,28 @@
         </div>
     </div>
 </div>
-{% endfor %}
+
+<!-- Action Confirm Modal (replaces native confirm(); POSTs recalc/cancel/delete) -->
+<div class="modal fade" id="actionConfirmModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-white"><i class="bi bi-exclamation-triangle me-2 text-warning"></i>Please confirm</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="actionConfirmForm" action="" hx-boost="false" data-no-ajax>
+                <div class="modal-body">
+                    <p class="text-white-50 small mb-0" id="actionConfirmMsg"></p>
+                    <input type="hidden" name="confirm" value="1">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-premium" id="actionConfirmDone">Yes, continue</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -519,6 +571,10 @@
     var balances = {{ account_balances|tojson }};
     var recs = {{ record_meta|tojson }};
     var brk = {{ breakdowns|tojson }};
+    var settings = {{ settings_js|tojson }};
+    var periodCounts = {{ period_counts|tojson }};
+    var activeTutors = {{ active_tutor_count }};
+    var settingsUrl = "{{ url_for('payroll.update_settings', tutor_id=0) }}".replace(/\/0$/, '/');
     var map = {};
     balances.forEach(function (a) { map[a.name] = a.balance; });
     function fmt(v) { var s = v < 0 ? '-' : ''; return s + '₹' + Math.abs(v).toFixed(2); }
@@ -570,6 +626,79 @@
         document.getElementById('notesInfo').textContent = r.name + ' — period ' + r.period;
         document.getElementById('notes-text').value = r.notes || '';
     });
+
+    bind('[data-settings-key]', function (btn) {
+        var s = settings[btn.getAttribute('data-settings-key')];
+        if (!s) return;
+        document.getElementById('settingsForm').action = settingsUrl + btn.getAttribute('data-settings-key');
+        document.getElementById('settingsInfo').textContent = 'Configure payroll settings for ' + s.name + '.';
+        document.getElementById('setting-base').value = s.base_salary;
+        document.getElementById('setting-commission').value = s.commission_percentage;
+        document.getElementById('setting-tds').value = s.tds_percentage;
+        document.getElementById('setting-bonus').value = s.bonus;
+        document.getElementById('setting-deductions').value = s.other_deductions;
+        document.getElementById('setting-bank').value = s.bank_name || '';
+        document.getElementById('setting-account').value = s.account_number || '';
+        document.getElementById('setting-ifsc').value = s.ifsc_code || '';
+    });
+
+    bind('[data-action-url]', function (btn) {
+        document.getElementById('actionConfirmForm').action = btn.getAttribute('data-action-url');
+        document.getElementById('actionConfirmMsg').textContent =
+            btn.getAttribute('data-action-msg') || 'Are you sure you want to continue?';
+        new bootstrap.Modal(document.getElementById('actionConfirmModal')).show();
+    });
+
+    function bindPeriodHint(monthSelId, yearSelId, hintId) {
+        var monthSel = document.getElementById(monthSelId);
+        var yearSel = document.getElementById(yearSelId);
+        var hint = document.getElementById(hintId);
+        if (!monthSel || !yearSel || !hint) return;
+        function update() {
+            var n = periodCounts[yearSel.value + '-' + monthSel.value] || 0;
+            var left = activeTutors - n;
+            if (n === 0) {
+                hint.textContent = 'No existing records for this period — all ' + activeTutors + ' active tutor(s) can be processed.';
+            } else if (left > 0) {
+                hint.textContent = n + ' of ' + activeTutors + ' active tutor(s) already have a record for this period — they will be skipped.';
+            } else {
+                hint.textContent = 'All ' + activeTutors + ' active tutor(s) already have a record for this period — nothing new will be created.';
+            }
+        }
+        monthSel.addEventListener('change', update);
+        yearSel.addEventListener('change', update);
+        update();
+    }
+    bindPeriodHint('processAll-month', 'processAll-year', 'processAll-existing');
+    bindPeriodHint('confirmAll-month', 'confirmAll-year', 'confirmAll-existing');
+
+    if (window.Chart) {
+        var trendEl = document.getElementById('payrollTrendChart');
+        if (trendEl) {
+            var trend = {{ trend|tojson }};
+            new Chart(trendEl, {
+                type: 'line',
+                data: {
+                    labels: trend.map(function (t) { return t.label; }),
+                    datasets: [{
+                        label: 'Net Payable (₹)',
+                        data: trend.map(function (t) { return t.value; }),
+                        borderColor: 'rgba(27,110,243,1)',
+                        backgroundColor: 'rgba(27,110,243,0.12)',
+                        fill: true, tension: 0.3, borderWidth: 2, pointRadius: 2
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#ffffff', boxWidth: 12, font: { size: 11 } } } },
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#ffffff', maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
+                        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#ffffff' } }
+                    }
+                }
+            });
+        }
+    }
 
     bind('[data-breakdown-id]', function (btn) {
         var rows = brk[btn.getAttribute('data-breakdown-id')] || [];

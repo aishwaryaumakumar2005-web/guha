@@ -176,6 +176,7 @@ def payroll_list():
     filter_month = request.args.get('month', type=int) or date.today().month
     filter_year = request.args.get('year', type=int) or date.today().year
     filter_status = request.args.get('status', '')
+    today = date.today()
     records = PayrollRecord.query.filter_by(month=filter_month, year=filter_year)
     if filter_status:
         records = records.filter_by(status=filter_status)
@@ -204,10 +205,53 @@ def payroll_list():
         'other': sum(r.other_deductions for r in active_records),
         'net': sum(r.net_amount for r in active_records),
     }
+    # UI/UX: post-'All' status counts (period-wide, pre-filter), per-tutor YTD
+    # net for the filtered year, per-period existing-record counts, and the
+    # 24-month net-payable trend for the summary chart.
+    status_counts = {s: 0 for s in ('Draft', 'Paid', 'Cancelled')}
+    for r in PayrollRecord.query.filter_by(month=filter_month, year=filter_year).all():
+        if r.status in status_counts:
+            status_counts[r.status] += 1
+    ytd_records = PayrollRecord.query.filter(PayrollRecord.year == filter_year,
+        PayrollRecord.status != 'Cancelled').all()
+    ytd_nets = {}
+    for r in ytd_records:
+        ytd_nets[r.tutor_id] = ytd_nets.get(r.tutor_id, 0.0) + r.net_amount
+    period_counts = {
+        f"{y}-{m}": c for y, m, c in
+        db.session.query(PayrollRecord.year, PayrollRecord.month,
+                         db.func.count(db.func.distinct(PayrollRecord.tutor_id)))
+        .group_by(PayrollRecord.year, PayrollRecord.month).all()}
+    active_tutor_count = Tutor.query.filter_by(status='Active').count()
+    trend = []
+    for offset in range(23, -1, -1):
+        total = today.year * 12 + (today.month - 1) - offset
+        trend_year, trend_month = divmod(total, 12)
+        trend_month += 1
+        aggregated = db.session.query(db.func.coalesce(db.func.sum(PayrollRecord.net_amount), 0.0)) \
+            .filter(PayrollRecord.month == trend_month, PayrollRecord.year == trend_year,
+                    PayrollRecord.status != 'Cancelled').scalar()
+        trend.append({'label': f"{['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][trend_month-1]} {str(trend_year)[2:]}",
+                      'value': round(aggregated or 0.0, 2)})
+    settings_js = {
+        t.id: {
+            'name': t.name,
+            'base_salary': (t.payroll_settings.base_salary if t.payroll_settings else 0) or 0,
+            'commission_percentage': (t.payroll_settings.commission_percentage if t.payroll_settings else 0) or 0,
+            'tds_percentage': (t.payroll_settings.tds_percentage if t.payroll_settings else 10) or 10,
+            'bonus': (t.payroll_settings.bonus if t.payroll_settings else 0) or 0,
+            'other_deductions': (t.payroll_settings.other_deductions if t.payroll_settings else 0) or 0,
+            'bank_name': (t.payroll_settings.bank_name if t.payroll_settings else '') or '',
+            'account_number': (t.payroll_settings.account_number if t.payroll_settings else '') or '',
+            'ifsc_code': (t.payroll_settings.ifsc_code if t.payroll_settings else '') or '',
+        } for t in tutors
+    }
     return render_template('payroll.html', records=records, tutors=tutors,
         filter_month=filter_month, filter_year=filter_year, filter_status=filter_status,
         totals=totals, today=date.today(), account_balances=compute_account_summary(),
-        breakdowns=breakdowns, missing_tutors=missing_tutors, record_meta=record_meta)
+        breakdowns=breakdowns, missing_tutors=missing_tutors, record_meta=record_meta,
+        status_counts=status_counts, ytd_nets=ytd_nets, period_counts=period_counts,
+        active_tutor_count=active_tutor_count, trend=trend, settings_js=settings_js)
 
 @payroll_bp.route('/payroll/process', methods=['POST'])
 @login_required
