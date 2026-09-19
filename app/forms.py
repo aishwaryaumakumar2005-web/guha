@@ -209,6 +209,7 @@ class ExpenseForm(Form):
     date = ['expense_date']
     choices = {'payment_method': list(PAYMENT_METHODS)}
     min_values = {'amount': 0.01, 'category_id': 1}
+    max_values = {'amount': 999999}
 
     def validate(self):
         super().validate()

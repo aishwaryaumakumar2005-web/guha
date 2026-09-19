@@ -152,6 +152,27 @@ def test_expense_invalid_method_rejected(admin_client, app):
         assert Expense.query.count() == 0
 
 
+def test_expense_amount_over_ceiling_rejected(admin_client, app):
+    with app.app_context():
+        cat = ExpenseCategory.query.first().id
+    resp = admin_client.post('/expenses', data={
+        'category_id': str(cat), 'amount': '1000000',
+        'description': 'over ceiling',
+        'expense_date': date.today().isoformat(),
+        'payment_method': 'Cash',
+    }, headers=AJAX)
+    assert resp.status_code == 400
+    with app.app_context():
+        assert Expense.query.count() == 0
+
+
+def test_expense_month_filter_keeps_selection(admin_client, app):
+    month = date.today().month
+    year = date.today().year
+    html = admin_client.get(f'/expenses?month={month}&year={year}').data.decode()
+    assert f'<option value="{month}" selected>' in html
+
+
 def test_expense_delete_post_only(admin_client, app):
     with app.app_context():
         cat = ExpenseCategory.query.first().id

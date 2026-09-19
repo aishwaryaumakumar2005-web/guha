@@ -103,7 +103,7 @@ def list():
         flash(message, "success")
         return redirect(url_for('expenses.list'))
     filter_category = request.args.get('category_id', type=int)
-    filter_month = request.args.get('month')
+    filter_month = request.args.get('month', type=int)
     filter_year = request.args.get('year', type=int)
     query = Expense.query.options(joinedload(Expense.category), joinedload(Expense.creator))
     if filter_category:
