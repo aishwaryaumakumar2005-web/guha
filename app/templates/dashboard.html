@@ -8,8 +8,8 @@
                 <span class="badge badge-custom badge-cyan"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>{{ today.strftime("%d %b %Y") }}</span>
                 <span class="badge badge-custom badge-amber"><i class="bi bi-calendar2-check me-1" aria-hidden="true"></i>{{ today_attendance }} attendance logged today</span>
                 {% if current_user.role == 'Admin' %}
-                <span class="badge badge-custom badge-active"><i class="bi bi-currency-rupee me-1" aria-hidden="true"></i>₹{{ "{:,.0f}".format(today_fees) }} collected today</span>
-                <span class="badge badge-custom badge-active"><i class="bi bi-graph-up-arrow me-1" aria-hidden="true"></i>₹{{ "{:,.0f}".format(stats.monthly_fees_collected) }} this month</span>
+                <span class="badge badge-custom badge-active"><i class="bi bi-currency-rupee me-1" aria-hidden="true"></i>₹{{ "{:,.0f}".format(today_fees) }} collected today <span style="opacity:0.6;">(incl. GST)</span></span>
+                <span class="badge badge-custom badge-active"><i class="bi bi-graph-up-arrow me-1" aria-hidden="true"></i>₹{{ "{:,.0f}".format(stats.monthly_fees_collected) }} this month <span style="opacity:0.6;">(incl. GST)</span></span>
                 <span class="badge badge-custom badge-amber"><i class="bi bi-funnel me-1" aria-hidden="true"></i>{{ stats.unresolved_enquiries }} unresolved enquiries</span>
                 {% endif %}
             </div>
@@ -66,7 +66,7 @@
         <div class="bento-card bento-xl-{{ 4 if current_user.role != 'Admin' else 3 }} bento-md-6 animate-on-scroll stagger-4">
             <div class="summary-card staff">
                 <div><div class="stat-number">{{ ('%d%%' % stats.avg_student_attendance) if stats.avg_student_attendance is not none else '—' }}</div><div class="stat-label">Attendance</div></div>
-                <div class="stat-sub">Last 14 days</div>
+                <div class="stat-sub">{% if current_user.role == 'Admin' %}Last 14 days{% else %}My students &middot; last 14 days{% endif %}</div>
                 <i class="bi bi-calendar-check stat-icon" aria-hidden="true"></i>
             </div>
         </div>
@@ -81,29 +81,40 @@
                 </div>
                 <div class="d-flex align-items-baseline gap-2 mb-1">
                     <span class="fw-bold text-white fs-4">₹{{ "{:,.0f}".format(total_outstanding) }}</span>
-                    <span class="small text-white-50">total due</span>
+                    <span class="small text-white-50">total due &middot; incl. GST</span>
                 </div>
-                <div class="small text-white-50 mb-3" style="opacity:0.7;">{{ due_students|length }} active student{{ 's' if due_students|length != 1 else '' }} with pending dues</div>
+                <div class="small text-white-50" style="opacity:0.7;">{{ due_students|length }} active student{{ 's' if due_students|length != 1 else '' }} with pending dues</div>
                 {% if due_students %}
+                    <div class="d-flex flex-wrap gap-2 small mb-3">
+                        {% if dues_ageing.over_90 > 0 %}<span style="color:hsl(0,100%,60%);">₹{{ "{:,.0f}".format(dues_ageing.over_90) }} &gt;90d</span>{% endif %}
+                        {% if dues_ageing.over_30 > 0 %}<span style="color:hsl(40,100%,60%);">₹{{ "{:,.0f}".format(dues_ageing.over_30) }} 31&ndash;90d</span>{% endif %}
+                        {% if dues_ageing.recent > 0 %}<span style="color:rgba(255,255,255,0.45);">₹{{ "{:,.0f}".format(dues_ageing.recent) }} 0&ndash;30d</span>{% endif %}
+                    </div>
                     <div class="d-flex flex-column gap-2">
                         {% for d in due_students[:5] %}
-                            <div class="d-flex align-items-center gap-3 p-2 rounded" style="background:rgba(255,255,255,0.03);">
+                            {% set days = d.days_due or 0 %}
+                            {% set age_color = 'hsl(0,100%,60%)' if days > 90 else ('hsl(40,100%,55%)' if days > 30 else 'rgba(255,255,255,0.4)') %}
+                            <a href="{{ url_for('fees.list', student_id=d.id) }}" class="d-flex align-items-center gap-3 p-2 rounded text-decoration-none" style="background:rgba(255,255,255,0.03);">
                                 <div class="rounded d-flex align-items-center justify-content-center flex-shrink-0" style="width:32px;height:32px;background:rgba(255,51,102,0.12);color:hsl(0,100%,65%);"><i class="bi bi-person" aria-hidden="true"></i></div>
                                 <div class="flex-grow-1 min-width-0">
                                     <div class="fw-semibold small text-white text-truncate">{{ d.name }}</div>
-                                    <div class="text-white small" style="opacity:0.45;font-size:0.7rem;">{{ d.roll_no or '—' }}</div>
+                                    <div class="text-white small" style="opacity:0.45;font-size:0.7rem;">{{ d.roll_no or '—' }}{% if days %}<span class="ms-1" title="Due since enrollment" style="color:{{ age_color }};">{{ days }}d overdue</span>{% endif %}</div>
                                 </div>
-                                <div class="small fw-bold" style="color:hsl(0,100%,65%);">₹{{ "{:,.0f}".format(d.balance) }}</div>
-                            </div>
+                                <div class="small fw-bold" style="color:hsl(0,100%,65%);">₹{{ "{:,.2f}".format(d.balance) }}</div>
+                            </a>
                         {% endfor %}
                     </div>
+                    {% if due_students|length > 5 %}
+                        <div class="mt-2 text-center">
+                            <a href="{{ url_for('fees.list') }}" class="small text-decoration-none" style="color:hsla(200,100%,65%,0.85);">+{{ due_students|length - 5 }} more with dues</a>
+                        </div>
+                    {% endif %}
                 {% else %}
                     <div class="text-center py-3">
-<i class="bi bi-emoji-smile fs-3 d-block mb-1" style="color:hsl(150,100%,45%);" aria-hidden="true"></i>
+                        <i class="bi bi-emoji-smile fs-3 d-block mb-1" style="color:hsl(150,100%,45%);" aria-hidden="true"></i>
                         <p class="small text-white-50 mb-0">All active students are up to date on fees.</p>
                     </div>
                 {% endif %}
-            </div>
         </div>
 
         <!-- Course Capacity Utilisation -->
@@ -246,11 +257,11 @@
         </div>
 
 
-        <!-- Recent Enrollments + Top Courses -->
+        <!-- Recent Payments + Top Courses -->
         <div class="bento-card bento-xl-7 bento-md-12 animate-on-scroll">
             <div class="glass-card p-4 h-100">
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h5 class="mb-0 fw-bold"><i class="bi bi-journal-text me-2" style="color:hsl(200,100%,50%);"></i>Recent Enrollments</h5>
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-journal-text me-2" style="color:hsl(200,100%,50%);"></i>Recent Payments</h5>
                     <a href="{{ url_for('fees.list') }}" class="btn btn-sm" style="background:transparent;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);border-radius:8px;padding:4px 14px;font-size:0.8rem;">View All</a>
                 </div>
                 <div class="table-container">
@@ -267,7 +278,7 @@
                                     </tr>
                                 {% endfor %}
                             {% else %}
-                                <tr>{{ empty_state('No recent enrollments', 'Fee payments will appear here once students enroll', 'fees', none, none, none, 4) }}</tr>
+                                <tr>{{ empty_state('No recent payments', 'Fee payments will appear here once a collection is recorded', 'fees', none, none, none, 4) }}</tr>
                             {% endif %}
                         </tbody>
                     </table>

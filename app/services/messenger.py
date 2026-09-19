@@ -218,16 +218,31 @@ class Messenger:
         return self._send_sms_direct(phone, text)
 
     def batch_fee_reminders(self):
-        from app.models import Student, FeeRecord
-        from app.services.account_service import agreed_enrollment_items, student_refunded_total
+        from app.models import Student
+        from app.helpers import get_gst_rates
+        from app.services.account_service import (
+            agreed_enrollment_items, student_refunded_total)
+        cgst_pct, sgst_pct = get_gst_rates()
+        total_pct = cgst_pct + sgst_pct
         recipients = []
+        today = date.today()
         for s in Student.query.filter_by(status='Active').all():
-            total_fee = sum(it['fee'] for it in agreed_enrollment_items(s.id))
-            total_paid = sum(r.amount_paid for r in s.fee_records)
-            balance = total_fee - total_paid + student_refunded_total(s.id)
-            balance = total_fee - total_paid
-            if balance > 0 and s.phone:
-                recipients.append((s.name, s.phone, {'amount': balance, 'due_date': date.today().strftime('%d %b %Y')}))
+            if not s.phone:
+                continue
+            # Same dues math as the fees matrix / notifier: GST-inclusive due
+            # minus payments minus concessions, plus any refunds.
+            items = agreed_enrollment_items(s.id)
+            total_taxable = round(sum(it['fee'] for it in items), 2)
+            gst_amount = round(sum(
+                round(it['fee'] * total_pct / 100, 2)
+                for it in items if it['gst_applicable']
+            ), 2)
+            total_fee = round(total_taxable + gst_amount, 2)
+            total_paid = round(sum(r.amount_paid for r in s.fee_records), 2)
+            total_concession = round(sum(r.concession or 0 for r in s.fee_records), 2)
+            balance = round(total_fee - total_paid - total_concession + student_refunded_total(s.id), 2)
+            if balance > 0:
+                recipients.append((s.name, s.phone, {'amount': balance, 'due_date': today.strftime('%d %b %Y')}))
         if not recipients:
             return {'sent': 0, 'failed': 0, 'errors': ['No students with outstanding balance']}
         return self.send_bulk(recipients, 'fee_reminder')

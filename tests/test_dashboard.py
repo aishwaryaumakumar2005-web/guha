@@ -129,7 +129,7 @@ def test_fee_dues_match_expected_balances(app):
         inactive.courses.append(course)
         db.session.add(inactive)
         db.session.commit()
-        dues, total = _fee_dues()
+        dues, total, ageing = _fee_dues()
         # PY is GST-applicable: due is 5000 + 18% GST = 5900 per student.
         assert total == 4800.0
         assert len(dues) == 2
@@ -261,7 +261,7 @@ def test_dashboard_paid_in_full_and_credit_not_due(app):
         db.session.add(FeeRecord(student_id=credit.id, amount_paid=6000.0,
                                  payment_date=date.today()))
         db.session.commit()
-        dues, total = _fee_dues()
+        dues, total, ageing = _fee_dues()
         assert len(dues) == 0
         assert total == 0.0
 
@@ -327,6 +327,226 @@ def test_todays_tasks_staff_scopes_real_dues(staff_client, app):
     assert data['meta']['fee_due_count'] == 1
     labels = [t.get('action_label') for t in data['tasks']]
     assert 'Follow up on fee dues' in labels
+
+
+# ---- Batch 2: labelling, money formatting, deep links, staff scope ----
+
+def test_dashboard_recent_payments_label(admin_client, app):
+    sid = _seed_student_id(app)
+    with app.app_context():
+        db.session.add(FeeRecord(student_id=sid, amount_paid=500.0,
+                                 payment_date=date.today()))
+        db.session.commit()
+    html = admin_client.get('/').data.decode()
+    assert 'Recent Payments' in html
+    assert 'Recent Enrollments' not in html
+
+
+def test_dashboard_recent_payments_empty_state(admin_client):
+    html = admin_client.get('/').data.decode()
+    assert 'No recent payments' in html
+    assert 'No recent enrollments' not in html
+
+
+def test_outstanding_card_microcopy_and_deep_link(app, admin_client):
+    with app.app_context():
+        cid = Course.query.filter_by(code='PY').first().id
+        s = Student(name='Linked Dues', email='linkeddues@guha.test',
+                    phone='9000000093', status='Active')
+        db.session.add(s)
+        db.session.flush()
+        s.courses.append(Course.query.get(cid))
+        db.session.flush()
+        db.session.add(FeeRecord(student_id=s.id, amount_paid=1000.0,
+                                 payment_date=date.today()))
+        db.session.commit()
+        sid = s.id
+    html = admin_client.get('/').data.decode()
+    assert '(incl. GST)' in html
+    assert 'total due &middot; incl. GST' in html
+    assert '₹4,900.00' in html          # per-row balance matches the fees matrix
+    assert f'/fees?student_id={sid}' in html
+
+
+def test_fees_page_filters_single_student(admin_client, app):
+    with app.app_context():
+        cid = Course.query.filter_by(code='PY').first().id
+        a = Student(name='Filter A', email='filtera@guha.test',
+                    phone='9000000095', status='Active')
+        b = Student(name='Filter B', email='filterb@guha.test',
+                    phone='9000000096', status='Active')
+        db.session.add_all([a, b])
+        db.session.flush()
+        course = Course.query.get(cid)
+        a.courses.append(course)
+        b.courses.append(course)
+        db.session.flush()
+        db.session.add(FeeRecord(student_id=a.id, amount_paid=1111.0,
+                                 payment_date=date.today()))
+        db.session.add(FeeRecord(student_id=b.id, amount_paid=2222.0,
+                                 payment_date=date.today()))
+        db.session.commit()
+        aid = a.id
+    html = admin_client.get(f'/fees?student_id={aid}').data.decode()
+    assert 'Filter A' in html
+    assert 'Filter B' not in html
+    assert '₹1,111.00' in html
+    assert '₹2,222.00' not in html
+    assert admin_client.get('/fees?student_id=abc').status_code == 200
+
+
+def test_staff_attendance_scoped_to_own_students(app, staff_client):
+    from app.models import Attendance
+    with app.app_context():
+        sid = _seed_student_id(app)     # enrolled in PY, which staff teaches
+        other = Student(name='Other Attn', email='otherattn@guha.test',
+                        phone='9000000094', status='Active')
+        otc = Course(name='Attn Other', code='AOT', description='',
+                     duration_weeks=8, duration_unit='weeks',
+                     fees=1000.0, gst_applicable=False)
+        db.session.add_all([other, otc])
+        db.session.flush()
+        other.courses.append(otc)
+        db.session.flush()
+        # Own student: present today + yesterday -> 100%, 1 marked today.
+        db.session.add(Attendance(person_type='student', person_id=sid,
+                                  date=date.today(), status='Present'))
+        db.session.add(Attendance(person_type='student', person_id=sid,
+                                  date=date.today() - timedelta(days=1),
+                                  status='Present'))
+        # Non-staff student: 4 absences + 1 absent today. A global average
+        # would drop to 33% and today's count to 2 — neither may surface.
+        for i in range(4):
+            db.session.add(Attendance(person_type='student', person_id=other.id,
+                                      date=date.today() - timedelta(days=1 + i),
+                                      status='Absent'))
+        db.session.add(Attendance(person_type='student', person_id=other.id,
+                                  date=date.today(), status='Absent'))
+        db.session.commit()
+    html = staff_client.get('/').data.decode()
+    assert 'My students' in html
+    assert '100%' in html
+    assert '33%' not in html
+    assert '1 attendance logged today' in html
+    assert '2 attendance logged today' not in html
+
+
+# ---- Batch 3: reminder GST parity + ageing hints on the dues card ----
+
+def test_sms_reminder_uses_gst_inclusive_balance(app, monkeypatch):
+    from app.services.sms_service import SmsService
+    with app.app_context():
+        cid = Course.query.filter_by(code='PY').first().id
+        condue = Student(name='Concession Dues', email='condue@guha.test',
+                         phone='9000000099', status='Active')
+        db.session.add(condue)
+        db.session.flush()
+        condue.courses.append(Course.query.get(cid))
+        db.session.flush()
+        db.session.add(FeeRecord(student_id=condue.id, amount_paid=1000.0,
+                                 concession=500.0, payment_date=date.today()))
+        db.session.commit()
+    captured = []
+    svc = SmsService()
+    monkeypatch.setattr(svc, 'send_sms',
+                        lambda phone, msg: captured.append((phone, msg)) or True)
+    with app.app_context():
+        result = svc.batch_fee_reminders()
+    assert result['sent'] == 2
+    texts = ' | '.join(m for _, m in captured)
+    # GST-inclusive due (5000 fee + 900 GST = 5900), not the taxable 5000.
+    assert '5,900' in texts
+    assert '5,000' not in texts
+    # Concessions are honoured: 5900 - 1000 paid - 500 concession = 4400.
+    assert '4,400' in texts
+
+
+def test_messenger_reminder_uses_gst_inclusive_balance(app, monkeypatch):
+    from app.services.messenger import Messenger
+    captured = []
+    m = Messenger()
+    monkeypatch.setattr(m, '_send_sms_direct',
+                        lambda phone, text: captured.append((phone, text)) or True)
+    with app.app_context():
+        result = m.batch_fee_reminders()
+    assert result['sent'] == 1
+    text = captured[0][1]
+    assert '5,900' in text      # GST-inclusive balance in the reminder body
+    assert '5,000' not in text
+
+
+def test_fee_dues_ageing_buckets(app):
+    with app.app_context():
+        cid = Course.query.filter_by(code='PY').first().id
+        old = Student(name='Aged 120', email='aged120@guha.test',
+                      phone='9000000103', status='Active')
+        mid = Student(name='Aged 60', email='aged60@guha.test',
+                      phone='9000000104', status='Active')
+        db.session.add_all([old, mid])
+        db.session.flush()
+        old.courses.append(Course.query.get(cid))
+        mid.courses.append(Course.query.get(cid))
+        db.session.flush()
+        db.session.add(FeeRecord(student_id=old.id, amount_paid=1000.0,
+                                 payment_date=date.today()))
+        db.session.add(FeeRecord(student_id=mid.id, amount_paid=1000.0,
+                                 payment_date=date.today()))
+        old.enrollment_date = date.today() - timedelta(days=120)
+        mid.enrollment_date = date.today() - timedelta(days=60)
+        db.session.commit()
+        dues, _, ageing = _fee_dues()
+        row_old = next(d for d in dues if d['name'] == 'Aged 120')
+        assert row_old['days_due'] == 120
+        assert ageing['over_90'] == 4900.0
+        assert ageing['over_30'] == 4900.0
+        assert ageing['recent'] >= 0.0
+
+
+def test_outstanding_card_ageing_hints(app, admin_client):
+    with app.app_context():
+        cid = Course.query.filter_by(code='PY').first().id
+        old = Student(name='Old Dues', email='olddues2@guha.test',
+                      phone='9000000101', status='Active')
+        fresh = Student(name='Fresh Dues', email='freshdues@guha.test',
+                        phone='9000000102', status='Active')
+        db.session.add_all([old, fresh])
+        db.session.flush()
+        old.courses.append(Course.query.get(cid))
+        fresh.courses.append(Course.query.get(cid))
+        db.session.flush()
+        db.session.add(FeeRecord(student_id=old.id, amount_paid=1000.0,
+                                 payment_date=date.today()))
+        db.session.add(FeeRecord(student_id=fresh.id, amount_paid=1000.0,
+                                 payment_date=date.today()))
+        old.enrollment_date = date.today() - timedelta(days=120)
+        fresh.enrollment_date = date.today() - timedelta(days=10)
+        db.session.commit()
+    html = admin_client.get('/').data.decode()
+    assert '120d overdue' in html
+    assert '10d overdue' in html
+    assert '&gt;90d' in html
+    assert '0&ndash;30d' in html
+
+
+def test_outstanding_card_plus_n_more(app, admin_client):
+    with app.app_context():
+        cid = Course.query.filter_by(code='PY').first().id
+        for i in range(7):
+            s = Student(name=f'More Dues {i}', email=f'moredues{i}@guha.test',
+                        phone=f'90000002{i:02d}', status='Active')
+            db.session.add(s)
+            db.session.flush()
+            s.courses.append(Course.query.get(cid))
+            db.session.flush()
+            db.session.add(FeeRecord(student_id=s.id, amount_paid=1000.0,
+                                     payment_date=date.today()))
+        db.session.commit()
+        dues, _, _ = _fee_dues()
+        # Seeded Test Student also owes, so the list outgrows the top-5 cut.
+        assert len(dues) >= 8
+        expected = len(dues) - 5
+    html = admin_client.get('/').data.decode()
+    assert f'+{expected} more with dues' in html
 
 
 # ---- UI/UX: no duplicated Quick Stats; role-aware header badges ----

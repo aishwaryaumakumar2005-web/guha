@@ -185,10 +185,16 @@ def list():
     company_filter = request.args.get('company_id')
     company_id = int(company_filter) if company_filter and company_filter.isdigit() else None
 
+    # Single-student view (dashboard outstanding rows deep-link here).
+    student_filter = request.args.get('student_id')
+    student_filter_id = int(student_filter) if student_filter and student_filter.isdigit() else None
+
     query = FeeRecord.query
 
     if company_id:
         query = query.filter(FeeRecord.company_id == company_id)
+    if student_filter_id:
+        query = query.filter(FeeRecord.student_id == student_filter_id)
 
     # B12: real date-range filter on the payment history (replaces the dead
     # dateRangeFilterContainer div). Dues matrix below stays all-time.
@@ -212,6 +218,8 @@ def list():
                 student_courses.c.course_id.in_(course_ids)
             ).distinct()
             all_students = Student.query.options(subqueryload(Student.courses)).filter(Student.id.in_(student_subquery), Student.status == 'Active').all()
+            if student_filter_id:
+                all_students = [s for s in all_students if s.id == student_filter_id]
             student_ids = [s.id for s in all_students]
             scoped = query.filter(FeeRecord.student_id.in_(student_ids))
             history_total = scoped.order_by(None).count()
@@ -224,7 +232,10 @@ def list():
     else:
         history_total = query.order_by(None).count()
         all_records = query.options(subqueryload(FeeRecord.student).subqueryload(Student.courses), subqueryload(FeeRecord.company)).order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).limit(FINANCE_LIST_LIMIT).all()
-        all_students = Student.query.options(subqueryload(Student.courses)).filter_by(status='Active').all()
+        students_q = Student.query.options(subqueryload(Student.courses)).filter_by(status='Active')
+        if student_filter_id:
+            students_q = students_q.filter(Student.id == student_filter_id)
+        all_students = students_q.all()
 
     cgst_pct, sgst_pct = get_gst_rates()
     total_gst_pct = cgst_pct + sgst_pct

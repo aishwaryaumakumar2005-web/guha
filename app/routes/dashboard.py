@@ -212,11 +212,17 @@ def _fee_due_rows(student_ids=None):
         paid = round(paid, 2)
         concession = round(concession, 2)
         refunded = refunded_map.get(s.id, 0.0)
+        # Aging: days since enrollment while anything is still owed, mirroring
+        # the fees-matrix "Aging" column. None when there is no clock.
+        days_due = None
+        if s.enrollment_date:
+            days_due = max(0, (date.today() - s.enrollment_date).days)
         rows.append({
             'id': s.id, 'name': s.name, 'roll_no': s.roll_no,
             'total_fee': total_fee, 'total_taxable': total_taxable,
             'gst_amount': gst_amount, 'paid': paid,
             'concession': concession, 'refunded': refunded,
+            'days_due': days_due,
             'balance': round(total_fee - paid - concession + refunded, 2),
         })
     return rows
@@ -225,13 +231,21 @@ def _fee_due_rows(student_ids=None):
 def _fee_dues():
     """Outstanding fees per active student (balance > ₹1), sorted by balance desc.
 
-    Single batched pass via ``_fee_due_rows`` — no N+1. Result shape:
-    ([{name, roll_no, total_fee, paid, balance}] sorted by balance desc,
-    total_outstanding).
+    Single batched pass via ``_fee_due_rows`` — no N+1. ``ageing`` sums the
+    balances by days-overdue bucket (mirrors the fees-matrix thresholds):
+    >90 days, 31-90 days, 30 or fewer. Result:
+    ([{name, roll_no, total_fee, paid, balance, days_due}] sorted by balance desc,
+    total_outstanding, ageing).
     """
     due_students = [r for r in _fee_due_rows() if r['balance'] > 1]
     due_students.sort(key=lambda d: d['balance'], reverse=True)
-    return due_students, round(sum(d['balance'] for d in due_students), 2)
+    ageing = {'over_90': 0.0, 'over_30': 0.0, 'recent': 0.0}
+    for d in due_students:
+        days = d['days_due'] or 0
+        bucket = 'over_90' if days > 90 else ('over_30' if days > 30 else 'recent')
+        ageing[bucket] += d['balance']
+    ageing = {k: round(v, 2) for k, v in ageing.items()}
+    return due_students, round(sum(d['balance'] for d in due_students), 2), ageing
 
 
 def _capacity():
@@ -286,6 +300,62 @@ def _staff_leave_days_this_month(user_id):
     return _days_on_leave_this_month(user_id)
 
 
+def _staff_student_scope():
+    """Active student ids across the current user's courses (staff only).
+
+    Empty for admins / tutors with no courses: scoped stats then degrade to
+    *no data*, never to institute-global numbers staff shouldn't see."""
+    tutor = Tutor.query.filter_by(email=current_user.email).first()
+    if not tutor or not tutor.courses:
+        return set()
+    course_ids = [c.id for c in tutor.courses]
+    enrolled_ids = [r[0] for r in db.session.query(student_courses.c.student_id).filter(
+        student_courses.c.course_id.in_(course_ids)).distinct().all()]
+    if not enrolled_ids:
+        return set()
+    return {r[0] for r in db.session.query(Student.id).filter(
+        Student.id.in_(enrolled_ids), Student.status == 'Active').all()}
+
+
+def _scope_today_attendance(today, scope_ids):
+    if not scope_ids:
+        return 0
+    return db.session.query(db.func.count(Attendance.id)).filter(
+        Attendance.date == today, Attendance.person_type == 'student',
+        Attendance.person_id.in_(scope_ids)).scalar() or 0
+
+
+def _scope_attendance_avg(today, scope_ids):
+    if not scope_ids:
+        return None
+    fourteen_days_ago = today - timedelta(days=14)
+    att_counts = db.session.query(
+        func.count(Attendance.id).label('total'),
+        func.sum(case((Attendance.status == 'Present', 1), else_=0)).label('present')
+    ).filter(
+        Attendance.date >= fourteen_days_ago, Attendance.person_type == 'student',
+        Attendance.person_id.in_(scope_ids)
+    ).first()
+    total = att_counts.total or 0
+    present = att_counts.present or 0
+    return int(present * 100 / total) if total else None
+
+
+def _scope_low_attendance(today, scope_ids):
+    if not scope_ids:
+        return 0
+    fourteen_days_ago = today - timedelta(days=14)
+    att_stats = db.session.query(
+        Attendance.person_id,
+        func.count(Attendance.id).label('total'),
+        func.sum(case((Attendance.status == 'Present', 1), else_=0)).label('present')
+    ).filter(
+        Attendance.person_type == 'student', Attendance.person_id.in_(scope_ids),
+        Attendance.date >= fourteen_days_ago
+    ).group_by(Attendance.person_id).all()
+    return sum(1 for r in att_stats if r.total >= 3 and (r.present * 100.0 / r.total) < 75)
+
+
 @dashboard_bp.route('/')
 @login_required
 def dashboard():
@@ -306,9 +376,19 @@ def dashboard():
         stats['approved_leaves_count'] = approved_leaves_count
         stats['leave_days_used_month'] = _safe(
             'staff_leave_days', lambda: _staff_leave_days_this_month(current_user.id), 0)
+        # Attendance figures are scoped to the tutor's own students; the
+        # global defaults from _compute_stats/_today_figures must not leak.
+        scope = _safe('staff_scope', _staff_student_scope, set()) or set()
+        today_attendance = _safe(
+            'staff_today_attendance', lambda: _scope_today_attendance(today, scope), 0)
+        stats['avg_student_attendance'] = _safe(
+            'staff_attendance_avg', lambda: _scope_attendance_avg(today, scope), None)
+        stats['low_attendance_count'] = _safe(
+            'staff_low_attendance', lambda: _scope_low_attendance(today, scope), 0)
         top_courses = []
         due_students = []
         total_outstanding = 0.0
+        dues_ageing = {'over_90': 0.0, 'over_30': 0.0, 'recent': 0.0}
         capacity_courses = []
         overflow_capacity = 0
         birthdays_today = []
@@ -318,7 +398,8 @@ def dashboard():
         chart_months, chart_data = _safe(
             'fee_chart', lambda: _fee_chart(today), ([], []))
         top_courses = _safe('top_courses', _top_courses, [])
-        due_students, total_outstanding = _safe('fee_dues', _fee_dues, ([], 0.0))
+        due_students, total_outstanding, dues_ageing = _safe(
+            'fee_dues', _fee_dues, ([], 0.0, {'over_90': 0.0, 'over_30': 0.0, 'recent': 0.0}))
         capacity_courses, overflow_capacity = _safe('capacity', _capacity, ([], 0))
         birthdays_today, anniversaries_today = _safe(
             'celebrations', lambda: _celebrations(today), ([], []))
@@ -330,7 +411,7 @@ def dashboard():
         stats=stats, recent_enquiries=recent_enquiries,
         recent_fees=recent_fees, chart_months=chart_months, chart_data=chart_data,
         top_courses=top_courses,
-        due_students=due_students, total_outstanding=total_outstanding,
+        due_students=due_students, total_outstanding=total_outstanding, dues_ageing=dues_ageing,
         capacity_courses=capacity_courses, overflow_capacity=overflow_capacity,
         birthdays_today=birthdays_today, anniversaries_today=anniversaries_today,
         today=today, today_fees=float(today_fees), today_attendance=int(today_attendance),
@@ -435,7 +516,13 @@ def api_todays_activities():
         db.cast(Enquiry.created_at, db.Date) == today
     ).count()
 
-    fee_due_students = sum(1 for r in _fee_due_rows() if r['balance'] > 0)
+    fee_rows = _fee_due_rows()
+    fee_due_students = sum(1 for r in fee_rows if r['balance'] > 0)
+    # Ageing context for the fees-follow-up task: how many dues have crossed
+    # 90 days and how long the oldest has run (0 when nothing is owed).
+    due_with_age = [(r['days_due'] or 0) for r in fee_rows if r['balance'] > 0]
+    fee_due_aged_critical = sum(1 for a in due_with_age if a > 90)
+    fee_due_max_age = max(due_with_age) if due_with_age else 0
 
     low_attendance_count = get_dashboard_stats().get('low_attendance_count', 0)
 
@@ -451,6 +538,8 @@ def api_todays_activities():
         'pending_leaves': pending_leaves,
         'today_exams': today_exams,
         'new_enquiries_today': new_enquiries_today,
+        'fee_due_aged_critical': fee_due_aged_critical,
+        'fee_due_max_age': fee_due_max_age,
     }
     tasks = current_app.ai_engine.generate_todays_tasks(data)
 

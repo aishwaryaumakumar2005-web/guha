@@ -755,6 +755,8 @@ class AIEngine:
     def generate_todays_tasks(self, data):
         stale = data.get('stale_enquiries', 0)
         fee_due = data.get('fee_due_count', 0)
+        fee_due_aged = data.get('fee_due_aged_critical', 0)
+        fee_due_max_age = data.get('fee_due_max_age', 0)
         low_att = data.get('low_attendance_count', 0)
         pending_leaves = data.get('pending_leaves', 0)
         today_exams = data.get('today_exams', [])
@@ -764,12 +766,14 @@ class AIEngine:
         # deterministic. The AI call is optional decoration on top of a reliable
         # rule-based task list, so a slow/rate-limited key must never block the card.
         global _tasks_cache
-        signature = (stale, fee_due, low_att, pending_leaves, new_enqs, tuple(sorted(today_exams)))
+        signature = (stale, fee_due, fee_due_aged, fee_due_max_age, low_att,
+                     pending_leaves, new_enqs, tuple(sorted(today_exams)))
         now = time.time()
         if _tasks_cache["signature"] == signature and now - _tasks_cache["time"] < _TASKS_CACHE_TTL:
             return _tasks_cache["data"]
 
-        base = self._rule_based_tasks(stale, fee_due, low_att, pending_leaves, today_exams, new_enqs)
+        base = self._rule_based_tasks(stale, fee_due, fee_due_aged, fee_due_max_age,
+                                      low_att, pending_leaves, today_exams, new_enqs)
         # Try to enhance with AI, but fall back to the rule-based list on any
         # error or timeout. The AI call is non-critical here, so use a short
         # per-provider timeout to stay well inside the browser's fetch budget.
@@ -781,7 +785,7 @@ class AIEngine:
             f"'title' (short actionable sentence), 'detail' (one-liner context), and 'action_label' (button text like 'View Pipeline' or 'Check Now'). "
             f"Keep to max 6 tasks. Here is today's data:\n"
             f"- Stale enquiries needing follow-up (no contact in 3+ days): {stale}\n"
-            f"- Students with possible fee due: {fee_due}\n"
+            f"- Students with possible fee due: {fee_due} ({fee_due_aged} over 90 days, oldest {fee_due_max_age}d)\n"
             f"- Students with low attendance (<75%): {low_att}\n"
             f"- Pending leave requests: {pending_leaves}\n"
             f"- Exams scheduled today: {', '.join(today_exams) if today_exams else 'None'}\n"
@@ -813,12 +817,14 @@ class AIEngine:
         _tasks_cache["time"] = now
         return tasks
 
-    def _rule_based_tasks(self, stale, fee_due, low_att, pending_leaves, today_exams, new_enqs):
+    def _rule_based_tasks(self, stale, fee_due, fee_due_aged, fee_due_max_age,
+                          low_att, pending_leaves, today_exams, new_enqs):
         tasks = []
         if stale > 0:
             tasks.append({'priority': 'high', 'icon': 'funnel', 'title': f'Follow up on {stale} stale enquiry(ies)', 'detail': 'No contact in 3+ days', 'action_label': 'View Pipeline'})
         if fee_due > 0:
-            tasks.append({'priority': 'high', 'icon': 'currency-rupee', 'title': f'Contact {fee_due} student(s) about fee due', 'detail': 'No recent payment recorded', 'action_label': 'View Fees'})
+            detail = f'{fee_due_aged} over 90d, oldest {fee_due_max_age}d' if fee_due_aged else 'No recent payment recorded'
+            tasks.append({'priority': 'high', 'icon': 'currency-rupee', 'title': f'Contact {fee_due} student(s) about fee due', 'detail': detail, 'action_label': 'View Fees'})
         if pending_leaves > 0:
             tasks.append({'priority': 'high', 'icon': 'calendar-check', 'title': f'Review {pending_leaves} pending leave request(s)', 'detail': 'Awaiting your approval', 'action_label': 'View Leaves'})
         if low_att > 0:
