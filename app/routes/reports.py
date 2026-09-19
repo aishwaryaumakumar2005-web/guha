@@ -319,6 +319,9 @@ def reports():
     selected_company_id = request.args.get('company_id', type=int)
 
     companies = Company.query.filter_by(is_active=True).all()
+    selected_company_name = next(
+        (c.name for c in companies if c.id == selected_company_id), ''
+    ) if selected_company_id else ''
 
     start_date, end_date, filter_mode, start_date_str, end_date_str, range_note = resolve_date_range(
         today, filter_mode, filter_month, filter_year, start_date_str, end_date_str, quick)
@@ -408,12 +411,17 @@ def reports():
         prev_funding_query = filter_by_company_methods(prev_funding_query, OwnerFunding.method, selected_company_id)
         prev_funding = float(prev_funding_query.scalar() or 0.0)
 
+        prev_span = (
+            f"{prev_start.strftime('%d %b')} – {prev_end.strftime('%d %b %Y')}"
+            if prev_start.year == prev_end.year
+            else f"{prev_start.strftime('%d %b %Y')} – {prev_end.strftime('%d %b %Y')}"
+        )
         if filter_mode == 'yearly':
-            prev_label = 'last year'
+            prev_label = f'last year ({prev_start.strftime("%Y")})'
         elif filter_mode == 'custom':
-            prev_label = 'previous period'
+            prev_label = f'previous period ({prev_span})'
         else:
-            prev_label = 'last month'
+            prev_label = f'last month ({prev_span})'
 
     # ---- Income tab: all-time card, monthly Taxable+GST split ----
     if tab == 'income':
@@ -701,6 +709,7 @@ def reports():
         start_date_str=start_date_str or start_date.strftime('%Y-%m-%d'),
         end_date_str=end_date_str or end_date.strftime('%Y-%m-%d'),
         active_quick=quick, companies=companies, selected_company_id=selected_company_id,
+        selected_company_name=selected_company_name,
         range_note=range_note,
         daily_page=daily_page, daily_pages=daily_pages, daily_total_count=daily_total_count,
         daily_total_amount=float(daily_total_amount), daily_total_gst=float(daily_total_gst),

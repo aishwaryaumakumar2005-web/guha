@@ -374,3 +374,42 @@ def test_excel_payment_methods_bounded(admin_client, app, monkeypatch):
     summ = wb['Payment Summary']
     assert summ.cell(row=2, column=1).value == 'Cash'
     assert summ.cell(row=2, column=2).value == 300.0
+
+
+# -- U1: inline warning when a selected company has no payment accounts --------
+def test_no_accounts_warning_shown(app, admin_client):
+    cid = _mk_company(app, 'NoAcc Warn Co')
+    body = admin_client.get(f'/reports?tab=income&quick=today&company_id={cid}').get_data(as_text=True)
+    assert 'has no payment accounts configured yet' in body
+
+
+def test_no_accounts_warning_hidden_when_accounts_exist(app, admin_client):
+    cid = _mk_company(app, 'HasAcc Co')
+    _add_account(app, 'Cash', cid)
+    body = admin_client.get(f'/reports?tab=income&quick=today&company_id={cid}').get_data(as_text=True)
+    assert 'has no payment accounts configured yet' not in body
+
+
+# -- U2: course-wise table explains the enrollment-window proration ------------
+def test_course_wise_annotation_explains_window(app, admin_client):
+    body = admin_client.get('/reports?tab=fees&quick=today').get_data(as_text=True)
+    assert 'active on the payment date' in body
+    assert 'Unassigned' in body
+
+
+# -- U3: empty states are scoped to the selected company -----------------------
+def test_empty_state_scoped_to_company(app, admin_client):
+    cid = _mk_company(app, 'Empty State Co')
+    body = admin_client.get(f'/reports?tab=income&quick=today&company_id={cid}').get_data(as_text=True)
+    assert 'No income recorded in this period for Empty State Co' in body
+
+
+def test_empty_state_not_scoped_without_company(app, admin_client):
+    body = admin_client.get('/reports?tab=income&quick=today').get_data(as_text=True)
+    assert 'No income recorded in this period for ' not in body
+
+
+# -- U4: previous-period trend shows the actual prior span ---------------------
+def test_previous_period_trend_shows_span(app, admin_client):
+    body = admin_client.get('/reports?tab=income').get_data(as_text=True)
+    assert 'vs last month (' in body
