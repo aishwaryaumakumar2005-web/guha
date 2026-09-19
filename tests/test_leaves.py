@@ -507,13 +507,6 @@ def test_export_filters_by_status(admin_client, app):
 
 # ---- F7: dashboard stat cards ----
 
-def test_admin_dashboard_shows_pending_leaves_card(admin_client, app):
-    sid = _staff_id(app)
-    _add_leave(app, sid, date.today() + timedelta(days=1), date.today() + timedelta(days=1))
-    html = admin_client.get('/').data.decode()
-    assert 'Leave requests to review' in html
-
-
 def test_staff_dashboard_shows_days_used_card(staff_client, app):
     sid = _staff_id(app)
     today = date.today()

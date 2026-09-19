@@ -966,11 +966,40 @@ def test_w3_unlinked_expense_does_not_touch_dues(admin_client, app):
     assert '999.00' not in html
 
 
-def test_w3_bogus_student_link_ignored(admin_client, app):
+def test_w3_refund_category_without_student_rejected(admin_client, app):
+    # 'Refund' without a valid student link is a booking error: posting one
+    # must not silently create a normal expense.
     resp = _refund(app, admin_client, 99999, 100)
     assert resp.status_code == 302
     with app.app_context():
-        assert Expense.query.first().student_id is None
+        assert Expense.query.count() == 0
+    with app.app_context():
+        refund_cat = ExpenseCategory.query.filter_by(name='Refund').first().id
+    resp = admin_client.post('/expenses', data={
+        'category_id': str(refund_cat), 'amount': '100',
+        'description': 'orphan refund', 'expense_date': date.today().isoformat(),
+        'payment_method': 'Cash',
+    }, headers=AJAX)
+    assert resp.status_code == 400
+    assert resp.get_json()['success'] is False
+    with app.app_context():
+        assert Expense.query.count() == 0
+
+
+def test_w3_student_link_normalized_to_refund_category(admin_client, app):
+    with app.app_context():
+        cat = ExpenseCategory.query.filter_by(name='Rent').first().id
+    sid = _student_id(app)
+    resp = admin_client.post('/expenses', data={
+        'category_id': str(cat), 'amount': '100',
+        'description': 'mislabeled refund', 'expense_date': date.today().isoformat(),
+        'payment_method': 'Cash', 'student_id': str(sid),
+    })
+    assert resp.status_code == 302
+    with app.app_context():
+        exp = Expense.query.filter_by(description='mislabeled refund').first()
+        assert exp.student_id == sid
+        assert exp.category.name == 'Refund'
 
 
 def test_w3_expense_edit_toggles_student_link(admin_client, app):
@@ -993,6 +1022,24 @@ def test_w3_expense_edit_toggles_student_link(admin_client, app):
     assert resp.status_code == 302
     with app.app_context():
         assert Expense.query.get(eid).student_id == sid
+        assert Expense.query.get(eid).category.name == 'Refund'
+
+
+def test_w3_refund_edit_requires_student(admin_client, app):
+    sid = _student_id(app)
+    _refund(app, admin_client, sid, 500)
+    with app.app_context():
+        eid = Expense.query.filter_by(student_id=sid).first().id
+        refund_cat = ExpenseCategory.query.filter_by(name='Refund').first().id
+    resp = admin_client.post(f'/expenses/edit/{eid}', data={
+        'category_id': str(refund_cat), 'amount': '500',
+        'description': 'refund test', 'expense_date': date.today().isoformat(),
+        'payment_method': 'Cash',
+    })
+    assert resp.status_code == 302
+    with app.app_context():
+        exp = Expense.query.get(eid)
+        assert exp.student_id == sid
 
 
 def test_w3_routes_validate_bad_method_unchanged(admin_client, app):

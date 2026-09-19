@@ -28,6 +28,33 @@ def _parse_student_id(raw):
     return sid
 
 
+def _refund_category_id():
+    """The canonical 'Refund' category, creating it if the baseline seed lacks it."""
+    cat = ExpenseCategory.query.filter_by(name='Refund').first()
+    if cat is None:
+        cat = ExpenseCategory(name='Refund')
+        db.session.add(cat)
+        db.session.flush()
+    return cat.id
+
+
+def _canonicalize_refund(category_id, student_id):
+    """Enforce a single refund rule: an expense reimbursing a student is a
+    refund, period. 'Refund' without a student is a booking error, and a
+    student-linked expense is always normalized onto the 'Refund' category.
+
+    Returns (final_category_id, error_message); error is None on success.
+    """
+    cat = ExpenseCategory.query.get(category_id)
+    is_refund_cat = bool(cat and cat.name == 'Refund')
+    if is_refund_cat and student_id is None:
+        return category_id, \
+            "Category 'Refund' requires selecting the student being refunded."
+    if student_id is not None and not is_refund_cat:
+        return _refund_category_id(), None
+    return category_id, None
+
+
 def ensure_expense_categories():
     existing = {c.name for c in ExpenseCategory.query.with_entities(ExpenseCategory.name).all()}
     new_cats = [ExpenseCategory(name=n) for n in DEFAULT_CATEGORIES if n not in existing]
@@ -61,6 +88,12 @@ def list():
         # W3: optional student link = this Expense is a refund that reduces
         # that student's dues.
         student_id = _parse_student_id(request.form.get('student_id')) or None
+        category_id, refund_error = _canonicalize_refund(category_id, student_id)
+        if refund_error:
+            if is_ajax_request():
+                return jsonify({"success": False, "errors": [refund_error]}), 400
+            flash(refund_error, 'danger')
+            return redirect(url_for('expenses.list'))
         new_expense = Expense(category_id=category_id, amount=amount, description=description, payment_method=payment_method, expense_date=expense_date, created_by=current_user.id, student_id=student_id)
         db.session.add(new_expense)
         db.session.commit()
@@ -122,12 +155,18 @@ def edit(id):
             return jsonify({"success": False, "errors": ["Selected category does not exist"]}), 400
         flash("Selected category does not exist", 'danger')
         return redirect(url_for('expenses.list'))
+    expense.student_id = _parse_student_id(request.form.get('student_id'))
+    category_id, refund_error = _canonicalize_refund(category_id, expense.student_id)
+    if refund_error:
+        if is_ajax_request():
+            return jsonify({"success": False, "errors": [refund_error]}), 400
+        flash(refund_error, 'danger')
+        return redirect(url_for('expenses.list'))
     expense.category_id = category_id
     expense.amount = form.cleaned_data.get('amount', 0)
     expense.description = request.form.get('description', '').strip()
     expense.payment_method = request.form.get('payment_method', 'Cash').strip()
     expense.expense_date = form.cleaned_data.get('expense_date', expense.expense_date)
-    expense.student_id = _parse_student_id(request.form.get('student_id'))
     db.session.commit()
     message = "Expense updated successfully!"
     if is_ajax_request():
@@ -237,6 +276,7 @@ def salary_calculator():
 
 @expenses_bp.route('/api/expenses/chart-data')
 @login_required
+@admin_required
 def api_expenses_chart():
     year = request.args.get('year', type=int) or date.today().year
     monthly = db.session.query(

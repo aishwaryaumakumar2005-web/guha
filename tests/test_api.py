@@ -50,6 +50,15 @@ def test_expenses_chart_data(admin_client):
     assert len(data['totals']) == 12
 
 
+def test_expenses_chart_data_requires_admin(app):
+    with app.test_client() as staff:
+        staff.post('/login', data={'username': 'staff', 'password': 'staff123'})
+        assert staff.get('/api/expenses/chart-data').status_code == 302
+    with app.test_client() as admin:
+        admin.post('/login', data={'username': 'admin', 'password': 'admin123'})
+        assert admin.get('/api/expenses/chart-data').status_code == 200
+
+
 def test_fee_ai_analysis_without_keys(admin_client):
     resp = admin_client.get('/api/fees/ai-analysis')
     assert resp.status_code == 200
