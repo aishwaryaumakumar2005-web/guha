@@ -379,23 +379,35 @@ def categories_edit(id):
 @login_required
 @admin_required
 def salary_calculator():
-    tutors = Tutor.query.all()
+    tutors = Tutor.query.filter_by(status='Active').order_by(Tutor.name.asc()).all()
     selected_tutor_id = request.values.get('tutor_id', type=int)
     today = date.today()
     filter_type = request.values.get('filter_type', 'month')
     filter_month = request.values.get('month', default=today.month, type=int)
     filter_year = request.values.get('year', default=today.year, type=int)
-    start_date_str = request.values.get('start_date')
-    end_date_str = request.values.get('end_date')
+    start_date_str = (request.values.get('start_date') or '').strip()
+    end_date_str = (request.values.get('end_date') or '').strip()
     start_date = None
     end_date = None
-    if filter_type == 'range' and start_date_str and end_date_str:
-        try:
-            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-        except ValueError:
-            pass
-    if not start_date or not end_date:
+    filter_error = None
+    # B3: a custom range must be complete and ordered. Missing, unparsable or
+    # reversed dates are rejected loudly instead of silently falling back to
+    # the monthly view (which used to show numbers the admin did not ask for).
+    if filter_type == 'range':
+        if not start_date_str or not end_date_str:
+            filter_error = 'Custom date range requires both a From and a To date.'
+        else:
+            try:
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                filter_error = 'Invalid date values in the custom range.'
+            else:
+                if start_date > end_date:
+                    filter_error = 'The From date cannot be after the To date.'
+                    start_date = None
+                    end_date = None
+    if filter_error is None and not (start_date and end_date):
         start_date = date(filter_year, filter_month, 1)
         if filter_month == 12:
             end_date = date(filter_year + 1, 1, 1) - timedelta(days=1)
@@ -410,35 +422,39 @@ def salary_calculator():
     split_salary = 0.0
     shared_students = []
     percentage = request.values.get('percentage', type=float)
-    if selected_tutor_id:
+    if selected_tutor_id and filter_error is None:
         selected_tutor = Tutor.query.get(selected_tutor_id)
         if selected_tutor:
             if percentage is None:
                 settings = TutorPayrollSettings.query.filter_by(tutor_id=selected_tutor.id).first()
-                percentage = (settings.commission_percentage or 10.0) if settings and settings.commission_percentage else 10.0
+                # B2: mirror compute_tutor_payroll() exactly — no magic 10%
+                # fallback. A tutor with no settings (or commission set to 0)
+                # must not be quoted a default percentage the payroll run
+                # would never use.
+                percentage = (settings.commission_percentage or 0.0) if settings else 0.0
             # Clamp: a forged percentage must not mint absurd salaries (nor
             # negative ones). Settings form caps at 100 going forward; this
             # also covers legacy out-of-range rows.
             percentage = max(0.0, min(100.0, percentage))
-            students = Student.query.join(Student.courses).join(Course.tutors).filter(Tutor.id == selected_tutor.id).all()
+            # B1/B5: only active enrollments under this tutor, split over
+            # ACTIVE tutors only. Dropped/Completed students, inactive tutors
+            # and legacy NULL statuses are handled by the shared helpers.
+            from app.helpers import tutor_students, active_tutor_count_for_student
+            students = tutor_students(selected_tutor.id)
             student_ids = [s.id for s in students]
             if student_ids:
                 fee_records = FeeRecord.query.filter(
                     FeeRecord.student_id.in_(student_ids),
                     FeeRecord.payment_date >= start_date,
                     FeeRecord.payment_date <= end_date
-                ).all()
+                ).order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).all()
                 total_collected = sum(record.amount_paid for record in fee_records)
                 calculated_salary = total_collected * (percentage / 100.0)
                 fees_by_student = {}
                 for record in fee_records:
                     fees_by_student[record.student_id] = fees_by_student.get(record.student_id, 0.0) + record.amount_paid
                 for student in students:
-                    tutor_count = db.session.query(db.func.count(distinct(Tutor.id))).select_from(Tutor).join(
-                        tutor_courses, Tutor.id == tutor_courses.c.tutor_id
-                    ).join(Course, Course.id == tutor_courses.c.course_id).join(
-                        student_courses, student_courses.c.course_id == Course.id
-                    ).filter(student_courses.c.student_id == student.id).scalar() or 0
+                    tutor_count = active_tutor_count_for_student(student.id)
                     if tutor_count == 0:
                         continue
                     if tutor_count > 1:
@@ -446,11 +462,12 @@ def salary_calculator():
                     split_collected += fees_by_student.get(student.id, 0.0) / tutor_count
                 split_salary = split_collected * (percentage / 100.0)
     if percentage is None:
-        percentage = 10.0
+        percentage = 0.0
     percentage = max(0.0, min(100.0, percentage))
     return render_template('salary_calculator.html', tutors=tutors, selected_tutor=selected_tutor,
         selected_tutor_id=selected_tutor_id, percentage=percentage, filter_type=filter_type,
         filter_month=filter_month, filter_year=filter_year, start_date=start_date, end_date=end_date,
+        start_date_str=start_date_str, end_date_str=end_date_str, filter_error=filter_error,
         students=students, fee_records=fee_records, total_collected=total_collected,
         split_collected=split_collected, calculated_salary=calculated_salary,
         split_salary=split_salary, shared_students=shared_students, today=today)

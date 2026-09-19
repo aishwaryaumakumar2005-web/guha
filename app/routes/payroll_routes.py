@@ -123,18 +123,17 @@ def compute_tutor_payroll(tutor, month, year, percentage=None):
     tds_pct = settings.tds_percentage or 0.0
     start_date = date(year, month, 1)
     end_date = _period_end(month, year)
-    from app.models import Student, Course, FeeRecord
-    students = Student.query.join(Student.courses).join(Course.tutors).filter(Tutor.id == tutor.id).all()
+    from app.models import FeeRecord
+    # B1/B5: attribute fees only to active enrollments and split across ACTIVE
+    # tutors only — shared with the salary calculator so both agree (dropped /
+    # completed students and inactive tutors are excluded identically).
+    from app.helpers import tutor_students, active_tutor_count_for_student
+    students = tutor_students(tutor.id)
     commission = 0.0
     breakdown = []
     if students:
-        from sqlalchemy import distinct
         for student in students:
-            tutor_count = db.session.query(db.func.count(distinct(Tutor.id))).select_from(Tutor).join(
-                tutor_courses, Tutor.id == tutor_courses.c.tutor_id
-            ).join(Course, Course.id == tutor_courses.c.course_id).join(
-                student_courses, student_courses.c.course_id == Course.id
-            ).filter(student_courses.c.student_id == student.id).scalar() or 0
+            tutor_count = active_tutor_count_for_student(student.id)
             if tutor_count == 0:
                 continue
             student_fees = db.session.query(db.func.sum(FeeRecord.amount_paid)).filter(

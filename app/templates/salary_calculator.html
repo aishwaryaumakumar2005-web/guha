@@ -62,7 +62,7 @@ Month</label>
                         <label class="form-label small text-white mb-1">
 Year</label>
                         <select name="year" class="form-select">
-                            {% for y in range(today.year - 2, today.year + 2) %}                                <option value="{{ y }}" {% if filter_year == y %}selected{% endif %}>
+                            {% for y in range(today.year - 4, today.year + 1) %}                                <option value="{{ y }}" {% if filter_year == y %}selected{% endif %}>
 {{ y }}</option>
                             {% endfor %}                        </select>
                     </div>
@@ -74,12 +74,12 @@ Year</label>
                     <div class="col-6">
                         <label class="form-label small text-white mb-1">
 From</label>
-                        <input type="date" name="start_date" class="form-control" value="{{ start_date.strftime('%Y-%m-%d') if start_date else '' }}">
+                        <input type="date" name="start_date" class="form-control" value="{{ start_date_str }}">
                     </div>
                     <div class="col-6">
                         <label class="form-label small text-white mb-1">
 To</label>
-                        <input type="date" name="end_date" class="form-control" value="{{ end_date.strftime('%Y-%m-%d') if end_date else '' }}">
+                        <input type="date" name="end_date" class="form-control" value="{{ end_date_str }}">
                     </div>
                 </div>
             </div>
@@ -92,6 +92,12 @@ Calculate</button>
             </div>
         </form>
     </div>
+    {% if filter_error %}    <div class="alert alert-danger py-2 mb-4" role="alert">
+        <i class="bi bi-exclamation-triangle me-1">
+</i>
+        {{ filter_error }}
+    </div>
+    {% endif %}
     {% if selected_tutor %}    <!-- Calculation Results -->
     <div class="row mb-4">
         {% if shared_students %}

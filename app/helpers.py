@@ -186,3 +186,69 @@ def commit_with_retry(build_and_commit, attempts=3):
             db.session.rollback()
             last_exc = e
     raise last_exc
+
+
+# Enrollment statuses that no longer count as an active teaching relationship.
+# Any other value (including legacy NULL) is treated as active. Shared by the
+# salary calculator and payroll commission so both attribute fees identically.
+INACTIVE_ENROLLMENT_STATUSES = ('Dropped', 'Completed')
+
+
+def tutor_students(tutor_id):
+    """Students with an active enrollment in a course taught by `tutor_id`.
+
+    Excludes student_courses rows whose status is Dropped/Completed (a dropped
+    student's historical fees must not be attributed to a tutor forever), while
+    legacy NULL rows remain included. Returns a deduplicated list of Student,
+    one per student regardless of how many of that tutor's courses they take.
+    """
+    from sqlalchemy import or_
+    from app.models import Student, Course, Tutor, student_courses, tutor_courses
+    rows = (
+        Student.query
+        .join(student_courses, student_courses.c.student_id == Student.id)
+        .join(Course, Course.id == student_courses.c.course_id)
+        .join(tutor_courses, tutor_courses.c.course_id == Course.id)
+        .join(Tutor, Tutor.id == tutor_courses.c.tutor_id)
+        .filter(
+            Tutor.id == tutor_id,
+            or_(student_courses.c.status.is_(None),
+                student_courses.c.status.notin_(INACTIVE_ENROLLMENT_STATUSES)),
+        )
+        .all()
+    )
+    # Multi-course enrollments yield one ORM row per matching association; the
+    # raw SQL may duplicate the student (Postgres does not dedupe). Collapse to
+    # one Student per id so both the list and fee attribution are exact.
+    seen = set()
+    unique = []
+    for s in rows:
+        if s.id not in seen:
+            seen.add(s.id)
+            unique.append(s)
+    return unique
+
+
+def active_tutor_count_for_student(student_id):
+    """Distinct ACTIVE tutors currently teaching `student_id`.
+
+    Only active tutors over active enrollments count, so an inactive tutor (or
+    a Dropped/Completed association) no longer halves a student's effective
+    fees. Mirrors tutor_students() for the split denominator.
+    """
+    from sqlalchemy import distinct, or_
+    from app.models import Tutor, Course, tutor_courses, student_courses
+    return (
+        db.session.query(db.func.count(distinct(Tutor.id)))
+        .select_from(Tutor)
+        .join(tutor_courses, Tutor.id == tutor_courses.c.tutor_id)
+        .join(Course, Course.id == tutor_courses.c.course_id)
+        .join(student_courses, student_courses.c.course_id == Course.id)
+        .filter(
+            student_courses.c.student_id == student_id,
+            Tutor.status == 'Active',
+            or_(student_courses.c.status.is_(None),
+                student_courses.c.status.notin_(INACTIVE_ENROLLMENT_STATUSES)),
+        )
+        .scalar() or 0
+    )
