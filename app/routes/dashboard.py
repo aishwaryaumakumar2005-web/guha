@@ -2,9 +2,11 @@ from datetime import date, datetime, timedelta
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import User, Student, Tutor, Course, Enquiry, FeeRecord, Attendance, LeaveRequest, Exam, Expense, student_courses
-from app.helpers import admin_required, is_ajax_request
-from app.services.account_service import compute_account_summary
+from app.models import User, Student, Tutor, Course, Enquiry, FeeRecord, Attendance, LeaveRequest, Exam, student_courses
+from app.helpers import admin_required, get_gst_rates, is_ajax_request
+from app.services.account_service import (compute_account_summary,
+                                          agreed_enrollment_items_bulk,
+                                          student_refunded_totals_bulk)
 from sqlalchemy import func, case
 from time import time
 
@@ -168,49 +170,66 @@ def _top_courses():
     ).limit(5).all()
 
 
-def _fee_dues():
-    """Outstanding fees per active student in ONE aggregated query.
+def _fee_due_rows(student_ids=None):
+    """Outstanding-fees position per active student, mirroring the fees-page
+    rule exactly (fees.py list / student_outstanding_bulk): dues are the agreed
+    fees *inclusive* of GST (GST-applicable courses get the current CGST+SGST
+    on the taxable base) and balance = due - paid - concessions + refunded.
 
-    Previously this loaded every active student and then lazy-loaded
-    ``s.courses`` per student (N+1). The query below joins the enrollment
-    association and a per-student payments subquery, so the section costs a
-    constant number of round trips no matter how many students exist. The
-    result shape is unchanged: ([{name, roll_no, total_fee, paid, balance}]
-    sorted by balance desc, total_outstanding).
+    Batched — no per-student query loops (previously N+1 lazy loads). Passing
+    ``student_ids`` scopes the scan (e.g. the staff today-tasks API); None
+    means every active student.
     """
-    paid_sq = db.session.query(
-        FeeRecord.student_id.label('sid'),
-        db.func.sum(FeeRecord.amount_paid).label('paid')
-    ).group_by(FeeRecord.student_id).subquery()
-    refund_sq = db.session.query(
-        Expense.student_id.label('sid'),
-        db.func.sum(Expense.amount).label('refunded')
-    ).filter(Expense.student_id.isnot(None)
-    ).group_by(Expense.student_id).subquery()
-    rows = db.session.query(
-        Student.name, Student.roll_no,
-        db.func.coalesce(db.func.sum(
-            db.func.coalesce(student_courses.c.agreed_fee, Course.fees)
-        ), 0).label('total_fee'),
-        db.func.coalesce(paid_sq.c.paid, 0).label('paid'),
-        db.func.coalesce(refund_sq.c.refunded, 0).label('refunded')
-    ).outerjoin(student_courses, student_courses.c.student_id == Student.id
-    ).outerjoin(Course, Course.id == student_courses.c.course_id
-    ).outerjoin(paid_sq, paid_sq.c.sid == Student.id
-    ).outerjoin(refund_sq, refund_sq.c.sid == Student.id
-    ).filter(Student.status == 'Active'
-    ).group_by(Student.id, Student.name, Student.roll_no, paid_sq.c.paid, refund_sq.c.refunded
-    ).all()
-    due_students = []
-    for name, roll_no, total_fee, paid, refunded in rows:
-        total_fee = float(total_fee or 0)
-        paid = float(paid or 0)
-        refunded = float(refunded or 0)
-        balance = total_fee - paid + refunded
-        if balance > 1:
-            due_students.append({'name': name, 'roll_no': roll_no,
-                                 'total_fee': total_fee, 'paid': paid,
-                                 'refunded': refunded, 'balance': balance})
+    if student_ids is not None:
+        student_ids = list(student_ids)
+        if not student_ids:
+            return []
+    query = Student.query.filter_by(status='Active')
+    if student_ids is not None:
+        query = query.filter(Student.id.in_(student_ids))
+    students = query.all()
+    sids = [s.id for s in students]
+    cgst_pct, sgst_pct = get_gst_rates()
+    total_gst_pct = cgst_pct + sgst_pct
+    items_map = agreed_enrollment_items_bulk(sids)
+    refunded_map = student_refunded_totals_bulk(sids)
+    paid_rows = db.session.query(
+        FeeRecord.student_id,
+        db.func.sum(FeeRecord.amount_paid).label('paid'),
+        db.func.sum(db.func.coalesce(FeeRecord.concession, 0)).label('concession')
+    ).filter(FeeRecord.student_id.in_(sids)).group_by(FeeRecord.student_id).all()
+    paid_map = {sid: (float(paid or 0), float(concession or 0))
+                for sid, paid, concession in paid_rows}
+    rows = []
+    for s in students:
+        items = items_map.get(s.id, [])
+        total_taxable = round(sum(it['fee'] for it in items), 2)
+        gst_amount = round(sum(
+            round(it['fee'] * total_gst_pct / 100, 2) for it in items if it['gst_applicable']
+        ), 2)
+        total_fee = round(total_taxable + gst_amount, 2)
+        paid, concession = paid_map.get(s.id, (0.0, 0.0))
+        paid = round(paid, 2)
+        concession = round(concession, 2)
+        refunded = refunded_map.get(s.id, 0.0)
+        rows.append({
+            'id': s.id, 'name': s.name, 'roll_no': s.roll_no,
+            'total_fee': total_fee, 'total_taxable': total_taxable,
+            'gst_amount': gst_amount, 'paid': paid,
+            'concession': concession, 'refunded': refunded,
+            'balance': round(total_fee - paid - concession + refunded, 2),
+        })
+    return rows
+
+
+def _fee_dues():
+    """Outstanding fees per active student (balance > ₹1), sorted by balance desc.
+
+    Single batched pass via ``_fee_due_rows`` — no N+1. Result shape:
+    ([{name, roll_no, total_fee, paid, balance}] sorted by balance desc,
+    total_outstanding).
+    """
+    due_students = [r for r in _fee_due_rows() if r['balance'] > 1]
     due_students.sort(key=lambda d: d['balance'], reverse=True)
     return due_students, round(sum(d['balance'] for d in due_students), 2)
 
@@ -353,8 +372,7 @@ def api_todays_activities():
             student_ids = [s.id for s in students]
             
             today = date.today()
-            month_ago = today - timedelta(days=30)
-            
+
             # Staff's students with low attendance
             fourteen_days_ago = today - timedelta(days=14)
             att_stats = db.session.query(
@@ -368,12 +386,9 @@ def api_todays_activities():
             ).group_by(Attendance.person_id).all()
             low_attendance_students = [s.person_id for s in att_stats if s.total >= 3 and (s.present * 100.0 / s.total) < 75]
             
-            # Staff's students with fee dues
-            fee_due_students = Student.query.filter(Student.id.in_(student_ids), Student.status == 'Active').filter(
-                ~Student.fee_records.any(
-                    FeeRecord.payment_date >= month_ago
-                )
-            ).count()
+            # Staff's students with real fee dues (GST-inclusive balance > 0)
+            fee_due_students = sum(
+                1 for r in _fee_due_rows(student_ids) if r['balance'] > 0)
             
             # Staff's pending leaves
             pending_leaves = LeaveRequest.query.filter_by(user_id=current_user.id, status='Pending').count()
@@ -409,7 +424,6 @@ def api_todays_activities():
     
     # Admin activities (original logic)
     today = date.today()
-    month_ago = today - timedelta(days=30)
 
     stale_cutoff = datetime.utcnow() - timedelta(days=3)
     stale_enquiries = Enquiry.query.filter(
@@ -421,11 +435,7 @@ def api_todays_activities():
         db.cast(Enquiry.created_at, db.Date) == today
     ).count()
 
-    fee_due_students = Student.query.filter(Student.status == 'Active').filter(
-        ~Student.fee_records.any(
-            FeeRecord.payment_date >= month_ago
-        )
-    ).count()
+    fee_due_students = sum(1 for r in _fee_due_rows() if r['balance'] > 0)
 
     low_attendance_count = get_dashboard_stats().get('low_attendance_count', 0)
 
