@@ -22,6 +22,7 @@ class Config:
 
 class DevConfig(Config):
     DEBUG = True
+    TEMPLATES_AUTO_RELOAD = True
     _dev_db = f'sqlite:///{os.path.join(_basedir, "instance", "institute.db").replace(os.sep, "/")}'
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or _dev_db
 
