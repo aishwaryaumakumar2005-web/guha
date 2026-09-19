@@ -1,11 +1,12 @@
-"""Batch 1 reports-module bug fixes (B1-B5)."""
+"""Batch 1 reports-module bug fixes (B1-B5) and Batch 2 functionality (F1-F5)."""
 from datetime import date, timedelta
 from io import BytesIO
 
 from openpyxl import load_workbook
 
 from app.extensions import db
-from app.models import Course, Student, FeeRecord, Expense, Company, ExpenseCategory, student_courses
+from app.models import (Account, Course, Student, FeeRecord, Expense, Company,
+                        ExpenseCategory, student_courses)
 from app.routes.reports import (course_wise_income_summary,
                                 filter_by_company_methods,
                                 payment_method_period_breakdown)
@@ -212,6 +213,117 @@ def test_staff_fees_collected_uses_30_day_window(staff_client, app):
     assert 'Fees Collected (30d)' in body
     assert '₹500.00' in body
     assert '₹1,000.00' not in body
+
+
+def _add_account(app, name, company_id, acct_type='Cash'):
+    with app.app_context():
+        acc = Account.query.filter_by(name=name).first()
+        if acc:
+            acc.company_id = company_id
+            acc.is_active = True
+        else:
+            db.session.add(Account(name=name, account_type=acct_type,
+                                   company_id=company_id, is_active=True))
+        db.session.commit()
+
+
+# -- F1: unattributable fees surface as an "Unassigned" bucket -----------------
+def test_course_wise_unassigned_for_student_without_enrollment(app):
+    sid = _mk_student(app, 10, [])
+    _add_fee(app, sid, 800.0, date.today())
+    with app.app_context():
+        m = course_wise_income_summary(date.today() - timedelta(days=1), date.today())
+    assert None in m
+    assert abs(m.get(None, 0.0) - 800.0) < 0.01
+
+
+def test_course_wise_dropped_only_falls_back_not_unassigned(app):
+    cid = _mk_course(app, 'DOP')
+    sid = _mk_student(app, 11, [cid])
+    _set_enrollment(app, sid, cid, status='Dropped', enrolled_on=date(2026, 8, 1),
+                    completed_on=date(2026, 8, 15))
+    _add_fee(app, sid, 900.0, date.today())
+    with app.app_context():
+        m = course_wise_income_summary(date.today() - timedelta(days=1), date.today())
+    assert None not in m
+    assert abs(m.get(cid, 0.0) - 900.0) < 0.01
+
+
+def test_course_wise_unassigned_row_renders_on_web(admin_client, app):
+    sid = _mk_student(app, 12, [])
+    _add_fee(app, sid, 750.0, date.today())
+    body = admin_client.get('/reports?tab=fees&quick=today').get_data(as_text=True)
+    assert 'Unassigned' in body
+    assert '750.00' in body
+
+
+# -- F2: unified income attribution (direct company tag > unattributed) --------
+def test_filter_fee_direct_company_wins_over_method(app):
+    cid = _mk_company(app, 'Direct Co')
+    _add_account(app, 'Cash', cid)
+    course_id = _mk_course(app, 'DIR')
+    sid = _mk_student(app, 13, [course_id])
+    _set_enrollment(app, sid, course_id, status='Enrolled', enrolled_on=date(2026, 9, 1))
+    _add_fee(app, sid, 1500.0, date(2026, 9, 10), method='UPI', company_id=cid)
+    with app.app_context():
+        q = FeeRecord.query.filter(FeeRecord.payment_date >= date(2026, 9, 1),
+                                   FeeRecord.payment_date <= date(2026, 9, 30))
+        rows = filter_by_company_methods(q, FeeRecord.payment_method, cid).all()
+    assert len(rows) == 1 and rows[0].amount_paid == 1500.0
+
+
+def test_filter_fee_unattributed_matched_included_direct_kept(app):
+    cid = _mk_company(app, 'Match Co')
+    _add_account(app, 'Cash', cid)
+    course_id = _mk_course(app, 'MTH')
+    sid = _mk_student(app, 14, [course_id])
+    _set_enrollment(app, sid, course_id, status='Enrolled', enrolled_on=date(2026, 9, 1))
+    _add_fee(app, sid, 1000.0, date(2026, 9, 10), method='Cash', company_id=None)
+    _add_fee(app, sid, 2000.0, date(2026, 9, 11), method='UPI', company_id=cid)
+    _add_fee(app, sid, 4000.0, date(2026, 9, 12), method='UPI', company_id=None)
+    with app.app_context():
+        q = FeeRecord.query.filter(FeeRecord.payment_date >= date(2026, 9, 1),
+                                   FeeRecord.payment_date <= date(2026, 9, 30))
+        rows = filter_by_company_methods(q, FeeRecord.payment_method, cid).all()
+    assert sorted(r.amount_paid for r in rows) == [1000.0, 2000.0]
+
+
+def test_course_wise_scope_attaches_unattributed_matched_fees(app):
+    cid = _mk_company(app, 'Scope Co')
+    _add_account(app, 'Cash', cid)
+    course_id = _mk_course(app, 'SCP')
+    sid = _mk_student(app, 15, [course_id])
+    _set_enrollment(app, sid, course_id, status='Enrolled', enrolled_on=date.today())
+    _add_fee(app, sid, 1200.0, date.today(), company_id=cid, method='Cash')
+    _add_fee(app, sid, 600.0, date.today(), company_id=None, method='Cash')
+    with app.app_context():
+        m = course_wise_income_summary(date.today() - timedelta(days=1), date.today(),
+                                       company_id=cid)
+    assert abs(m.get(course_id, 0.0) - 1800.0) < 0.01
+
+
+# -- F4: per-method export-all Excel (unbounded) -------------------------------
+def test_payment_methods_export_all_excel(admin_client, app, monkeypatch):
+    import app.routes.reports as reports_mod
+    monkeypatch.setattr(reports_mod, 'PM_EXPORT_DETAIL_LIMIT', 2)
+    sid = _mk_student(app, 16, [])
+    for _ in range(5):
+        _add_fee(app, sid, 100.0, date.today())
+    resp = admin_client.get('/reports/excel?tab=payment_methods&quick=today&method=Cash')
+    assert resp.status_code == 200
+    assert 'Cash_Payments' in resp.headers.get('Content-Disposition', '')
+    wb = load_workbook(BytesIO(resp.data))
+    ws = wb.active
+    assert ws.cell(row=2, column=1).value is not None
+    assert ws.cell(row=8, column=1).value == 'Total'
+    assert ws.cell(row=8, column=4).value == 500.0
+    assert ws.max_row == 8
+
+
+# -- F5: 30-day window reflected in labels -------------------------------------
+def test_staff_recent_fees_label_30d(staff_client):
+    body = staff_client.get('/reports').get_data(as_text=True)
+    assert 'Recent Fee Payments (30d)' in body
 
 
 # -- B5: payment-method detail bounded + truncation disclosed ------------------

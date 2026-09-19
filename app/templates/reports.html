@@ -205,7 +205,7 @@
                 </div>
             </div>
             <div class="glass-card p-4">
-                <h4 class="text-dark fw-bold mb-3">Recent Fee Payments</h4>
+                <h4 class="text-dark fw-bold mb-3">Recent Fee Payments (30d)</h4>
                 <div class="table-container">
                     <table class="table table-custom">
                         <thead>
@@ -785,6 +785,9 @@ Total Collected</div>
                             {{ method }} Transactions
                             <span class="badge badge-custom badge-cyan ms-2">₹{{ "{:,.2f}".format(data.total) }}</span>
                             <span class="badge bg-secondary ms-1">{{ data.count }} payment{{ 's' if data.count != 1 else '' }}</span>
+                            <a class="btn btn-outline-premium btn-sm float-end" href="{{ url_for('reports.report_excel', tab='payment_methods', method=method, filter_mode=filter_mode, month=filter_month, year=filter_year, start_date=start_date_str, end_date=end_date_str, company_id=selected_company_id, quick=active_quick or '') }}" title="Export all {{ method }} payments">
+                                <i class="bi bi-download me-1"></i>Export Excel
+                            </a>
                         </h5>
                         <div class="table-container" style="max-height: 300px; overflow-y: auto;">
                             <table class="table table-custom sortable" data-page-size="10">
