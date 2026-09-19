@@ -21,6 +21,16 @@ def _set_settings(app, tid, **kw):
         db.session.commit()
 
 
+def _fund_cash(app, amount):
+    """Record cash income so the Cash account can cover salary confirmations
+    (E7 enforces sufficient balance server-side)."""
+    with app.app_context():
+        sid = Student.query.filter_by(email='student@guha.test').first().id
+        db.session.add(FeeRecord(student_id=sid, amount_paid=amount,
+                                 payment_date=date.today(), payment_method='Cash'))
+        db.session.commit()
+
+
 # ---- P1: net must never go negative -------------------------------------
 
 def test_settings_reject_deductions_over_net(admin_client, app):
@@ -81,6 +91,7 @@ def test_confirm_refuses_negative_net(admin_client, app):
 
 def test_confirm_dates_expense_to_period_end(admin_client, app):
     tid = _tid(app)
+    _fund_cash(app, 20000)
     with app.app_context():
         rec = PayrollRecord(tutor_id=tid, month=2, year=2026,
             base_amount=10000, commission_amount=0, bonus_amount=0,
@@ -99,6 +110,7 @@ def test_confirm_dates_expense_to_period_end(admin_client, app):
 
 def test_confirm_future_period_clamps_to_today(admin_client, app):
     tid = _tid(app)
+    _fund_cash(app, 20000)
     future_year = date.today().year + 1
     with app.app_context():
         rec = PayrollRecord(tutor_id=tid, month=1, year=future_year,

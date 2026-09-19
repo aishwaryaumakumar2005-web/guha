@@ -1,8 +1,12 @@
 from datetime import datetime, date, timedelta
-from io import BytesIO
+import csv
+import io
+import json
 import math
 import os
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, send_file, current_app
+import zipfile
+from io import BytesIO
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, send_file, current_app, Response
 from flask_login import login_required, current_user
 from fpdf import FPDF
 from sqlalchemy.exc import IntegrityError
@@ -11,6 +15,7 @@ from app.models import Tutor, PayrollRecord, TutorPayrollSettings, Expense, Expe
 from app.helpers import admin_required
 from app.services.account_service import compute_account_summary
 from app.services.accounting import LOGO_PATH
+from app.services.payment_methods import classify_method
 
 payroll_bp = Blueprint('payroll', __name__)
 
@@ -30,6 +35,82 @@ def _validate_commission_override(percentage):
     return None
 
 
+def _parse_breakdown(raw):
+    """Safely decode a stored commission breakdown (E1); legacy NULL -> []."""
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+    except (ValueError, TypeError):
+        return []
+    return data if isinstance(data, list) else []
+
+
+def _dump_breakdown(breakdown):
+    return json.dumps(breakdown, ensure_ascii=False)
+
+
+def _parse_paid_date(raw, default):
+    """Validate the optional confirm-time paid date; ''/today when blank."""
+    if raw is None or not str(raw).strip():
+        return default
+    try:
+        d = datetime.strptime(str(raw).strip(), '%Y-%m-%d').date()
+    except ValueError:
+        return None
+    if d > date.today():
+        return None
+    return d
+
+
+def _sufficient_balance(payment_method, amount):
+    """(ok, available) for a payout on `payment_method`.
+
+    E7: refuse confirmations that would draw an account below zero. Only
+    canonical accounts with a resolvable row are enforced; an unknown method
+    or an account with no ledger history is never blocked.
+    """
+    summary = {a['name']: a['balance'] for a in compute_account_summary()}
+    available = summary.get(classify_method(payment_method))
+    if available is None:
+        return True, None
+    return float(available) >= amount, float(available)
+
+
+def _finalize_payroll(record, payment_method, paid_date):
+    """Confirm a single draft into Paid + salary expense (P2/P5/E7).
+
+    Returns (ok, message). Refuses negative-nets and insufficient account
+    balance; the salary expense is dated to the pay period's last day.
+    """
+    if record.net_amount < 0:
+        return False, (f"Cannot confirm {record.tutor.name}'s payroll for "
+                       f"{record.month}/{record.year}: the net amount is negative "
+                       f"(Rs.{record.net_amount:,.2f}).")
+    ok, available = _sufficient_balance(payment_method, record.net_amount)
+    if not ok:
+        return False, (f"Cannot confirm {record.tutor.name}'s payroll for "
+                       f"{record.month}/{record.year}: the {payment_method} account has "
+                       f"only Rs.{available:,.2f} available, below the Rs.{record.net_amount:,.2f} payout.")
+    salary_cat = ExpenseCategory.query.filter_by(name="Salary").first()
+    if not salary_cat:
+        salary_cat = ExpenseCategory(name="Salary", description="Staff salary payments")
+        db.session.add(salary_cat)
+        db.session.flush()
+    desc = f"Salary: {record.tutor.name} - {record.month}/{record.year} (Base: Rs.{record.base_amount:,.2f}, Commission: Rs.{record.commission_amount:,.2f}, TDS: Rs.{record.tds_amount:,.2f})"
+    expense_date = min(_period_end(record.month, record.year), date.today())
+    expense = Expense(category_id=salary_cat.id, amount=record.net_amount, description=desc,
+        expense_date=expense_date, created_by=current_user.id,
+        payment_method=payment_method)
+    db.session.add(expense)
+    db.session.flush()
+    record.status = 'Paid'
+    record.expense_id = expense.id
+    record.paid_date = paid_date
+    record.payment_method = payment_method
+    return True, f"Payroll confirmed for {record.tutor.name}. Expense recorded (Rs.{record.net_amount:,.2f}) for {expense_date.strftime('%b %Y')}."
+
+
 def compute_tutor_payroll(tutor, month, year, percentage=None):
     settings = TutorPayrollSettings.query.filter_by(tutor_id=tutor.id).first()
     if not settings:
@@ -45,7 +126,8 @@ def compute_tutor_payroll(tutor, month, year, percentage=None):
     from app.models import Student, Course, FeeRecord
     students = Student.query.join(Student.courses).join(Course.tutors).filter(Tutor.id == tutor.id).all()
     commission = 0.0
-    if students and comm_pct > 0:
+    breakdown = []
+    if students:
         from sqlalchemy import distinct
         for student in students:
             tutor_count = db.session.query(db.func.count(distinct(Tutor.id))).select_from(Tutor).join(
@@ -60,7 +142,20 @@ def compute_tutor_payroll(tutor, month, year, percentage=None):
                 FeeRecord.payment_date >= start_date,
                 FeeRecord.payment_date <= end_date
             ).scalar() or 0.0
-            commission += (student_fees / tutor_count) * (comm_pct / 100.0)
+            # E1: per-student contribution. Fees are attributed to the month
+            # they were paid in (no pro-rating) and split evenly across every
+            # tutor teaching the student. Concessions/waivers are not cash and
+            # never drive commission (amount_paid only).
+            contrib = (student_fees / tutor_count) * (comm_pct / 100.0)
+            commission += contrib
+            breakdown.append({
+                'student_id': student.id,
+                'student': student.name,
+                'roll_no': getattr(student, 'roll_no', None) or '',
+                'fees': round(student_fees, 2),
+                'tutor_count': tutor_count,
+                'commission': round(contrib, 2),
+            })
     gross = base + commission + bonus
     tds = gross * (tds_pct / 100.0) if tds_pct > 0 else 0.0
     # P1: deductions must never push the net negative - that would later
@@ -71,7 +166,8 @@ def compute_tutor_payroll(tutor, month, year, percentage=None):
         other_ded = min(other_ded, max(0.0, gross - tds))
     net = max(0.0, gross - tds - other_ded)
     return {'base': base, 'commission': commission, 'commission_pct': comm_pct,
-        'bonus': bonus, 'tds': tds, 'tds_pct': tds_pct, 'other_ded': other_ded, 'net': net, 'gross': gross}
+        'bonus': bonus, 'tds': tds, 'tds_pct': tds_pct, 'other_ded': other_ded, 'net': net, 'gross': gross,
+        'breakdown': breakdown}
 
 @payroll_bp.route('/payroll')
 @login_required
@@ -86,6 +182,20 @@ def payroll_list():
     records = records.order_by(PayrollRecord.created_at.desc()).all()
     tutors = Tutor.query.order_by(Tutor.name).all()
     active_records = [r for r in records if r.status != 'Cancelled']
+    breakdowns = {r.id: _parse_breakdown(r.commission_breakdown) for r in records}
+    # Lightweight per-record meta for the shared confirm/notes/breakdown modals.
+    record_meta = {
+        r.id: {
+            'name': r.tutor.name,
+            'net': r.net_amount,
+            'method': r.payment_method or 'Cash',
+            'notes': r.notes or '',
+            'period': f"{r.month}/{r.year}",
+        } for r in records
+    }
+    # E6: active tutors with no payroll record for the selected period.
+    missing_tutors = [t for t in tutors
+                      if t.status == 'Active' and t.id not in {r.tutor_id for r in records}]
     totals = {
         'base': sum(r.base_amount for r in active_records),
         'commission': sum(r.commission_amount for r in active_records),
@@ -96,7 +206,8 @@ def payroll_list():
     }
     return render_template('payroll.html', records=records, tutors=tutors,
         filter_month=filter_month, filter_year=filter_year, filter_status=filter_status,
-        totals=totals, today=date.today(), account_balances=compute_account_summary())
+        totals=totals, today=date.today(), account_balances=compute_account_summary(),
+        breakdowns=breakdowns, missing_tutors=missing_tutors, record_meta=record_meta)
 
 @payroll_bp.route('/payroll/process', methods=['POST'])
 @login_required
@@ -128,7 +239,8 @@ def process_payroll():
         bonus_amount=result['bonus'], tds_amount=result['tds'],
         other_deductions=result['other_ded'], net_amount=result['net'], status='Draft',
         payment_method=request.form.get('payment_method', 'Cash'),
-        commission_pct_used=result['commission_pct'])
+        commission_pct_used=result['commission_pct'],
+        commission_breakdown=_dump_breakdown(result['breakdown']))
     db.session.add(record)
     try:
         db.session.commit()
@@ -170,7 +282,8 @@ def process_all_payroll():
             bonus_amount=result['bonus'], tds_amount=result['tds'],
             other_deductions=result['other_ded'], net_amount=result['net'], status='Draft',
             payment_method=request.form.get('payment_method', 'Cash'),
-            commission_pct_used=result['commission_pct'])
+            commission_pct_used=result['commission_pct'],
+            commission_breakdown=_dump_breakdown(result['breakdown']))
         db.session.add(record)
         count += 1
     try:
@@ -192,31 +305,146 @@ def confirm_payroll(id):
     if record.status != 'Draft':
         flash("Payroll record is already finalized.", "warning")
         return redirect(url_for('payroll.payroll_list', month=record.month, year=record.year))
-    if record.net_amount < 0:
-        flash(f"Cannot confirm {record.tutor.name}'s payroll for {record.month}/{record.year}: the net amount is negative (Rs.{record.net_amount:,.2f}). Please adjust the salary settings first.", "danger")
+    payment_method = (request.form.get('payment_method') or record.payment_method or 'Cash').strip()
+    paid_date = _parse_paid_date(request.form.get('paid_date'), date.today())
+    if paid_date is None:
+        flash("Paid date cannot be empty or in the future.", "danger")
         return redirect(url_for('payroll.payroll_list', month=record.month, year=record.year))
-    salary_cat = ExpenseCategory.query.filter_by(name="Salary").first()
-    if not salary_cat:
-        salary_cat = ExpenseCategory(name="Salary", description="Staff salary payments")
-        db.session.add(salary_cat)
+    ok, message = _finalize_payroll(record, payment_method, paid_date)
+    if not ok:
+        flash(message, "danger")
+    else:
         db.session.commit()
-    desc = f"Salary: {record.tutor.name} - {record.month}/{record.year} (Base: Rs.{record.base_amount:,.2f}, Commission: Rs.{record.commission_amount:,.2f}, TDS: Rs.{record.tds_amount:,.2f})"
-    # P2: the salary belongs to its pay period, not the confirmation day.
-    # Expense reports aggregate by expense_date, so a late-confirmed salary
-    # for a past month must land in that month; never allow a future period
-    # date (clamp to today) else it would appear in a period not yet over.
-    expense_date = min(_period_end(record.month, record.year), date.today())
-    expense = Expense(category_id=salary_cat.id, amount=record.net_amount, description=desc,
-        expense_date=expense_date, created_by=current_user.id,
-        payment_method=record.payment_method or 'Cash')
-    db.session.add(expense)
-    db.session.flush()
-    record.status = 'Paid'
-    record.expense_id = expense.id
-    record.paid_date = date.today()
-    db.session.commit()
-    flash(f"Payroll confirmed for {record.tutor.name}. Expense recorded (Rs.{record.net_amount:,.2f}) for {expense_date.strftime('%b %Y')}.", "success")
+        flash(message, "success")
     return redirect(url_for('payroll.payroll_list', month=record.month, year=record.year))
+
+@payroll_bp.route('/payroll/confirm-all', methods=['POST'])
+@login_required
+@admin_required
+def confirm_all_payroll():
+    try:
+        month = int(request.form.get('month', 0))
+        year = int(request.form.get('year', 0))
+    except (ValueError, TypeError):
+        flash('Invalid month or year value.', 'danger')
+        return redirect(url_for('payroll.payroll_list'))
+    if month < 1 or month > 12 or year < 2000:
+        flash('Month must be 1-12 and year must be 2000+.', 'danger')
+        return redirect(url_for('payroll.payroll_list'))
+    payment_method = (request.form.get('payment_method') or 'Cash').strip()
+    paid_date = _parse_paid_date(request.form.get('paid_date'), date.today())
+    if paid_date is None:
+        flash("Paid date cannot be empty or in the future.", "danger")
+        return redirect(url_for('payroll.payroll_list', month=month, year=year))
+    records = PayrollRecord.query.filter_by(month=month, year=year, status='Draft').all()
+    confirmed = 0
+    problems = {'negative': 0, 'balance': 0}
+    for rec in records:
+        ok, message = _finalize_payroll(rec, payment_method, paid_date)
+        if not ok:
+            if 'negative' in message:
+                problems['negative'] += 1
+            else:
+                problems['balance'] += 1
+            continue
+        confirmed += 1
+    if confirmed:
+        db.session.commit()
+        flash(f"Confirmed {confirmed} record(s) for {month}/{year} (method: {payment_method}, paid {paid_date.strftime('%d %b %Y')}).", "success")
+    else:
+        db.session.rollback()
+        flash("Nothing was confirmed - check for negative nets or insufficient account balances.", "danger")
+    if problems['negative']:
+        flash(f"{problems['negative']} record(s) skipped: negative net amount.", "warning")
+    if problems['balance']:
+        flash(f"{problems['balance']} record(s) skipped: insufficient account balance.", "warning")
+    return redirect(url_for('payroll.payroll_list', month=month, year=year))
+
+@payroll_bp.route('/payroll/<int:id>/recalc', methods=['POST'])
+@login_required
+@admin_required
+def recalc_payroll(id):
+    record = PayrollRecord.query.get_or_404(id)
+    if record.status != 'Draft':
+        flash("Only draft records can be recalculated.", "warning")
+        return redirect(url_for('payroll.payroll_list', month=record.month, year=record.year))
+    tutor = record.tutor
+    settings = TutorPayrollSettings.query.filter_by(tutor_id=tutor.id).first()
+    comm_pct = settings.commission_percentage if settings else None
+    result = compute_tutor_payroll(tutor, record.month, record.year, comm_pct)
+    record.base_amount = result['base']
+    record.commission_amount = result['commission']
+    record.bonus_amount = result['bonus']
+    record.tds_amount = result['tds']
+    record.other_deductions = result['other_ded']
+    record.net_amount = result['net']
+    record.commission_pct_used = result['commission_pct']
+    record.commission_breakdown = _dump_breakdown(result['breakdown'])
+    db.session.commit()
+    flash(f"Payroll recalculated for {tutor.name} ({record.month}/{record.year}): Rs.{result['net']:,.2f} net.", "success")
+    return redirect(url_for('payroll.payroll_list', month=record.month, year=record.year))
+
+@payroll_bp.route('/payroll/<int:id>/notes', methods=['POST'])
+@login_required
+@admin_required
+def update_notes(id):
+    record = PayrollRecord.query.get_or_404(id)
+    notes = (request.form.get('notes') or '').strip()
+    record.notes = notes or None
+    db.session.commit()
+    flash(f"Notes saved for {record.tutor.name}'s payroll ({record.month}/{record.year}).", "success")
+    return redirect(url_for('payroll.payroll_list', month=record.month, year=record.year))
+
+@payroll_bp.route('/payroll/export')
+@login_required
+@admin_required
+def export_payroll():
+    filter_month = request.args.get('month', type=int) or date.today().month
+    filter_year = request.args.get('year', type=int) or date.today().year
+    filter_status = request.args.get('status', '')
+    records = PayrollRecord.query.filter_by(month=filter_month, year=filter_year)
+    if filter_status:
+        records = records.filter_by(status=filter_status)
+    records = records.order_by(PayrollRecord.tutor_id).all()
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(['Tutor', 'Month', 'Year', 'Base', 'Commission', 'Bonus', 'Gross',
+                     'TDS', 'Other Deductions', 'Net', 'Payment Mode', 'Status',
+                     'Paid Date', 'Notes'])
+    for r in records:
+        writer.writerow([
+            r.tutor.name, r.month, r.year, r.base_amount, r.commission_amount,
+            r.bonus_amount, r.base_amount + r.commission_amount + r.bonus_amount,
+            r.tds_amount, r.other_deductions, r.net_amount, r.payment_method or 'Cash',
+            r.status, r.paid_date.strftime('%Y-%m-%d') if r.paid_date else '', r.notes or '',
+        ])
+    data = buf.getvalue().encode('utf-8-sig')
+    return Response(data, mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename=payroll_{filter_year}_{filter_month:02d}.csv'})
+
+@payroll_bp.route('/payroll/payslips')
+@login_required
+@admin_required
+def payslips_zip():
+    filter_month = request.args.get('month', type=int) or date.today().month
+    filter_year = request.args.get('year', type=int) or date.today().year
+    filter_status = request.args.get('status', '')
+    records = PayrollRecord.query.filter_by(month=filter_month, year=filter_year)
+    if filter_status:
+        records = records.filter_by(status=filter_status)
+    records = records.order_by(PayrollRecord.tutor_id).all()
+    buf = BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for r in records:
+            zf.writestr(
+                f'payslip_{r.tutor.name.replace(" ", "_")}_{r.month}_{r.year}.pdf',
+                _build_payslip_pdf(r))
+    buf.seek(0)
+    if not records:
+        flash("No payslips to download for the selected period.", "warning")
+        return redirect(url_for('payroll.payroll_list', month=filter_month, year=filter_year))
+    return send_file(buf, mimetype='application/zip', as_attachment=True,
+        download_name=f'payslips_{filter_year}_{filter_month:02d}.zip')
 
 @payroll_bp.route('/payroll/<int:id>/cancel', methods=['POST'])
 @login_required
@@ -256,11 +484,7 @@ def delete_payroll(id):
         flash(f"Salary deleted for {tutor_name}.", "success")
     return redirect(url_for('payroll.payroll_list', month=month, year=year))
 
-@payroll_bp.route('/payroll/<int:id>/payslip')
-@login_required
-@admin_required
-def payslip_pdf(id):
-    record = PayrollRecord.query.get_or_404(id)
+def _build_payslip_pdf(record):
     tutor = record.tutor
     settings = TutorPayrollSettings.query.filter_by(tutor_id=tutor.id).first()
     month_names = ['', 'January', 'February', 'March', 'April', 'May', 'June',
@@ -499,8 +723,17 @@ def payslip_pdf(id):
     buf = BytesIO()
     pdf.output(buf)
     buf.seek(0)
-    return send_file(buf, mimetype='application/pdf', as_attachment=True,
-        download_name=f'payslip_{tutor.name.replace(" ", "_")}_{record.month}_{record.year}.pdf')
+    return buf.getvalue()
+
+
+@payroll_bp.route('/payroll/<int:id>/payslip')
+@login_required
+@admin_required
+def payslip_pdf(id):
+    record = PayrollRecord.query.get_or_404(id)
+    data = _build_payslip_pdf(record)
+    return send_file(BytesIO(data), mimetype='application/pdf', as_attachment=True,
+        download_name=f'payslip_{record.tutor.name.replace(" ", "_")}_{record.month}_{record.year}.pdf')
 
 @payroll_bp.route('/payroll/settings/<int:tutor_id>', methods=['POST'])
 @login_required
@@ -541,6 +774,7 @@ def update_settings(tutor_id):
         rec.other_deductions = result['other_ded']
         rec.net_amount = result['net']
         rec.commission_pct_used = comm_pct
+        rec.commission_breakdown = _dump_breakdown(result['breakdown'])
     db.session.commit()
     msg = f"Payroll settings updated for {tutor.name}."
     if draft_records:

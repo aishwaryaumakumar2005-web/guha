@@ -43,6 +43,9 @@ class PayrollRecord(db.Model):
     expense_id = db.Column(db.Integer, db.ForeignKey('expense.id'))
     paid_date = db.Column(db.Date)
     notes = db.Column(db.Text)
+    # E1: per-student commission breakdown snapshot, JSON list:
+    # [{"student_id", "student", "roll_no", "fees", "tutor_count", "commission"}]
+    commission_breakdown = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

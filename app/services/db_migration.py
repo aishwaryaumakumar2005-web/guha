@@ -353,6 +353,26 @@ def migrate_fee_concession_column():
             print(f"Migration migrate_fee_concession_column: FAILED to add fee_record.concession: {e}", flush=True)
 
 
+def migrate_payroll_commission_breakdown_column():
+    """Add payroll_record.commission_breakdown (nullable JSON text).
+
+    E1: per-student commission detail. The ORM maps it, so legacy databases
+    need the column before payroll pages or that column's ORM mapper touches
+    the table. Idempotent and additive-only; legacy rows keep NULL (= no
+    breakdown captured at processing time, rendered as absent).
+    """
+    if not _table_exists('payroll_record'):
+        return
+    if not _has_column('payroll_record', 'commission_breakdown'):
+        try:
+            db.session.execute(text('ALTER TABLE "payroll_record" ADD COLUMN "commission_breakdown" TEXT'))
+            db.session.commit()
+            print("Migration migrate_payroll_commission_breakdown_column: added payroll_record.commission_breakdown", flush=True)
+        except Exception as e:
+            db.session.rollback()
+            print(f"Migration migrate_payroll_commission_breakdown_column: FAILED to add column: {e}", flush=True)
+
+
 def migrate_agreed_dues_columns():
     """Add agreed_fee / agreed_gst / agreed_company_id to student_courses.
 

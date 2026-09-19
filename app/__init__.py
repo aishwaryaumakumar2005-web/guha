@@ -339,6 +339,13 @@ def create_app(config_object=None):
                 print("Migration migrate_lifecycle_ack_table FAILED:", e, flush=True)
                 db.session.rollback()
             try:
+                from app.services.db_migration import migrate_payroll_commission_breakdown_column
+                migrate_payroll_commission_breakdown_column()
+                print("Migration migrate_payroll_commission_breakdown_column completed OK", flush=True)
+            except Exception as e:
+                print("Migration migrate_payroll_commission_breakdown_column FAILED:", e, flush=True)
+                db.session.rollback()
+            try:
                 db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_date ON expense(expense_date)'))
                 db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_category ON expense(category_id)'))
                 db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_fee_date ON fee_record(payment_date)'))
@@ -386,6 +393,10 @@ def create_app(config_object=None):
                     db.session.rollback()
                 try:
                     db.session.execute(db.text("ALTER TABLE payroll_record ADD COLUMN commission_pct_used FLOAT DEFAULT 0"))
+                except Exception:
+                    db.session.rollback()
+                try:
+                    db.session.execute(db.text("ALTER TABLE payroll_record ADD COLUMN commission_breakdown TEXT"))
                 except Exception:
                     db.session.rollback()
                 try:
@@ -595,6 +606,14 @@ def create_app(config_object=None):
                 migrate_lifecycle_ack_table()
             except Exception as e:
                 print('Failed to ensure lifecycle_ack table:', e, file=sys.stderr)
+
+        # Same self-heal for payroll_record.commission_breakdown (E1 detail).
+        if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+            try:
+                from app.services.db_migration import migrate_payroll_commission_breakdown_column
+                migrate_payroll_commission_breakdown_column()
+            except Exception as e:
+                print('Failed to ensure payroll_record.commission_breakdown:', e, file=sys.stderr)
 
         from app.audit import register_audit_events
         register_audit_events()
