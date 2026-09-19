@@ -31,6 +31,11 @@ def filter_by_company_methods(query, model_attr, company_id):
     else:
         matched = _company_method_match(company_id)
     if matched is None:
+        # The company has no configured accounts (or no records use a matching
+        # method). Blind-filtering everything away silently hides its flows, so
+        # fall back to the record's own company attribution when it exists.
+        if model_attr.class_ is Expense:
+            return query.filter(Expense.company_id == company_id)
         return query.filter(False)
     if model_attr.class_ is Expense:
         # Expenses may carry an explicit company attribution even when their
@@ -62,29 +67,56 @@ def _company_method_match(company_id):
 
 
 def course_wise_income_summary(start_date, end_date, company_id=None):
-    """Per-course income, prorated across each payment's student enrollments.
+    """Per-course income, prorated across each payment's *active* enrollments.
 
-    A fee belongs to a student, not a course. To avoid counting a payment
-    once per enrolled course, every payment is split equally across the
-    student's courses with cent rounding (remainder goes to the last course)
-    so per-course totals sum back exactly to the collected amount.
+    A fee belongs to a student, not a course. To avoid counting a payment once
+    per enrolled course, every payment is split equally across the student's
+    enrollments that were active on the payment date (status + enrollment
+    dates), with cent rounding (remainder goes to the last course) so per-course
+    totals sum back exactly to the collected amount. If no enrollment is active
+    on that date, the payment falls back to a split across all of the student's
+    enrollments so totals still reconcile.
     """
     fee_q = FeeRecord.query.filter(FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date)
     if company_id:
         fee_q = fee_q.filter(FeeRecord.company_id == company_id)
     fees = fee_q.options(joinedload(FeeRecord.student)).all()
 
+    student_ids = sorted({f.student_id for f in fees})
+    enroll_rows = db.session.query(
+        student_courses.c.student_id,
+        student_courses.c.course_id,
+        student_courses.c.status,
+        student_courses.c.enrolled_on,
+        student_courses.c.completed_on,
+    ).filter(student_courses.c.student_id.in_(student_ids)).all()
+    enroll_by_student = {}
+    for sid, cid, status, enrolled_on, completed_on in enroll_rows:
+        enroll_by_student.setdefault(sid, []).append({
+            'course_id': cid, 'status': status, 'enrolled_on': enrolled_on,
+            'completed_on': completed_on,
+        })
+
+    def _active_courses(rows, pay_date):
+        active = [r['course_id'] for r in rows
+                  if r['status'] != 'Dropped'
+                  and (r['enrolled_on'] is None or r['enrolled_on'] <= pay_date)
+                  and not (r['status'] == 'Completed' and r['completed_on'] is not None and r['completed_on'] < pay_date)]
+        return active or [r['course_id'] for r in rows]
+
     per_course_cents = {}
     for fee in fees:
-        if not fee.student or not fee.student.courses:
+        if not fee.student:
             continue
-        courses = fee.student.courses
+        courses = _active_courses(enroll_by_student.get(fee.student_id, []), fee.payment_date)
+        if not courses:
+            continue
         n = len(courses)
         amount_cents = int(round(fee.amount_paid * 100))
         shares = [amount_cents // n] * n
         shares[-1] += amount_cents - sum(shares)
         for course, share in zip(courses, shares):
-            per_course_cents[course.id] = per_course_cents.get(course.id, 0) + share
+            per_course_cents[course] = per_course_cents.get(course, 0) + share
     return {course_id: cents / 100.0 for course_id, cents in per_course_cents.items()}
 
 
@@ -93,6 +125,54 @@ REPORT_TABS = ('income', 'fees', 'expense', 'overall', 'payment_methods')
 # Daily Collections table paginates 25 rows/page; per-method detail caps at this many rows.
 DAILY_PAGE_SIZE = 25
 PM_DETAIL_LIMIT = 50
+# PDF/Excel exports cap per-method detail rows at this many (most recent first).
+PM_EXPORT_DETAIL_LIMIT = 200
+
+
+def payment_method_period_breakdown(start_date, end_date, company_id=None,
+                                    detail_limit=PM_DETAIL_LIMIT):
+    """Aggregate fee payments by canonical method for a period (web/PDF/Excel).
+
+    Totals/counts cover every payment in the period; detail rows ("records")
+    are capped at detail_limit (most recent first) with "truncated" set so
+    callers can disclose how many older rows were dropped.
+    Returns (report, total); report[method] -> {total, gst_total, count, records, truncated}.
+    """
+    period_conds = [
+        FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date
+    ]
+    if company_id:
+        period_conds.append(FeeRecord.company_id == company_id)
+
+    report = {m: {'total': 0.0, 'gst_total': 0.0, 'count': 0, 'records': [], 'truncated': 0} for m in PAYMENT_METHODS}
+    report['Others'] = {'total': 0.0, 'gst_total': 0.0, 'count': 0, 'records': [], 'truncated': 0}
+
+    pm_counts = db.session.query(
+        FeeRecord.payment_method, db.func.count(FeeRecord.id),
+        db.func.sum(FeeRecord.amount_paid), db.func.sum(FeeRecord.gst_amount)
+    ).filter(*period_conds).group_by(FeeRecord.payment_method).all()
+    raw_methods_by_key = {}
+    for raw, cnt, tot, gst in pm_counts:
+        key = classify_method(raw)
+        if key not in report:
+            key = 'Others'
+        d = report[key]
+        d['total'] += float(tot or 0.0)
+        d['gst_total'] += float(gst or 0.0)
+        d['count'] += int(cnt or 0)
+        raw_methods_by_key.setdefault(key, []).append(raw)
+
+    for key, raw_methods in raw_methods_by_key.items():
+        detail_q = FeeRecord.query.filter(*period_conds).filter(
+            FeeRecord.payment_method.in_(raw_methods)
+        )
+        records = detail_q.options(
+            joinedload(FeeRecord.student), joinedload(FeeRecord.company)
+        ).order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).limit(detail_limit).all()
+        report[key]['records'] = records
+        report[key]['truncated'] = max(0, report[key]['count'] - len(records))
+
+    return report, sum(d['total'] for d in report.values())
 
 
 def _month_bounds(year, month):
@@ -190,13 +270,16 @@ def reports():
         present_records = sum(1 for r in attendance_records if r.status == 'Present')
         attendance_rate = (present_records / total_records * 100) if total_records > 0 else 0
         
-        # Get fee data for staff's students
+        # Get fee data for staff's students — same 30-day window as attendance
+        # so every metric on the card sheet shares one scope.
         fee_records = FeeRecord.query.filter(
-            FeeRecord.student_id.in_([s.id for s in students])
+            FeeRecord.student_id.in_([s.id for s in students]),
+            FeeRecord.payment_date >= thirty_days_ago
         ).order_by(FeeRecord.payment_date.desc()).limit(50).all()
 
         total_collected = db.session.query(db.func.sum(FeeRecord.amount_paid)).filter(
-            FeeRecord.student_id.in_([s.id for s in students])
+            FeeRecord.student_id.in_([s.id for s in students]),
+            FeeRecord.payment_date >= thirty_days_ago
         ).scalar() or 0.0
         
         return render_template('reports.html', 
@@ -531,32 +614,10 @@ def reports():
         payment_data = [float(p[1]) for p in payment_methods]
         payment_colors = [METHOD_COLORS.get(classify_method(p[0]), '#FFC107') for p in payment_methods]
 
-        payment_methods_report = {m: {'total': 0.0, 'gst_total': 0.0, 'count': 0, 'records': []} for m in PAYMENT_METHODS}
-        payment_methods_report['Others'] = {'total': 0.0, 'gst_total': 0.0, 'count': 0, 'records': []}
+        payment_methods_report, total_collected_period = payment_method_period_breakdown(
+            start_date, end_date, selected_company_id, detail_limit=PM_DETAIL_LIMIT
+        )
 
-        pm_counts = db.session.query(
-            FeeRecord.payment_method, db.func.count(FeeRecord.id),
-            db.func.sum(FeeRecord.amount_paid), db.func.sum(FeeRecord.gst_amount)
-        ).filter(*period_conds).group_by(FeeRecord.payment_method).all()
-        raw_methods_by_key = {}
-        for raw, cnt, tot, gst in pm_counts:
-            key = classify_method(raw)
-            if key not in payment_methods_report:
-                key = 'Others'
-            payment_methods_report[key]['total'] += float(tot or 0.0)
-            payment_methods_report[key]['gst_total'] += float(gst or 0.0)
-            payment_methods_report[key]['count'] += int(cnt or 0)
-            raw_methods_by_key.setdefault(key, []).append(raw)
-
-        for key, raw_methods in raw_methods_by_key.items():
-            detail_q = FeeRecord.query.filter(*period_conds).filter(
-                FeeRecord.payment_method.in_(raw_methods)
-            )
-            payment_methods_report[key]['records'] = detail_q.options(
-                joinedload(FeeRecord.student), joinedload(FeeRecord.company)
-            ).order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).limit(PM_DETAIL_LIMIT).all()
-
-        total_collected_period = sum(d['total'] for d in payment_methods_report.values())
         no_payment_data = total_collected_period <= 0
 
     # ---- Smart insight callouts (per tab) ----
@@ -950,26 +1011,24 @@ def report_pdf():
             pdf.table_row([months_names[m-1], f'{inc:,.2f}', f'{fund:,.2f}', f'{exp:,.2f}', f"{'+' if n >= 0 else ''}{n:,.2f}", status], [30, 40, 40, 40, 40, 30], ['C', 'R', 'R', 'R', 'R', 'C'])
 
     elif tab == 'payment_methods':
-        all_q = FeeRecord.query.filter(FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date)
-        if selected_company_id:
-            all_q = all_q.filter(FeeRecord.company_id == selected_company_id)
-        all_records = all_q.order_by(FeeRecord.payment_date.desc()).all()
-        total_period = sum(r.amount_paid for r in all_records)
-        def filter_pm(records, account_name):
-            matched = [r for r in records if classify_method(r.payment_method) == account_name]
-            return sum(r.amount_paid for r in matched), matched
+        report_pm, total_period = payment_method_period_breakdown(
+            start_date, end_date, selected_company_id, detail_limit=PM_EXPORT_DETAIL_LIMIT)
         pdf.section_title('Payment Methods Report')
         pdf.kpi_box('Total Collected', f'₹{total_period:,.2f}', (47, 72, 88))
         pdf.ln(4)
         for label in PAYMENT_METHODS + ['Others']:
-            total, records = filter_pm(all_records, label)
-            if not records and label != 'Others':
+            d = report_pm.get(label)
+            if not d or not d['records']:
                 continue
-            pdf.section_title(f'{label} - ₹{total:,.2f}')
-            if records:
-                pdf.table_header(['Date', 'Student', 'Amount', 'Remarks'], [30, 55, 35, 70])
-                for r in records:
-                    pdf.table_row([r.payment_date.strftime('%d %b %Y'), r.student.name[:20], f'{r.amount_paid:,.2f}', (r.remarks or '')[:30]], [30, 55, 35, 70], ['L', 'L', 'R', 'L'])
+            pdf.section_title(f'{label} - ₹{d["total"]:,.2f}')
+            if d['truncated']:
+                pdf.set_font('DejaVu', 'I', 7)
+                pdf.set_text_color(150, 150, 150)
+                pdf.cell(0, 5, f'Showing most recent {len(d["records"])} of {d["count"]} payments', new_x="LMARGIN", new_y="NEXT")
+                pdf.ln(1)
+            pdf.table_header(['Date', 'Student', 'Amount', 'Remarks'], [30, 55, 35, 70])
+            for r in d['records']:
+                pdf.table_row([r.payment_date.strftime('%d %b %Y'), r.student.name[:20], f'{r.amount_paid:,.2f}', (r.remarks or '')[:30]], [30, 55, 35, 70], ['L', 'L', 'R', 'L'])
             pdf.ln(2)
 
     buf = BytesIO()
@@ -1044,6 +1103,12 @@ def report_excel():
         tax_period = tax_q.scalar() or 0
 
         months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+        if filter_year < today.year:
+            elapsed_months = 12
+        elif filter_year > today.year:
+            elapsed_months = 1
+        else:
+            elapsed_months = max(1, min(12, today.month))
         ws = wb.active
         write_sheet(ws, 'Monthly Income', ['Month'] + months, [['Income (₹)'] + income_monthly])
         ws2 = wb.create_sheet('Summary')
@@ -1052,7 +1117,8 @@ def report_excel():
             [f'Period Taxable Income', tax_period],
             [f'Period GST Collected', gst_period],
             [f'Total ({filter_year})', sum(income_monthly)],
-            [f'Monthly Avg ({filter_year})', sum(income_monthly) / 12]
+            [f'Months elapsed in {filter_year}', elapsed_months],
+            [f'Monthly Avg ({filter_year})', sum(income_monthly) / elapsed_months]
         ])
 
     elif tab == 'fees':
@@ -1209,21 +1275,21 @@ def report_excel():
     elif tab == 'payment_methods':
         ws = wb.active
         ws.title = 'Summary'
-        all_q = FeeRecord.query.filter(FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date)
-        if selected_company_id:
-            all_q = all_q.filter(FeeRecord.company_id == selected_company_id)
-        all_records = all_q.order_by(FeeRecord.payment_date.desc()).all()
-        total_period = sum(r.amount_paid for r in all_records)
-        def filter_pm(records, account_name):
-            matched = [r for r in records if classify_method(r.payment_method) == account_name]
-            return sum(r.amount_paid for r in matched), matched
+        report_pm, total_period = payment_method_period_breakdown(
+            start_date, end_date, selected_company_id, detail_limit=PM_EXPORT_DETAIL_LIMIT)
         summary_rows = []
         for label in PAYMENT_METHODS + ['Others']:
-            total, records = filter_pm(all_records, label)
-            if records:
-                summary_rows.append([label, total])
-                ws2 = wb.create_sheet(label[:20])
-                write_sheet(ws2, label, ['Date', 'Student', 'Company', 'Amount', 'Remarks'], [[r.payment_date.strftime('%d-%b-%Y'), r.student.name, r.company.name if r.company else 'Unassigned', r.amount_paid, (r.remarks or '')] for r in records])
+            d = report_pm.get(label)
+            if not d or not d['records']:
+                continue
+            summary_rows.append([label, d['total']])
+            ws2 = wb.create_sheet(label[:20])
+            rows = [[r.payment_date.strftime('%d-%b-%Y'), r.student.name, r.company.name if r.company else 'Unassigned', r.amount_paid, (r.remarks or '')] for r in d['records']]
+            write_sheet(ws2, label, ['Date', 'Student', 'Company', 'Amount', 'Remarks'], rows)
+            if d['truncated']:
+                note = ws2.cell(row=len(rows) + 2, column=1,
+                                value=f'Showing most recent {len(d["records"])} of {d["count"]} payments')
+                note.font = Font(italic=True, size=9)
         write_sheet(ws, 'Payment Summary', ['Method', 'Total (₹)'], summary_rows)
 
     buf = BytesIO()
