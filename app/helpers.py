@@ -252,3 +252,75 @@ def active_tutor_count_for_student(student_id):
         )
         .scalar() or 0
     )
+
+
+def tutor_commission_percentage(tutor_id):
+    """Effective commission % used to generate payroll for a tutor.
+
+    Single source of truth shared by the salary calculator and
+    compute_tutor_payroll: reads TutorPayrollSettings and falls back to 0.0
+    when unset (commission is zero, never a magic default).
+    """
+    from app.models import TutorPayrollSettings
+    settings = TutorPayrollSettings.query.filter_by(tutor_id=tutor_id).first()
+    return (settings.commission_percentage or 0.0) if settings else 0.0
+
+
+def _enrollment_spans(intervals, fee_date):
+    """True when `fee_date` falls inside at least one enrollment interval.
+
+    Intervals are (enrolled_on, completed_on) pairs; NULL bounds are open
+    (no start / no end) so legacy rows always match. Accounting is on the
+    calendar date — fees paid before a student joins or after they leave a
+    tutor's course belong to another tutor.
+    """
+    for enrolled_on, completed_on in intervals:
+        if enrolled_on and fee_date < enrolled_on:
+            continue
+        if completed_on and fee_date > completed_on:
+            continue
+        return True
+    return False
+
+
+def tutor_overlapping_fees(tutor_id, start_date, end_date):
+    """FeeRecord rows attributable to `tutor_id` in [start_date, end_date].
+
+    A fee is attributed only when the payer had a live enrollment under this
+    tutor ON the payment date: the association status must be active
+    (Dropped/Completed never count) and, when present, enrolled_on <= fee date
+    and completed_on >= fee date. Legacy rows without dates always count.
+    Returns rows ordered by payment_date DESC, id DESC.
+    """
+    from sqlalchemy import or_
+    from app.models import Course, FeeRecord, student_courses, tutor_courses
+    intervals = (
+        db.session.query(
+            student_courses.c.student_id,
+            student_courses.c.enrolled_on,
+            student_courses.c.completed_on,
+        )
+        .join(Course, Course.id == student_courses.c.course_id)
+        .join(tutor_courses, tutor_courses.c.course_id == Course.id)
+        .filter(
+            tutor_courses.c.tutor_id == tutor_id,
+            or_(student_courses.c.status.is_(None),
+                student_courses.c.status.notin_(INACTIVE_ENROLLMENT_STATUSES)),
+        )
+        .all()
+    )
+    intervals_by_student = {}
+    for sid, enrolled_on, completed_on in intervals:
+        intervals_by_student.setdefault(sid, []).append((enrolled_on, completed_on))
+    if not intervals_by_student:
+        return []
+    records = (
+        FeeRecord.query.filter(
+            FeeRecord.student_id.in_(list(intervals_by_student)),
+            FeeRecord.payment_date >= start_date,
+            FeeRecord.payment_date <= end_date,
+        )
+        .order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc())
+        .all()
+    )
+    return [r for r in records if _enrollment_spans(intervals_by_student[r.student_id], r.payment_date)]

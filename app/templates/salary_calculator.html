@@ -151,6 +151,97 @@ Calculated Staff Salary</div>
                 {% endif %}            </div>
         </div>
     </div>
+    {% if projection %}
+    <!-- Projected Net Pay (F2) + Generate Draft (F4) -->
+    <div class="glass-card p-4 mb-4">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div>
+                <h4 class="text-dark fw-bold mb-1"><i class="bi bi-receipt me-2 text-dark"></i>Projected Net Pay</h4>
+                <p class="text-secondary small mb-0">Projection for <strong>{{ selected_tutor.name }}</strong> using the tutor's payroll settings — mirrors what a generated draft will compute.</p>
+                {% if not projection.configured %}
+                <p class="small mt-2 mb-0" style="color: #ffd76e;"><i class="bi bi-info-circle me-1"></i>No payroll settings configured for this tutor yet — base, TDS and bonus are treated as ₹0 and the draft will use the commission % shown.</p>
+                {% endif %}
+            </div>
+            {% if filter_type == 'month' %}
+            <form method="POST" action="{{ url_for('payroll.process_payroll') }}" class="d-inline-block">
+                <input type="hidden" name="tutor_id" value="{{ selected_tutor.id }}">
+                <input type="hidden" name="month" value="{{ filter_month }}">
+                <input type="hidden" name="year" value="{{ filter_year }}">
+                <input type="hidden" name="percentage" value="{{ percentage }}">
+                <button type="submit" class="btn btn-premium"><i class="bi bi-file-earmark-plus me-1"></i>Generate payroll draft for {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][filter_month-1] }} {{ filter_year }}</button>
+            </form>
+            {% endif %}
+        </div>
+        <div class="row g-3 mt-1">
+            <div class="col-6 col-md-2 text-center">
+                <div class="text-secondary small fw-semibold text-uppercase tracking-wider">Base Salary</div>
+                <div class="fw-bold text-white mt-1">₹{{ "{:,.2f}".format(projection.base) }}</div>
+            </div>
+            <div class="col-6 col-md-2 text-center">
+                <div class="text-secondary small fw-semibold text-uppercase tracking-wider">Commission</div>
+                <div class="fw-bold text-white mt-1">₹{{ "{:,.2f}".format(projection.commission) }}</div>
+            </div>
+            <div class="col-6 col-md-2 text-center">
+                <div class="text-secondary small fw-semibold text-uppercase tracking-wider">Bonus</div>
+                <div class="fw-bold text-white mt-1">₹{{ "{:,.2f}".format(projection.bonus) }}</div>
+            </div>
+            <div class="col-6 col-md-2 text-center">
+                <div class="text-secondary small fw-semibold text-uppercase tracking-wider">TDS</div>
+                <div class="fw-bold text-white mt-1">- ₹{{ "{:,.2f}".format(projection.tds) }}</div>
+            </div>
+            <div class="col-6 col-md-2 text-center">
+                <div class="text-secondary small fw-semibold text-uppercase tracking-wider">Other Deductions</div>
+                <div class="fw-bold text-white mt-1">- ₹{{ "{:,.2f}".format(projection.other) }}</div>
+            </div>
+            <div class="col-6 col-md-2 text-center" style="border-left: 1px solid rgba(255,255,255,0.08);">
+                <div class="text-secondary small fw-semibold text-uppercase tracking-wider">Net Pay</div>
+                <div class="fw-bold fs-4 mt-1" style="color: #00BFA6;">₹{{ "{:,.2f}".format(projection.net) }}</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    <!-- Per-Student Commission Breakdown (F3) + split toggle (F5b) -->
+    {% if breakdown %}
+    <div class="glass-card p-4 mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h4 class="text-dark fw-bold mb-1"><i class="bi bi-diagram-3 me-2 text-dark"></i>Per-Student Commission Breakdown</h4>
+                <p class="text-secondary small mb-0">How {{ breakdown|length }} active student(s) contributed — each student's fees cost one equal share per ACTIVE tutor teaching them.</p>
+            </div>
+            <button type="button" id="splitToggle" class="btn btn-outline-custom btn-sm">
+                <i class="bi bi-eye me-1"></i>Show split details
+            </button>
+        </div>
+        <div id="splitDetails" style="display: none;">
+            <div class="table-container">
+                <table class="table table-custom">
+                    <thead>
+                        <tr>
+                            <th>Student Name</th>
+                            <th>Roll No</th>
+                            <th class="text-end">Fees Collected</th>
+                            <th class="text-end">Active Tutors</th>
+                            <th class="text-end">Effective Share</th>
+                            <th class="text-end">Commission</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in breakdown %}
+                        <tr>
+                            <td>{{ row.student.name }}</td>
+                            <td class="text-secondary small">{{ row.roll_no }}</td>
+                            <td class="text-end">₹{{ "{:,.2f}".format(row.fees) }}</td>
+                            <td class="text-end">{{ row.tutor_count }}</td>
+                            <td class="text-end">₹{{ "{:,.2f}".format(row.effective) }}</td>
+                            <td class="text-end fw-bold text-white">₹{{ "{:,.2f}".format(row.commission) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
     <!-- Student and Payment Details Breakdown -->
     <div class="row">
         <!-- Assigned Student List -->
@@ -251,5 +342,5 @@ Select a tutor from the drop-down menu above, define the commission threshold pe
     {% endif %}</div>
 <script>
 document.addEventListener('DOMContentLoaded', () =>
- {    const filterType = document.getElementById('filterType');    const monthGroup = document.getElementById('monthFilterGroup');    const rangeGroup = document.getElementById('rangeFilterGroup');    function toggleFilterGroups() {        if (filterType.value === 'month') {            monthGroup.style.display = 'block';            rangeGroup.style.display = 'none';        } else {            monthGroup.style.display = 'none';            rangeGroup.style.display = 'block';        }    }    if (filterType) {        filterType.addEventListener('change', toggleFilterGroups);        toggleFilterGroups(); // Run on initial load    }});</script>
+ {    const filterType = document.getElementById('filterType');    const monthGroup = document.getElementById('monthFilterGroup');    const rangeGroup = document.getElementById('rangeFilterGroup');    function toggleFilterGroups() {        if (filterType.value === 'month') {            monthGroup.style.display = 'block';            rangeGroup.style.display = 'none';        } else {            monthGroup.style.display = 'none';            rangeGroup.style.display = 'block';        }    }    if (filterType) {        filterType.addEventListener('change', toggleFilterGroups);        toggleFilterGroups(); // Run on initial load    }    const splitToggle = document.getElementById('splitToggle');    const splitDetails = document.getElementById('splitDetails');    if (splitToggle && splitDetails) {        splitToggle.addEventListener('click', () => {            const hidden = splitDetails.style.display === 'none';            splitDetails.style.display = hidden ? 'block' : 'none';            splitToggle.innerHTML = hidden ? '<i class="bi bi-eye-slash me-1"></i>Hide split details' : '<i class="bi bi-eye me-1"></i>Show split details';        });    }});</script>
 {% endblock %}

@@ -117,34 +117,35 @@ def compute_tutor_payroll(tutor, month, year, percentage=None):
         settings = TutorPayrollSettings(tutor_id=tutor.id)
         db.session.add(settings)
     base = settings.base_salary or 0.0
-    comm_pct = percentage if percentage is not None else (settings.commission_percentage or 0.0)
+    # F5: single source of truth with the salary calculator — when no override
+    # is given, the tutor's stored commission % applies (0.0 when unset).
+    from app.helpers import tutor_commission_percentage
+    comm_pct = percentage if percentage is not None else tutor_commission_percentage(tutor.id)
     bonus = settings.bonus or 0.0
     other_ded = settings.other_deductions or 0.0
     tds_pct = settings.tds_percentage or 0.0
     start_date = date(year, month, 1)
     end_date = _period_end(month, year)
-    from app.models import FeeRecord
-    # B1/B5: attribute fees only to active enrollments and split across ACTIVE
-    # tutors only — shared with the salary calculator so both agree (dropped /
-    # completed students and inactive tutors are excluded identically).
-    from app.helpers import tutor_students, active_tutor_count_for_student
-    students = tutor_students(tutor.id)
     commission = 0.0
     breakdown = []
+    # F1: attribute fees by enrollment-period overlap — shared with the
+    # salary calculator (see app/helpers.tutor_overlapping_fees).
+    from app.helpers import tutor_students, active_tutor_count_for_student, tutor_overlapping_fees
+    students = tutor_students(tutor.id)
+    fees_by_student = {}
+    for rec in tutor_overlapping_fees(tutor.id, start_date, end_date):
+        fees_by_student[rec.student_id] = fees_by_student.get(rec.student_id, 0.0) + rec.amount_paid
     if students:
         for student in students:
+            student_fees = fees_by_student.get(student.id, 0.0)
             tutor_count = active_tutor_count_for_student(student.id)
             if tutor_count == 0:
                 continue
-            student_fees = db.session.query(db.func.sum(FeeRecord.amount_paid)).filter(
-                FeeRecord.student_id == student.id,
-                FeeRecord.payment_date >= start_date,
-                FeeRecord.payment_date <= end_date
-            ).scalar() or 0.0
-            # E1: per-student contribution. Fees are attributed to the month
-            # they were paid in (no pro-rating) and split evenly across every
-            # tutor teaching the student. Concessions/waivers are not cash and
-            # never drive commission (amount_paid only).
+            # E1: per-student contribution. Fees are attributed to the
+            # month they were paid in (no pro-rating), only when the
+            # enrollment overlapped the payment date, and split evenly
+            # across every ACTIVE tutor teaching the student.
+            # Concessions/waivers are not cash and never drive commission.
             contrib = (student_fees / tutor_count) * (comm_pct / 100.0)
             commission += contrib
             breakdown.append({
