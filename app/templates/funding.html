@@ -1,146 +1,221 @@
 {% extends 'base.html' %}{% block title %}Capital Injection{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('expenses.list') }}">Finance</a></li><li class="breadcrumb-item active" aria-current="page">Capital Injection</li>{% endblock %}{% block content %}{% from '_payment_methods.html' import payment_method_options %}<div class="container-fluid p-0">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
-            <h2 class="text-white fw-bold">
-Capital & Investment</h2>
-            <p class="text-white mb-0">
-Track capital injected by the owner to fund institute expenses.</p>
+            <h2 class="text-white fw-bold">Capital &amp; Investment</h2>
+            <p class="text-white mb-0">Track capital injected by the owner to fund institute expenses.</p>
         </div>
         <div class="d-flex gap-2">
-            <button class="btn btn-premium" data-bs-toggle="modal" data-bs-target="#addFundingModal">
-                <i class="bi bi-plus-circle me-2">
-</i>
-Record Investment            </button>
+            <a href="{{ url_for('funding.export') }}" class="btn btn-outline-light"><i class="bi bi-filetype-csv me-2"></i>Export CSV</a>
+            <button class="btn btn-premium" data-bs-toggle="modal" data-bs-target="#addFundingModal"><i class="bi bi-plus-circle me-2"></i>Record Investment</button>
         </div>
     </div>
-    <!-- Summary Cards -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-4 col-6">
+    <div class="row g-3 mb-2">
+        <div class="col-md-3 col-6">
             <div class="glass-card p-3 text-center" style="border-left: 4px solid var(--accent-emerald);">
-                <div class="text-secondary small fw-semibold text-uppercase tracking-wider">
-Total Invested</div>
-                <div class="fw-bold fs-5" style="color: var(--accent-emerald);">
-₹{{ "{:,.2f}".format(total_invested) }}</div>
+                <div class="text-secondary small fw-semibold text-uppercase tracking-wider">Total Invested</div>
+                <div class="fw-bold fs-5" style="color: var(--accent-emerald);">₹{{ "{:,.2f}".format(total_invested) }}</div>
             </div>
         </div>
-        <div class="col-md-4 col-6">
-            <div class="glass-card p-3 text-center">
-                <div class="text-secondary small fw-semibold text-uppercase tracking-wider">
-This Month</div>
-                <div class="fw-bold fs-5 text-white">
-₹{{ "{:,.2f}".format(month_total) }}</div>
+        <div class="col-md-3 col-6">
+            <div class="glass-card p-3 text-center" style="border-left: 4px solid var(--accent-cyan);">
+                <div class="text-secondary small fw-semibold text-uppercase tracking-wider">This Year</div>
+                <div class="fw-bold fs-5" style="color: var(--accent-cyan);">₹{{ "{:,.2f}".format(this_year_total) }}</div>
             </div>
         </div>
-        <div class="col-md-4 col-6">
+        <div class="col-md-3 col-6">
             <div class="glass-card p-3 text-center">
-                <div class="text-secondary small fw-semibold text-uppercase tracking-wider">
-Contributions</div>
-                <div class="fw-bold fs-5 text-white">
-{{ fundings_total }}</div>
+                <div class="text-secondary small fw-semibold text-uppercase tracking-wider">This Month</div>
+                <div class="fw-bold fs-5 text-white">₹{{ "{:,.2f}".format(month_total) }}</div>
+                <div class="small mt-1" style="color: {{ 'var(--accent-emerald)' if month_total >= prev_month_total else 'var(--accent-rose)' }};">{% if month_total >= prev_month_total %}<i class="bi bi-arrow-up-right me-1"></i>{% else %}<i class="bi bi-arrow-down-right me-1"></i>{% endif %}₹{{ "{:,.2f}".format(month_total - prev_month_total) }} vs last month</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="glass-card p-3 text-center" style="border-left: 4px solid var(--accent-purple);">
+                <div class="text-secondary small fw-semibold text-uppercase tracking-wider">Contributions</div>
+                <div class="fw-bold fs-5 text-white">{{ fundings_total }}</div>
             </div>
         </div>
     </div>
-    <!-- Contributions Table -->
+    <div class="d-flex flex-wrap gap-2 mb-4">
+        <span class="badge badge-custom badge-active">Capital ₹{{ "{:,.2f}".format(capital_total) }}</span>
+        <span class="badge badge-custom badge-amber">Director Loan ₹{{ "{:,.2f}".format(loan_total) }}</span>
+    </div>
+    <div class="row g-3 mb-4">
+        <div class="col-lg-8">
+            <div class="glass-card p-3 h-100">
+                <h6 class="mb-1 text-dark fw-bold"><i class="bi bi-graph-up me-2 text-dark"></i>Capital inflow — last 24 months</h6>
+                <p class="text-secondary small mb-2">Monthly owner funding.</p>
+                <div style="height: 240px;"><canvas id="fundingTrendChart"></canvas></div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="glass-card p-3 h-100">
+                <h6 class="mb-1 text-dark fw-bold"><i class="bi bi-pie-chart me-2 text-dark"></i>By mode</h6>
+                <p class="text-secondary small mb-2">Share of total invested per payment mode.</p>
+                <div style="height: 240px;"><canvas id="fundingSplitChart"></canvas></div>
+            </div>
+        </div>
+    </div>
     <div class="glass-card p-4" data-aos="fade-up">
-        <h4 class="mb-1 text-dark fw-bold">
-<i class="bi bi-piggy-bank-fill me-2 text-dark">
-</i>
-Investment History</h4>
-        <p class="text-secondary small mb-3">Showing the latest {{ [fundings|length, list_limit]|min }} of {{ fundings_total }} records.</p>
+        <h4 class="mb-1 text-dark fw-bold"><i class="bi bi-piggy-bank-fill me-2 text-dark"></i>Investment History</h4>
+        <p class="text-secondary small mb-3">{% if filtered %}Showing {{ filtered_total }} matching record{{ 's' if filtered_total != 1 }} (filtered from {{ fundings_total }} total).{% else %}Showing the latest {{ [fundings|length, list_limit]|min }} of {{ fundings_total }} records.{% endif %}</p>
+        <form method="get" action="{{ url_for('funding.list') }}" class="row g-2 align-items-center mb-3">
+            <div class="col-auto">
+                <select class="form-select form-select-sm" name="method" aria-label="Filter by mode">
+                    <option value="">All Modes</option>
+                    {% for mm in payment_methods %}<option value="{{ mm }}" {% if filter_method == mm %}selected{% endif %}>{{ method_labels.get(mm, mm) }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <select class="form-select form-select-sm" name="year" aria-label="Filter by year">
+                    <option value="">All Years</option>
+                    {% for yy in years %}<option value="{{ yy }}" {% if filter_year == yy %}selected{% endif %}>{{ yy }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <select class="form-select form-select-sm" name="month" aria-label="Filter by month">
+                    <option value="">All Months</option>
+                    {% for mm in months %}<option value="{{ mm }}" {% if filter_month == mm %}selected{% endif %}>{{ month_names[mm - 1] }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <input type="search" class="form-control form-control-sm" name="q" value="{{ filter_q }}" placeholder="Purpose / reference…" aria-label="Search purpose or reference">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-premium"><i class="bi bi-funnel me-1"></i>Apply</button>
+                <a href="{{ url_for('funding.list') }}" class="btn btn-sm btn-outline-light">Clear</a>
+            </div>
+        </form>
         <div class="table-container">
             <table class="table table-custom sortable" data-page-size="10">
                 <thead>
                     <tr>
-                        <th>
-Date</th>
-                        <th>
-Investment Mode</th>
-                        <th>
-Purpose</th>
-                        <th class="text-end">
-Amount</th>
-                        <th>
-Recorded By</th>
-                        <th class="text-end">
-Action</th>
+                        <th>Type</th>
+                        <th>Date</th>
+                        <th>Investment Mode</th>
+                        <th>Reference</th>
+                        <th>Purpose</th>
+                        <th class="text-end">Amount</th>
+                        <th>Recorded By</th>
+                        <th class="text-end">Action</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% if fundings %}                        {% for f in fundings %}                        <tr>
-                            <td class="text-secondary small">
-{{ f.funding_date.strftime("%d %b %Y") }}</td>
-                            <td>
-<span class="badge badge-custom badge-cyan">
-{{ f.method or 'Cash' }}</span>
-</td>
-                            <td>
-                                <div class="fw-medium text-dark">
-{{ f.purpose or '-' }}</div>
-                            </td>
-                            <td class="fw-semibold" style="color: var(--accent-emerald);">
-₹{{ "{:,.2f}".format(f.amount) }}</td>
-                            <td class="small text-secondary">
-{{ f.creator.name if f.creator else 'System' }}</td>
-                            <td class="text-end">
-                                <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Reverse and delete this capital contribution record? This action cannot be undone.', function() { var f = document.createElement('form'); f.method = 'POST'; f.action = '{{ url_for('funding.delete', id=f.id) }}'; var h = document.createElement('input'); h.type = 'hidden'; h.name = 'confirm'; h.value = '1'; f.appendChild(h); document.body.appendChild(f); f.submit(); })">
-                                    <i class="bi bi-x-square-fill">
-</i>
-                                </button>
-                            </td>
-                        </tr>
-                        {% endfor %}                    {% else %}                        <tr>
-                            {{ empty_state('No capital contributions found', "Record the first investment made by the owner to fund institute expenses", 'fees', '#', 'Record Investment', 'bi-cash-coin', 6, 'data-bs-toggle="modal" data-bs-target="#addFundingModal"') }}
-                        </tr>
-                    {% endif %}                </tbody>
+                    {% if fundings %}{% for f in fundings %}<tr>
+                        <td><span class="badge badge-custom {{ 'badge-active' if (f.investment_type or 'Capital') == 'Capital' else 'badge-amber' }}">{{ f.investment_type or 'Capital' }}</span></td>
+                        <td class="text-secondary small">{{ f.funding_date.strftime("%d %b %Y") }}</td>
+                        <td><span class="badge badge-custom badge-cyan">{{ f.method or 'Cash' }}</span></td>
+                        <td class="small text-secondary">{{ f.reference or '-' }}</td>
+                        <td><div class="fw-medium text-dark">{{ f.purpose or '-' }}</div></td>
+                        <td class="fw-semibold" style="color: var(--accent-emerald);">₹{{ "{:,.2f}".format(f.amount) }}</td>
+                        <td class="small text-secondary">{{ f.creator.name if f.creator else 'System' }}</td>
+                        <td class="text-end text-nowrap">
+                            <button type="button" class="btn btn-sm btn-outline-light" title="Edit this contribution" data-id="{{ f.id }}" data-amount="{{ f.amount }}" data-date="{{ f.funding_date.strftime('%Y-%m-%d') }}" data-method="{{ f.method or 'Cash' }}" data-purpose="{{ f.purpose or '' }}" data-reference="{{ f.reference or '' }}" data-type="{{ f.investment_type or 'Capital' }}" onclick="openEditFunding(this)"><i class="bi bi-pencil-square"></i></button>
+                            <button class="btn btn-sm btn-outline-danger" title="Reverse and delete" onclick="confirmAction('Reverse and delete this capital contribution record? This action cannot be undone.', function() { var fo = document.createElement('form'); fo.method = 'POST'; fo.action = '{{ url_for('funding.delete', id=f.id) }}'; var h = document.createElement('input'); h.type = 'hidden'; h.name = 'confirm'; h.value = '1'; fo.appendChild(h); document.body.appendChild(fo); fo.submit(); })"><i class="bi bi-x-square-fill"></i></button>
+                        </td>
+                    </tr>{% endfor %}{% else %}<tr>
+                        {{ empty_state('No capital contributions found', "Record the first investment made by the owner to fund institute expenses", 'fees', '#', 'Record Investment', 'bi-cash-coin', 8, 'data-bs-toggle="modal" data-bs-target="#addFundingModal"') }}
+                    </tr>{% endif %}
+                </tbody>
             </table>
         </div>
     </div>
 </div>
-<!-- ADD FUNDING MODAL -->
+<!-- ADD MODAL -->
 <div class="modal fade" id="addFundingModal" tabindex="-1" aria-labelledby="addFundingModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title text-white" id="addFundingModalLabel">
-<i class="bi bi-piggy-bank me-2 text-white">
-</i>
-Record Capital Investment</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close">
-</button>
+                <h5 class="modal-title text-white"><i class="bi bi-piggy-bank me-2 text-white"></i>Record Capital Investment</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form action="{{ url_for('funding.list') }}" method="POST" hx-boost="false" data-no-ajax>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label text-white small">
-  Amount Invested (₹)</label>
+                        <label class="form-label text-white small">Amount Invested (₹)</label>
                         <input type="number" step="0.01" class="form-control{{ ' is-invalid' if 'amount' in error_fields else '' }}" name="amount" value="{{ form_data.amount if form_data else '' }}" placeholder="e.g. 50000" min="1" max="9999999" required autofocus>
                         {% if 'amount' in error_fields %}<div class="invalid-feedback d-block">{{ error_fields['amount'][0] }}</div>{% endif %}
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-white small">
-  Investment Date</label>
+                        <label class="form-label text-white small">Investment Date</label>
                         <input type="date" class="form-control{{ ' is-invalid' if 'funding_date' in error_fields else '' }}" name="funding_date" value="{{ form_data.funding_date if form_data and form_data.funding_date else today.strftime('%Y-%m-%d') }}" max="{{ today.strftime('%Y-%m-%d') }}" required>
                         {% if 'funding_date' in error_fields %}<div class="invalid-feedback d-block">{{ error_fields['funding_date'][0] }}</div>{% endif %}
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-white small">
-  Mode of Investment</label>
+                        <label class="form-label text-white small">Investment Type</label>
+                        <select class="form-select" name="investment_type">
+                            <option value="Capital" {% if not (form_data and form_data.investment_type == 'Director Loan') %}selected{% endif %}>Capital (owner money)</option>
+                            <option value="Director Loan" {% if form_data and form_data.investment_type == 'Director Loan' %}selected{% endif %}>Director Loan</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Mode of Investment</label>
                         {{ payment_method_options(selected=(form_data.method if form_data and form_data.method else 'Cash'), name='method', id='funding-method', methods=payment_methods, labels=method_labels, default=default_payment_method, groups=method_groups, extra_attrs='data-method-indicator="funding-method-type"') }}
                         <span id="funding-method-type" class="d-inline-flex align-items-center gap-1 mt-1" style="color:rgba(255,255,255,0.55);font-size:0.72rem;"></span>
                         {% if account_balances %}<div class="form-text mt-1" id="funding-balance-hint" style="color:var(--accent-cyan);opacity:0.85;"></div>{% endif %}
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-white small">
-  Purpose / Notes</label>
+                        <label class="form-label text-white small">Reference (cheque/UTR/note)</label>
+                        <input type="text" class="form-control" name="reference" maxlength="100" value="{{ form_data.reference if form_data else '' }}" placeholder="e.g. Cheque 001254 / UTR 4192">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Purpose / Notes</label>
                         <textarea class="form-control{{ ' is-invalid' if 'purpose' in error_fields else '' }}" name="purpose" rows="2" placeholder="e.g. Owner capital for rent + staff salary">{{ form_data.purpose if form_data else '' }}</textarea>
                         {% if 'purpose' in error_fields %}<div class="invalid-feedback d-block">{{ error_fields['purpose'][0] }}</div>{% endif %}
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
- Cancel</button>
-                    <button type="submit" class="btn btn-premium">
- Save Investment</button>
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-premium">Save Investment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<!-- EDIT MODAL -->
+<div class="modal fade" id="editFundingModal" tabindex="-1" aria-labelledby="editFundingModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-white"><i class="bi bi-pencil-square me-2 text-white"></i>Edit Capital Investment</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="editFundingForm" action="" method="POST" hx-boost="false" data-no-ajax>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Amount Invested (₹)</label>
+                        <input type="number" step="0.01" class="form-control" id="edit-funding-amount" name="amount" min="1" max="9999999" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Investment Date</label>
+                        <input type="date" class="form-control" id="edit-funding-date" name="funding_date" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Investment Type</label>
+                        <select class="form-select" id="edit-funding-type" name="investment_type">
+                            <option value="Capital">Capital (owner money)</option>
+                            <option value="Director Loan">Director Loan</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Mode of Investment</label>
+                        {{ payment_method_options(selected=None, name='method', id='edit-funding-method', methods=payment_methods, labels=method_labels, default=default_payment_method, groups=method_groups, extra_attrs='data-method-indicator="edit-funding-method-type"') }}
+                        <span id="edit-funding-method-type" class="d-inline-flex align-items-center gap-1 mt-1" style="color:rgba(255,255,255,0.55);font-size:0.72rem;"></span>
+                        {% if account_balances %}<div class="form-text mt-1" id="edit-funding-balance-hint" style="color:var(--accent-cyan);opacity:0.85;"></div>{% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Reference (cheque/UTR/note)</label>
+                        <input type="text" class="form-control" id="edit-funding-reference" name="reference" maxlength="100" placeholder="e.g. Cheque 001254 / UTR 4192">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">Purpose / Notes</label>
+                        <textarea class="form-control" id="edit-funding-purpose" name="purpose" rows="2" placeholder="e.g. Owner capital for rent + staff salary"></textarea>
+                    </div>
+                    <input type="hidden" id="edit-funding-id">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-premium">Save Changes</button>
                 </div>
             </form>
         </div>
@@ -149,6 +224,19 @@ Record Capital Investment</h5>
 {% endblock %}
 {% block scripts %}
 <script>
+window.openEditFunding = function (btn) {
+    var modal = document.getElementById('editFundingModal');
+    var form = document.getElementById('editFundingForm');
+    form.action = '{{ url_for('funding.edit', id=0) }}'.replace('/0', '/' + btn.getAttribute('data-id'));
+    document.getElementById('edit-funding-id').value = btn.getAttribute('data-id');
+    document.getElementById('edit-funding-amount').value = btn.getAttribute('data-amount');
+    document.getElementById('edit-funding-date').value = btn.getAttribute('data-date');
+    document.getElementById('edit-funding-reference').value = btn.getAttribute('data-reference') || '';
+    document.getElementById('edit-funding-purpose').value = btn.getAttribute('data-purpose') || '';
+    document.getElementById('edit-funding-method').value = btn.getAttribute('data-method');
+    document.getElementById('edit-funding-type').value = btn.getAttribute('data-type');
+    new bootstrap.Modal(modal).show();
+};
 (function () {
     {% if autopen %}
     var _fModal = document.getElementById('addFundingModal');
@@ -157,9 +245,10 @@ Record Capital Investment</h5>
     var balances = {{ account_balances|tojson }};
     var map = {};
     balances.forEach(function (a) { map[a.name] = a.balance; });
-    var sel = document.getElementById('funding-method');
-    var hint = document.getElementById('funding-balance-hint');
-    if (sel && hint) {
+    function wireHint(selId, hintId) {
+        var sel = document.getElementById(selId);
+        var hint = document.getElementById(hintId);
+        if (!sel || !hint) return;
         function update() {
             var b = map[sel.value];
             if (b === undefined) { hint.textContent = ''; return; }
@@ -169,6 +258,27 @@ Record Capital Investment</h5>
         }
         update();
         sel.addEventListener('change', update);
+    }
+    wireHint('funding-method', 'funding-balance-hint');
+    wireHint('edit-funding-method', 'edit-funding-balance-hint');
+    var trend = {{ trend|tojson }};
+    var trendEl = document.getElementById('fundingTrendChart');
+    if (trendEl && window.Chart && trend && trend.length) {
+        new Chart(trendEl, {
+            type: 'bar',
+            data: { labels: trend.map(function (t) { return t.label; }), datasets: [{ label: 'Capital injected', data: trend.map(function (t) { return t.value; }), backgroundColor: 'rgba(0,191,166,0.45)', borderColor: '#00BFA6', borderWidth: 1 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: function (v) { return '₹' + v; } } } } }
+        });
+    }
+    var split = {{ method_split|tojson }};
+    var splitEl = document.getElementById('fundingSplitChart');
+    if (splitEl && window.Chart && split && split.length) {
+        var colors = ['#00BFA6', '#1b6ef3', '#FFB347', '#ff3366', '#a78bfa', '#22d3ee'];
+        new Chart(splitEl, {
+            type: 'doughnut',
+            data: { labels: split.map(function (s) { return s.method; }), datasets: [{ data: split.map(function (s) { return s.total; }), backgroundColor: split.map(function (_, i) { return colors[i % colors.length]; }) }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#9fb3c8', boxWidth: 12 } } } }
+        });
     }
 })();
 </script>

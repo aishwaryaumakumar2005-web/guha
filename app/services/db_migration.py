@@ -570,6 +570,28 @@ def migrate_enquiry_course_nullable():
         raise
 
 
+def migrate_funding_batch2_columns():
+    """Add owner_funding.reference and owner_funding.investment_type.
+
+    Batch 2 (funding enhancement): a tracking/UTR reference and the
+    Capital-vs-Director-Loan classification. The ORM maps them, so legacy
+    databases 500 on funding queries until the columns exist. Idempotent and
+    additive-only; legacy rows keep NULL reference and read 'Capital'.
+    """
+    if not _table_exists('owner_funding'):
+        return
+    adds = [('reference', 'VARCHAR(100)'), ('investment_type', 'VARCHAR(20)')]
+    for column, col_type in adds:
+        if not _has_column('owner_funding', column):
+            try:
+                db.session.execute(text('ALTER TABLE "owner_funding" ADD COLUMN "%s" %s' % (column, col_type)))
+                db.session.commit()
+                print(f"Migration migrate_funding_batch2_columns: added owner_funding.{column}", flush=True)
+            except Exception as e:
+                db.session.rollback()
+                print(f"Migration migrate_funding_batch2_columns: FAILED to add owner_funding.{column}: {e}", flush=True)
+
+
 def migrate_photos_to_db():
     """Copy any file-based photos (photo filename set, photo_data empty) into the DB.
 

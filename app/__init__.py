@@ -346,6 +346,13 @@ def create_app(config_object=None):
                 print("Migration migrate_payroll_commission_breakdown_column FAILED:", e, flush=True)
                 db.session.rollback()
             try:
+                from app.services.db_migration import migrate_funding_batch2_columns
+                migrate_funding_batch2_columns()
+                print("Migration migrate_funding_batch2_columns completed OK", flush=True)
+            except Exception as e:
+                print("Migration migrate_funding_batch2_columns FAILED:", e, flush=True)
+                db.session.rollback()
+            try:
                 db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_date ON expense(expense_date)'))
                 db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_category ON expense(category_id)'))
                 db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_fee_date ON fee_record(payment_date)'))

@@ -325,7 +325,10 @@ class OwnerFundingForm(Form):
     required = ['amount']
     float = ['amount']
     date = ['funding_date']
-    choices = {'method': list(PAYMENT_METHODS)}
+    choices = {'method': list(PAYMENT_METHODS),
+               'investment_type': ['Capital', 'Director Loan']}
+    # F4: a reference (cheque/UTR/note) is optional but capped at 100 chars.
+    max_length = {'reference': 100}
     # B1: same bounds as the modal (min ₹1, max ₹99,99,999) — the HTML
     # min/max must stay in sync with these or a value that passes the
     # browser is rejected server-side with a confusing message.
