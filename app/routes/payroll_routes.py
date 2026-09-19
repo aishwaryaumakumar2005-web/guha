@@ -5,6 +5,7 @@ import os
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, send_file, current_app
 from flask_login import login_required, current_user
 from fpdf import FPDF
+from sqlalchemy.exc import IntegrityError
 from app.extensions import db
 from app.models import Tutor, PayrollRecord, TutorPayrollSettings, Expense, ExpenseCategory, tutor_courses, student_courses
 from app.helpers import admin_required
@@ -12,6 +13,22 @@ from app.services.account_service import compute_account_summary
 from app.services.accounting import LOGO_PATH
 
 payroll_bp = Blueprint('payroll', __name__)
+
+def _period_end(month, year):
+    """Last calendar day of the given payroll period."""
+    if month == 12:
+        return date(year, 12, 31)
+    return date(year, month + 1, 1) - timedelta(days=1)
+
+
+def _validate_commission_override(percentage):
+    """Per-process override is optional; when given it must be 0-100."""
+    if percentage is None:
+        return None
+    if percentage < 0 or percentage > 100:
+        return 'Commission % must be between 0 and 100.'
+    return None
+
 
 def compute_tutor_payroll(tutor, month, year, percentage=None):
     settings = TutorPayrollSettings.query.filter_by(tutor_id=tutor.id).first()
@@ -24,10 +41,7 @@ def compute_tutor_payroll(tutor, month, year, percentage=None):
     other_ded = settings.other_deductions or 0.0
     tds_pct = settings.tds_percentage or 0.0
     start_date = date(year, month, 1)
-    if month == 12:
-        end_date = date(year + 1, 1, 1) - timedelta(days=1)
-    else:
-        end_date = date(year, month + 1, 1) - timedelta(days=1)
+    end_date = _period_end(month, year)
     from app.models import Student, Course, FeeRecord
     students = Student.query.join(Student.courses).join(Course.tutors).filter(Tutor.id == tutor.id).all()
     commission = 0.0
@@ -49,7 +63,13 @@ def compute_tutor_payroll(tutor, month, year, percentage=None):
             commission += (student_fees / tutor_count) * (comm_pct / 100.0)
     gross = base + commission + bonus
     tds = gross * (tds_pct / 100.0) if tds_pct > 0 else 0.0
-    net = gross - tds - other_ded
+    # P1: deductions must never push the net negative - that would later
+    # materialise as a negative salary expense on confirmation. Settings
+    # forms reject this up front, but legacy data still flows through here,
+    # so clamp and floor defensively.
+    if gross > 0:
+        other_ded = min(other_ded, max(0.0, gross - tds))
+    net = max(0.0, gross - tds - other_ded)
     return {'base': base, 'commission': commission, 'commission_pct': comm_pct,
         'bonus': bonus, 'tds': tds, 'tds_pct': tds_pct, 'other_ded': other_ded, 'net': net, 'gross': gross}
 
@@ -93,6 +113,10 @@ def process_payroll():
         flash('Month must be 1-12 and year must be 2000+.', 'danger')
         return redirect(url_for('payroll.payroll_list'))
     percentage = request.form.get('percentage', type=float)
+    override_err = _validate_commission_override(percentage)
+    if override_err:
+        flash(override_err, 'danger')
+        return redirect(url_for('payroll.payroll_list', month=month, year=year))
     tutor = Tutor.query.get_or_404(tutor_id)
     result = compute_tutor_payroll(tutor, month, year, percentage)
     existing = PayrollRecord.query.filter_by(tutor_id=tutor_id, month=month, year=year).first()
@@ -106,7 +130,13 @@ def process_payroll():
         payment_method=request.form.get('payment_method', 'Cash'),
         commission_pct_used=result['commission_pct'])
     db.session.add(record)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        # Race with a concurrent request that created the same period record.
+        db.session.rollback()
+        flash(f"Payroll already exists for {tutor.name} ({month}/{year}).", "warning")
+        return redirect(url_for('payroll.payroll_list', month=month, year=year))
     flash(f"Payroll processed for {tutor.name}: Rs.{result['net']:,.2f} net.", "success")
     return redirect(url_for('payroll.payroll_list', month=month, year=year))
 
@@ -124,6 +154,10 @@ def process_all_payroll():
         flash('Month must be 1-12 and year must be 2000+.', 'danger')
         return redirect(url_for('payroll.payroll_list'))
     percentage = request.form.get('percentage', type=float)
+    override_err = _validate_commission_override(percentage)
+    if override_err:
+        flash(override_err, 'danger')
+        return redirect(url_for('payroll.payroll_list', month=month, year=year))
     tutors = Tutor.query.filter_by(status='Active').order_by(Tutor.name).all()
     count = 0
     for tutor in tutors:
@@ -139,7 +173,14 @@ def process_all_payroll():
             commission_pct_used=result['commission_pct'])
         db.session.add(record)
         count += 1
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        # A concurrent process-all (or individual process) created a record
+        # for one of these tutors+periods mid-loop; roll the batch back.
+        db.session.rollback()
+        flash("Could not process payroll: one or more records already exist for the selected period. No changes were saved.", "warning")
+        return redirect(url_for('payroll.payroll_list', month=month, year=year))
     flash(f"Payroll processed for {count} active tutor(s).", "success")
     return redirect(url_for('payroll.payroll_list', month=month, year=year))
 
@@ -151,14 +192,22 @@ def confirm_payroll(id):
     if record.status != 'Draft':
         flash("Payroll record is already finalized.", "warning")
         return redirect(url_for('payroll.payroll_list', month=record.month, year=record.year))
+    if record.net_amount < 0:
+        flash(f"Cannot confirm {record.tutor.name}'s payroll for {record.month}/{record.year}: the net amount is negative (Rs.{record.net_amount:,.2f}). Please adjust the salary settings first.", "danger")
+        return redirect(url_for('payroll.payroll_list', month=record.month, year=record.year))
     salary_cat = ExpenseCategory.query.filter_by(name="Salary").first()
     if not salary_cat:
         salary_cat = ExpenseCategory(name="Salary", description="Staff salary payments")
         db.session.add(salary_cat)
         db.session.commit()
     desc = f"Salary: {record.tutor.name} - {record.month}/{record.year} (Base: Rs.{record.base_amount:,.2f}, Commission: Rs.{record.commission_amount:,.2f}, TDS: Rs.{record.tds_amount:,.2f})"
+    # P2: the salary belongs to its pay period, not the confirmation day.
+    # Expense reports aggregate by expense_date, so a late-confirmed salary
+    # for a past month must land in that month; never allow a future period
+    # date (clamp to today) else it would appear in a period not yet over.
+    expense_date = min(_period_end(record.month, record.year), date.today())
     expense = Expense(category_id=salary_cat.id, amount=record.net_amount, description=desc,
-        expense_date=date.today(), created_by=current_user.id,
+        expense_date=expense_date, created_by=current_user.id,
         payment_method=record.payment_method or 'Cash')
     db.session.add(expense)
     db.session.flush()
@@ -166,7 +215,7 @@ def confirm_payroll(id):
     record.expense_id = expense.id
     record.paid_date = date.today()
     db.session.commit()
-    flash(f"Payroll confirmed for {record.tutor.name}. Expense recorded (Rs.{record.net_amount:,.2f}).", "success")
+    flash(f"Payroll confirmed for {record.tutor.name}. Expense recorded (Rs.{record.net_amount:,.2f}) for {expense_date.strftime('%b %Y')}.", "success")
     return redirect(url_for('payroll.payroll_list', month=record.month, year=record.year))
 
 @payroll_bp.route('/payroll/<int:id>/cancel', methods=['POST'])
@@ -190,6 +239,12 @@ def delete_payroll(id):
     tutor_name = record.tutor.name
     month, year = record.month, record.year
     was_paid = record.status == 'Paid'
+    if was_paid and request.form.get('confirm') != '1':
+        # Deleting a paid record rewrites past P&L (linked salary expense is
+        # removed too), so it must be explicitly acknowledged, not just a
+        # default button press.
+        flash(f"Salary deletion not confirmed for {tutor_name}. Paid records affect past accounting; please retry with explicit confirmation.", "danger")
+        return redirect(url_for('payroll.payroll_list', month=month, year=year))
     expense = Expense.query.get(record.expense_id) if record.expense_id else None
     db.session.delete(record)
     if expense:
@@ -471,19 +526,21 @@ def update_settings(tutor_id):
     settings.account_number = form.data.get('account_number', '').strip()
     settings.ifsc_code = form.data.get('ifsc_code', '').strip()
     db.session.flush()
-    # Recalculate existing Draft payroll records for this tutor
+    # Recalculate existing Draft payroll records for this tutor from the
+    # freshly saved settings - including the commission % (P2). Drafts are
+    # fully recomputed through the same path a fresh process run uses, so a
+    # base/TDS/bonus/commission change is always reflected.
     draft_records = PayrollRecord.query.filter_by(tutor_id=tutor_id, status='Draft').all()
+    comm_pct = settings.commission_percentage or 0.0
     for rec in draft_records:
-        rec.base_amount = settings.base_salary or 0.0
-        rec.bonus_amount = settings.bonus or 0.0
-        rec.other_deductions = settings.other_deductions or 0.0
-        # Recalc commission from actual fees for this period
-        result = compute_tutor_payroll(tutor, rec.month, rec.year, rec.commission_pct_used)
+        result = compute_tutor_payroll(tutor, rec.month, rec.year, comm_pct)
+        rec.base_amount = result['base']
         rec.commission_amount = result['commission']
-        gross = rec.base_amount + rec.commission_amount + rec.bonus_amount
-        tds_pct = settings.tds_percentage or 0.0
-        rec.tds_amount = gross * (tds_pct / 100.0) if tds_pct > 0 else 0.0
-        rec.net_amount = gross - rec.tds_amount - rec.other_deductions
+        rec.bonus_amount = result['bonus']
+        rec.tds_amount = result['tds']
+        rec.other_deductions = result['other_ded']
+        rec.net_amount = result['net']
+        rec.commission_pct_used = comm_pct
     db.session.commit()
     msg = f"Payroll settings updated for {tutor.name}."
     if draft_records:

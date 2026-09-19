@@ -303,6 +303,23 @@ class PayrollSettingsForm(Form):
     max_values = {'commission_percentage': 100, 'tds_percentage': 100}
     max_length = {'bank_name': 100, 'account_number': 50, 'ifsc_code': 20}
 
+    def validate(self):
+        super().validate()
+        base = self.cleaned_data.get('base_salary', 0) or 0
+        bonus = self.cleaned_data.get('bonus', 0) or 0
+        other = self.cleaned_data.get('other_deductions', 0) or 0
+        tds_pct = self.cleaned_data.get('tds_percentage', 10) or 0
+        # Commission is always >= 0 (fees are never negative), so the
+        # strictest possible net is (1 - tds%) * (base + bonus) - other.
+        # Reject settings that would compute to a negative net there - such
+        # a draft would otherwise materialise as a negative salary expense.
+        available = (base + bonus) * (1 - tds_pct / 100.0)
+        if other - available > 1e-9:
+            self._error('other_deductions',
+                        f'Other deductions cannot exceed the net left after TDS '
+                        f'(max Rs.{available:,.2f} for this base, bonus and TDS %).')
+        return len(self.errors) == 0
+
 
 class OwnerFundingForm(Form):
     required = ['amount']

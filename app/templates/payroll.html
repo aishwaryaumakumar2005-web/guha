@@ -122,7 +122,7 @@
                 {% for r in records %}
                 {% set gross = r.base_amount + r.commission_amount + r.bonus_amount %}
                 <tr>
-                    <td><a href="{{ url_for('tutors.list') }}?tutor_id={{ r.tutor_id }}" class="text-info text-decoration-none">{{ r.tutor.name }}</a></td>
+                    <td><a href="{{ url_for('tutors.list') }}" class="text-info text-decoration-none">{{ r.tutor.name }}</a></td>
                     <td class="text-end text-white">₹{{ "{:,.0f}".format(r.base_amount) }}</td>
                     <td class="text-end text-white">₹{{ "{:,.0f}".format(r.commission_amount) }}</td>
                     <td class="text-end text-white">₹{{ "{:,.0f}".format(r.bonus_amount) }}</td>
@@ -148,6 +148,7 @@
                             </form>
                             {% endif %}
                             <form method="POST" action="{{ url_for('payroll.delete_payroll', id=r.id) }}" class="d-inline" onsubmit="return confirm('Delete this payroll record for {{ r.tutor.name }}?{% if r.status == 'Paid' %} The recorded salary expense will also be removed.{% endif %}');">
+                                {% if r.status == 'Paid' %}<input type="hidden" name="confirm" value="1">{% endif %}
                                 <button type="submit" class="btn btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
                             </form>
                             <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#settingsModal{{ r.tutor_id }}" title="Settings"><i class="bi bi-gear"></i></button>
