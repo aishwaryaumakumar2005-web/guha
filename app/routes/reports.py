@@ -32,6 +32,13 @@ def filter_by_company_methods(query, model_attr, company_id):
         matched = _company_method_match(company_id)
     if matched is None:
         return query.filter(False)
+    if model_attr.class_ is Expense:
+        # Expenses may carry an explicit company attribution even when their
+        # payment method is not one of this company's account names — honor it.
+        return query.filter(db.or_(
+            db.func.coalesce(model_attr, '').in_(matched),
+            Expense.company_id == company_id,
+        ))
     return query.filter(db.func.coalesce(model_attr, '').in_(matched))
 
 

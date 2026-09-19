@@ -1,0 +1,74 @@
+{% extends 'base.html' %}{% block title %}Expense Categories{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('expenses.list') }}">Finance</a></li><li class="breadcrumb-item active" aria-current="page">Expense Categories</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold">Expense Categories</h2>
+            <p class="text-white mb-0">Set expected monthly budgets per category and archive ones you no longer book.</p>
+        </div>
+        <div>
+            <a href="{{ url_for('expenses.list') }}" class="btn btn-outline-premium"><i class="bi bi-arrow-left me-2"></i>Back to Expenses</a>
+        </div>
+    </div>
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="glass-card p-4">
+                <h5 class="fw-bold mb-3"><i class="bi bi-plus-circle me-2 text-dark"></i>Add Category</h5>
+                <form method="POST" action="{{ url_for('expenses.categories_add') }}">
+                    <div class="mb-3">
+                        <label class="form-label small">Name</label>
+                        <input type="text" class="form-control" name="name" maxlength="100" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Expected Monthly Budget (₹) <span class="text-white-50">(optional)</span></label>
+                        <input type="number" step="0.01" min="0" class="form-control" name="budget" placeholder="e.g. 15000">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Description <span class="text-white-50">(optional)</span></label>
+                        <textarea class="form-control" name="description" rows="2"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-premium">Add Category</button>
+                </form>
+            </div>
+        </div>
+        <div class="col-lg-8">
+            <div class="glass-card p-4">
+                <h5 class="mb-1 text-dark fw-bold"><i class="bi bi-tags me-2 text-dark"></i>Categories</h5>
+                <p class="text-secondary small mb-3">Archived categories stay in history but are hidden from new bookings.</p>
+                {% if cats %}
+                {% for cat in cats %}
+                <div class="border rounded p-3 mb-3 {% if not cat.is_active %}opacity-75{% endif %}" style="border-color: rgba(255,255,255,0.15) !important;">
+                    <form method="POST" action="{{ url_for('expenses.categories_edit', id=cat.id) }}" class="row g-2 align-items-end">
+                        <div class="col-12 col-md-3">
+                            <label class="form-label small mb-1 text-dark">Name</label>
+                            <input type="text" class="form-control" name="name" value="{{ cat.name }}" maxlength="100" {% if cat.name == 'Refund' %}readonly{% endif %} required>
+                            {% if cat.name == 'Refund' %}<div class="form-text">Protected — refunds must stay canonical.</div>{% endif %}
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label small mb-1 text-dark">Monthly Budget (₹)</label>
+                            <input type="number" step="0.01" min="0" class="form-control" name="budget" value="{{ cat.budget_limit or '' }}" placeholder="No budget">
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label small mb-1 text-dark">Status</label>
+                            <select class="form-select" name="is_active" {% if cat.name == 'Refund' %}disabled{% endif %}>
+                                <option value="1" {% if cat.is_active %}selected{% endif %}>Active</option>
+                                <option value="0" {% if not cat.is_active %}selected{% endif %}>Archived</option>
+                            </select>
+                            {% if cat.name == 'Refund' %}<input type="hidden" name="is_active" value="1">{% endif %}
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label small mb-1 text-dark">Description</label>
+                            <input type="text" class="form-control" name="description" value="{{ cat.description or '' }}" maxlength="255" placeholder="Optional">
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <button type="submit" class="btn btn-premium w-100">Save</button>
+                        </div>
+                    </form>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="glass-card p-4">{{ empty_state('No categories yet', 'Add your first expense category to start budgeting', 'expenses', url_for('expenses.list'), 'Back to Expenses', 'bi-tags-fill', 4) }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

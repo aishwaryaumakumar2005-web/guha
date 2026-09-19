@@ -656,7 +656,7 @@ class AIEngine:
             "success_probability": success_probability
         }
 
-    def generate_expense_optimization_insights(self, expense_data, category_data):
+    def generate_expense_optimization_insights(self, expense_data, category_data, period_label=None):
         if not expense_data:
             return {"total_expenses": 0, "optimization_potential": 0, "recommendations": ["Start tracking expenses for insights"]}
         total_expenses = sum(e.amount for e in expense_data)
@@ -664,9 +664,10 @@ class AIEngine:
         for expense in expense_data:
             category_name = expense.category.name if expense.category else "Uncategorized"
             category_breakdown[category_name] = category_breakdown.get(category_name, 0) + expense.amount
+        label = period_label or "this month"
         prompt = (
             f"You are a financial analyst optimizing institute expenses.\n"
-            f"Total Monthly Expenses: ₹{total_expenses:,.2f}\n"
+            f"Total {label} Expenses: ₹{total_expenses:,.2f}\n"
             f"Category Breakdown: {category_breakdown}\n\n"
             f"Generate a JSON response with:\n"
             f"- 'optimization_potential': Estimated monthly savings (₹)\n"

@@ -7,6 +7,10 @@ Expense Tracking</h2>
 Record daily expenses, track spending by category, and monitor outflows.</p>
         </div>
         <div class="d-flex gap-2">
+            <a href="{{ url_for('expenses.categories') }}" class="btn btn-outline-premium">
+                <i class="bi bi-tags me-2">
+</i>
+Manage Categories            </a>
             <button class="btn btn-premium" data-bs-toggle="modal" data-bs-target="#addExpenseModal">
                 <i class="bi bi-plus-circle me-2">
 </i>
@@ -40,12 +44,17 @@ Generate Insights                </button>
 {{ ct.name }}</div>
                 <div class="fw-bold fs-5 text-white">
 ₹{{ "{:,.0f}".format(ct.total) }}</div>
-            </div>
+                {% if ct.budget %}                    <div class="small" style="color: rgba(255,255,255,0.45);">Budget ₹{{ "{:,.0f}".format(ct.budget) }}</div>
+                    {% if ct.over %}                        <div class="small fw-semibold" style="color:#ffd166;">
+<i class="bi bi-exclamation-triangle-fill me-1">
+</i>
+Over by ₹{{ "{:,.0f}".format(ct.total - ct.budget) }}</div>
+                    {% endif %}                {% endif %}            </div>
         </div>
         {% endfor %}        <div class="col-md-3 col-6">
             <div class="glass-card p-3 text-center" style="border-left: 4px solid var(--accent-cyan);">
                 <div class="text-secondary small fw-semibold text-uppercase tracking-wider">
-Total</div>
+{{ period_label }}</div>
                 <div class="fw-bold fs-5" style="color: #ffffff;">
 ₹{{ "{:,.0f}".format(grand_total) }}</div>
             </div>
@@ -68,6 +77,8 @@ All Categories</option>
                 <label class="form-label small text-dark mb-1">
 Month</label>
                 <select name="month" class="form-select form-select-sm">
+                    <option value="0" {% if not filter_month %}selected{% endif %}>
+All Months</option>
                     {% for m in range(1, 13) %}                        <option value="{{ m }}" {% if filter_month == m %}selected{% endif %}>
 {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m-1] }}</option>
                     {% endfor %}                </select>
@@ -98,7 +109,7 @@ Clear</a>
 <i class="bi bi-receipt me-2 text-dark">
 </i>
 Expense Records</h4>
-        <p class="text-secondary small mb-3">Showing the latest {{ [expenses|length, list_limit]|min }} of {{ expenses_total }} records{% if expenses_total > list_limit %} — use the filters above to narrow{% endif %}.</p>
+        <p class="text-secondary small mb-3">Period: <strong style="color: #ffffff;">{{ period_label }}</strong> &middot; showing the latest {{ [expenses|length, list_limit]|min }} of {{ expenses_total }} records{% if expenses_total > list_limit %} — use the filters above to narrow{% endif %}.</p>
         <div class="table-container">
             <table class="table table-custom sortable" data-page-size="10">
                 <thead>
@@ -111,6 +122,8 @@ Category</th>
 Description</th>
                         <th>
 Payment Mode</th>
+                        <th>
+Company</th>
                         <th>
 Amount</th>
                         <th>
@@ -126,15 +139,29 @@ Action</th>
                             <td>
 <span class="badge badge-custom badge-cyan">
 {{ exp.category.name }}</span>
-</td>
+                                {% if exp.student_id and exp.student %}                                    <span class="badge badge-custom badge-amber" title="Refund to {{ exp.student.name }}">
+<i class="bi bi-arrow-return-left me-1">
+</i>
+{{ exp.student.name }}</span>
+                                {% endif %}                            </td>
                             <td>
                                 <div class="fw-medium text-dark">
 {{ exp.description }}</div>
-                            </td>
+                                {% if exp.payment_ref %}                                    <div class="small text-secondary">
+<i class="bi bi-hash me-1">
+</i>
+Ref: {{ exp.payment_ref }}</div>
+                                {% endif %}                                {% if exp.attachment_mime %}                                    <a href="{{ url_for('expenses.attachment', id=exp.id) }}" target="_blank" class="small text-info">
+<i class="bi bi-paperclip me-1">
+</i>
+{{ exp.attachment_name or 'Receipt' }}</a>
+                                {% endif %}                            </td>
                             <td>
 <span class="badge badge-custom badge-cyan">
 {{ exp.payment_method or 'Cash' }}</span>
 </td>
+                            <td class="small text-secondary">
+{{ exp.company.name if exp.company else '—' }}</td>
                             <td class="fw-semibold text-white">
 ₹{{ "{:,.2f}".format(exp.amount) }}</td>
                             <td class="small text-secondary">
@@ -151,7 +178,7 @@ Action</th>
                             </td>
                         </tr>
                         {% endfor %}                    {% else %}                        <tr>
-                            {{ empty_state('No expense records found', "Record your first expense to start tracking institute spending", 'expenses', '#', 'Add Expense', 'bi-plus-circle-fill', 7, 'data-bs-toggle="modal" data-bs-target="#addExpenseModal"') }}
+                            {{ empty_state('No expense records found', "Record your first expense to start tracking institute spending", 'expenses', '#', 'Add Expense', 'bi-plus-circle-fill', 8, 'data-bs-toggle="modal" data-bs-target="#addExpenseModal"') }}
                         </tr>
                     {% endif %}                </tbody>
             </table>
@@ -170,7 +197,7 @@ Record New Expense</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close">
 </button>
             </div>
-            <form action="{{ url_for('expenses.list') }}" method="POST" hx-boost="false" data-no-ajax>
+            <form action="{{ url_for('expenses.list') }}" method="POST" hx-boost="false" data-no-ajax enctype="multipart/form-data">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label text-white small">
@@ -199,17 +226,36 @@ Record New Expense</h5>
                         <span id="add-payment-method-type" class="d-inline-flex align-items-center gap-1 mt-1" style="color:rgba(255,255,255,0.55);font-size:0.72rem;"></span>
                         <div class="form-text mt-1" id="add-balance-hint" style="color: var(--accent-cyan); opacity: 0.85;"></div>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">
+  Company <span class="text-white-50">(auto-picked from payment account)</span></label>
+                        <select class="form-select" name="company_id">
+                            <option value="">
+-- Auto --</option>
+                            {% for c in companies %}                                <option value="{{ c.id }}">
+{{ c.name }}</option>
+                            {% endfor %}                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">
+  Payment Reference <span class="text-white-50">(UTR / cheque / bill no.)</span></label>
+                        <input type="text" class="form-control" name="payment_ref" placeholder="e.g. UTR 123456789012" maxlength="100">
+                    </div>
                     <div class="mb-3 refund-student-field" style="display:none;">
                         <label class="form-label text-white small">
-  Refund To Student <span class="text-white-50">(optional)</span></label>
-                        <select class="form-select" name="student_id">
-                            <option value="">
--- Select Student --</option>
-                            {% for s in students %}                                <option value="{{ s.id }}">
-{{ s.name }} ({{ s.roll_no or s.id }})</option>
-                            {% endfor %}                        </select>
-                        <div class="form-text" style="color:rgba(255,255,255,0.55);font-size:0.72rem;">
-Linking a student records this as a refund that reduces their outstanding dues.</div>
+  Refund To Student</label>
+                        <input type="text" class="form-control refund-student-input" list="refund-students" placeholder="Search student by name or roll no…" autocomplete="off">
+                        <datalist id="refund-students">
+                            {% for s in students %}                                <option value="{{ s.name }} ({{ s.roll_no or s.id }})"></option>
+                            {% endfor %}                        </datalist>
+                        <input type="hidden" name="student_id" value="">
+                        <div class="form-text refund-impact-msg" style="color:rgba(255,255,255,0.55);font-size:0.72rem;">
+This records a refund that reduces the student's outstanding dues.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">
+  Receipt / Attachment <span class="text-white-50">(optional, image)</span></label>
+                        <input type="file" class="form-control" name="attachment" accept="image/*">
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">
@@ -240,14 +286,14 @@ Edit Expense</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close">
 </button>
             </div>
-            <form action="{{ url_for('expenses.edit', id=exp.id) }}" method="POST">
+            <form action="{{ url_for('expenses.edit', id=exp.id) }}" method="POST" enctype="multipart/form-data">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label text-white small">
  Category</label>
                         <select class="form-select" name="category_id" required autofocus>
-                            {% for cat in categories %}                                <option value="{{ cat.id }}" {% if exp.category_id == cat.id %}selected{% endif %}>
-{{ cat.name }}</option>
+                            {% for cat in all_categories %}                                <option value="{{ cat.id }}" {% if exp.category_id == cat.id %}selected{% endif %}>
+{{ cat.name }}{% if not cat.is_active %} (archived){% endif %}</option>
                             {% endfor %}                        </select>
                     </div>
                     <div class="mb-3">
@@ -267,17 +313,44 @@ Edit Expense</h5>
                         <span id="edit-payment-method-{{ exp.id }}-type" class="d-inline-flex align-items-center gap-1 mt-1" style="color:rgba(255,255,255,0.55);font-size:0.72rem;"></span>
                         <div class="form-text mt-1" id="edit-balance-hint-{{ exp.id }}" style="color: var(--accent-cyan); opacity: 0.85;"></div>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">
+  Company <span class="text-white-50">(blank = re-infer)</span></label>
+                        <select class="form-select" name="company_id">
+                            <option value="">
+-- Auto --</option>
+                            {% for c in companies %}                                <option value="{{ c.id }}" {% if exp.company_id == c.id %}selected{% endif %}>
+{{ c.name }}</option>
+                            {% endfor %}                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">
+  Payment Reference <span class="text-white-50">(UTR / cheque / bill no.)</span></label>
+                        <input type="text" class="form-control" name="payment_ref" value="{{ exp.payment_ref or '' }}" maxlength="100">
+                    </div>
                     <div class="mb-3 refund-student-field" {% if not exp.student_id %}style="display:none;"{% endif %}>
                         <label class="form-label text-white small">
-  Refund To Student <span class="text-white-50">(optional)</span></label>
-                        <select class="form-select" name="student_id">
-                            <option value="">
--- Select Student --</option>
-                            {% for s in students %}                                <option value="{{ s.id }}" {% if exp.student_id == s.id %}selected{% endif %}>
-{{ s.name }} ({{ s.roll_no or s.id }})</option>
-                            {% endfor %}                        </select>
-                        <div class="form-text" style="color:rgba(255,255,255,0.55);font-size:0.72rem;">
-Linking a student records this as a refund that reduces their outstanding dues.</div>
+  Refund To Student</label>
+                        <input type="text" class="form-control refund-student-input" list="refund-students" value="" placeholder="Search student by name or roll no…" autocomplete="off">
+                        <input type="hidden" name="student_id" value="{{ exp.student_id or '' }}">
+                        <div class="form-text refund-impact-msg" style="color:rgba(255,255,255,0.55);font-size:0.72rem;">
+This records a refund that reduces the student's outstanding dues.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white small">
+  Receipt / Attachment <span class="text-white-50">(replace current)</span></label>
+                        {% if exp.attachment_mime %}                            <div class="mb-2">
+                                <a class="text-info" href="{{ url_for('expenses.attachment', id=exp.id) }}" target="_blank">
+<i class="bi bi-paperclip me-1">
+</i>
+{{ exp.attachment_name or 'View attachment' }}</a>
+                                <div class="form-check mt-1">
+                                    <input class="form-check-input" type="checkbox" name="remove_attachment" value="1" id="rm-att-{{ exp.id }}">
+                                    <label class="form-check-label" for="rm-att-{{ exp.id }}">
+Remove current attachment</label>
+                                </div>
+                            </div>
+                        {% endif %}                        <input type="file" class="form-control" name="attachment" accept="image/*">
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">
@@ -304,7 +377,7 @@ Linking a student records this as a refund that reduces their outstanding dues.<
                 <h5 class="modal-title text-white" id="aiExpenseOptimizationModalLabel">
 <i class="bi bi-graph-up-arrow text-white me-2">
 </i>
-AI Expense Optimization Analysis</h5>
+AI Expense Optimization Analysis — {{ period_label }}</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close">
 </button>
             </div>
@@ -324,99 +397,42 @@ AI Expense Optimization Analysis</h5>
     </div>
 </div>
 {% endblock %}{% block scripts %}<script>
-function loadExpenseOptimization() {    const modal = new bootstrap.Modal(document.getElementById('aiExpenseOptimizationModal'));    const contentDiv = document.getElementById('expenseOptimizationContent');        contentDiv.innerHTML = `        <div class="d-flex align-items-center text-white">
-            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true">
-</span>
-            Analyzing expense patterns and generating optimization insights...        </div>
-    `;        modal.show();        fetch('/api/expenses/ai-optimization')        .then(response =>
- response.json())        .then(data =>
- {            let html = `                <div class="row mb-4">
-                    <div class="col-md-6">
-                        <div class="p-3 rounded border border-color bg-dark bg-opacity-25" style="background-color: #0d2740 !important;">
-                            <h6 class="text-white small fw-bold mb-2">
-<i class="bi bi-currency-rupee me-2 text-info">
-</i>
-Total Monthly Expenses</h6>
-                            <div class="text-white fw-bold fs-4">
-₹${(data.total_expenses/1000).toFixed(0)}k</div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="p-3 rounded border border-color bg-dark bg-opacity-25" style="background-color: #0d2740 !important;">
-                            <h6 class="text-white small fw-bold mb-2">
-<i class="bi bi-piggy-bank me-2 text-success">
-</i>
-Optimization Potential</h6>
-                            <div class="text-white fw-bold fs-4">
-₹${(data.optimization_potential/1000).toFixed(0)}k</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="mb-4">
-                    <h6 class="text-white fw-bold mb-3">
-<i class="bi bi-lightbulb-fill me-2 text-warning">
-</i>
-AI Cost-Saving Recommendations</h6>
-                    <ul class="mb-0">
-                        ${data.recommendations.map(rec =>
- `<li class="mb-2 text-white" style="opacity: 0.9;">
-${rec}</li>
-`).join('')}                    </ul>
-                </div>
-            `;                        if (data.high_cost_categories && data.high_cost_categories.length >
- 0) {                html += `                    <div class="mb-4">
-                        <h6 class="text-white fw-bold mb-3">
-<i class="bi bi-exclamation-triangle-fill me-2 text-danger">
-</i>
-High-Cost Categories to Review</h6>
-                        <div class="d-flex flex-wrap gap-2">
-                            ${data.high_cost_categories.map(cat =>
- `<span class="badge badge-custom badge-amber">
-${cat}</span>
-`).join('')}                        </div>
-                    </div>
-                `;            }                        if (data.category_breakdown && Object.keys(data.category_breakdown).length >
- 0) {                html += `                    <div class="mb-4">
-                        <h6 class="text-white fw-bold mb-3">
-<i class="bi bi-pie-chart-fill me-2 text-primary">
-</i>
-Category Breakdown</h6>
-                        <div class="table-container">
-                            <table class="table table-custom">
-                                <thead>
-                                    <tr>
-                                        <th>
-Category</th>
-                                        <th>
-Amount</th>
-                                        <th>
-Percentage</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${Object.entries(data.category_breakdown).map(([cat, amount]) =>
- `                                        <tr>
-                                            <td class="text-white">
-${cat}</td>
-                                            <td class="text-white">
-₹${amount.toFixed(2)}</td>
-                                            <td class="text-white">
-${((amount/data.total_expenses)*100).toFixed(1)}%</td>
-                                        </tr>
-                                    `).join('')}                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                `;            }                        contentDiv.innerHTML = html;        })        .catch(error =>
- {            console.error('Error:', error);            contentDiv.innerHTML = `                <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle me-2">
-</i>
-                    Error generating expense optimization. Please try again.                </div>
-            `;        });}
+var studentOut = {{ student_outstanding|tojson }};
+var studentOptions = { {% for s in students %}{{ ',' if not loop.first }}"{{ s.name }} ({{ s.roll_no or s.id }})": {{ s.id }}{% endfor %} };
+function setRefundStudent(input) {
+    var body = input.closest('.modal-body');
+    if (!body) return;
+    var hid = body.querySelector('input[name="student_id"]');
+    var msg = body.querySelector('.refund-impact-msg');
+    var v = (input.value || '').trim();
+    var sid = studentOptions[v] || '';
+    if (hid) hid.value = sid;
+    if (msg) {
+        if (sid) {
+            var out = studentOut[sid];
+            msg.textContent = out === undefined
+                ? 'This records a refund that reduces the student\'s outstanding dues.'
+                : 'Current outstanding: ' + Number(out).toFixed(2) + ' — this refund frees that amount.';
+            msg.style.color = 'rgba(255,255,255,0.6)';
+        } else {
+            msg.textContent = 'This records a refund that reduces the student\'s outstanding dues.';
+            msg.style.color = 'rgba(255,255,255,0.55)';
+        }
+    }
+}
+window.addEventListener('input', function (e) {
+    if (e.target && e.target.classList.contains('refund-student-input')) setRefundStudent(e.target);
+});
 (function () {
-    var balances = {{ account_balances|tojson }};
+    var rev = {};
+    Object.keys(studentOptions).forEach(function (k) { rev[studentOptions[k]] = k; });
+    document.querySelectorAll('.refund-student-input').forEach(function (inp) {
+        var hid = inp.closest('.modal-body').querySelector('input[name="student_id"]');
+        if (hid && hid.value && rev[hid.value]) inp.value = rev[hid.value];
+    });
+    var bals = {{ account_balances|tojson }};
     var map = {};
-    balances.forEach(function (a) { map[a.name] = a.balance; });
+    bals.forEach(function (a) { map[a.name] = a.balance; });
     function fmt(v) {
         var sign = v < 0 ? '-' : '';
         return sign + '₹' + Math.abs(v).toFixed(2);
@@ -426,12 +442,11 @@ ${((amount/data.total_expenses)*100).toFixed(1)}%</td>
         if (!hint) return;
         var b = map[sel.value];
         if (b === undefined) { hint.textContent = ''; return; }
-        var cls = b < 0 ? 'var(--bg-danger)' : 'var(--accent-emerald)';
         hint.textContent = 'Available balance: ' + fmt(b);
         hint.style.color = b < 0 ? '#e74c3c' : 'var(--accent-emerald)';
         hint.style.opacity = '0.9';
     }
-var addSel = document.getElementById('add-payment-method');
+    var addSel = document.getElementById('add-payment-method');
     if (addSel) {
         addSel.addEventListener('change', function () { updateHint(addSel, 'add-balance-hint'); });
         updateHint(addSel, 'add-balance-hint');
@@ -457,6 +472,86 @@ function toggleRefundField(select) {
 document.addEventListener('change', function (e) {
     if (e.target && e.target.name === 'category_id') toggleRefundField(e.target);
 });
-document.querySelectorAll('#addExpenseModal select[name="category_id"], [id^="editExpenseModal"] select[name="category_id"]').forEach(toggleRefundField);</script>
+document.querySelectorAll('#addExpenseModal select[name="category_id"], [id^="editExpenseModal"] select[name="category_id"]').forEach(toggleRefundField);
+function loadExpenseOptimization() {    const modal = new bootstrap.Modal(document.getElementById('aiExpenseOptimizationModal'));    const contentDiv = document.getElementById('expenseOptimizationContent');        contentDiv.innerHTML = `        <div class="d-flex align-items-center text-white">
+            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true">
+</span>
+            Analyzing expense patterns and generating optimization insights...        </div>
+    `;        modal.show();        var qs = [];        var mParam = new URLSearchParams(location.search).get('month');        var yParam = new URLSearchParams(location.search).get('year');        if (mParam && mParam !== '0') qs.push('month=' + encodeURIComponent(mParam));        if (yParam) qs.push('year=' + encodeURIComponent(yParam));        fetch('/api/expenses/ai-optimization' + (qs.length ? '?' + qs.join('&') : ''))        .then(response =>
+ response.json())        .then(data => {            let html = `                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="p-3 rounded border border-color bg-dark bg-opacity-25" style="background-color: #0d2740 !important;">
+                            <h6 class="text-white small fw-bold mb-2">
+<i class="bi bi-currency-rupee me-2 text-info">
+</i>
+Total Expenses {{ period_label }}</h6>
+                            <div class="text-white fw-bold fs-4">
+₹${(data.total_expenses/1000).toFixed(0)}k</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="p-3 rounded border border-color bg-dark bg-opacity-25" style="background-color: #0d2740 !important;">
+                            <h6 class="text-white small fw-bold mb-2">
+<i class="bi bi-piggy-bank me-2 text-success">
+</i>
+Optimization Potential</h6>
+                            <div class="text-white fw-bold fs-4">
+₹${(data.optimization_potential/1000).toFixed(0)}k</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <h6 class="text-white fw-bold mb-3">
+<i class="bi bi-lightbulb-fill me-2 text-warning">
+</i>
+AI Cost-Saving Recommendations</h6>
+                    <ul class="mb-0">
+                        ${data.recommendations.map(rec => `<li class="mb-2 text-white" style="opacity: 0.9;">${rec}</li>`).join('')}                    </ul>
+                </div>
+            `;                        if (data.budget_alerts && data.budget_alerts.length > 0) {                html += `                    <div class="mb-4">
+                        <h6 class="text-white fw-bold mb-3">
+<i class="bi bi-exclamation-octagon-fill me-2 text-danger">
+</i>
+Budget Alerts</h6>
+                        <div class="d-flex flex-wrap gap-2">
+                            ${data.budget_alerts.map(alert => `<span class="badge badge-custom badge-danger">${alert}</span>`).join('')}                        </div>
+                    </div>
+                `;            }                        if (data.high_cost_categories && data.high_cost_categories.length > 0) {                html += `                    <div class="mb-4">
+                        <h6 class="text-white fw-bold mb-3">
+<i class="bi bi-exclamation-triangle-fill me-2 text-danger">
+</i>
+High-Cost Categories to Review</h6>
+                        <div class="d-flex flex-wrap gap-2">
+                            ${data.high_cost_categories.map(cat => `<span class="badge badge-custom badge-amber">${cat}</span>`).join('')}                        </div>
+                    </div>
+                `;            }                        if (data.category_breakdown && Object.keys(data.category_breakdown).length > 0) {                html += `                    <div class="mb-4">
+                        <h6 class="text-white fw-bold mb-3">
+<i class="bi bi-pie-chart-fill me-2 text-primary">
+</i>
+Category Breakdown</h6>
+                        <div class="table-container">
+                            <table class="table table-custom">
+                                <thead>
+                                    <tr>
+                                        <th>Category</th>
+                                        <th>Amount</th>
+                                        <th>Percentage</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${Object.entries(data.category_breakdown).map(([cat, amount]) => `                                        <tr>
+                                            <td class="text-white">${cat}</td>
+                                            <td class="text-white">₹${amount.toFixed(2)}</td>
+                                            <td class="text-white">${((amount/data.total_expenses)*100).toFixed(1)}%</td>
+                                        </tr>
+                                    `).join('')}                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;            }                        contentDiv.innerHTML = html;        })        .catch(error =>
+ {            console.error('Error:', error);            contentDiv.innerHTML = `                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle me-2">
+</i>
+                    Error generating expense optimization. Please try again.                </div>
+            `;        });}</script>
 {% endblock %}
-

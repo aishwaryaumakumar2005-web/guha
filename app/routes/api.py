@@ -124,14 +124,17 @@ def api_tutor_details(tutor_id):
 @login_required
 @admin_required
 def api_expense_optimization():
-    current_month = date.today().month
-    current_year = date.today().year
+    today = date.today()
+    month = request.args.get('month', type=int) or today.month
+    year = request.args.get('year', type=int) or today.year
     expense_data = Expense.query.filter(
-        db.extract('month', Expense.expense_date) == current_month,
-        db.extract('year', Expense.expense_date) == current_year
+        db.extract('month', Expense.expense_date) == month,
+        db.extract('year', Expense.expense_date) == year
     ).all()
     category_data = ExpenseCategory.query.all()
-    optimization = current_app.ai_engine.generate_expense_optimization_insights(expense_data, category_data)
+    period_label = f"{today.strftime('%B')[:3]} {year}" if month == today.month else f"month {month} of {year}"
+    optimization = current_app.ai_engine.generate_expense_optimization_insights(
+        expense_data, category_data, period_label=period_label)
     return jsonify(optimization)
 
 @api_bp.route('/api/search')

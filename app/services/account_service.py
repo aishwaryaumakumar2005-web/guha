@@ -100,6 +100,45 @@ def student_refunded_totals_bulk(student_ids):
     return {sid: round(total or 0.0, 2) for sid, total in rows}
 
 
+def student_outstanding_bulk(student_ids):
+    """{student_id: outstanding_balance} mirroring the fees-page balance rule:
+    due (agreed GST-inclusive fees) - paid - concessions + refunds.
+
+    One pass per aggregate for the whole picker, so the expenses page can show
+    live payment impact without N+1 single-student totals.
+    """
+    from app.models import FeeRecord, Expense
+    from app.helpers import get_gst_rates
+    student_ids = list(student_ids)
+    if not student_ids:
+        return {}
+    cgst_pct, sgst_pct = get_gst_rates()
+    total_gst_pct = cgst_pct + sgst_pct
+    paid_rows = db.session.query(
+        FeeRecord.student_id, db.func.sum(FeeRecord.amount_paid)
+    ).filter(FeeRecord.student_id.in_(student_ids)).group_by(FeeRecord.student_id).all()
+    paid_map = {sid: round(float(total or 0), 2) for sid, total in paid_rows}
+    conc_rows = db.session.query(
+        FeeRecord.student_id, db.func.sum(db.func.coalesce(FeeRecord.concession, 0))
+    ).filter(FeeRecord.student_id.in_(student_ids)).group_by(FeeRecord.student_id).all()
+    conc_map = {sid: round(float(total or 0), 2) for sid, total in conc_rows}
+    refunded_map = student_refunded_totals_bulk(student_ids)
+    items_map = agreed_enrollment_items_bulk(student_ids)
+    out = {}
+    for sid in student_ids:
+        items = items_map.get(sid, [])
+        total_taxable = round(sum(it['fee'] for it in items), 2)
+        gst_amount = round(sum(
+            round(it['fee'] * total_gst_pct / 100, 2) for it in items if it['gst_applicable']
+        ), 2)
+        total_fee = round(total_taxable + gst_amount, 2)
+        balance = round(
+            total_fee - paid_map.get(sid, 0.0) - conc_map.get(sid, 0.0)
+            + refunded_map.get(sid, 0.0), 2)
+        out[sid] = balance
+    return out
+
+
 def company_bill_name(company):
     """Name as shown on bills — strips the trailing '(GST)' / '(NON GST)' bracket."""
     if not company or not company.name:
@@ -396,7 +435,7 @@ def account_breakdown(account_name, limit=200):
     fund_base = fund_q.filter(ors_fund)
 
     fees = fee_base.options(joinedload(FeeRecord.student)).order_by(FeeRecord.payment_date.desc()).limit(limit).all()
-    exp = exp_base.options(joinedload(Expense.category)).order_by(Expense.expense_date.desc()).limit(limit).all()
+    exp = exp_base.options(joinedload(Expense.category), joinedload(Expense.student)).order_by(Expense.expense_date.desc()).limit(limit).all()
     fund = fund_base.order_by(OwnerFunding.funding_date.desc()).limit(limit).all()
     data = {
         'income': fees,

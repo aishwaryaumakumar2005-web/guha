@@ -1,17 +1,23 @@
 from datetime import datetime, date, timedelta
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, Response, abort
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import Expense, ExpenseCategory, Tutor, Student, Course, FeeRecord, TutorPayrollSettings, tutor_courses, student_courses
-from app.helpers import admin_required, is_ajax_request, FINANCE_LIST_LIMIT
+from app.models import Expense, ExpenseCategory, Tutor, Student, Course, FeeRecord, TutorPayrollSettings, Account, Company, tutor_courses, student_courses
+from app.helpers import admin_required, is_ajax_request, FINANCE_LIST_LIMIT, save_photo_data
 from app.forms import ExpenseForm
-from app.services.account_service import compute_account_summary
+from app.services.account_service import (
+    compute_account_summary, student_outstanding_bulk, agreed_enrollment_items,
+    ensure_default_companies, snapshot_company_id,
+)
+from app.services.payment_methods import classify_method
 from sqlalchemy import distinct
 from sqlalchemy.orm import joinedload, subqueryload
 
 expenses_bp = Blueprint('expenses', __name__)
 
 DEFAULT_CATEGORIES = ['Rent', 'Salary', 'Electricity', 'Internet', 'Marketing', 'Maintenance', 'Refund', 'GST Auditor', 'GST expenses', 'Others']
+MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
 
 def _parse_student_id(raw):
     """Validate the optional refund student link; ''/0 -> None, bogus -> None."""
@@ -62,6 +68,69 @@ def ensure_expense_categories():
         db.session.add_all(new_cats)
         db.session.commit()
 
+
+def _default_company_id(payment_method, student_id):
+    """Attribution default: refunds follow the student's billing company,
+    ordinary expenses follow the payment account's company. Falls back to the
+    GST entity when nothing resolves; None only if no companies exist."""
+    if student_id:
+        items = agreed_enrollment_items(student_id)
+        if items:
+            gst, nongst = ensure_default_companies()
+            cid = items[0].get('company_id')
+            if not cid:
+                cid = snapshot_company_id(items[0], gst.id, nongst.id)
+            if cid:
+                return cid
+    acc = Account.query.filter_by(name=classify_method(payment_method), is_active=True).first()
+    if acc and acc.company_id:
+        return acc.company_id
+    gst, nongst = ensure_default_companies()
+    return (gst or nongst).id if (gst or nongst) else None
+
+
+def _parse_company_id(raw):
+    """Optional explicit company; validates the row exists. '' -> None."""
+    if raw is None:
+        return None
+    try:
+        cid = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if cid <= 0:
+        return None
+    if Company.query.get(cid) is None:
+        return None
+    return cid
+
+
+def _payment_ref(raw):
+    ref = (raw or '').strip()
+    return ref[:100]
+
+
+def _save_attachment(form):
+    """Read an uploaded receipt. Returns (data, mime, name) or (None, None, None)."""
+    file = form.files.get('attachment') if form.files else None
+    if not file or not getattr(file, 'filename', None):
+        return None, None, None
+    try:
+        data, mime = save_photo_data(file, max_mb=4)
+    except ValueError as e:
+        return e, None, None
+    if data is None:
+        return None, None, None
+    name = file.filename.rsplit('\\', 1)[-1] or 'receipt'
+    return data, mime, name[:255]
+
+
+def _reject(message, status=400):
+    if is_ajax_request():
+        return jsonify({"success": False, "errors": [message]}), status
+    flash(message, 'danger')
+    return redirect(url_for('expenses.list'))
+
+
 @expenses_bp.route('/expenses', methods=['GET', 'POST'])
 @login_required
 @admin_required
@@ -77,10 +146,7 @@ def list():
             return redirect(url_for('expenses.list'))
         category_id = form.cleaned_data.get('category_id')
         if ExpenseCategory.query.get(category_id) is None:
-            if is_ajax_request():
-                return jsonify({"success": False, "errors": ["Selected category does not exist"]}), 400
-            flash("Selected category does not exist", 'danger')
-            return redirect(url_for('expenses.list'))
+            return _reject("Selected category does not exist")
         amount = form.cleaned_data.get('amount', 0)
         description = request.form.get('description', '').strip()
         payment_method = request.form.get('payment_method', 'Cash').strip()
@@ -90,11 +156,26 @@ def list():
         student_id = _parse_student_id(request.form.get('student_id')) or None
         category_id, refund_error = _canonicalize_refund(category_id, student_id)
         if refund_error:
-            if is_ajax_request():
-                return jsonify({"success": False, "errors": [refund_error]}), 400
-            flash(refund_error, 'danger')
-            return redirect(url_for('expenses.list'))
-        new_expense = Expense(category_id=category_id, amount=amount, description=description, payment_method=payment_method, expense_date=expense_date, created_by=current_user.id, student_id=student_id)
+            return _reject(refund_error)
+        final_cat = ExpenseCategory.query.get(category_id)
+        if final_cat is not None and not final_cat.is_active and not refund_error:
+            return _reject("This expense category is archived — reactive it or pick another.")
+        # Enhancements: explicit company attribution, payment reference, receipt.
+        company_id = _default_company_id(payment_method, student_id)
+        explicit_company = _parse_company_id(request.form.get('company_id'))
+        if explicit_company:
+            company_id = explicit_company
+        payment_ref = _payment_ref(request.form.get('payment_ref'))
+        att = _save_attachment(request)
+        if isinstance(att[0], Exception):
+            return _reject(str(att[0]))
+        att_data, att_mime, att_name = att
+        new_expense = Expense(category_id=category_id, amount=amount, description=description,
+                              payment_method=payment_method, expense_date=expense_date,
+                              created_by=current_user.id, student_id=student_id,
+                              company_id=company_id, payment_ref=payment_ref,
+                              attachment_data=att_data, attachment_mime=att_mime,
+                              attachment_name=att_name)
         db.session.add(new_expense)
         db.session.commit()
         message = "Expense recorded successfully!"
@@ -105,37 +186,45 @@ def list():
     filter_category = request.args.get('category_id', type=int)
     filter_month = request.args.get('month', type=int)
     filter_year = request.args.get('year', type=int)
-    query = Expense.query.options(joinedload(Expense.category), joinedload(Expense.creator))
+    query = Expense.query.options(
+        joinedload(Expense.category), joinedload(Expense.creator),
+        joinedload(Expense.student), joinedload(Expense.company))
     if filter_category:
         query = query.filter_by(category_id=filter_category)
-    if filter_month and filter_year:
-        query = query.filter(
-            db.extract('month', Expense.expense_date) == int(filter_month),
-            db.extract('year', Expense.expense_date) == filter_year
-        )
-    elif filter_year:
-        query = query.filter(db.extract('year', Expense.expense_date) == filter_year)
+    today = date.today()
+    year = filter_year or today.year
+    month = filter_month if filter_month not in (None, 0) else None
+    query = query.filter(db.extract('year', Expense.expense_date) == year)
+    if month:
+        query = query.filter(db.extract('month', Expense.expense_date) == month)
     all_expenses = query.order_by(Expense.expense_date.desc()).limit(FINANCE_LIST_LIMIT).all()
     expenses_total = query.order_by(None).count()
-    categories = ExpenseCategory.query.all()
-    today = date.today()
-    month = filter_month or today.month
-    year = filter_year or today.year
+    categories = ExpenseCategory.query.order_by(ExpenseCategory.name).all()
+    active_categories = [c for c in categories if c.is_active]
     totals_query = db.session.query(
         Expense.category_id, db.func.sum(Expense.amount).label('total')
-    ).filter(
-        db.extract('month', Expense.expense_date) == int(month),
-        db.extract('year', Expense.expense_date) == year
-    ).group_by(Expense.category_id).all()
-    totals_map = {cat_id: float(total) for cat_id, total in totals_query}
-    category_totals = [{"name": cat.name, "total": totals_map.get(cat.id, 0.0)} for cat in categories]
+    ).filter(db.extract('year', Expense.expense_date) == year)
+    if month:
+        totals_query = totals_query.filter(db.extract('month', Expense.expense_date) == month)
+    totals_map = {cat_id: float(total) for cat_id, total in totals_query.group_by(Expense.category_id).all()}
+    category_totals = [{
+        "name": cat.name, "total": totals_map.get(cat.id, 0.0),
+        "budget": cat.budget_limit,
+        "over": bool(cat.budget_limit and totals_map.get(cat.id, 0.0) > cat.budget_limit),
+    } for cat in categories]
     grand_total = sum(ct["total"] for ct in category_totals)
-    return render_template('expenses.html', expenses=all_expenses, categories=categories,
+    period_label = f"{MONTH_NAMES[month-1]} {year}" if month else f"All months, {year}"
+    students = Student.query.order_by(Student.name).all()
+    student_outstanding = student_outstanding_bulk([s.id for s in students])
+    return render_template('expenses.html', expenses=all_expenses,
+        categories=active_categories, all_categories=categories,
         category_totals=category_totals, grand_total=grand_total, today=today,
-        filter_category=filter_category, filter_month=filter_month or today.month,
-        filter_year=filter_year or today.year, account_balances=compute_account_summary(),
+        filter_category=filter_category, filter_month=filter_month,
+        filter_year=year, period_label=period_label,
+        account_balances=compute_account_summary(),
         expenses_total=expenses_total, list_limit=FINANCE_LIST_LIMIT,
-        students=Student.query.order_by(Student.name).all())
+        students=students, student_outstanding=student_outstanding,
+        companies=Company.query.order_by(Company.name).all())
 
 @expenses_bp.route('/expenses/edit/<int:id>', methods=['POST'])
 @login_required
@@ -151,22 +240,31 @@ def edit(id):
         return redirect(url_for('expenses.list'))
     category_id = form.cleaned_data.get('category_id')
     if ExpenseCategory.query.get(category_id) is None:
-        if is_ajax_request():
-            return jsonify({"success": False, "errors": ["Selected category does not exist"]}), 400
-        flash("Selected category does not exist", 'danger')
-        return redirect(url_for('expenses.list'))
+        return _reject("Selected category does not exist")
     expense.student_id = _parse_student_id(request.form.get('student_id'))
     category_id, refund_error = _canonicalize_refund(category_id, expense.student_id)
     if refund_error:
-        if is_ajax_request():
-            return jsonify({"success": False, "errors": [refund_error]}), 400
-        flash(refund_error, 'danger')
-        return redirect(url_for('expenses.list'))
+        return _reject(refund_error)
     expense.category_id = category_id
     expense.amount = form.cleaned_data.get('amount', 0)
     expense.description = request.form.get('description', '').strip()
     expense.payment_method = request.form.get('payment_method', 'Cash').strip()
     expense.expense_date = form.cleaned_data.get('expense_date', expense.expense_date)
+    expense.payment_ref = _payment_ref(request.form.get('payment_ref'))
+    # Company: empty = re-infer default; explicit id = honor it.
+    explicit_company = _parse_company_id(request.form.get('company_id'))
+    if explicit_company:
+        expense.company_id = explicit_company
+    elif request.form.get('company_id') == '':
+        expense.company_id = _default_company_id(expense.payment_method, expense.student_id)
+    att = _save_attachment(request)
+    if isinstance(att[0], Exception):
+        return _reject(str(att[0]))
+    att_data, att_mime, att_name = att
+    if att_data is not None:
+        expense.attachment_data, expense.attachment_mime, expense.attachment_name = att_data, att_mime, att_name
+    if request.form.get('remove_attachment'):
+        expense.attachment_data = expense.attachment_mime = expense.attachment_name = None
     db.session.commit()
     message = "Expense updated successfully!"
     if is_ajax_request():
@@ -193,6 +291,89 @@ def delete(id):
         return jsonify({"success": True, "message": message}), 200
     flash(message, "success")
     return redirect(url_for('expenses.list'))
+
+@expenses_bp.route('/expenses/attachment/<int:id>')
+@login_required
+@admin_required
+def attachment(id):
+    expense = Expense.query.get_or_404(id)
+    if not expense.attachment_data or not expense.attachment_mime:
+        abort(404)
+    name = (expense.attachment_name or 'receipt').replace('"', '')
+    return Response(expense.attachment_data, mimetype=expense.attachment_mime,
+                    headers={'Content-Disposition': f'inline; filename="{name}"'})
+
+# ---------------------------------------------------------------------------
+# Category management (add / rename / budget / archive)
+# ---------------------------------------------------------------------------
+
+def _reject_categories(message):
+    flash(message, 'danger')
+    return redirect(url_for('expenses.categories'))
+
+@expenses_bp.route('/expenses/categories')
+@login_required
+@admin_required
+def categories():
+    cats = ExpenseCategory.query.order_by(ExpenseCategory.name).all()
+    return render_template('expense_categories.html', cats=cats)
+
+@expenses_bp.route('/expenses/categories/add', methods=['POST'])
+@login_required
+@admin_required
+def categories_add():
+    name = request.form.get('name', '').strip()
+    if not name:
+        return _reject_categories("Category name is required.")
+    if len(name) > 100:
+        return _reject_categories("Category name must be at most 100 characters.")
+    existing = ExpenseCategory.query.filter(db.func.lower(ExpenseCategory.name) == name.lower()).first()
+    if existing:
+        return _reject_categories(f"Category '{name}' already exists.")
+    budget = request.form.get('budget')
+    try:
+        budget = round(float(budget), 2) if budget else None
+    except (TypeError, ValueError):
+        budget = None
+    cat = ExpenseCategory(name=name, description=(request.form.get('description') or '').strip() or None,
+                          budget_limit=budget, is_active=True)
+    db.session.add(cat)
+    db.session.commit()
+    flash(f"Category '{name}' added.", 'success')
+    return redirect(url_for('expenses.categories'))
+
+@expenses_bp.route('/expenses/categories/<int:id>/edit', methods=['POST'])
+@login_required
+@admin_required
+def categories_edit(id):
+    cat = ExpenseCategory.query.get_or_404(id)
+    name = request.form.get('name', '').strip()
+    if not name:
+        return _reject_categories("Category name is required.")
+    if len(name) > 100:
+        return _reject_categories("Category name must be at most 100 characters.")
+    if cat.name == 'Refund' and name.lower() != 'refund':
+        return _reject_categories("The 'Refund' category cannot be renamed — refunds must stay canonical.")
+    clash = ExpenseCategory.query.filter(
+        db.func.lower(ExpenseCategory.name) == name.lower(),
+        ExpenseCategory.id != cat.id).first()
+    if clash:
+        return _reject_categories(f"Category '{name}' already exists.")
+    budget = request.form.get('budget')
+    try:
+        budget = round(float(budget), 2) if budget else None
+    except (TypeError, ValueError):
+        budget = None
+    is_active = request.form.get('is_active') == '1'
+    if cat.name == 'Refund' and not is_active:
+        return _reject_categories("The 'Refund' category cannot be archived.")
+    cat.name = name
+    cat.description = (request.form.get('description') or '').strip() or None
+    cat.budget_limit = budget
+    cat.is_active = is_active
+    db.session.commit()
+    flash(f"Category '{name}' updated.", 'success')
+    return redirect(url_for('expenses.categories'))
 
 @expenses_bp.route('/salary-calculator', methods=['GET', 'POST'])
 @login_required

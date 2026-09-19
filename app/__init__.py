@@ -316,9 +316,11 @@ def create_app(config_object=None):
                 print("Migration migrate_agreed_dues_columns FAILED:", e, flush=True)
 
             try:
-                from app.services.db_migration import migrate_expense_student_id
+                from app.services.db_migration import migrate_expense_student_id, migrate_expense_enhancements
                 migrate_expense_student_id()
                 print("Migration migrate_expense_student_id completed OK", flush=True)
+                migrate_expense_enhancements()
+                print("Migration migrate_expense_enhancements completed OK", flush=True)
             except Exception as e:
                 print("Migration migrate_expense_student_id FAILED:", e, flush=True)
                 db.session.rollback()
@@ -573,8 +575,9 @@ def create_app(config_object=None):
         # Same self-heal for expense.student_id (W3 refund link).
         if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
             try:
-                from app.services.db_migration import migrate_expense_student_id
+                from app.services.db_migration import migrate_expense_student_id, migrate_expense_enhancements
                 migrate_expense_student_id()
+                migrate_expense_enhancements()
             except Exception as e:
                 print('Failed to ensure expense.student_id:', e, file=sys.stderr)
 

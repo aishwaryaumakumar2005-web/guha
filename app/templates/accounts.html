@@ -110,7 +110,7 @@
                     <tr>
                         <td class="text-secondary small">{{ e.expense_date.strftime("%d %b %Y") }}</td>
                         <td><span class="badge badge-custom badge-danger">Expense</span></td>
-                        <td><span class="fw-medium text-dark">{{ e.description }}</span></td>
+                        <td><span class="fw-medium text-dark">{{ e.description }}{% if e.student %} <span class="badge badge-custom badge-amber">Refund: {{ e.student.name }}</span>{% endif %}</span></td>
                         <td class="text-muted">-</td>
                         <td class="text-danger">-₹{{ "{:,.2f}".format(e.amount) }}</td>
                         <td class="text-end small text-secondary">{{ e.category.name if e.category else '—' }}</td>

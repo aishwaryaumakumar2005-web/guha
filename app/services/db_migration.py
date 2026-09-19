@@ -410,6 +410,52 @@ def migrate_expense_student_id():
             print(f"Migration migrate_expense_student_id: FAILED: {e}", flush=True)
 
 
+def migrate_expense_enhancements():
+    """Add expense enhancement columns (company attribution, payment ref,
+    receipt attachment) and expense_category budget/archive flags.
+
+    All columns are nullable or defaulted, so existing rows need no backfill.
+    Index for the company filter added inline. Idempotent, SQLite-safe.
+    """
+    if _table_exists('expense'):
+        blob = 'BYTEA' if db.engine.dialect.name == 'postgresql' else 'BLOB'
+        for col, ctype in [
+            ('company_id', 'INTEGER'),
+            ('payment_ref', 'VARCHAR(100)'),
+            ('attachment_data', blob),
+            ('attachment_mime', 'VARCHAR(50)'),
+            ('attachment_name', 'VARCHAR(255)'),
+        ]:
+            if not _has_column('expense', col):
+                try:
+                    db.session.execute(text('ALTER TABLE "expense" ADD COLUMN "%s" %s' % (col, ctype)))
+                    db.session.commit()
+                except Exception as e:
+                    db.session.rollback()
+                    print(f"Migration migrate_expense_enhancements: ADD expense.{col} FAILED: {e}", flush=True)
+        _ensure_column_index('expense', 'company_id')
+    if _table_exists('expense_category'):
+        if not _has_column('expense_category', 'budget_limit'):
+            try:
+                db.session.execute(text('ALTER TABLE "expense_category" ADD COLUMN "budget_limit" FLOAT'))
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                print(f"Migration migrate_expense_enhancements: ADD expense_category.budget_limit FAILED: {e}", flush=True)
+        if not _has_column('expense_category', 'is_active'):
+            default = 'TRUE' if db.engine.dialect.name == 'postgresql' else '1'
+            try:
+                db.session.execute(text('ALTER TABLE "expense_category" ADD COLUMN "is_active" BOOLEAN DEFAULT %s' % default))
+                db.session.commit()
+                # SQLite keeps NULL for legacy rows after ADD COLUMN DEFAULT;
+                # normalize them so archiving logic sees a real boolean.
+                db.session.execute(text('UPDATE "expense_category" SET "is_active" = %s WHERE "is_active" IS NULL' % default))
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                print(f"Migration migrate_expense_enhancements: ADD expense_category.is_active FAILED: {e}", flush=True)
+
+
 def migrate_enquiry_course_nullable():
     """Make enquiry.course_id nullable with ON DELETE SET NULL.
 
