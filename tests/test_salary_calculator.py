@@ -1,4 +1,5 @@
-"""Batch 1 (bugs) + Batch 2 (functionality) for the salary calculator:
+"""Batch 1 (bugs) + Batch 2 (functionality) + Batch 3 (UI/UX) for the salary
+calculator:
 B1 dropped/completed enrollments excluded (shared with payroll),
 B2 commission % default matches payroll (no magic 10%),
 B3 custom-range validation,
@@ -9,7 +10,13 @@ F2 net-pay projection card from payroll settings,
 F3 per-student commission breakdown,
 F4 'Generate payroll draft' action (POST /payroll/process),
 F5a single commission-% source of truth (tutor_commission_percentage) +
-F5b show/hide split-details toggle.
+F5b show/hide split-details toggle,
+U1 'Commission (this period)' card (no misleading base-salary label),
+U2 applied-settings chip on the rate card,
+U3 live client-side % → commission/net preview,
+U4 confirm-guard on the generate-draft button (double-submit safe),
+U5 responsive summary cards,
+U6 welcome state: formula + payroll quick link.
 """
 import re
 from datetime import date
@@ -459,3 +466,102 @@ def test_salary_calculator_generate_draft_hidden_for_range(admin_client, app):
         '&start_date=2026-09-01&end_date=2026-09-30'
     ).get_data(as_text=True)
     assert 'Generate payroll draft' not in body
+
+
+# ---- Batch 3: UI/UX (U1-U6) ------------------------------------------------
+
+def test_salary_calculator_u1_commission_label(admin_client, app):
+    tid = _mk_tutor(app, 'UXLabel')
+    cid = _mk_course(app, 'UL', tid)
+    sid = _mk_student(app, 'UXLabelS', [cid])
+    _fee(app, sid, 1000.0, date(2026, 9, 10))
+    _set_settings(app, tid, commission=10)
+
+    body = admin_client.get(
+        f'/salary-calculator?tutor_id={tid}&month=9&year=2026'
+    ).get_data(as_text=True)
+    assert 'Commission (this period)' in body
+    assert 'Calculated Staff Salary' not in body
+    # the old "Estimate only — record this salary" copy is gone too
+    assert 'Commission only — base' in body
+
+
+def test_salary_calculator_u2_settings_chip(admin_client, app):
+    tid = _mk_tutor(app, 'UXChip')
+    cid = _mk_course(app, 'UC', tid)
+    sid = _mk_student(app, 'UXChipS', [cid])
+    _fee(app, sid, 1000.0, date(2026, 9, 10))
+    with app.app_context():
+        s = TutorPayrollSettings.query.filter_by(tutor_id=tid).first()
+        if s is None:
+            s = TutorPayrollSettings(tutor_id=tid)
+            db.session.add(s)
+        s.base_salary = 4000.0
+        s.commission_percentage = 10.0
+        s.tds_percentage = 5.0
+        s.bonus = 250.0
+        db.session.commit()
+
+    body = admin_client.get(
+        f'/salary-calculator?tutor_id={tid}&month=9&year=2026'
+    ).get_data(as_text=True)
+    assert 'Applied settings:' in body
+    assert '4,000.00' in body   # base
+    assert 'TDS 5.0%' in body
+
+    plain = _mk_tutor(app, 'UXChipPlain')
+    body2 = admin_client.get(
+        f'/salary-calculator?tutor_id={plain}&month=9&year=2026'
+    ).get_data(as_text=True)
+    assert 'Applied settings:' not in body2
+    assert 'From tutor\'s payroll settings (override above)' in body2
+
+
+def test_salary_calculator_u3_live_preview_data(admin_client, app):
+    tid = _mk_tutor(app, 'UXPreview')
+    cid = _mk_course(app, 'UP', tid)
+    sid = _mk_student(app, 'UXPreviewS', [cid])
+    _fee(app, sid, 1000.0, date(2026, 9, 10))
+    _set_settings(app, tid, commission=10)
+
+    body = admin_client.get(
+        f'/salary-calculator?tutor_id={tid}&month=9&year=2026'
+    ).get_data(as_text=True)
+    assert 'id="pctInput"' in body
+    assert 'id="commValue"' in body
+    assert 'id="netValue"' in body
+    assert 'window.__salaryPreview' in body
+    assert 'splitCollected: 1000.0' in body
+
+
+def test_salary_calculator_u4_draft_confirm_guard(admin_client, app):
+    tid = _mk_tutor(app, 'UXGuard')
+    cid = _mk_course(app, 'UG', tid)
+    sid = _mk_student(app, 'UXGuardS', [cid])
+    _fee(app, sid, 1000.0, date(2026, 9, 10))
+
+    body = admin_client.get(
+        f'/salary-calculator?tutor_id={tid}&percentage=10&month=9&year=2026'
+    ).get_data(as_text=True)
+    assert 'id="draftForm"' in body
+    assert 'confirmAction(' in body
+    assert 'Generate Payroll Draft' in body
+
+
+def test_salary_calculator_u5_responsive_cards(admin_client, app):
+    tid = _mk_tutor(app, 'UXResp')
+    cid = _mk_course(app, 'UR', tid)
+    sid = _mk_student(app, 'UXRespS', [cid])
+    _fee(app, sid, 1000.0, date(2026, 9, 10))
+
+    body = admin_client.get(
+        f'/salary-calculator?tutor_id={tid}&percentage=10&month=9&year=2026'
+    ).get_data(as_text=True)
+    assert body.count('col-sm-6 col-lg-4') == 3  # all three summary cards
+
+
+def test_salary_calculator_u6_welcome_state(admin_client, app):
+    body = admin_client.get('/salary-calculator').get_data(as_text=True)
+    assert 'Staff Payroll Calculator' in body
+    assert 'Commission = effective fees collected' in body
+    assert 'Go to Payroll' in body

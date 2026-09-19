@@ -482,7 +482,7 @@ def salary_calculator():
             other = min(other_ded, max(0.0, gross - tds)) if gross > 0 else 0.0
             projection = {'base': base, 'commission': split_salary, 'bonus': bonus,
                           'tds': tds, 'other': other, 'net': max(0.0, gross - tds - other),
-                          'gross': gross, 'configured': settings_row is not None}
+                          'gross': gross, 'tds_pct': tds_pct, 'configured': settings_row is not None}
     if percentage is None:
         percentage = 0.0
     percentage = max(0.0, min(100.0, percentage))

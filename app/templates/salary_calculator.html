@@ -31,7 +31,7 @@ Select Staff Member (Tutor)</label>
                 <label class="form-label small text-white mb-1">
 Commission (%)</label>
                 <div class="input-group">
-                    <input type="number" step="0.1" min="0" max="100" name="percentage" class="form-control" value="{{ percentage }}" required>
+                    <input type="number" step="0.1" min="0" max="100" name="percentage" id="pctInput" class="form-control" value="{{ percentage }}" required>
                     <span class="input-group-text bg-dark border-color text-white">
 %</span>
                 </div>
@@ -98,7 +98,17 @@ Calculate</button>
         {{ filter_error }}
     </div>
     {% endif %}
-    {% if selected_tutor %}    <!-- Calculation Results -->
+    {% if selected_tutor %}    <!-- U3 live-preview data (client-side commission/net preview) -->
+    <script>
+        window.__salaryPreview = {
+            splitCollected: {{ split_collected }},
+            base: {{ projection.base if projection else 0 }},
+            bonus: {{ projection.bonus if projection else 0 }},
+            tdsPct: {{ projection.tds_pct if projection else 0 }},
+            other: {{ projection.other if projection else 0 }}
+        };
+    </script>
+    <!-- Calculation Results -->
     <div class="row mb-4">
         {% if shared_students %}
         <div class="col-12 mb-3">
@@ -111,7 +121,7 @@ Calculate</button>
         </div>
         {% endif %}
         <!-- Collection Stats -->
-        <div class="col-md-4 mb-3">
+        <div class="col-sm-6 col-lg-4 mb-3">
             <div class="glass-card p-4 text-center">
                 <div class="text-secondary small fw-semibold text-uppercase tracking-wider">
 Effective Fees Collected</div>
@@ -122,22 +132,27 @@ From {{ students|length }} enrolled student(s) — simple total ₹{{ "{:,.2f}".
             </div>
         </div>
         <!-- Commission Rate -->
-        <div class="col-md-4 mb-3">
+        <div class="col-sm-6 col-lg-4 mb-3">
             <div class="glass-card p-4 text-center">
                 <div class="text-secondary small fw-semibold text-uppercase tracking-wider">
 Commission Rate</div>
                 <div class="fw-bold fs-3 text-white mt-1">
 {{ percentage }}%</div>
+                {% if projection and projection.configured %}
+                <div class="small text-muted mt-2">
+Applied settings: base ₹{{ "{:,.2f}".format(projection.base) }} · bonus ₹{{ "{:,.2f}".format(projection.bonus) }} · TDS {{ projection.tds_pct }}%</div>
+                {% else %}
                 <div class="small text-muted mt-2">
 From tutor's payroll settings (override above)</div>
+                {% endif %}
             </div>
         </div>
-        <!-- Calculated Salary -->
-        <div class="col-md-4 mb-3">
+        <!-- Commission This Period (U1) -->
+        <div class="col-sm-6 col-lg-4 mb-3">
             <div class="glass-card p-4 text-center" style="border-left: 4px solid var(--accent-emerald);">
                 <div class="text-secondary small fw-semibold text-uppercase tracking-wider">
-Calculated Staff Salary</div>
-                <div class="fw-bold fs-3 mt-1" style="color: #00BFA6;">
+Commission (this period)</div>
+                <div class="fw-bold fs-3 mt-1" style="color: #00BFA6;" id="commValue">
 ₹{{ "{:,.2f}".format(split_salary) }}</div>
                 {% if split_salary != calculated_salary %}
                 <div class="small text-muted">Simple calc (no split): ₹{{ "{:,.2f}".format(calculated_salary) }}</div>
@@ -145,7 +160,7 @@ Calculated Staff Salary</div>
                 {% if split_salary > 0 %}
                 <div class="small text-muted mt-2">
                     <i class="bi bi-info-circle me-1"></i>
-                    Estimate only — record this salary in <a href="{{ url_for('payroll.payroll_list') }}" class="link-info">Payroll</a>.
+                    Commission only — base &amp; bonus are added on the payroll draft (see Projected Net Pay).
                 </div>
                 {% else %}                {{ empty_state('No collections for this period', 'Record a student payment above', 'fees', none, none, none) }}
                 {% endif %}            </div>
@@ -163,7 +178,7 @@ Calculated Staff Salary</div>
                 {% endif %}
             </div>
             {% if filter_type == 'month' %}
-            <form method="POST" action="{{ url_for('payroll.process_payroll') }}" class="d-inline-block">
+            <form method="POST" action="{{ url_for('payroll.process_payroll') }}" class="d-inline-block" id="draftForm">
                 <input type="hidden" name="tutor_id" value="{{ selected_tutor.id }}">
                 <input type="hidden" name="month" value="{{ filter_month }}">
                 <input type="hidden" name="year" value="{{ filter_year }}">
@@ -195,7 +210,7 @@ Calculated Staff Salary</div>
             </div>
             <div class="col-6 col-md-2 text-center" style="border-left: 1px solid rgba(255,255,255,0.08);">
                 <div class="text-secondary small fw-semibold text-uppercase tracking-wider">Net Pay</div>
-                <div class="fw-bold fs-4 mt-1" style="color: #00BFA6;">₹{{ "{:,.2f}".format(projection.net) }}</div>
+                <div class="fw-bold fs-4 mt-1" style="color: #00BFA6;" id="netValue">₹{{ "{:,.2f}".format(projection.net) }}</div>
             </div>
         </div>
     </div>
@@ -330,17 +345,22 @@ Amount</th>
             </div>
         </div>
     </div>
-    {% else %}    <!-- Welcoming prompt -->
+    {% else %}    <!-- Welcoming prompt (U6) -->
     <div class="glass-card p-5 text-center">
         <i class="bi bi-wallet2 display-4 text-secondary opacity-50 mb-3 d-block">
 </i>
         <h4 class="fw-bold text-white mb-2">
 Staff Payroll Calculator</h4>
         <p class="text-secondary small mb-0" style="max-width: 500px; margin: 0 auto;">
-Select a tutor from the drop-down menu above, define the commission threshold percentage, and choose the filter parameters to begin generating payroll items.</p>
+Select a staff member, set the commission %, and pick a period to preview commissions, projections and payroll drafts.</p>
+        <p class="text-secondary small mt-3 mb-0" style="max-width: 560px; margin: 0 auto;">
+<i class="bi bi-lightbulb me-1"></i>Commission = effective fees collected × commission %. Net pay = base salary + commission + bonus − TDS − other deductions.</p>
+        <div class="mt-4 d-flex justify-content-center gap-2 flex-wrap">
+            <a href="{{ url_for('payroll.payroll_list') }}" class="btn btn-outline-custom"><i class="bi bi-list-ul me-1"></i>Go to Payroll</a>
+        </div>
     </div>
     {% endif %}</div>
 <script>
 document.addEventListener('DOMContentLoaded', () =>
- {    const filterType = document.getElementById('filterType');    const monthGroup = document.getElementById('monthFilterGroup');    const rangeGroup = document.getElementById('rangeFilterGroup');    function toggleFilterGroups() {        if (filterType.value === 'month') {            monthGroup.style.display = 'block';            rangeGroup.style.display = 'none';        } else {            monthGroup.style.display = 'none';            rangeGroup.style.display = 'block';        }    }    if (filterType) {        filterType.addEventListener('change', toggleFilterGroups);        toggleFilterGroups(); // Run on initial load    }    const splitToggle = document.getElementById('splitToggle');    const splitDetails = document.getElementById('splitDetails');    if (splitToggle && splitDetails) {        splitToggle.addEventListener('click', () => {            const hidden = splitDetails.style.display === 'none';            splitDetails.style.display = hidden ? 'block' : 'none';            splitToggle.innerHTML = hidden ? '<i class="bi bi-eye-slash me-1"></i>Hide split details' : '<i class="bi bi-eye me-1"></i>Show split details';        });    }});</script>
+ {    const filterType = document.getElementById('filterType');    const monthGroup = document.getElementById('monthFilterGroup');    const rangeGroup = document.getElementById('rangeFilterGroup');    function toggleFilterGroups() {        if (filterType.value === 'month') {            monthGroup.style.display = 'block';            rangeGroup.style.display = 'none';        } else {            monthGroup.style.display = 'none';            rangeGroup.style.display = 'block';        }    }    if (filterType) {        filterType.addEventListener('change', toggleFilterGroups);        toggleFilterGroups(); // Run on initial load    }    const splitToggle = document.getElementById('splitToggle');    const splitDetails = document.getElementById('splitDetails');    if (splitToggle && splitDetails) {        splitToggle.addEventListener('click', () => {            const hidden = splitDetails.style.display === 'none';            splitDetails.style.display = hidden ? 'block' : 'none';            splitToggle.innerHTML = hidden ? '<i class="bi bi-eye-slash me-1"></i>Hide split details' : '<i class="bi bi-eye me-1"></i>Show split details';        });    }    const draftForm = document.getElementById('draftForm');    const draftBtn = draftForm ? draftForm.querySelector('button[type="submit"]') : null;    if (draftForm && draftBtn) {        draftBtn.addEventListener('click', function (e) {            e.preventDefault();            window.confirmAction('Generate a payroll draft for {{ selected_tutor.name }} for the selected month? The draft can still be edited before confirming.', function () {                draftForm.submit();            }, 'Generate Payroll Draft');        });    }    const pctInput = document.getElementById('pctInput');    const commValue = document.getElementById('commValue');    const netValue = document.getElementById('netValue');    const fmtINR = function (n) { return n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };    if (pctInput && commValue && window.__salaryPreview) {        const d = window.__salaryPreview;        const render = function () {            let p = parseFloat(pctInput.value);            if (isNaN(p)) p = 0;            p = Math.max(0, Math.min(100, p));            const comm = d.splitCollected * p / 100;            const gross = d.base + comm + d.bonus;            const tdsAmt = d.tdsPct > 0 ? gross * d.tdsPct / 100 : 0;            const otherAmt = gross > 0 ? Math.min(d.other, Math.max(0, gross - tdsAmt)) : 0;            const net = Math.max(0, gross - tdsAmt - otherAmt);            commValue.textContent = '₹' + fmtINR(comm);            if (netValue) netValue.textContent = '₹' + fmtINR(net);        };        pctInput.addEventListener('input', render);    }});</script>
 {% endblock %}
