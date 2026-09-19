@@ -87,9 +87,9 @@
                 <h4 class="mb-0 text-dark fw-bold"><i class="bi bi-diagram-3 me-2 text-dark" aria-hidden="true"></i>Student Records</h4>
                 <div class="lc-bulk-bar" id="bulkBar" role="region" aria-label="Bulk actions">
                     <span class="text-white small"><strong id="bulkCount">0</strong> selected</span>
-                    <button type="button" class="btn btn-sm btn-action-success" onclick="bulkPrompt('complete')"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Complete</button>
-                    <button type="button" class="btn btn-sm btn-action-danger" onclick="bulkPrompt('drop')"><i class="bi bi-x me-1" aria-hidden="true"></i>Drop</button>
-                    <button type="button" class="btn btn-sm btn-action-reenroll" onclick="bulkPrompt('reactivate')"><i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Re-enroll</button>
+                    {% if 'complete' in bulk_actions %}<button type="button" class="btn btn-sm btn-action-success" onclick="bulkPrompt('complete')"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Complete</button>{% endif %}
+                    {% if 'drop' in bulk_actions %}<button type="button" class="btn btn-sm btn-action-danger" onclick="bulkPrompt('drop')"><i class="bi bi-x me-1" aria-hidden="true"></i>Drop</button>{% endif %}
+                    {% if 'reactivate' in bulk_actions %}<button type="button" class="btn btn-sm btn-action-reenroll" onclick="bulkPrompt('reactivate')"><i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Re-enroll</button>{% endif %}
                     <button type="button" class="btn btn-sm btn-outline-light" onclick="clearBulk()">Clear</button>
                 </div>
             </div>

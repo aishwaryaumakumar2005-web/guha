@@ -13,7 +13,13 @@ LONG_ABSENT_STREAK = 3        # consecutive missed sessions
 LONG_ABSENT_ATT_RATE = 75.0   # percent attendance threshold
 ATT_WINDOW_DAYS = 30
 MAX_DROP_REASON = 200         # matches student_courses.drop_reason length
-MIN_MARKS_FOR_RATE = 3        # minimum marks before the rate rule can fire
+# Minimum marks within the window before the rate rule may fire. A student
+# only ever marked once who missed that session is, by the data on record,
+# 100% absent — hiding behind a "needs 3 marks" gate under-flags exactly the
+# at-risk edge cases. Gate of 1 judges students on whatever data exists;
+# students with no marks at all are handled separately by the
+# enrolled-long-ago / stale-attendance rules.
+MIN_MARKS_FOR_RATE = 1
 DETAIL_SERIES_LIMIT = 40      # most recent marks returned to the detail drawer
 # History bound for attendance scans. The bucket rules only need the window
 # rate plus the trailing absence run, so marks older than this never change
@@ -25,6 +31,22 @@ DETAIL_SERIES_LIMIT = 40      # most recent marks returned to the detail drawer
 METRICS_LOOKBACK_DAYS = 366
 
 FILTERS = ['all', 'enrolled', 'not_enrolled', 'long_absent', 'completed', 'dropped', 'inactive', 'archived']
+
+# Bulk action buttons only make sense for the statuses the current filter can
+# contain. 'not_enrolled' has no enrollments at all, so every bulk button would
+# be a guaranteed no-op; 'completed'/'dropped' buckets can only ever be
+# reactivated. The route hides the impossible buttons instead of showing them
+# and silently doing nothing.
+_BULK_VISIBLE = {
+    'all': ('complete', 'drop', 'reactivate'),
+    'enrolled': ('complete', 'drop', 'reactivate'),
+    'long_absent': ('complete', 'drop'),
+    'not_enrolled': (),
+    'completed': ('reactivate',),
+    'dropped': ('reactivate',),
+    'inactive': ('complete', 'drop', 'reactivate'),
+    'archived': ('complete', 'drop', 'reactivate'),
+}
 
 # Sort order for the default table view: students needing attention first.
 _BUCKET_ORDER = {'Long Absent': 0, 'Not Enrolled': 1, 'Enrolled': 2,
@@ -151,7 +173,11 @@ def _attendance_metrics(window_days=ATT_WINDOW_DAYS):
     # Restrict to live students: attendance rows carry a plain person_id
     # (no FK), so rows orphaned by historical deletes are excluded here
     # (and purged by the startup migration in app/__init__.py).
-    records = Attendance.query.filter(
+    # Load only the three columns the metrics actually use rather than
+    # full ORM objects — the list view previously inflated every row.
+    records = db.session.query(
+        Attendance.person_id, Attendance.date, Attendance.status
+    ).filter(
         Attendance.person_type == 'student',
         Attendance.date >= earliest,
         Attendance.person_id.in_(db.session.query(Student.id))
@@ -290,7 +316,8 @@ def lifecycle():
     return render_template('student_lifecycle.html', lifecycle=data, counts=counts,
         total_all=total_all, shown=shown, filter_key=filter_key, today=date.today(),
         thresholds=thresholds, courses=Course.query.order_by(Course.name).all(),
-        selected_course_id=selected_course_id, q=q)
+        selected_course_id=selected_course_id, q=q,
+        bulk_actions=_BULK_VISIBLE.get(filter_key, ('complete', 'drop', 'reactivate')))
 
 
 @student_lifecycle_bp.route('/students/lifecycle/<int:sid>/detail')
@@ -391,6 +418,29 @@ def _enrollment_or_404(sid, cid):
     return row
 
 
+# Which current enrollment statuses each single-row transition is valid from.
+# The bulk endpoint scopes by source status; the single-row endpoints must do
+# the same, or a stale page / double submit can silently drop a Completed
+# enrollment, re-stamp completed_on on an already-completed course, or reset a
+# live enrollment's terminal history for no reason.
+_TRANSITION_ALLOWED = {
+    'complete': ('Enrolled',),
+    'drop': ('Enrolled',),
+    'reactivate': ('Completed', 'Dropped'),
+}
+
+
+def _guard_transition(sid, cid, action):
+    """Return the enrollment row if current status allows the transition, else
+    flash a warning and return None (caller redirects back to the console)."""
+    row = _enrollment_or_404(sid, cid)
+    current = row.status or 'Enrolled'
+    if current not in _TRANSITION_ALLOWED[action]:
+        flash(f"Cannot {action} — this enrollment is already {current}.", "warning")
+        return None
+    return row
+
+
 def _audit_transition(sid, cid, action, detail):
     """Association-table writes bypass the ORM audit events in app/audit.py,
     so lifecycle transitions are logged here explicitly."""
@@ -408,7 +458,9 @@ def _audit_transition(sid, cid, action, detail):
 @login_required
 @admin_required
 def complete(sid, cid):
-    row = _enrollment_or_404(sid, cid)
+    row = _guard_transition(sid, cid, 'complete')
+    if row is None:
+        return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))
     previous = row.status or 'Enrolled'
     db.session.execute(
         student_courses.update().where(
@@ -428,10 +480,12 @@ def complete(sid, cid):
 @login_required
 @admin_required
 def drop(sid, cid):
-    row = _enrollment_or_404(sid, cid)
     reason = request.form.get('drop_reason', '').strip()
     if len(reason) > MAX_DROP_REASON:
         flash(f"Drop reason must be at most {MAX_DROP_REASON} characters.", "danger")
+        return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))
+    row = _guard_transition(sid, cid, 'drop')
+    if row is None:
         return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))
     previous = row.status or 'Enrolled'
     db.session.execute(
@@ -455,7 +509,9 @@ def drop(sid, cid):
 @login_required
 @admin_required
 def reactivate(sid, cid):
-    row = _enrollment_or_404(sid, cid)
+    row = _guard_transition(sid, cid, 'reactivate')
+    if row is None:
+        return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))
     previous = row.status or 'Enrolled'
     db.session.execute(
         student_courses.update().where(
@@ -508,10 +564,20 @@ def bulk():
     scoped_cid = request.form.get('course_id', type=int)
     today = date.today()
     updated = 0
+    skipped = 0
     for sid in student_ids:
         rows = db.session.execute(
             student_courses.select().where(student_courses.c.student_id == sid)
         ).all()
+        # Tally students whose visible rows were all ineligible so the flash
+        # explains why some selections weren't touched (opaque "0 updated" is
+        # the bug this addresses).
+        if not any(
+            (r.status or 'Enrolled') in source_statuses
+            and (not scoped_cid or r.course_id == scoped_cid)
+            for r in rows
+        ):
+            skipped += 1
         for row in rows:
             if (row.status or 'Enrolled') not in source_statuses:
                 continue
@@ -539,5 +605,7 @@ def bulk():
             _audit_transition(sid, row.course_id, action, detail)
             updated += 1
     db.session.commit()
-    flash(f"{updated} enrollment(s) updated.", "success")
+    flash(f"{updated} enrollment(s) updated"
+          + (f", {skipped} selected student(s) had no eligible enrollment." if skipped else "")
+          + ".", "success")
     return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))
