@@ -622,6 +622,16 @@ def create_app(config_object=None):
             except Exception as e:
                 print('Failed to ensure payroll_record.commission_breakdown:', e, file=sys.stderr)
 
+        # Same self-heal for owner_funding.reference / investment_type (funding
+        # batch 2). The ORM maps them, so a legacy database would otherwise 500
+        # on the capital-injection page. Additive and idempotent.
+        if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+            try:
+                from app.services.db_migration import migrate_funding_batch2_columns
+                migrate_funding_batch2_columns()
+            except Exception as e:
+                print('Failed to ensure owner_funding.reference / investment_type:', e, file=sys.stderr)
+
         from app.audit import register_audit_events
         register_audit_events()
         from app.services.account_service import ensure_default_accounts, register_cache_invalidation

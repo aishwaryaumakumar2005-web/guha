@@ -10,6 +10,12 @@ import os
 import sys
 import argparse
 
+# Make the repo root importable no matter where this script is invoked from
+# (sys.path[0] is scripts/ when run as `python scripts/run_migrations.py`).
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 
 def main():
     parser = argparse.ArgumentParser(description='Run one-off schema/data migrations')
@@ -52,7 +58,7 @@ def main():
             except Exception:
                 db_migration = None
 
-            for fn in ('migrate_renames', 'migrate_company_names', 'migrate_photos_to_db', 'migrate_schema_additions', 'migrate_exam_window_columns', 'migrate_leave_action_columns', 'migrate_leave_type_column', 'migrate_fee_created_by_column', 'migrate_fee_concession_column', 'migrate_indexes', 'migrate_agreed_dues_columns', 'migrate_expense_student_id'):
+            for fn in ('migrate_renames', 'migrate_company_names', 'migrate_photos_to_db', 'migrate_schema_additions', 'migrate_exam_window_columns', 'migrate_leave_action_columns', 'migrate_leave_type_column', 'migrate_fee_created_by_column', 'migrate_fee_concession_column', 'migrate_indexes', 'migrate_agreed_dues_columns', 'migrate_expense_student_id', 'migrate_expense_enhancements', 'migrate_enquiry_course_nullable', 'migrate_lifecycle_ack_table', 'migrate_payroll_commission_breakdown_column', 'migrate_funding_batch2_columns'):
                 if db_migration and hasattr(db_migration, fn):
                     print(f"Preparing to run {fn}()")
                     if args.apply:
