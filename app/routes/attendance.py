@@ -129,6 +129,7 @@ def api_tutor_attendance_mark(tutor_id):
     record = Attendance.query.filter_by(person_type='student', person_id=person_id, date=today).first()
     if record and record.marked_by == 'manual':
         return jsonify({"error": "Attendance already marked by admin today. Tutor cannot override.", "previous_status": record.status}), 409
+    previous = record.status if record else None
     if record:
         record.status = status
         record.timestamp = datetime.utcnow()
@@ -137,7 +138,10 @@ def api_tutor_attendance_mark(tutor_id):
         record = Attendance(person_type='student', person_id=person_id, date=today, status=status, marked_by=f'tutor_{tutor_id}')
         db.session.add(record)
     db.session.commit()
-    return jsonify({"success": True, "message": f"Attendance for student {person_id} marked as {status} by tutor {tutor_id}."})
+    resp = {"success": True, "message": f"Attendance for student {person_id} marked as {status} by tutor {tutor_id}."}
+    if previous and previous != status:
+        resp['previous_status'] = previous
+    return jsonify(resp)
 
 
 @attendance_bp.route('/api/attendance/mark', methods=['POST'])
@@ -186,6 +190,7 @@ def api_attendance_mark():
         return jsonify({"error": "Attendance already marked by admin today.", "previous_status": record.status}), 409
 
     marked_by = 'manual' if current_user.role == 'Admin' else f'tutor_{tutor.id}' if current_user.role == 'Staff' else 'manual'
+    previous = record.status if record else None
     if record:
         record.status = status
         record.timestamp = datetime.utcnow()
@@ -194,7 +199,13 @@ def api_attendance_mark():
         record = Attendance(person_type=person_type, person_id=person_id, date=day, status=status, marked_by=marked_by)
         db.session.add(record)
     db.session.commit()
-    return jsonify({"success": True, "message": f"{person_type.capitalize()} attendance logged as {status}."})
+    resp = {"success": True, "message": f"{person_type.capitalize()} attendance logged as {status}."}
+    # Same-day marks are upserts (one row per person+date): an overwrite that
+    # silently flips an earlier status is exactly what bulk marking used to do.
+    # Tell the client so it can warn instead of hiding the collapse.
+    if previous and previous != status:
+        resp['previous_status'] = previous
+    return jsonify(resp)
 
 
 @attendance_bp.route('/api/attendance/scan', methods=['POST'])
@@ -229,10 +240,12 @@ def api_attendance_scan():
         return jsonify({"success": False, "name": person.name, "role": person_type, "person_id": person.id,
                         "message": f"{person.name} was recorded as {record.status} manually today; scan skipped."}), 409
     is_new = False
+    previous = None
     if record:
         if record.status == 'Present':
             return jsonify({"success": True, "duplicate": True, "name": person.name, "role": person_type,
                             "person_id": person.id, "message": f"{person.name} is already marked Present for today."})
+        previous = record.status
         record.status = 'Present'
         record.timestamp = datetime.utcnow()
         record.marked_by = 'qr'
@@ -241,6 +254,9 @@ def api_attendance_scan():
         db.session.add(record)
         is_new = True
     db.session.commit()
-    return jsonify({"success": True, "name": person.name, "role": person_type,
-                    "person_id": person.id, "message": f"Successfully marked Present via QR Code for {person.name}.",
-                    "is_new": is_new})
+    resp = {"success": True, "name": person.name, "role": person_type,
+            "person_id": person.id, "message": f"Successfully marked Present via QR Code for {person.name}.",
+            "is_new": is_new}
+    if previous and previous != 'Present':
+        resp['previous_status'] = previous
+    return jsonify(resp)

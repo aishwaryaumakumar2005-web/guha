@@ -332,6 +332,13 @@ def create_app(config_object=None):
                 print("Migration migrate_enquiry_course_nullable FAILED:", e, flush=True)
                 db.session.rollback()
             try:
+                from app.services.db_migration import migrate_lifecycle_ack_table
+                migrate_lifecycle_ack_table()
+                print("Migration migrate_lifecycle_ack_table completed OK", flush=True)
+            except Exception as e:
+                print("Migration migrate_lifecycle_ack_table FAILED:", e, flush=True)
+                db.session.rollback()
+            try:
                 db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_date ON expense(expense_date)'))
                 db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_category ON expense(category_id)'))
                 db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_fee_date ON fee_record(payment_date)'))
@@ -580,6 +587,14 @@ def create_app(config_object=None):
                 migrate_expense_enhancements()
             except Exception as e:
                 print('Failed to ensure expense.student_id:', e, file=sys.stderr)
+
+        # Same self-heal for the lifecycle "reviewed" table (staff console).
+        if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+            try:
+                from app.services.db_migration import migrate_lifecycle_ack_table
+                migrate_lifecycle_ack_table()
+            except Exception as e:
+                print('Failed to ensure lifecycle_ack table:', e, file=sys.stderr)
 
         from app.audit import register_audit_events
         register_audit_events()

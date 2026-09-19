@@ -374,7 +374,11 @@ function attSyncStatus(sel) {
         if (res.data.success) {
             sel.dataset.prevStatus = status;
             attAnnounce(pType + ' #' + pId + ' marked ' + status);
-            showToast(res.data.message || ('Marked as ' + status), 'success');
+            var msg = res.data.message || ('Marked as ' + status);
+            if (res.data.previous_status && res.data.previous_status !== status) {
+                msg += ' (was ' + res.data.previous_status + ')';
+            }
+            showToast(msg, res.data.previous_status && res.data.previous_status !== status ? 'warning' : 'success');
         } else {
             attResolveSelect(sel, prev);
             attSetBadge(pType, pId, prev);
@@ -398,7 +402,7 @@ function attMarkBulk(btn, pType, status) {
     var original = btn.innerHTML;
     btn.disabled = true;
     btn.textContent = 'Working…';
-    var done = 0, failed = 0;
+    var done = 0, failed = 0, overwritten = 0;
     var chain = Promise.resolve();
     sels.forEach(function (sel) {
         chain = chain.then(function () {
@@ -419,6 +423,7 @@ function attMarkBulk(btn, pType, status) {
                     sel.value = status;
                     attSetBadge(sel.dataset.personType, sel.dataset.personId, status);
                     done++;
+                    if (res.data.previous_status && res.data.previous_status !== status) overwritten++;
                 } else {
                     failed++;
                 }
@@ -430,9 +435,14 @@ function attMarkBulk(btn, pType, status) {
         btn.disabled = false;
         btn.innerHTML = original;
         attUpdateSummaries();
-        var msg = String(done) + ' marked ' + status + (failed ? (', ' + String(failed) + ' failed') : '');
+        // B11: same-day marks are upserts. If a bulk run replaced an earlier
+        // status for a day, say so instead of silently flipping attendance.
+        var parts = [String(done) + ' marked ' + status];
+        if (overwritten) parts.push(String(overwritten) + ' replaced an earlier mark for this day');
+        if (failed) parts.push(String(failed) + ' failed');
+        var msg = parts.join(', ');
         attAnnounce(msg);
-        showToast(msg, failed ? 'warning' : 'success');
+        showToast(msg, (failed || overwritten) ? 'warning' : 'success');
     });
 }
 

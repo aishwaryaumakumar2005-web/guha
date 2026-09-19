@@ -1,10 +1,13 @@
+import csv
+import io
 import json
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from collections import defaultdict
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, abort
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, abort, send_file
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import Student, Course, Attendance, AuditLog, student_courses
+from app.models import (Student, Course, Attendance, AuditLog, Enquiry,
+                        LifecycleAck, student_courses)
 from app.helpers import admin_required
 
 student_lifecycle_bp = Blueprint('student_lifecycle', __name__)
@@ -230,10 +233,25 @@ def _enrolled_long_ago(student, enrollments, window_days=ATT_WINDOW_DAYS):
     return (date.today() - min(dates)).days > window_days
 
 
+def _canonical_status(status):
+    """Map legacy/unrecognized student.status values onto the bucket vocabulary.
+
+    The forms only ever write Active/Inactive/Archived, but imported or very
+    old rows can carry anything ('' or 'Suspended', for example). Folding
+    them into 'Inactive' keeps those students visible and actionable instead
+    of creating a bucket no filter can match. 'Archived' keeps its own bucket.
+    """
+    if status in ('Active', None):
+        return 'Active'
+    if status == 'Archived':
+        return 'Archived'
+    return 'Inactive'
+
+
 def _derive_bucket(student, enrollments, att, thresholds=None):
     thresholds = thresholds or _default_thresholds()
-    if student.status not in ('Active', None):
-        return student.status
+    if _canonical_status(student.status) != 'Active':
+        return _canonical_status(student.status)
     if not enrollments:
         return 'Not Enrolled'
     statuses = {e['status'] for e in enrollments}
@@ -260,13 +278,39 @@ def _derive_bucket(student, enrollments, att, thresholds=None):
 
 @student_lifecycle_bp.route('/students/lifecycle')
 @login_required
-@admin_required
 def lifecycle():
+    is_admin = current_user.role == 'Admin'
     filter_key = request.args.get('filter', 'all')
     if filter_key not in FILTERS:
         filter_key = 'all'
     q = (request.args.get('q') or '').strip()
     selected_course_id = request.args.get('course_id', type=int)
+    selected_year = request.args.get('year', type=int)
+    ds = _lifecycle_dataset(filter_key, q, selected_course_id, selected_year)
+    ack_map = {a.student_id: a for a in LifecycleAck.query.all()}
+    for d in ds['data']:
+        d['suggest_archive'] = _suggest_archive(d, ds['thresholds'])
+    return render_template('student_lifecycle.html', lifecycle=ds['data'],
+        counts=ds['counts'], total_all=ds['total_all'], shown=ds['shown'],
+        filter_key=filter_key, today=date.today(),
+        thresholds=ds['thresholds'], courses=Course.query.order_by(Course.name).all(),
+        selected_course_id=selected_course_id, q=q,
+        selected_year=selected_year,
+        years=_available_years(),
+        kpis=_course_kpis(ds['data']),
+        is_admin=is_admin, ack_map=ack_map,
+        bulk_actions=(_BULK_VISIBLE.get(filter_key, ('complete', 'drop', 'reactivate'))
+                      if is_admin else ()))
+
+
+def _lifecycle_dataset(filter_key='all', q='', selected_course_id=None,
+                       selected_year=None):
+    """Build the (unfiltered) lifecycle rows plus bucket counts.
+
+    Shared by the page view and the CSV export so both honor exactly the same
+    filters. The returned rows are plain dicts; the view enriches them for
+    display (ack state, archive suggestions).
+    """
     enroll_map = _enrollment_map()
     thresholds = _get_thresholds()
     att_metrics = _attendance_metrics(thresholds['window'])
@@ -302,8 +346,18 @@ def lifecycle():
                        (s.name, s.phone, s.email, s.roll_no))
         data = [d for d in data if _matches(d)]
 
+    if selected_year:
+        def _min_year(d):
+            years = [e['enrolled_on'].year for e in d['enrollments'] if e['enrolled_on']]
+            if d['student'].enrollment_date:
+                years.append(d['student'].enrollment_date.year)
+            return min(years) if years else None
+        data = [d for d in data if _min_year(d) == selected_year]
+
     if filter_key != 'all':
         if filter_key == 'inactive':
+            # B5/B6: legacy statuses are folded into 'Inactive', and the
+            # inactive pill intentionally groups Inactive + Archived students.
             data = [d for d in data if d['bucket'] in ('Inactive', 'Archived')]
         else:
             target = filter_key.replace('_', ' ')
@@ -312,17 +366,80 @@ def lifecycle():
     # Default view: surface students who need attention first.
     data.sort(key=lambda d: (_BUCKET_ORDER.get(d['bucket'], 99),
                              (d['student'].name or '').lower()))
-    shown = len(data)
-    return render_template('student_lifecycle.html', lifecycle=data, counts=counts,
-        total_all=total_all, shown=shown, filter_key=filter_key, today=date.today(),
-        thresholds=thresholds, courses=Course.query.order_by(Course.name).all(),
-        selected_course_id=selected_course_id, q=q,
-        bulk_actions=_BULK_VISIBLE.get(filter_key, ('complete', 'drop', 'reactivate')))
+    return {'data': data, 'counts': dict(counts), 'total_all': total_all,
+            'shown': len(data), 'thresholds': thresholds}
+
+
+def _available_years():
+    """Distinct enrollment years (from association rows + student join dates)."""
+    years = {date.today().year}
+    for (d,) in db.session.query(student_courses.c.enrolled_on).all():
+        if d:
+            years.add(d.year)
+    for (d,) in db.session.query(Student.enrollment_date).all():
+        if d:
+            years.add(d.year)
+    return sorted(years, reverse=True)
+
+
+def _suggest_archive(d, thresholds):
+    """True when a Long Absent student has vanished long enough to archive.
+
+    Suggestions only: the row shows an Archive? chip, never auto-archives.
+    Judged by the same rules that decide Long Absent, stretched to double the
+    window so casual gaps don't trigger it.
+    """
+    if d['bucket'] != 'Long Absent' or d['student'].status != 'Active':
+        return False
+    att = d['metrics']
+    long_window = thresholds['window'] * 2
+    last = att.get('last_attendance_date')
+    if last is not None:
+        return (date.today() - last).days > long_window
+    # Never marked: only suggest after an absurdly long silent enrollment.
+    return _enrolled_long_ago(d['student'], d['enrollments'], long_window)
+
+
+def _course_kpis(data):
+    """Per-course retention KPIs (enrolled/completed/dropped/long-absent)."""
+    stats = defaultdict(lambda: {'enrolled': 0, 'completed': 0, 'dropped': 0,
+                                 'long_absent': 0, 'ever': 0})
+    this_year = date.today().year
+    long_absent_sids = {d['student'].id for d in data if d['bucket'] == 'Long Absent'}
+    for d in data:
+        sid = d['student'].id
+        for e in d['enrollments']:
+            cid = e['course'].id
+            stats[cid]['ever'] += 1
+            if e['status'] == 'Enrolled':
+                stats[cid]['enrolled'] += 1
+                if sid in long_absent_sids:
+                    stats[cid]['long_absent'] += 1
+            elif e['status'] == 'Completed':
+                stats[cid]['completed'] += 1
+            elif e['status'] == 'Dropped':
+                stats[cid]['dropped'] += 1
+    out = []
+    for c in Course.query.order_by(Course.name).all():
+        s = stats.get(c.id)
+        if not s or not s['ever']:
+            continue
+        s = dict(s)
+        s['course'] = c.name
+        s['completion_rate'] = round(s['completed'] / s['ever'] * 100, 1)
+        s['dropout_rate'] = round(s['dropped'] / s['ever'] * 100, 1)
+        s['retention'] = round(s['enrolled'] / s['ever'] * 100, 1)
+        s['joined_this_year'] = sum(
+            1 for d in data
+            for e in d['enrollments']
+            if e['course'].id == c.id and e['enrolled_on']
+            and e['enrolled_on'].year == this_year)
+        out.append(s)
+    return sorted(out, key=lambda r: r['course'])
 
 
 @student_lifecycle_bp.route('/students/lifecycle/<int:sid>/detail')
 @login_required
-@admin_required
 def detail(sid):
     """On-demand payload for the per-student drawer (timeline + sparkline).
 
@@ -377,6 +494,45 @@ def detail(sid):
         })
     timeline.sort(key=lambda t: t['enrolled_on'] or '', reverse=True)
 
+    ack = LifecycleAck.query.filter_by(student_id=sid).first()
+    ack_payload = None
+    if ack:
+        ack_payload = {
+            'reviewed': True,
+            'acknowledged_on': ack.acknowledged_on.isoformat()
+            if ack.acknowledged_on else None,
+            'acknowledged_by': ack.acknowledged_by,
+            'note': ack.note,
+        }
+    # Lead origin (enquiry pipe) so a reviewer sees how this student came in.
+    enquiry = None
+    if student.email:
+        enquiry = Enquiry.query.filter(
+            db.func.lower(Enquiry.email) == student.email.lower()
+        ).order_by(Enquiry.id).first()
+    if enquiry is None and student.phone:
+        enquiry = Enquiry.query.filter_by(phone=student.phone).order_by(Enquiry.id).first()
+    enquiry_payload = None
+    if enquiry:
+        enquiry_payload = {
+            'student_name': enquiry.student_name,
+            'source': enquiry.source,
+            'status': enquiry.status,
+            'notes': enquiry.notes,
+            'follow_up_date': enquiry.follow_up_date.isoformat()
+            if enquiry.follow_up_date else None,
+        }
+    # Recent activity: this student's audit trail, newest first.
+    logs = AuditLog.query.filter_by(
+        entity_type='Student', entity_id=sid
+    ).order_by(AuditLog.id.desc()).limit(12).all()
+    activity = [{
+        'action': l.action,
+        'username': l.username,
+        'changes': l.changes,
+        'timestamp': l.timestamp.isoformat() if l.timestamp else None,
+    } for l in logs]
+
     return jsonify({
         'student': {
             'id': student.id,
@@ -397,6 +553,10 @@ def detail(sid):
             'total_recorded': total_recorded,
         },
         'enrollments': timeline,
+        'ack': ack_payload,
+        'enquiry': enquiry_payload,
+        'activity': activity,
+        'is_admin': current_user.role == 'Admin',
     })
 
 
@@ -609,3 +769,106 @@ def bulk():
           + (f", {skipped} selected student(s) had no eligible enrollment." if skipped else "")
           + ".", "success")
     return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))
+
+
+@student_lifecycle_bp.route('/students/lifecycle/<int:sid>/acknowledge', methods=['POST'])
+@login_required
+@admin_required
+def acknowledge(sid):
+    """Mark a student as reviewed in the lifecycle console (upsert).
+
+    One ack row per student; re-acking just refreshes who/when. The action is
+    also appended to the audit trail (reviewed state is meant to be visible
+    to staff, the who/when trail to admins).
+    """
+    student = Student.query.get_or_404(sid)
+    note = (request.form.get('note') or '').strip()[:500]
+    ack = LifecycleAck.query.filter_by(student_id=sid).first()
+    if ack is None:
+        ack = LifecycleAck(student_id=sid)
+        db.session.add(ack)
+    ack.acknowledged_on = datetime.utcnow()
+    ack.acknowledged_by = current_user.username
+    ack.note = note or None
+    db.session.add(AuditLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        action='UPDATE',
+        entity_type='Student',
+        entity_id=sid,
+        changes=json.dumps({'lifecycle': {'acknowledged': True,
+                                          'note': ack.note or ''}}),
+    ))
+    db.session.commit()
+    flash(f"Marked {student.name} as reviewed.", "success")
+    return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))
+
+
+_STUDENT_STATUSES = ('Active', 'Inactive', 'Archived')
+
+
+@student_lifecycle_bp.route('/students/lifecycle/<int:sid>/status', methods=['POST'])
+@login_required
+@admin_required
+def set_status(sid):
+    """Change a student's overall status (reactivate / set inactive / archive)."""
+    student = Student.query.get_or_404(sid)
+    target = request.form.get('status', '')
+    if target not in _STUDENT_STATUSES:
+        flash("Invalid status.", "danger")
+        return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))
+    previous = student.status or 'Active'
+    if previous == target:
+        flash(f"{student.name} is already {target}.", "info")
+        return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))
+    # The Student before_update audit listener (app/audit.py) records the
+    # exact from/to for us — no explicit log here, or status changes would
+    # be double-audited (form edits rely on that same listener).
+    student.status = target
+    db.session.commit()
+    flash(f"{student.name} marked as {target}.", "success")
+    return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))
+
+
+@student_lifecycle_bp.route('/students/lifecycle/export')
+@login_required
+def export():
+    """CSV of the current (filtered) lifecycle roster — staff can view it too.
+
+    Mirrors the page's filter/q/course/year so "export what I see" holds.
+    """
+    filter_key = request.args.get('filter', 'all')
+    if filter_key not in FILTERS:
+        filter_key = 'all'
+    q = (request.args.get('q') or '').strip()
+    selected_course_id = request.args.get('course_id', type=int)
+    selected_year = request.args.get('year', type=int)
+    ds = _lifecycle_dataset(filter_key, q, selected_course_id, selected_year)
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(['Name', 'Roll No', 'Phone', 'Email', 'Status', 'Bucket',
+                     'Courses', 'Attendance %', 'Attendance (window)', 'Last Activity'])
+    for d in ds['data']:
+        s = d['student']
+        m = d['metrics']
+        courses = '; '.join(
+            f"{e['course'].name} ({e['status']})" for e in d['enrollments']
+        )
+        writer.writerow([
+            s.name or '',
+            s.roll_no or '',
+            s.phone or '',
+            s.email or '',
+            s.status or '',
+            d['bucket'],
+            courses,
+            '' if m['att_rate'] is None else f"{m['att_rate']:.1f}",
+            m['total_marks'],
+            m['last_attendance_date'].isoformat() if m['last_attendance_date'] else '',
+        ])
+    out = buf.getvalue()
+    buf.close()
+    filename = f"lifecycle_{filter_key}_{date.today().isoformat()}.csv"
+    return send_file(
+        io.BytesIO(out.encode('utf-8', errors='replace')),
+        mimetype='text/csv', as_attachment=True, download_name=filename)

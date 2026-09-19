@@ -456,6 +456,35 @@ def migrate_expense_enhancements():
                 print(f"Migration migrate_expense_enhancements: ADD expense_category.is_active FAILED: {e}", flush=True)
 
 
+def migrate_lifecycle_ack_table():
+    """Create the lifecycle_ack table on legacy databases.
+
+    The ORM maps it (fresh databases get it from db.create_all()), so an older
+    database would otherwise 500 on every lifecycle page that queries ack
+    state. Idempotent and additive-only: skips when the table already exists,
+    works on SQLite and PostgreSQL, and logs loudly on failure.
+    """
+    if _table_exists('lifecycle_ack'):
+        return
+    try:
+        ts = 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'
+        db.session.execute(text(f"""
+            CREATE TABLE lifecycle_ack (
+                id INTEGER NOT NULL PRIMARY KEY,
+                student_id INTEGER NOT NULL UNIQUE,
+                acknowledged_on {ts},
+                acknowledged_by VARCHAR(100),
+                note VARCHAR(500),
+                FOREIGN KEY(student_id) REFERENCES student (id) ON DELETE CASCADE
+            )
+        """))
+        db.session.commit()
+        print('Migration migrate_lifecycle_ack_table: created lifecycle_ack', flush=True)
+    except Exception as e:
+        db.session.rollback()
+        print(f'Migration migrate_lifecycle_ack_table: FAILED: {e}', flush=True)
+
+
 def migrate_enquiry_course_nullable():
     """Make enquiry.course_id nullable with ON DELETE SET NULL.
 

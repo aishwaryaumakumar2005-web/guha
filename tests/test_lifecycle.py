@@ -630,9 +630,10 @@ def test_detail_endpoint_unknown_student_is_404(admin_client):
         '/students/lifecycle/999999/detail').status_code == 404
 
 
-def test_detail_endpoint_requires_admin(staff_client):
+def test_detail_endpoint_readable_by_staff(staff_client):
+    # E10: staff get a read-only lifecycle console now.
     assert staff_client.get(
-        '/students/lifecycle/1/detail').status_code == 302
+        '/students/lifecycle/1/detail').status_code == 200
 
 
 def test_lifecycle_p3_hooks(admin_client):

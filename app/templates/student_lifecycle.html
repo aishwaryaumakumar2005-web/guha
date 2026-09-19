@@ -1,7 +1,7 @@
 {% extends 'base.html' %}{% block title %}Student Lifecycle{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item"><a href="{{ url_for('students.list') }}">Academic</a></li><li class="breadcrumb-item active" aria-current="page">Student Lifecycle</li>{% endblock %}
 
 {% macro rel_date(dt, today) -%}
-{%- if not dt -%}Never
+{%- if not dt -%}<span class="lc-never">&mdash;</span>
 {%- else -%}
 {%- set days = (today - dt).days -%}
 {%- if days <= 0 -%}Today
@@ -17,7 +17,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h2 class="text-white fw-bold">Student Lifecycle</h2>
-            <p class="text-white mb-0">Track course completion, dropouts and long-absent students. <span class="text-info">Admin only</span></p>
+            <p class="text-white mb-0">Track course completion, dropouts and long-absent students. <span class="text-info">{% if is_admin %}Admin only{% else %}Read-only for staff{% endif %}</span></p>
         </div>
     </div>
 
@@ -34,7 +34,7 @@
     <div class="row g-3 mb-4">
         {% for key, label, icon, cls, n in tiles %}
         <div class="col-6 col-md-4 col-xl-3">
-            <a href="{{ url_for('student_lifecycle.lifecycle', filter=key, q=q, course_id=selected_course_id) }}" class="text-decoration-none">
+            <a href="{{ url_for('student_lifecycle.lifecycle', filter=key, q=q, course_id=selected_course_id, year=selected_year) }}" class="text-decoration-none">
                 <div class="summary-card {{ cls }} lc-tile {% if filter_key == key %}lc-active{% endif %}">
                     <div>
                         <div class="stat-number">{{ n }}</div>
@@ -51,7 +51,7 @@
     <div class="glass-card p-3 mb-4">
         <form method="GET" action="{{ url_for('student_lifecycle.lifecycle') }}" hx-boost="false" id="lcFilterForm" class="row g-2 align-items-end">
             <input type="hidden" name="filter" value="{{ filter_key }}">
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <label for="lcSearch" class="form-label small text-white mb-1">Search</label>
                 <div class="input-group input-group-sm">
                     <span class="input-group-text bg-transparent text-white border-secondary" aria-hidden="true"><i class="bi bi-search" aria-hidden="true"></i></span>
@@ -65,14 +65,66 @@
                     {% for c in courses %}<option value="{{ c.id }}" {% if selected_course_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
                 </select>
             </div>
+            <div class="col-md-2">
+                <label for="lcYear" class="form-label small text-white mb-1">Joined in</label>
+                <select id="lcYear" name="year" class="form-select form-select-sm" aria-label="Filter by cohort year">
+                    <option value="">Any year</option>
+                    {% for y in years %}<option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>{{ y }}</option>{% endfor %}
+                </select>
+            </div>
             <div class="col-md-3 d-flex gap-2">
                 <button type="submit" class="btn btn-sm btn-premium flex-grow-1"><i class="bi bi-funnel me-1" aria-hidden="true"></i>Apply</button>
                 <button type="button" class="btn btn-sm btn-outline-premium" onclick="lcResetSearch()" title="Clear search and course, keep this filter">Reset</button>
             </div>
         </form>
         <div class="small text-white mt-3 d-flex flex-wrap align-items-center gap-2" style="opacity:.75;">
-            <span id="lcCountLine"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Showing <strong>{{ shown }}</strong> of {{ total_all }} student(s){% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}{% if selected_course_id %} in the selected course{% endif %}.</span>
+            <span id="lcCountLine"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Showing <strong>{{ shown }}</strong> of {{ total_all }} student(s){% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}{% if selected_course_id %} in the selected course{% endif %}{% if selected_year %} who joined in {{ selected_year }}{% endif %}.</span>
             <a href="{{ url_for('admin.admin_console') }}#lifecycle-thresholds" class="text-info text-decoration-none" hx-boost="false"><i class="bi bi-sliders me-1" aria-hidden="true"></i>Adjust Long Absent thresholds</a>
+            <span class="text-white" title="What triggers the Long Absent bucket"><i class="bi bi-rulers me-1" aria-hidden="true"></i>Rule: &ge;{{ thresholds.streak }} consecutive misses or &lt;{{ '%.0f'|format(thresholds.rate) }}% in {{ thresholds.window }}d</span>
+        </div>
+    </div>
+
+    <!-- Course-level retention KPIs (all-time, computed on the unfiltered set) -->
+    <div class="glass-card p-3 mb-4" id="lcKpiCard">
+        <div class="d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 text-white fw-bold"><i class="bi bi-bar-chart-line-fill me-2 text-info" aria-hidden="true"></i>Course retention (all time)</h6>
+            <button class="btn btn-sm btn-outline-premium collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#lcKpiBody" aria-expanded="false" aria-controls="lcKpiBody"><i class="bi bi-chevron-down" aria-hidden="true"></i></button>
+        </div>
+        <div class="collapse" id="lcKpiBody">
+            {% if kpis %}
+            <div class="table-responsive mt-3">
+                <table class="table table-sm table-dark mb-0" aria-label="Course retention KPIs">
+                    <thead><tr>
+                        <th>Course</th>
+                        <th class="text-center">Enrolled</th>
+                        <th class="text-center">Completed</th>
+                        <th class="text-center">Completion</th>
+                        <th class="text-center">Dropped</th>
+                        <th class="text-center">Dropout</th>
+                        <th class="text-center">Long absent</th>
+                        <th class="text-center">Retention</th>
+                        <th class="text-end">Joined this yr</th>
+                    </tr></thead>
+                    <tbody>
+                        {% for r in kpis %}
+                        <tr>
+                            <td class="text-white">{{ r.course }}</td>
+                            <td class="text-center text-white">{{ r.enrolled }}</td>
+                            <td class="text-center text-white">{{ r.completed }}</td>
+                            <td class="text-center text-white">{{ r.completion_rate }}%</td>
+                            <td class="text-center text-white">{{ r.dropped }}</td>
+                            <td class="text-center text-white">{{ r.dropout_rate }}%</td>
+                            <td class="text-center text-white">{{ r.long_absent }}</td>
+                            <td class="text-center text-white">{{ r.retention }}%</td>
+                            <td class="text-end text-white">{{ r.joined_this_year }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="small text-secondary mt-3 mb-0">No enrollment data yet.</p>
+            {% endif %}
         </div>
     </div>
 
@@ -84,7 +136,11 @@
         <input type="hidden" name="course_id" value="{{ selected_course_id or '' }}">
         <div class="glass-card p-4" data-aos="fade-up" id="lcTableCard">
             <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                <h4 class="mb-0 text-dark fw-bold"><i class="bi bi-diagram-3 me-2 text-dark" aria-hidden="true"></i>Student Records</h4>
+                <div class="d-flex align-items-center gap-2">
+                    <h4 class="mb-0 text-dark fw-bold"><i class="bi bi-diagram-3 me-2 text-dark" aria-hidden="true"></i>Student Records</h4>
+                    <a href="{{ url_for('student_lifecycle.export', filter=filter_key, q=q, course_id=selected_course_id, year=selected_year) }}" class="btn btn-sm btn-outline-premium" title="Download the current roster as CSV"><i class="bi bi-download me-1" aria-hidden="true"></i>CSV</a>
+                </div>
+                {% if is_admin %}
                 <div class="lc-bulk-bar" id="bulkBar" role="region" aria-label="Bulk actions">
                     <span class="text-white small"><strong id="bulkCount">0</strong> selected</span>
                     {% if 'complete' in bulk_actions %}<button type="button" class="btn btn-sm btn-action-success" onclick="bulkPrompt('complete')"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Complete</button>{% endif %}
@@ -92,12 +148,13 @@
                     {% if 'reactivate' in bulk_actions %}<button type="button" class="btn btn-sm btn-action-reenroll" onclick="bulkPrompt('reactivate')"><i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>Re-enroll</button>{% endif %}
                     <button type="button" class="btn btn-sm btn-outline-light" onclick="clearBulk()">Clear</button>
                 </div>
+                {% endif %}
             </div>
             <div class="table-container">
                 <table class="table table-custom sortable" data-page-size="10" data-server-search="true">
                     <thead>
                         <tr>
-                            <th scope="col" class="no-sort lc-check-col" style="width:34px;"><input type="checkbox" id="checkAll" onclick="toggleAll(this)" aria-label="Select all students"></th>
+                            <th scope="col" class="no-sort lc-check-col" style="width:34px;">{% if is_admin %}<input type="checkbox" id="checkAll" onclick="toggleAll(this)" aria-label="Select all students">{% endif %}</th>
                             <th scope="col" aria-sort="none">Student</th>
                             <th scope="col" aria-sort="none">Overall Status</th>
                             <th scope="col" aria-sort="none">Courses</th>
@@ -112,14 +169,15 @@
                         {% for d in lifecycle %}
                         <tr{% if d.bucket == 'Long Absent' %} class="lc-row-risk"{% endif %}>
                             <td data-label="">
-                                <input type="checkbox" class="lc-check" name="selected" value="{{ d.student.id }}" onchange="updateBulk()" aria-label="Select {{ d.student.name }}">
-                            </td>
+                            {% if is_admin %}<input type="checkbox" class="lc-check" name="selected" value="{{ d.student.id }}" onchange="updateBulk()" aria-label="Select {{ d.student.name }}">{% endif %}
+                        </td>
                             <td data-label="Student">
                                 <button type="button" class="lc-name-btn" onclick="lcOpen({{ d.student.id }})" aria-label="View details for {{ d.student.name }}">
                                     <i class="bi bi-chevron-right lc-chevron" aria-hidden="true"></i>
                                     {% if d.bucket == 'Long Absent' %}<i class="bi bi-exclamation-triangle-fill text-warning me-1" aria-hidden="true" title="Long absent"></i>{% endif %}
                                     <span class="fw-semibold text-dark">{{ d.student.name }}</span>
                                 </button>
+                                {% if is_admin and d.suggest_archive %}<span class="badge badge-custom badge-inactive ms-1" title="Long absent and no attendance for a long stretch &mdash; consider archiving"><i class="bi bi-archive me-1" aria-hidden="true"></i>Archive?</span>{% endif %}
                                 <div class="small text-secondary lc-sub">{{ d.student.phone }}{% if d.student.roll_no %} &middot; {{ d.student.roll_no }}{% endif %}</div>
                             </td>
                             <td data-label="Status">
@@ -148,16 +206,20 @@
                                             {% else %}since {{ e.enrolled_on.strftime('%d %b %Y') if e.enrolled_on else (d.student.enrollment_date.strftime('%d %b %Y') if d.student.enrollment_date else 'date unknown') }}
                                             {% endif %}
                                         </span>
-                                        <div class="dropdown ms-auto">
-                                            <button class="btn btn-sm btn-outline-secondary py-0 px-1" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for {{ e.course.name }}"><i class="bi bi-three-dots-vertical" aria-hidden="true"></i></button>
-                                            <ul class="dropdown-menu dropdown-menu-end">
-                                                {% if e.status == 'Enrolled' %}
-                                                <li><button class="dropdown-item" type="button" data-lc-action="complete" data-sid="{{ d.student.id }}" data-cid="{{ e.course.id }}" data-student="{{ d.student.name }}" data-course="{{ e.course.name }}" onclick="lcFromButton(this)"><i class="bi bi-check2 me-2" aria-hidden="true"></i>Mark completed</button></li>
-                                                <li><button class="dropdown-item text-danger" type="button" data-lc-action="drop" data-sid="{{ d.student.id }}" data-cid="{{ e.course.id }}" data-student="{{ d.student.name }}" data-course="{{ e.course.name }}" onclick="lcFromButton(this)"><i class="bi bi-x me-2" aria-hidden="true"></i>Drop</button></li>
-                                                {% else %}
-                                                <li><button class="dropdown-item" type="button" data-lc-action="reactivate" data-sid="{{ d.student.id }}" data-cid="{{ e.course.id }}" data-student="{{ d.student.name }}" data-course="{{ e.course.name }}" onclick="lcFromButton(this)"><i class="bi bi-arrow-counterclockwise me-2" aria-hidden="true"></i>Re-enroll</button></li>
-                                                {% endif %}
-                                            </ul>
+                                        <div class="ms-auto">
+                                            {% if is_admin %}
+                                            <div class="dropdown">
+                                                <button class="btn btn-sm btn-outline-secondary py-0 px-1" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for {{ e.course.name }}"><i class="bi bi-three-dots-vertical" aria-hidden="true"></i></button>
+                                                <ul class="dropdown-menu dropdown-menu-end">
+                                                    {% if e.status == 'Enrolled' %}
+                                                    <li><button class="dropdown-item" type="button" data-lc-action="complete" data-sid="{{ d.student.id }}" data-cid="{{ e.course.id }}" data-student="{{ d.student.name }}" data-course="{{ e.course.name }}" onclick="lcFromButton(this)"><i class="bi bi-check2 me-2" aria-hidden="true"></i>Mark completed</button></li>
+                                                    <li><button class="dropdown-item text-danger" type="button" data-lc-action="drop" data-sid="{{ d.student.id }}" data-cid="{{ e.course.id }}" data-student="{{ d.student.name }}" data-course="{{ e.course.name }}" onclick="lcFromButton(this)"><i class="bi bi-x me-2" aria-hidden="true"></i>Drop</button></li>
+                                                    {% else %}
+                                                    <li><button class="dropdown-item" type="button" data-lc-action="reactivate" data-sid="{{ d.student.id }}" data-cid="{{ e.course.id }}" data-student="{{ d.student.name }}" data-course="{{ e.course.name }}" onclick="lcFromButton(this)"><i class="bi bi-arrow-counterclockwise me-2" aria-hidden="true"></i>Re-enroll</button></li>
+                                                    {% endif %}
+                                                </ul>
+                                            </div>
+                                            {% endif %}
                                         </div>
                                     </div>
                                     {% endfor %}
@@ -192,7 +254,7 @@
                             <td data-label="Last Activity" class="text-end small text-secondary">
                                 {% if d.metrics.last_attendance_date %}
                                 <span title="{{ d.metrics.last_attendance_date.strftime('%d %b %Y') }}">{{ rel_date(d.metrics.last_attendance_date, today) }}</span>
-                                {% else %}Never{% endif %}
+                                {% else %}<span class="lc-never">&mdash;</span>{% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -232,6 +294,19 @@
                     <textarea id="lcReason" class="form-control" rows="3" maxlength="200" oninput="document.getElementById('lcReasonCount').textContent = this.value.length + '/200'"></textarea>
                     <div class="small text-secondary mt-1" id="lcReasonCount">0/200</div>
                 </div>
+                <div id="lcNoteWrap" class="mt-3" style="display:none;">
+                    <label for="lcNote" class="form-label small">Reviewer note (optional)</label>
+                    <textarea id="lcNote" class="form-control" rows="3" maxlength="500" oninput="document.getElementById('lcNoteCount').textContent = this.value.length + '/500'"></textarea>
+                    <div class="small text-secondary mt-1" id="lcNoteCount">0/500</div>
+                </div>
+                <div id="lcStatusWrap" class="mt-3" style="display:none;">
+                    <label for="lcStatusSel" class="form-label small">New overall status</label>
+                    <select id="lcStatusSel" class="form-select">
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                        <option value="Archived">Archived</option>
+                    </select>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
@@ -255,6 +330,15 @@
 {% block scripts %}<script>
     window.currentFilter = {{ filter_key|tojson }};
     var LC_DETAIL_BASE = {{ url_for('student_lifecycle.detail', sid=999999)|tojson }};
+    var LC_ACK_BASE = {{ url_for('student_lifecycle.acknowledge', sid=999999)|tojson }};
+    var LC_STATUS_BASE = {{ url_for('student_lifecycle.set_status', sid=999999)|tojson }};
+    // B7: keep the bulk selection across live-search swaps. DOM checkboxes
+    // remain the source of truth; lcSelected just lets us re-apply them after
+    // the tbody is replaced (a fresh innerHTML otherwise silently unchecks
+    // everything the admin had picked).
+    var lcSelected = new Set();
+    var lcCurSid = null;
+    var lcCurName = '';
 
     var lcFetchSeq = 0;
     function lcFormUrl() {
@@ -263,8 +347,10 @@
         return form.action + '?' + new URLSearchParams(new FormData(form)).toString();
     }
     // Fetch the filtered list and swap tbody + counts in place. Falls back
-    // to a classic submit when anything is unexpected (fetch failure,
-    // missing hooks, or a result set that needs a client pager built).
+    // to a classic submit when anything is unexpected (fetch failure or
+    // missing hooks). Pagination: if the result now needs a client pager and
+    // none exists yet, initializeTablePagination() (base app.js) builds one
+    // on the spot; if one exists, re-point it at the fresh rows.
     function lcFetchList() {
         var url = lcFormUrl();
         if (!url) return;
@@ -280,20 +366,20 @@
                 if (!freshBody || !curBody) throw new Error('no table');
                 var t = card.querySelector('table');
                 var pageSize = (t && parseInt(t.dataset.pageSize, 10)) || 10;
-                if (freshBody.querySelectorAll('tr').length > pageSize && !(t && t._pagination)) {
-                    throw new Error('needs pager');
-                }
                 curBody.innerHTML = freshBody.innerHTML;
                 var freshCount = doc.getElementById('lcCountLine');
                 var curCount = document.getElementById('lcCountLine');
                 if (freshCount && curCount) curCount.innerHTML = freshCount.innerHTML;
-                clearBulk();
-                if (t && t._pagination && typeof renderTablePage === 'function') {
-                    t._pagination.rows = Array.from(curBody.querySelectorAll('tr'));
+                var rows = Array.from(curBody.querySelectorAll('tr'));
+                if (t && t._pagination) {
+                    t._pagination.rows = rows;
                     t._pagination.currentPage = 1;
                     t._pagination.searchQuery = '';
-                    renderTablePage(t);
+                    if (typeof renderTablePage === 'function') renderTablePage(t);
+                } else if (rows.length > pageSize && typeof initializeTablePagination === 'function') {
+                    initializeTablePagination();
                 }
+                lcReapplySelection();
                 if (window.history && window.history.replaceState) window.history.replaceState(null, '', url);
             })
             .catch(function () {
@@ -363,15 +449,21 @@
 
     function updateBulk() {
         var checks = document.querySelectorAll('.lc-check');
-        var checked = document.querySelectorAll('.lc-check:checked');
+        var checked = 0;
+        // Mirror the DOM into the persistent set (and out again when a user
+        // unchecks) so live-search swaps can restore the selection.
+        checks.forEach(function (c) {
+            if (c.checked) { lcSelected.add(c.value); checked++; }
+            else { lcSelected.delete(c.value); }
+        });
         var bar = document.getElementById('bulkBar');
         var count = document.getElementById('bulkCount');
-        if (count) count.textContent = checked.length;
-        if (bar) bar.classList.toggle('show', checked.length > 0);
+        if (count) count.textContent = checked;
+        if (bar) bar.classList.toggle('show', checked > 0);
         var all = document.getElementById('checkAll');
         if (all) {
-            all.checked = checks.length > 0 && checked.length === checks.length;
-            all.indeterminate = checked.length > 0 && checked.length < checks.length;
+            all.checked = checks.length > 0 && checked === checks.length;
+            all.indeterminate = checked > 0 && checked < checks.length;
         }
     }
     function toggleAll(el) {
@@ -379,9 +471,20 @@
         updateBulk();
     }
     function clearBulk() {
+        lcSelected.clear();
         document.querySelectorAll('.lc-check').forEach(function (c) { c.checked = false; });
         var all = document.getElementById('checkAll');
         if (all) { all.checked = false; all.indeterminate = false; }
+        updateBulk();
+    }
+    function lcReapplySelection() {
+        var present = new Set();
+        document.querySelectorAll('.lc-check').forEach(function (c) {
+            var keep = lcSelected.has(c.value);
+            c.checked = keep;
+            if (keep) present.add(c.value);
+        });
+        lcSelected = present;
         updateBulk();
     }
 
@@ -423,6 +526,8 @@
     }
     function lcRenderDetail(d) {
         var s = d.student || {};
+        lcCurSid = s.id;
+        lcCurName = s.name || '';
         document.getElementById('lcDrawerTitle').textContent = s.name || 'Student detail';
         var bucketCls = LC_BUCKET_CLASS[s.bucket] || 'badge-inactive';
         var html = '<div class="d-flex align-items-center gap-2 mb-3">'
@@ -434,6 +539,22 @@
             + '<dt class="col-4">Roll no</dt><dd class="col-8">' + (lcEsc(s.roll_no) || '&mdash;') + '</dd>'
             + '<dt class="col-4">Enrolled</dt><dd class="col-8">' + (lcFmtDate(s.enrollment_date) || '&mdash;') + '</dd>'
             + '</dl>';
+
+        // Quick contact actions — staff triage the same students, so these
+        // are visible to every user who can open the drawer.
+        var phoneDigits = String(s.phone || '').replace(/[^\d+]/g, '');
+        if (phoneDigits || s.email) {
+            html += '<div class="d-flex flex-wrap gap-2 mb-3">';
+            if (phoneDigits) {
+                html += '<a class="btn btn-sm btn-outline-premium" href="tel:' + lcEsc(phoneDigits) + '" aria-label="Call ' + lcEsc(s.name) + '"><i class="bi bi-telephone me-1" aria-hidden="true"></i>Call</a>';
+                var wa = phoneDigits.replace(/^\+/, '');
+                html += '<a class="btn btn-sm btn-outline-premium" href="https://wa.me/' + lcEsc(wa) + '" target="_blank" rel="noopener" aria-label="WhatsApp ' + lcEsc(s.name) + '"><i class="bi bi-whatsapp me-1" aria-hidden="true"></i>WhatsApp</a>';
+            }
+            if (s.email) {
+                html += '<a class="btn btn-sm btn-outline-premium" href="mailto:' + lcEsc(s.email) + '" aria-label="Email ' + lcEsc(s.name) + '"><i class="bi bi-envelope me-1" aria-hidden="true"></i>Email</a>';
+            }
+            html += '</div>';
+        }
 
         var a = d.attendance || {};
         var m = a.metrics || {};
@@ -484,6 +605,56 @@
         } else {
             html += '<p class="small lc-drawer-empty">No course enrollment.</p>';
         }
+
+        // E8: where the student came from (lead origin).
+        var eq = d.enquiry || null;
+        if (eq) {
+            html += '<h6>Lead origin</h6><p class="small mb-1"><span class="badge badge-custom ' + (eq.source ? 'badge-amber' : 'badge-inactive') + '">' + lcEsc(eq.source || 'Unknown source') + '</span>';
+            if (eq.status) html += ' <span class="text-secondary">' + lcEsc(eq.status) + '</span>';
+            html += '</p>';
+            if (eq.follow_up_date) html += '<p class="small text-secondary mb-1">Follow-up ' + lcFmtDate(eq.follow_up_date) + '</p>';
+            if (eq.notes) html += '<p class="small text-secondary mb-1">' + lcEsc(eq.notes) + '</p>';
+        }
+
+        // E3: reviewed/acknowledge workflow.
+        var ac = d.ack || null;
+        html += '<h6>Reviewed</h6>';
+        if (ac && ac.reviewed) {
+            html += '<p class="small mb-1"><span class="badge badge-custom badge-cyan" title="Reviewed by ' + lcEsc(ac.acknowledged_by || '?') + '"><i class="bi bi-check2-circle me-1" aria-hidden="true"></i>Reviewed</span>';
+            if (ac.acknowledged_by) html += ' <span class="text-secondary">by ' + lcEsc(ac.acknowledged_by) + '</span>';
+            html += '</p>';
+            if (ac.note) html += '<p class="small text-secondary mb-1">' + lcEsc(ac.note) + '</p>';
+            if (d.is_admin) html += '<button type="button" class="btn btn-sm btn-outline-premium" onclick="lcAckPrompt()"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Re-review</button>';
+        } else if (d.is_admin) {
+            html += '<button type="button" class="btn btn-sm btn-outline-premium" onclick="lcAckPrompt()"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Mark reviewed</button>';
+        } else {
+            html += '<p class="small lc-drawer-empty">Not yet reviewed.</p>';
+        }
+
+        // E4: single-row status change (admin only).
+        if (d.is_admin) {
+            html += '<h6 class="mt-3">Overall status</h6>'
+                + '<p class="small text-secondary mb-2">Current: ' + lcEsc(s.status || 'Active') + '</p>'
+                + '<button type="button" class="btn btn-sm btn-outline-premium" onclick="lcStatusPrompt()"><i class="bi bi-arrow-left-right me-1" aria-hidden="true"></i>Change status</button>';
+        }
+
+        // E7: recent audit trail.
+        var act = d.activity || [];
+        html += '<h6 class="mt-3">Recent activity</h6>';
+        if (act.length) {
+            act.forEach(function (e) {
+                var when = e.timestamp ? lcFmtDate(e.timestamp) : '';
+                var ch = e.changes || '';
+                if (ch.length > 90) ch = ch.slice(0, 90) + '&hellip;';
+                html += '<div class="small py-1 lc-activity-line"><span class="text-info">' + lcEsc(e.action) + '</span>'
+                    + (e.username ? ' &middot; ' + lcEsc(e.username) : '')
+                    + (ch ? '<div class="text-secondary">' + lcEsc(ch) + '</div>' : '')
+                    + (when ? '<div class="text-secondary">' + when + '</div>' : '')
+                    + '</div>';
+            });
+        } else {
+            html += '<p class="small lc-drawer-empty">No activity logged.</p>';
+        }
         return html;
     }
 
@@ -494,12 +665,35 @@
         document.getElementById('lcConfirmTitle').textContent = opts.title;
         document.getElementById('lcConfirmBody').textContent = opts.body;
         document.getElementById('lcReasonWrap').style.display = opts.needReason ? '' : 'none';
+        document.getElementById('lcNoteWrap').style.display = opts.mode === 'ack' ? '' : 'none';
+        document.getElementById('lcStatusWrap').style.display = opts.mode === 'status' ? '' : 'none';
         document.getElementById('lcReason').value = '';
         document.getElementById('lcReasonCount').textContent = '0/200';
+        document.getElementById('lcNote').value = '';
+        document.getElementById('lcNoteCount').textContent = '0/500';
         var btn = document.getElementById('lcConfirmBtn');
-        btn.className = 'btn ' + (opts.action === 'drop' ? 'btn-danger' : opts.action === 'complete' ? 'btn-success' : 'btn-warning');
-        btn.textContent = opts.action === 'drop' ? 'Drop' : opts.action === 'complete' ? 'Mark completed' : 'Re-enroll';
+        if (opts.mode === 'status') {
+            btn.className = 'btn btn-warning';
+            btn.textContent = 'Change status';
+            var sel = document.getElementById('lcStatusSel');
+            var cur = opts.current || 'Active';
+            if (sel && ['Active', 'Inactive', 'Archived'].indexOf(cur) !== -1) sel.value = cur;
+        } else if (opts.mode === 'ack') {
+            btn.className = 'btn btn-success';
+            btn.textContent = 'Mark reviewed';
+        } else {
+            btn.className = 'btn ' + (opts.action === 'drop' ? 'btn-danger' : opts.action === 'complete' ? 'btn-success' : 'btn-warning');
+            btn.textContent = opts.action === 'drop' ? 'Drop' : opts.action === 'complete' ? 'Mark completed' : 'Re-enroll';
+        }
         if (window.bootstrap) bootstrap.Modal.getOrCreateInstance(document.getElementById('lcConfirmModal')).show();
+    }
+    function lcAckPrompt() {
+        lcPrompt({ mode: 'ack', sid: lcCurSid, title: 'Mark reviewed',
+            body: 'Mark ' + lcCurName + ' as reviewed? Notes are kept for the next reviewer.' });
+    }
+    function lcStatusPrompt() {
+        lcPrompt({ mode: 'status', sid: lcCurSid, title: 'Change status',
+            body: 'Change the overall status of ' + lcCurName + '?' });
     }
     function lcFromButton(btn) {
         var a = btn.dataset.lcAction;
@@ -533,15 +727,42 @@
             return;
         }
         if (window.bootstrap) bootstrap.Modal.getOrCreateInstance(document.getElementById('lcConfirmModal')).hide();
-        if (lcCtx.mode === 'bulk') {
-            document.getElementById('bulkAction').value = lcCtx.action;
+        var useCtx = lcCtx;
+        lcCtx = null;
+        if (useCtx.mode === 'bulk') {
+            document.getElementById('bulkAction').value = useCtx.action;
             document.getElementById('bulkReason').value = reason;
             document.getElementById('bulkForm').submit();
             return;
         }
+        if (useCtx.mode === 'ack' || useCtx.mode === 'status') {
+            var aForm = document.createElement('form');
+            aForm.method = 'POST';
+            aForm.setAttribute('hx-boost', 'false');
+            aForm.action = useCtx.mode === 'status'
+                ? LC_STATUS_BASE.replace(/\/999999\/status$/, '/' + useCtx.sid + '/status')
+                : LC_ACK_BASE.replace(/\/999999\/acknowledge$/, '/' + useCtx.sid + '/acknowledge');
+            var fFilter = document.createElement('input');
+            fFilter.type = 'hidden'; fFilter.name = 'filter'; fFilter.value = window.currentFilter || 'all';
+            aForm.appendChild(fFilter);
+            if (useCtx.mode === 'ack') {
+                var aNote = document.createElement('input');
+                aNote.type = 'hidden'; aNote.name = 'note';
+                aNote.value = document.getElementById('lcNote').value.trim().slice(0, 500);
+                aForm.appendChild(aNote);
+            } else {
+                var aSt = document.createElement('input');
+                aSt.type = 'hidden'; aSt.name = 'status';
+                aSt.value = document.getElementById('lcStatusSel').value;
+                aForm.appendChild(aSt);
+            }
+            document.body.appendChild(aForm);
+            aForm.submit();
+            return;
+        }
         var form = document.createElement('form');
         form.method = 'POST';
-        form.action = '/students/enrollment/' + lcCtx.action + '/' + lcCtx.sid + '/' + lcCtx.cid;
+        form.action = '/students/enrollment/' + useCtx.action + '/' + useCtx.sid + '/' + useCtx.cid;
         form.setAttribute('hx-boost', 'false');
         var f = document.createElement('input');
         f.type = 'hidden'; f.name = 'filter'; f.value = window.currentFilter || 'all';

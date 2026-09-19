@@ -11,7 +11,11 @@ class Attendance(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     person_type = db.Column(db.String(10), nullable=False)
     person_id = db.Column(db.Integer, nullable=False)
-    date = db.Column(db.Date, default=datetime.utcnow().date, nullable=False)
+    # Local calendar date, matching how the whole app computes "today"
+    # (lifecycle windows, streak math). UTC defaulting made marks recorded
+    # just after midnight local land on the previous day, silently skewing
+    # everything that counts sessions within a window.
+    date = db.Column(db.Date, default=datetime.now().date, nullable=False)
     status = db.Column(db.String(20), default='Present')
     marked_by = db.Column(db.String(10), default='manual')
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
