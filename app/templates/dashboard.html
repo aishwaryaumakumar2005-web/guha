@@ -156,8 +156,110 @@
             </div>
         </div>
 
-        <!-- Birthdays & Anniversaries -->
-        <div class="bento-card bento-xl-4 bento-md-12 animate-on-scroll stagger-2">
+        <!-- Top Courses -->
+        <div class="bento-card bento-xl-4 bento-md-12 animate-on-scroll stagger-1">
+            <div class="glass-card p-4 h-100">
+                <h5 class="mb-4 fw-bold"><i class="bi bi-trophy me-2" style="color:hsl(200,100%,50%);" aria-hidden="true"></i>Top Courses</h5>
+                <div class="d-flex flex-column gap-2">
+                    {% if top_courses %}
+                        {% for course in top_courses %}
+                            <div class="d-flex align-items-center gap-3 p-2 rounded" style="background:rgba(255,255,255,0.03);">
+                                <div class="rounded d-flex align-items-center justify-content-center" style="width:36px;height:36px;background:rgba(27, 110, 243,0.1);color:hsl(200,100%,50%);flex-shrink:0;"><i class="bi bi-journal-code" aria-hidden="true"></i></div>
+                                <div class="flex-grow-1 min-width-0">
+                                    <div class="fw-semibold small text-white text-truncate">{{ course.name }}</div>
+                                    <div class="text-white small" style="opacity:0.5;font-size:0.75rem;">{{ course.enrolled }} enrolled</div>
+                                </div>
+                                <div class="small fw-bold" style="color:hsl(200,100%,50%);">{{ (course.enrolled / stats.active_students * 100)|round|int if stats.active_students else '—' }}%</div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-4"><p class="text-white small mb-0" style="opacity:0.5;">No enrollments yet</p></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Today's Activities -->
+        <div class="bento-card bento-xl-5 bento-md-12 animate-on-scroll">
+            <div class="glass-card p-3">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <i class="bi bi-list-check fs-4" style="color:hsl(40,100%,55%);" aria-hidden="true"></i>
+                    <h5 class="mb-0 fw-bold" style="color:hsl(40,100%,55%);">Today's Tasks</h5>
+                    <span class="badge badge-custom ms-1" id="tasks-count-badge" style="background:rgba(255,193,7,0.2);color:#ffc107;border:1px solid rgba(255,193,7,0.3);font-size:0.6rem;">...</span>
+                </div>
+                <div id="todays-tasks-container">
+                    <div class="d-flex align-items-center text-secondary small">
+                        <span class="spinner-border spinner-border-sm me-2" style="color:hsl(40,100%,55%);" role="status"></span>
+                        Loading tasks...
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- AI Advisor Compact -->
+        <div class="bento-card bento-xl-7 bento-md-12 animate-on-scroll">
+            <div class="glass-card p-3">
+                <button type="button" id="aiAdvisorToggle" aria-expanded="false" aria-controls="aiContent" onclick="toggleAiAdvisor()" class="d-flex align-items-center justify-content-between w-100 bg-transparent border-0 p-0 text-start" style="cursor:pointer;">
+                    <span class="d-flex align-items-center gap-2">
+                        <i class="bi bi-cpu-fill fs-5" style="color:hsl(200,100%,50%);" aria-hidden="true"></i>
+                        <span class="mb-0 fw-bold h5" style="color:hsl(200,100%,50%);">AI Institute Advisor</span>
+                        <span class="badge badge-custom badge-active ms-2" style="font-size:0.6rem;">LIVE</span>
+                    </span>
+                    <i class="bi bi-chevron-down collapse-icon fs-6" style="color:rgba(255,255,255,0.5);" aria-hidden="true"></i>
+                </button>
+                <div class="mt-3 d-none" id="aiContent">
+                    <div id="ai-insights-summary">
+                        <div class="d-flex align-items-center text-secondary small">
+                            <span class="spinner-border spinner-border-sm me-2" style="color:hsl(200,100%,50%);" role="status"></span>
+                            Loading insights...
+                        </div>
+                    </div>
+                    <div class="row mt-3" id="ai-insights-container"></div>
+                    <div class="mt-4 pt-3 border-top border-color">
+                        <div class="d-flex align-items-center gap-2 mb-3">
+                            <i class="bi bi-graph-up-arrow" style="color:hsl(150,100%,40%);"></i>
+                            <h6 class="mb-0 fw-bold" style="color:hsl(150,100%,40%);">Predictive Analytics</h6>
+                        </div>
+                        <div id="predictive-analytics-container">
+                            <div class="d-flex align-items-center text-secondary small">
+                                <span class="spinner-border spinner-border-sm me-2" style="color:hsl(150,100%,40%);" role="status"></span>
+                                Loading...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Recent Payments + Birthdays &amp; Anniversaries -->
+        <div class="bento-card bento-xl-7 bento-md-12 animate-on-scroll">
+            <div class="glass-card p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-journal-text me-2" style="color:hsl(200,100%,50%);"></i>Recent Payments</h5>
+                    <a href="{{ url_for('fees.list') }}" class="btn btn-sm" style="background:transparent;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);border-radius:8px;padding:4px 14px;font-size:0.8rem;">View All</a>
+                </div>
+                <div class="table-container">
+                    <table class="table table-custom sortable" data-page-size="10">
+                        <thead><tr><th scope="col" aria-sort="none">Student</th><th scope="col" aria-sort="none">Amount</th><th scope="col" aria-sort="none">Date</th><th scope="col" class="no-sort">Method</th></tr></thead>
+                        <tbody>
+                            {% if recent_fees %}
+                                {% for fee in recent_fees %}
+                                    <tr>
+                                        <td data-label="Student" class="fw-medium text-white small">{{ fee.student.name }}</td>
+                                        <td data-label="Amount" class="fw-semibold small" style="color:hsl(200,100%,50%);">₹{{ "{:,.2f}".format(fee.amount_paid) }}</td>
+                                        <td data-label="Date" class="text-white small" style="opacity:0.7;">{{ fee.payment_date.strftime("%d %b %Y") }}</td>
+                                        <td data-label="Method"><span class="badge badge-custom badge-cyan" style="font-size:0.6rem;">{{ fee.payment_method }}</span></td>
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>{{ empty_state('No recent payments', 'Fee payments will appear here once a collection is recorded', 'fees', none, none, none, 4) }}</tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="bento-card bento-xl-5 bento-md-12 animate-on-scroll stagger-2">
             <div class="glass-card p-4 h-100">
                 <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
                     <h5 class="mb-0 fw-bold"><i class="bi bi-gift-fill me-2" style="color:hsl(290,100%,65%);" aria-hidden="true"></i>Birthdays &amp; Anniversaries</h5>
@@ -205,111 +307,9 @@
             </div>
         </div>
 
-        <!-- Today's Activities -->
-        <div class="bento-card bento-xl-12 animate-on-scroll">
-            <div class="glass-card p-3">
-                <div class="d-flex align-items-center gap-2 mb-3">
-                    <i class="bi bi-list-check fs-4" style="color:hsl(40,100%,55%);" aria-hidden="true"></i>
-                    <h5 class="mb-0 fw-bold" style="color:hsl(40,100%,55%);">Today's Tasks</h5>
-                    <span class="badge badge-custom ms-1" id="tasks-count-badge" style="background:rgba(255,193,7,0.2);color:#ffc107;border:1px solid rgba(255,193,7,0.3);font-size:0.6rem;">...</span>
-                </div>
-                <div id="todays-tasks-container">
-                    <div class="d-flex align-items-center text-secondary small">
-                        <span class="spinner-border spinner-border-sm me-2" style="color:hsl(40,100%,55%);" role="status"></span>
-                        Loading tasks...
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- AI Advisor Compact -->
-        <div class="bento-card bento-xl-12 animate-on-scroll">
-            <div class="glass-card p-3">
-                <button type="button" id="aiAdvisorToggle" aria-expanded="false" aria-controls="aiContent" onclick="toggleAiAdvisor()" class="d-flex align-items-center justify-content-between w-100 bg-transparent border-0 p-0 text-start" style="cursor:pointer;">
-                    <span class="d-flex align-items-center gap-2">
-                        <i class="bi bi-cpu-fill fs-5" style="color:hsl(200,100%,50%);" aria-hidden="true"></i>
-                        <span class="mb-0 fw-bold h5" style="color:hsl(200,100%,50%);">AI Institute Advisor</span>
-                        <span class="badge badge-custom badge-active ms-2" style="font-size:0.6rem;">LIVE</span>
-                    </span>
-                    <i class="bi bi-chevron-down collapse-icon fs-6" style="color:rgba(255,255,255,0.5);" aria-hidden="true"></i>
-                </button>
-                <div class="mt-3 d-none" id="aiContent">
-                    <div id="ai-insights-summary">
-                        <div class="d-flex align-items-center text-secondary small">
-                            <span class="spinner-border spinner-border-sm me-2" style="color:hsl(200,100%,50%);" role="status"></span>
-                            Loading insights...
-                        </div>
-                    </div>
-                    <div class="row mt-3" id="ai-insights-container"></div>
-                    <div class="mt-4 pt-3 border-top border-color">
-                        <div class="d-flex align-items-center gap-2 mb-3">
-                            <i class="bi bi-graph-up-arrow" style="color:hsl(150,100%,40%);"></i>
-                            <h6 class="mb-0 fw-bold" style="color:hsl(150,100%,40%);">Predictive Analytics</h6>
-                        </div>
-                        <div id="predictive-analytics-container">
-                            <div class="d-flex align-items-center text-secondary small">
-                                <span class="spinner-border spinner-border-sm me-2" style="color:hsl(150,100%,40%);" role="status"></span>
-                                Loading...
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-
-        <!-- Recent Payments + Top Courses -->
-        <div class="bento-card bento-xl-7 bento-md-12 animate-on-scroll">
-            <div class="glass-card p-4 h-100">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h5 class="mb-0 fw-bold"><i class="bi bi-journal-text me-2" style="color:hsl(200,100%,50%);"></i>Recent Payments</h5>
-                    <a href="{{ url_for('fees.list') }}" class="btn btn-sm" style="background:transparent;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);border-radius:8px;padding:4px 14px;font-size:0.8rem;">View All</a>
-                </div>
-                <div class="table-container">
-                    <table class="table table-custom sortable" data-page-size="10">
-                        <thead><tr><th scope="col" aria-sort="none">Student</th><th scope="col" aria-sort="none">Amount</th><th scope="col" aria-sort="none">Date</th><th scope="col" class="no-sort">Method</th></tr></thead>
-                        <tbody>
-                            {% if recent_fees %}
-                                {% for fee in recent_fees %}
-                                    <tr>
-                                        <td data-label="Student" class="fw-medium text-white small">{{ fee.student.name }}</td>
-                                        <td data-label="Amount" class="fw-semibold small" style="color:hsl(200,100%,50%);">₹{{ "{:,.2f}".format(fee.amount_paid) }}</td>
-                                        <td data-label="Date" class="text-white small" style="opacity:0.7;">{{ fee.payment_date.strftime("%d %b %Y") }}</td>
-                                        <td data-label="Method"><span class="badge badge-custom badge-cyan" style="font-size:0.6rem;">{{ fee.payment_method }}</span></td>
-                                    </tr>
-                                {% endfor %}
-                            {% else %}
-                                <tr>{{ empty_state('No recent payments', 'Fee payments will appear here once a collection is recorded', 'fees', none, none, none, 4) }}</tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-        <div class="bento-card bento-xl-5 bento-md-12 animate-on-scroll stagger-1">
-            <div class="glass-card p-4 h-100">
-                <h5 class="mb-4 fw-bold"><i class="bi bi-trophy me-2" style="color:hsl(200,100%,50%);" aria-hidden="true"></i>Top Courses</h5>
-                <div class="d-flex flex-column gap-2">
-                    {% if top_courses %}
-                        {% for course in top_courses %}
-                            <div class="d-flex align-items-center gap-3 p-2 rounded" style="background:rgba(255,255,255,0.03);">
-                                <div class="rounded d-flex align-items-center justify-content-center" style="width:36px;height:36px;background:rgba(27, 110, 243,0.1);color:hsl(200,100%,50%);flex-shrink:0;"><i class="bi bi-journal-code" aria-hidden="true"></i></div>
-                                <div class="flex-grow-1 min-width-0">
-                                    <div class="fw-semibold small text-white text-truncate">{{ course.name }}</div>
-                                    <div class="text-white small" style="opacity:0.5;font-size:0.75rem;">{{ course.enrolled }} enrolled</div>
-                                </div>
-                                <div class="small fw-bold" style="color:hsl(200,100%,50%);">{{ (course.enrolled / stats.active_students * 100)|round|int if stats.active_students else '—' }}%</div>
-                            </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="text-center py-4"><p class="text-white small mb-0" style="opacity:0.5;">No enrollments yet</p></div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-
         {% else %}
         <!-- Staff View -->
-        <div class="bento-card bento-xl-4 bento-md-12 animate-on-scroll">
+        <div class="bento-card bento-xl-6 bento-md-12 animate-on-scroll">
             <div class="glass-card p-4 h-100">
                 <h5 class="mb-4 fw-bold"><i class="bi bi-lightning-fill me-2" style="color:hsl(200,100%,50%);" aria-hidden="true"></i>Quick Actions</h5>
                 <div class="d-grid gap-3">
@@ -324,7 +324,7 @@
                 </div>
             </div>
         </div>
-        <div class="bento-card bento-xl-4 bento-md-12 animate-on-scroll stagger-1">
+        <div class="bento-card bento-xl-6 bento-md-12 animate-on-scroll stagger-1">
             <div class="glass-card p-4 h-100">
                 <h5 class="mb-4 fw-bold"><i class="bi bi-shield-check me-2" style="color:hsl(200,100%,50%);" aria-hidden="true"></i>Your Access</h5>
                 <ul class="list-unstyled mb-0 small" style="line-height:2;">
