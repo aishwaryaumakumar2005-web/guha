@@ -82,7 +82,7 @@ Action</th>
                             <td class="small text-secondary">
 {{ f.creator.name if f.creator else 'System' }}</td>
                             <td class="text-end">
-                                <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Reverse and delete this capital contribution record? This action cannot be undone.', function() { var f = document.createElement('form'); f.method = 'POST'; f.action = '{{ url_for('funding.delete', id=f.id) }}'; document.body.appendChild(f); f.submit(); })">
+                                <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Reverse and delete this capital contribution record? This action cannot be undone.', function() { var f = document.createElement('form'); f.method = 'POST'; f.action = '{{ url_for('funding.delete', id=f.id) }}'; var h = document.createElement('input'); h.type = 'hidden'; h.name = 'confirm'; h.value = '1'; f.appendChild(h); document.body.appendChild(f); f.submit(); })">
                                     <i class="bi bi-x-square-fill">
 </i>
                                 </button>
@@ -113,25 +113,27 @@ Record Capital Investment</h5>
                     <div class="mb-3">
                         <label class="form-label text-white small">
   Amount Invested (₹)</label>
-                        <input type="number" step="0.01" class="form-control" name="amount" placeholder="e.g. 50000" min="0.01" max="9999999" required autofocus>
+                        <input type="number" step="0.01" class="form-control{{ ' is-invalid' if 'amount' in error_fields else '' }}" name="amount" value="{{ form_data.amount if form_data else '' }}" placeholder="e.g. 50000" min="1" max="9999999" required autofocus>
+                        {% if 'amount' in error_fields %}<div class="invalid-feedback d-block">{{ error_fields['amount'][0] }}</div>{% endif %}
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">
   Investment Date</label>
-                        <input type="date" class="form-control" name="funding_date" value="{{ today.strftime('%Y-%m-%d') }}" max="{{ today.strftime('%Y-%m-%d') }}" required>
+                        <input type="date" class="form-control{{ ' is-invalid' if 'funding_date' in error_fields else '' }}" name="funding_date" value="{{ form_data.funding_date if form_data and form_data.funding_date else today.strftime('%Y-%m-%d') }}" max="{{ today.strftime('%Y-%m-%d') }}" required>
+                        {% if 'funding_date' in error_fields %}<div class="invalid-feedback d-block">{{ error_fields['funding_date'][0] }}</div>{% endif %}
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">
   Mode of Investment</label>
-                        {{ payment_method_options(selected='Cash', name='method', id='funding-method', methods=payment_methods, labels=method_labels, default=default_payment_method, groups=method_groups, extra_attrs='data-method-indicator="funding-method-type"') }}
+                        {{ payment_method_options(selected=(form_data.method if form_data and form_data.method else 'Cash'), name='method', id='funding-method', methods=payment_methods, labels=method_labels, default=default_payment_method, groups=method_groups, extra_attrs='data-method-indicator="funding-method-type"') }}
                         <span id="funding-method-type" class="d-inline-flex align-items-center gap-1 mt-1" style="color:rgba(255,255,255,0.55);font-size:0.72rem;"></span>
                         {% if account_balances %}<div class="form-text mt-1" id="funding-balance-hint" style="color:var(--accent-cyan);opacity:0.85;"></div>{% endif %}
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small">
   Purpose / Notes</label>
-                        <textarea class="form-control" name="purpose" rows="2" placeholder="e.g. Owner capital for rent + staff salary">
-</textarea>
+                        <textarea class="form-control{{ ' is-invalid' if 'purpose' in error_fields else '' }}" name="purpose" rows="2" placeholder="e.g. Owner capital for rent + staff salary">{{ form_data.purpose if form_data else '' }}</textarea>
+                        {% if 'purpose' in error_fields %}<div class="invalid-feedback d-block">{{ error_fields['purpose'][0] }}</div>{% endif %}
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -148,6 +150,10 @@ Record Capital Investment</h5>
 {% block scripts %}
 <script>
 (function () {
+    {% if autopen %}
+    var _fModal = document.getElementById('addFundingModal');
+    if (_fModal && window.bootstrap && bootstrap.Modal) { new bootstrap.Modal(_fModal).show(); }
+    {% endif %}
     var balances = {{ account_balances|tojson }};
     var map = {};
     balances.forEach(function (a) { map[a.name] = a.balance; });

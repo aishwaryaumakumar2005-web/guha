@@ -326,7 +326,11 @@ class OwnerFundingForm(Form):
     float = ['amount']
     date = ['funding_date']
     choices = {'method': list(PAYMENT_METHODS)}
+    # B1: same bounds as the modal (min ₹1, max ₹99,99,999) — the HTML
+    # min/max must stay in sync with these or a value that passes the
+    # browser is rejected server-side with a confusing message.
     min_values = {'amount': 1}
+    max_values = {'amount': 9999999}
 
     def validate(self):
         super().validate()

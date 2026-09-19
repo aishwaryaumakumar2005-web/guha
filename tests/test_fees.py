@@ -234,7 +234,7 @@ def test_funding_delete_post_only_and_audited(admin_client, app):
         assert AuditLog.query.filter_by(
             entity_type='OwnerFunding', action='INSERT', entity_id=fid).first() is not None
     assert admin_client.get(f'/funding/delete/{fid}').status_code == 405
-    assert admin_client.post(f'/funding/delete/{fid}').status_code == 302
+    assert admin_client.post(f'/funding/delete/{fid}', data={'confirm': '1'}).status_code == 302
     with app.app_context():
         assert OwnerFunding.query.get(fid) is None
         assert AuditLog.query.filter_by(
