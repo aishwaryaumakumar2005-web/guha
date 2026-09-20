@@ -2,6 +2,7 @@ import os
 import json
 import uuid
 import sqlite3
+import re
 from datetime import datetime, date, timezone, timedelta
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
@@ -220,13 +221,33 @@ def admin_console():
                     gst_rates[key] = str(rate)
                 except (TypeError, ValueError):
                     flash(f"{label} must be a number between 0 and 100.", "danger")
-                    return redirect(url_for('admin.admin_console'))
+                    return redirect(url_for('admin.admin_console', _anchor='org'))
+            gstin = request.form.get('ORG_GSTIN', '').strip().upper()
+            if gstin and not re.fullmatch(r'\d{2}[A-Z0-9]{13}', gstin):
+                flash("GSTIN must be 15 characters and start with a 2-digit state code.", "danger")
+                return redirect(url_for('admin.admin_console', _anchor='org'))
+            hsn = request.form.get('ORG_HSN', '').strip()
+            if hsn and not re.fullmatch(r'\d{4,8}', hsn):
+                flash("HSN/SAC must contain 4 to 8 digits.", "danger")
+                return redirect(url_for('admin.admin_console', _anchor='org'))
+            state_code = request.form.get('ORG_STATE_CODE', '').strip()
+            if state_code and not re.fullmatch(r'\d{1,2}', state_code):
+                flash("State code must contain 1 or 2 digits.", "danger")
+                return redirect(url_for('admin.admin_console', _anchor='org'))
+            prefix = request.form.get('INVOICE_PREFIX', '').strip().upper()
+            if prefix and not re.fullmatch(r'[A-Z0-9][A-Z0-9_-]{0,11}', prefix):
+                flash("Invoice prefix must be 1-12 characters using letters, numbers, _ or -.", "danger")
+                return redirect(url_for('admin.admin_console', _anchor='org'))
             org_keys = ['ORG_NAME', 'ORG_ADDRESS', 'ORG_GSTIN', 'ORG_HSN', 'ORG_STATE', 'ORG_STATE_CODE', 'CGST_PCT', 'SGST_PCT', 'INVOICE_PREFIX']
             for key in org_keys:
                 if key in gst_rates:
                     val = gst_rates[key]
                 else:
                     val = request.form.get(key, '').strip()
+                    if key == 'ORG_GSTIN':
+                        val = gstin
+                    elif key == 'INVOICE_PREFIX':
+                        val = prefix
                 setting = SystemSetting.query.filter_by(key=key).first()
                 if setting:
                     setting.value = val
@@ -234,7 +255,7 @@ def admin_console():
                     db.session.add(SystemSetting(key=key, value=val))
             db.session.commit()
             flash("Organization & GST settings saved!", "success")
-            return redirect(url_for('admin.admin_console'))
+            return redirect(url_for('admin.admin_console', _anchor='org'))
         elif action == 'save_lifecycle':
             errors = []
             try:
