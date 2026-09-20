@@ -592,6 +592,22 @@ def migrate_funding_batch2_columns():
                 print(f"Migration migrate_funding_batch2_columns: FAILED to add owner_funding.{column}: {e}", flush=True)
 
 
+def migrate_task_priority_and_category():
+    """Ensure priority and category columns exist on the task table."""
+    if not _table_exists('task'):
+        return
+    adds = [('priority', "VARCHAR(20) DEFAULT 'Medium'"), ('category', "VARCHAR(50) DEFAULT 'General'")]
+    for column, col_type in adds:
+        if not _has_column('task', column):
+            try:
+                db.session.execute(text('ALTER TABLE "task" ADD COLUMN "%s" %s' % (column, col_type)))
+                db.session.commit()
+                print(f"Migration migrate_task_priority_and_category: added task.{column}", flush=True)
+            except Exception as e:
+                db.session.rollback()
+                print(f"Migration migrate_task_priority_and_category: FAILED to add task.{column}: {e}", flush=True)
+
+
 def migrate_photos_to_db():
     """Copy any file-based photos (photo filename set, photo_data empty) into the DB.
 

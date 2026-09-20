@@ -588,6 +588,20 @@ def api_todays_activities():
                     'action_url': url_for('exams.exam_list'),
                 })
 
+            # Custom tasks assigned to staff (Item 14)
+            assigned_tasks = Task.query.filter_by(tutor_id=tutor.id).filter(Task.status.in_(['Pending', 'In Progress'])).order_by(Task.due_date.asc().nullslast()).all()
+            for at in assigned_tasks:
+                is_overdue = at.due_date and at.due_date < today
+                tasks.append({
+                    'title': at.title,
+                    'detail': (f'Due: {at.due_date.strftime("%d %b")} · ' if at.due_date else '') + (at.description or at.notes or 'Assigned task'),
+                    'priority': 'high' if (is_overdue or at.priority == 'High') else ('medium' if at.priority == 'Medium' else 'low'),
+                    'progress': 50 if at.status == 'In Progress' else 0,
+                    'icon': 'check2-square',
+                    'action_label': 'View task',
+                    'action_url': url_for('tasks.list_tasks'),
+                })
+
             return jsonify({'tasks': tasks, 'meta': data})
         else:
             return jsonify({'tasks': [], 'meta': {}})
@@ -651,9 +665,20 @@ def api_todays_activities():
                 matched = True
                 break
         if not matched:
-            # No button is better than a wrong one: the card renders the
-            # action link only when action_url is present, so an unmatched
-            # label (e.g. "View Report") no longer opens the pipeline.
             task.pop('action_url', None)
+
+    # Custom tasks assigned to staff (Item 14 for Admin)
+    admin_assigned_tasks = Task.query.filter(Task.status.in_(['Pending', 'In Progress'])).order_by(Task.due_date.asc().nullslast()).limit(3).all()
+    for at in admin_assigned_tasks:
+        is_overdue = at.due_date and at.due_date < today
+        tasks.append({
+            'title': f'{at.title} ({at.tutor.name if at.tutor else "Staff"})',
+            'detail': (f'Due: {at.due_date.strftime("%d %b")} · ' if at.due_date else '') + (at.description or at.notes or 'Assigned task'),
+            'priority': 'high' if (is_overdue or at.priority == 'High') else ('medium' if at.priority == 'Medium' else 'low'),
+            'progress': 50 if at.status == 'In Progress' else 0,
+            'icon': 'check2-square',
+            'action_label': 'Manage Tasks',
+            'action_url': url_for('tasks.list_tasks'),
+        })
 
     return jsonify({'tasks': tasks, 'meta': data})

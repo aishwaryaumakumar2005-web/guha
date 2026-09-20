@@ -11,6 +11,8 @@ class Task(db.Model):
     assigned_date = db.Column(db.DateTime, default=datetime.utcnow)
     due_date = db.Column(db.Date)
     status = db.Column(db.String(20), default='Pending')
+    priority = db.Column(db.String(20), default='Medium')
+    category = db.Column(db.String(50), default='General')
     completed_date = db.Column(db.DateTime)
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

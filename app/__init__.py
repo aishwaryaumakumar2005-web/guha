@@ -357,6 +357,13 @@ def create_app(config_object=None):
                 print("Migration migrate_funding_batch2_columns FAILED:", e, flush=True)
                 db.session.rollback()
             try:
+                from app.services.db_migration import migrate_task_priority_and_category
+                migrate_task_priority_and_category()
+                print("Migration migrate_task_priority_and_category completed OK", flush=True)
+            except Exception as e:
+                print("Migration migrate_task_priority_and_category FAILED:", e, flush=True)
+                db.session.rollback()
+            try:
                 db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_date ON expense(expense_date)'))
                 db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_expense_category ON expense(category_id)'))
                 db.session.execute(db.text('CREATE INDEX IF NOT EXISTS idx_fee_date ON fee_record(payment_date)'))
@@ -635,6 +642,11 @@ def create_app(config_object=None):
                 migrate_funding_batch2_columns()
             except Exception as e:
                 print('Failed to ensure owner_funding.reference / investment_type:', e, file=sys.stderr)
+            try:
+                from app.services.db_migration import migrate_task_priority_and_category
+                migrate_task_priority_and_category()
+            except Exception as e:
+                print('Failed to ensure task.priority / category:', e, file=sys.stderr)
 
         from app.audit import register_audit_events
         register_audit_events()

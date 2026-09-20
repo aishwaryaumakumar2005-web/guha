@@ -11,6 +11,9 @@ tasks_bp = Blueprint('tasks', __name__)
 @tasks_bp.route('/tasks', methods=['GET', 'POST'])
 @login_required
 def list_tasks():
+    categories = ['General', 'Syllabus', 'Exam', 'Student Care', 'Admin']
+    priorities = ['High', 'Medium', 'Low']
+
     if request.method == 'POST':
         if current_user.role != 'Admin':
             flash('Only administrators can assign tasks.', 'danger')
@@ -19,6 +22,14 @@ def list_tasks():
         title = request.form.get('title', '').strip()
         description = request.form.get('description', '').strip()
         due_date_str = request.form.get('due_date', '').strip()
+        priority = request.form.get('priority', 'Medium').strip()
+        category = request.form.get('category', 'General').strip()
+
+        if priority not in priorities:
+            priority = 'Medium'
+        if category not in categories:
+            category = 'General'
+
         if not tutor_id:
             flash('Please select a tutor to assign the task to.', 'danger')
             return redirect(url_for('tasks.list_tasks'))
@@ -36,7 +47,8 @@ def list_tasks():
             except ValueError:
                 pass
         task = Task(tutor_id=tutor_id, title=title, description=description,
-                    assigned_by=current_user.id, due_date=due_date)
+                    assigned_by=current_user.id, due_date=due_date,
+                    priority=priority, category=category)
         db.session.add(task)
         db.session.commit()
         flash('Task assigned successfully!', 'success')
@@ -68,7 +80,12 @@ def list_tasks():
     # Filters
     selected_status = request.args.get('status', '').strip()
     selected_tutor_id = request.args.get('tutor_id', type=int)
+    selected_priority = request.args.get('priority', '').strip()
+    selected_category = request.args.get('category', '').strip()
     search_q = request.args.get('q', '').strip()
+    view_mode = request.args.get('view', 'table').strip().lower()
+    if view_mode not in ('table', 'kanban'):
+        view_mode = 'table'
 
     if selected_status == 'Pending':
         query = query.filter(Task.status == 'Pending')
@@ -78,6 +95,12 @@ def list_tasks():
         query = query.filter(Task.status == 'Completed')
     elif selected_status == 'Overdue':
         query = query.filter(Task.due_date < today, Task.status != 'Completed')
+
+    if selected_priority and selected_priority in priorities:
+        query = query.filter(Task.priority == selected_priority)
+
+    if selected_category and selected_category in categories:
+        query = query.filter(Task.category == selected_category)
 
     if selected_tutor_id and current_user.role == 'Admin':
         query = query.filter(Task.tutor_id == selected_tutor_id)
@@ -93,15 +116,28 @@ def list_tasks():
     tasks = query.order_by(Task.created_at.desc()).all()
     tutors = Tutor.query.order_by(Tutor.name).all()
 
+    # Prepare kanban board groupings
+    kanban_groups = {
+        'Pending': [t for t in tasks if t.status == 'Pending'],
+        'In Progress': [t for t in tasks if t.status == 'In Progress'],
+        'Completed': [t for t in tasks if t.status == 'Completed']
+    }
+
     return render_template('tasks.html',
                            tasks=tasks,
+                           kanban_groups=kanban_groups,
                            tutors=tutors,
                            today=today,
                            tutor=tutor,
                            stats=stats,
+                           categories=categories,
+                           priorities=priorities,
                            selected_status=selected_status,
                            selected_tutor_id=selected_tutor_id,
-                           search_q=search_q)
+                           selected_priority=selected_priority,
+                           selected_category=selected_category,
+                           search_q=search_q,
+                           view_mode=view_mode)
 
 
 @tasks_bp.route('/tasks/update-status/<int:id>', methods=['POST'])
@@ -154,6 +190,8 @@ def edit_task(id):
     tutor_id = request.form.get('tutor_id', type=int)
     due_date_str = request.form.get('due_date', '').strip()
     status = request.form.get('status', '').strip()
+    priority = request.form.get('priority', '').strip()
+    category = request.form.get('category', '').strip()
     notes = request.form.get('notes', '').strip()
     if not title:
         flash('Task title is required.', 'danger')
@@ -176,6 +214,10 @@ def edit_task(id):
             task.completed_date = datetime.utcnow()
         else:
             task.completed_date = None
+    if priority in ('High', 'Medium', 'Low'):
+        task.priority = priority
+    if category in ('General', 'Syllabus', 'Exam', 'Student Care', 'Admin'):
+        task.category = category
     task.notes = notes
     db.session.commit()
     flash('Task updated successfully.', 'success')

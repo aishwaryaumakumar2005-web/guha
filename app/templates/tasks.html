@@ -12,25 +12,37 @@
             <h2 class="text-white fw-bold mb-1"><i class="bi bi-check2-square me-2" style="color:hsl(200,100%,55%);"></i>Task Manager</h2>
             <p class="text-white mb-0" style="opacity:0.75;">
                 {% if current_user.role == 'Admin' %}
-                    Assign, schedule, and monitor operational tasks across the teaching team.
+                    Assign, schedule, and track operational tasks across the teaching team.
                 {% else %}
                     View, execute, and report progress on your assigned tasks.
                 {% endif %}
             </p>
         </div>
-        {% if current_user.role == 'Admin' %}
-        <div class="d-flex gap-2">
-            <button class="btn btn-premium" data-bs-toggle="modal" data-bs-target="#assignTaskModal">
-                <i class="bi bi-plus-circle me-2"></i>Assign Task
+        <div class="d-flex align-items-center gap-2">
+            <!-- View Switcher (Table vs Kanban) -->
+            <div class="btn-group btn-group-sm p-1 rounded-3" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);">
+                <a href="{{ url_for('tasks.list_tasks', view='table', status=selected_status if selected_status else none, tutor_id=selected_tutor_id if selected_tutor_id else none, priority=selected_priority if selected_priority else none, category=selected_category if selected_category else none, q=search_q if search_q else none) }}" 
+                   class="btn btn-sm {% if view_mode != 'kanban' %}btn-premium{% else %}text-white-50{% endif %}" title="List / Table View" style="font-size:0.75rem;padding:4px 10px;border-radius:6px;">
+                    <i class="bi bi-table me-1"></i>List
+                </a>
+                <a href="{{ url_for('tasks.list_tasks', view='kanban', status=selected_status if selected_status else none, tutor_id=selected_tutor_id if selected_tutor_id else none, priority=selected_priority if selected_priority else none, category=selected_category if selected_category else none, q=search_q if search_q else none) }}" 
+                   class="btn btn-sm {% if view_mode == 'kanban' %}btn-premium{% else %}text-white-50{% endif %}" title="Kanban Board View" style="font-size:0.75rem;padding:4px 10px;border-radius:6px;">
+                    <i class="bi bi-kanban me-1"></i>Board
+                </a>
+            </div>
+
+            {% if current_user.role == 'Admin' %}
+            <button class="btn btn-premium btn-sm" data-bs-toggle="modal" data-bs-target="#assignTaskModal" style="padding:6px 14px;font-size:0.8rem;">
+                <i class="bi bi-plus-circle me-1"></i>Assign Task
             </button>
+            {% endif %}
         </div>
-        {% endif %}
     </div>
 
     <!-- KPI Summary Cards -->
     <div class="row g-3 mb-4">
         <div class="col-6 col-lg-3">
-            <a href="{{ url_for('tasks.list_tasks') }}" class="text-decoration-none d-block h-100">
+            <a href="{{ url_for('tasks.list_tasks', view=view_mode) }}" class="text-decoration-none d-block h-100">
                 <div class="summary-card students p-3 h-100 position-relative">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
@@ -44,7 +56,7 @@
             </a>
         </div>
         <div class="col-6 col-lg-3">
-            <a href="{{ url_for('tasks.list_tasks', status='Pending') }}" class="text-decoration-none d-block h-100">
+            <a href="{{ url_for('tasks.list_tasks', status='Pending', view=view_mode) }}" class="text-decoration-none d-block h-100">
                 <div class="summary-card staff p-3 h-100 position-relative">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
@@ -58,7 +70,7 @@
             </a>
         </div>
         <div class="col-6 col-lg-3">
-            <a href="{{ url_for('tasks.list_tasks', status='In Progress') }}" class="text-decoration-none d-block h-100">
+            <a href="{{ url_for('tasks.list_tasks', status='In Progress', view=view_mode) }}" class="text-decoration-none d-block h-100">
                 <div class="summary-card enrollments p-3 h-100 position-relative">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
@@ -72,7 +84,7 @@
             </a>
         </div>
         <div class="col-6 col-lg-3">
-            <a href="{{ url_for('tasks.list_tasks', status='Completed') }}" class="text-decoration-none d-block h-100">
+            <a href="{{ url_for('tasks.list_tasks', status='Completed', view=view_mode) }}" class="text-decoration-none d-block h-100">
                 <div class="summary-card lc-active p-3 h-100 position-relative">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
@@ -95,35 +107,57 @@
     <!-- Filter & Search Toolbar -->
     <div class="glass-card p-3 mb-4">
         <form method="GET" action="{{ url_for('tasks.list_tasks') }}" class="row g-2 align-items-center">
+            <input type="hidden" name="view" value="{{ view_mode }}">
+
             <!-- Status Pills Filter -->
-            <div class="col-12 col-xl-6">
+            <div class="col-12 col-xl-5">
                 <div class="d-flex flex-wrap gap-1">
-                    <a href="{{ url_for('tasks.list_tasks', tutor_id=selected_tutor_id if selected_tutor_id else none, q=search_q if search_q else none) }}" 
-                       class="btn btn-sm {% if not selected_status %}btn-premium{% else %}btn-outline-secondary text-white-50{% endif %}" style="font-size:0.75rem;padding:4px 12px;border-radius:6px;">
+                    <a href="{{ url_for('tasks.list_tasks', view=view_mode, tutor_id=selected_tutor_id if selected_tutor_id else none, priority=selected_priority if selected_priority else none, category=selected_category if selected_category else none, q=search_q if search_q else none) }}" 
+                       class="btn btn-sm {% if not selected_status %}btn-premium{% else %}btn-outline-secondary text-white-50{% endif %}" style="font-size:0.75rem;padding:4px 10px;border-radius:6px;">
                         All ({{ stats.total }})
                     </a>
-                    <a href="{{ url_for('tasks.list_tasks', status='Pending', tutor_id=selected_tutor_id if selected_tutor_id else none, q=search_q if search_q else none) }}" 
-                       class="btn btn-sm {% if selected_status == 'Pending' %}btn-premium{% else %}btn-outline-secondary text-white-50{% endif %}" style="font-size:0.75rem;padding:4px 12px;border-radius:6px;">
+                    <a href="{{ url_for('tasks.list_tasks', view=view_mode, status='Pending', tutor_id=selected_tutor_id if selected_tutor_id else none, priority=selected_priority if selected_priority else none, category=selected_category if selected_category else none, q=search_q if search_q else none) }}" 
+                       class="btn btn-sm {% if selected_status == 'Pending' %}btn-premium{% else %}btn-outline-secondary text-white-50{% endif %}" style="font-size:0.75rem;padding:4px 10px;border-radius:6px;">
                         Pending ({{ stats.pending }})
                     </a>
-                    <a href="{{ url_for('tasks.list_tasks', status='In Progress', tutor_id=selected_tutor_id if selected_tutor_id else none, q=search_q if search_q else none) }}" 
-                       class="btn btn-sm {% if selected_status == 'In Progress' %}btn-premium{% else %}btn-outline-secondary text-white-50{% endif %}" style="font-size:0.75rem;padding:4px 12px;border-radius:6px;">
+                    <a href="{{ url_for('tasks.list_tasks', view=view_mode, status='In Progress', tutor_id=selected_tutor_id if selected_tutor_id else none, priority=selected_priority if selected_priority else none, category=selected_category if selected_category else none, q=search_q if search_q else none) }}" 
+                       class="btn btn-sm {% if selected_status == 'In Progress' %}btn-premium{% else %}btn-outline-secondary text-white-50{% endif %}" style="font-size:0.75rem;padding:4px 10px;border-radius:6px;">
                         In Progress ({{ stats.in_progress }})
                     </a>
-                    <a href="{{ url_for('tasks.list_tasks', status='Completed', tutor_id=selected_tutor_id if selected_tutor_id else none, q=search_q if search_q else none) }}" 
-                       class="btn btn-sm {% if selected_status == 'Completed' %}btn-premium{% else %}btn-outline-secondary text-white-50{% endif %}" style="font-size:0.75rem;padding:4px 12px;border-radius:6px;">
+                    <a href="{{ url_for('tasks.list_tasks', view=view_mode, status='Completed', tutor_id=selected_tutor_id if selected_tutor_id else none, priority=selected_priority if selected_priority else none, category=selected_category if selected_category else none, q=search_q if search_q else none) }}" 
+                       class="btn btn-sm {% if selected_status == 'Completed' %}btn-premium{% else %}btn-outline-secondary text-white-50{% endif %}" style="font-size:0.75rem;padding:4px 10px;border-radius:6px;">
                         Completed ({{ stats.completed }})
                     </a>
-                    <a href="{{ url_for('tasks.list_tasks', status='Overdue', tutor_id=selected_tutor_id if selected_tutor_id else none, q=search_q if search_q else none) }}" 
-                       class="btn btn-sm {% if selected_status == 'Overdue' %}btn-danger text-white{% else %}btn-outline-danger text-danger{% endif %}" style="font-size:0.75rem;padding:4px 12px;border-radius:6px;">
+                    <a href="{{ url_for('tasks.list_tasks', view=view_mode, status='Overdue', tutor_id=selected_tutor_id if selected_tutor_id else none, priority=selected_priority if selected_priority else none, category=selected_category if selected_category else none, q=search_q if search_q else none) }}" 
+                       class="btn btn-sm {% if selected_status == 'Overdue' %}btn-danger text-white{% else %}btn-outline-danger text-danger{% endif %}" style="font-size:0.75rem;padding:4px 10px;border-radius:6px;">
                         Overdue ({{ stats.overdue }})
                     </a>
                 </div>
             </div>
 
+            <!-- Priority Dropdown Filter -->
+            <div class="col-6 col-md-3 col-xl-2">
+                <select name="priority" class="form-select form-select-sm" onchange="this.form.submit()" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);font-size:0.75rem;">
+                    <option value="">All Priorities</option>
+                    {% for pri in priorities %}
+                        <option value="{{ pri }}" {% if selected_priority == pri %}selected{% endif %}>{{ pri }} Priority</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Category Dropdown Filter -->
+            <div class="col-6 col-md-3 col-xl-2">
+                <select name="category" class="form-select form-select-sm" onchange="this.form.submit()" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);font-size:0.75rem;">
+                    <option value="">All Categories</option>
+                    {% for cat in categories %}
+                        <option value="{{ cat }}" {% if selected_category == cat %}selected{% endif %}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
             <!-- Tutor Dropdown Filter (Admin only) -->
             {% if current_user.role == 'Admin' %}
-            <div class="col-12 col-md-5 col-xl-3">
+            <div class="col-12 col-md-3 col-xl-1">
                 <select name="tutor_id" class="form-select form-select-sm" onchange="this.form.submit()" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);font-size:0.75rem;">
                     <option value="">All Tutors</option>
                     {% for tu in tutors %}
@@ -134,20 +168,170 @@
             {% endif %}
 
             <!-- Search Field -->
-            <div class="col-12 col-md-{{ '7' if current_user.role == 'Admin' else '12' }} col-xl-{{ '3' if current_user.role == 'Admin' else '6' }}">
+            <div class="col-12 col-md-{{ '3' if current_user.role == 'Admin' else '6' }} col-xl-{{ '2' if current_user.role == 'Admin' else '3' }}">
                 <div class="input-group input-group-sm">
                     {% if selected_status %}<input type="hidden" name="status" value="{{ selected_status }}">{% endif %}
-                    <input type="search" name="q" value="{{ search_q or '' }}" class="form-control" placeholder="Search tasks, details..." style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);font-size:0.75rem;">
-                    <button type="submit" class="btn btn-sm btn-outline-premium">Search</button>
-                    {% if selected_status or selected_tutor_id or search_q %}
-                        <a href="{{ url_for('tasks.list_tasks') }}" class="btn btn-sm btn-outline-secondary" title="Clear all filters"><i class="bi bi-x-lg"></i></a>
+                    <input type="search" name="q" value="{{ search_q or '' }}" class="form-control" placeholder="Search tasks..." style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);font-size:0.75rem;">
+                    <button type="submit" class="btn btn-sm btn-outline-premium">Go</button>
+                    {% if selected_status or selected_tutor_id or selected_priority or selected_category or search_q %}
+                        <a href="{{ url_for('tasks.list_tasks', view=view_mode) }}" class="btn btn-sm btn-outline-secondary" title="Clear filters"><i class="bi bi-x-lg"></i></a>
                     {% endif %}
                 </div>
             </div>
         </form>
     </div>
 
-    <!-- Tasks Table -->
+    {% if view_mode == 'kanban' %}
+    <!-- ==================== KANBAN BOARD VIEW (Item 13) ==================== -->
+    <div class="row g-3">
+        <!-- 1. Pending Column -->
+        <div class="col-12 col-lg-4">
+            <div class="glass-card p-3 h-100" style="border-top: 3px solid #ffc107;">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-bold text-white mb-0">
+                        <i class="bi bi-clock-history me-2 text-warning"></i>Pending
+                    </h6>
+                    <span class="badge" style="background:rgba(255,193,7,0.2);color:#ffc107;font-size:0.7rem;">{{ kanban_groups['Pending']|length }}</span>
+                </div>
+                <div class="d-flex flex-column gap-2" style="min-height:200px;">
+                    {% for t in kanban_groups['Pending'] %}
+                    {% set is_overdue = t.due_date and t.due_date < today and t.status != 'Completed' %}
+                    <div class="p-3 rounded" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);">
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                            <span class="badge" style="{% if t.priority == 'High' %}background:rgba(220,53,69,0.2);color:#ff6b6b;border:1px solid rgba(220,53,69,0.4);{% elif t.priority == 'Medium' %}background:rgba(255,193,7,0.2);color:#ffc107;border:1px solid rgba(255,193,7,0.4);{% else %}background:rgba(108,117,125,0.2);color:#ced4da;{% endif %}font-size:0.6rem;">
+                                {{ t.priority or 'Medium' }}
+                            </span>
+                            <span class="badge" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7);font-size:0.6rem;">
+                                {{ t.category or 'General' }}
+                            </span>
+                        </div>
+                        <div class="fw-semibold text-white small mb-1">{{ t.title }}</div>
+                        {% if t.description %}
+                            <div class="small text-white-50 mb-2" style="font-size:0.72rem;line-height:1.4;">{{ t.description }}</div>
+                        {% endif %}
+                        <div class="d-flex justify-content-between align-items-center pt-2 mt-1 border-top" style="border-color:rgba(255,255,255,0.06);font-size:0.7rem;">
+                            <span class="text-white-50"><i class="bi bi-person me-1"></i>{{ t.tutor.name if t.tutor else 'Unassigned' }}</span>
+                            {% if t.due_date %}
+                                <span style="{% if is_overdue %}color:#ff6b6b;font-weight:600;{% else %}color:rgba(255,255,255,0.6);{% endif %}">
+                                    <i class="bi bi-calendar-event me-1"></i>{{ t.due_date.strftime('%d %b') }}
+                                </span>
+                            {% endif %}
+                        </div>
+                        <!-- Kanban Quick Move Action -->
+                        <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top" style="border-color:rgba(255,255,255,0.06);">
+                            <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 quick-status-item" data-id="{{ t.id }}" data-status="In Progress" style="font-size:0.68rem;">
+                                Start &rarr;
+                            </button>
+                            {% if current_user.role == 'Admin' and is_overdue and t.tutor and t.tutor.phone %}
+                            <a href="https://wa.me/{{ t.tutor.phone|replace('+', '')|replace(' ', '') }}?text=Hello%20{{ t.tutor.name }}%2C%20gentle%20reminder%20regarding%20your%20task%3A%20%22{{ t.title|urlencode }}%22%20which%20was%20due%20on%20{{ t.due_date.strftime('%d %b %Y') }}." 
+                               target="_blank" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size:0.68rem;" title="Send WhatsApp reminder to {{ t.tutor.name }}">
+                                <i class="bi bi-whatsapp me-1"></i>Remind
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4 text-white-50 small">No pending tasks.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. In Progress Column -->
+        <div class="col-12 col-lg-4">
+            <div class="glass-card p-3 h-100" style="border-top: 3px solid #0dcaf0;">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-bold text-white mb-0">
+                        <i class="bi bi-arrow-repeat me-2 text-info"></i>In Progress
+                    </h6>
+                    <span class="badge" style="background:rgba(13,202,240,0.2);color:#0dcaf0;font-size:0.7rem;">{{ kanban_groups['In Progress']|length }}</span>
+                </div>
+                <div class="d-flex flex-column gap-2" style="min-height:200px;">
+                    {% for t in kanban_groups['In Progress'] %}
+                    {% set is_overdue = t.due_date and t.due_date < today and t.status != 'Completed' %}
+                    <div class="p-3 rounded" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);">
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                            <span class="badge" style="{% if t.priority == 'High' %}background:rgba(220,53,69,0.2);color:#ff6b6b;border:1px solid rgba(220,53,69,0.4);{% elif t.priority == 'Medium' %}background:rgba(255,193,7,0.2);color:#ffc107;border:1px solid rgba(255,193,7,0.4);{% else %}background:rgba(108,117,125,0.2);color:#ced4da;{% endif %}font-size:0.6rem;">
+                                {{ t.priority or 'Medium' }}
+                            </span>
+                            <span class="badge" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7);font-size:0.6rem;">
+                                {{ t.category or 'General' }}
+                            </span>
+                        </div>
+                        <div class="fw-semibold text-white small mb-1">{{ t.title }}</div>
+                        {% if t.description %}
+                            <div class="small text-white-50 mb-2" style="font-size:0.72rem;line-height:1.4;">{{ t.description }}</div>
+                        {% endif %}
+                        <div class="d-flex justify-content-between align-items-center pt-2 mt-1 border-top" style="border-color:rgba(255,255,255,0.06);font-size:0.7rem;">
+                            <span class="text-white-50"><i class="bi bi-person me-1"></i>{{ t.tutor.name if t.tutor else 'Unassigned' }}</span>
+                            {% if t.due_date %}
+                                <span style="{% if is_overdue %}color:#ff6b6b;font-weight:600;{% else %}color:rgba(255,255,255,0.6);{% endif %}">
+                                    <i class="bi bi-calendar-event me-1"></i>{{ t.due_date.strftime('%d %b') }}
+                                </span>
+                            {% endif %}
+                        </div>
+                        <!-- Kanban Quick Move Action -->
+                        <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top" style="border-color:rgba(255,255,255,0.06);">
+                            <button type="button" class="btn btn-sm btn-outline-warning py-0 px-2 quick-status-item" data-id="{{ t.id }}" data-status="Pending" style="font-size:0.68rem;">
+                                &larr; Pending
+                            </button>
+                            <button type="button" class="btn btn-sm btn-premium py-0 px-2 quick-status-item" data-id="{{ t.id }}" data-status="Completed" style="font-size:0.68rem;">
+                                Complete &check;
+                            </button>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4 text-white-50 small">No tasks in progress.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Completed Column -->
+        <div class="col-12 col-lg-4">
+            <div class="glass-card p-3 h-100" style="border-top: 3px solid #00BFA6;">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-bold text-white mb-0">
+                        <i class="bi bi-check2-circle me-2 text-success"></i>Completed
+                    </h6>
+                    <span class="badge" style="background:rgba(0,191,166,0.2);color:#00BFA6;font-size:0.7rem;">{{ kanban_groups['Completed']|length }}</span>
+                </div>
+                <div class="d-flex flex-column gap-2" style="min-height:200px;">
+                    {% for t in kanban_groups['Completed'] %}
+                    <div class="p-3 rounded" style="background:rgba(0,191,166,0.04);border:1px solid rgba(0,191,166,0.15);">
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                            <span class="badge" style="background:rgba(0,191,166,0.15);color:#00BFA6;font-size:0.6rem;">
+                                {{ t.priority or 'Medium' }}
+                            </span>
+                            <span class="badge" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7);font-size:0.6rem;">
+                                {{ t.category or 'General' }}
+                            </span>
+                        </div>
+                        <div class="fw-semibold text-white small mb-1 text-decoration-line-through" style="opacity:0.85;">{{ t.title }}</div>
+                        {% if t.notes %}
+                            <div class="small text-white-50 mb-2" style="font-size:0.72rem;line-height:1.4;">Remarks: {{ t.notes }}</div>
+                        {% endif %}
+                        <div class="d-flex justify-content-between align-items-center pt-2 mt-1 border-top" style="border-color:rgba(255,255,255,0.06);font-size:0.7rem;">
+                            <span class="text-white-50"><i class="bi bi-person me-1"></i>{{ t.tutor.name if t.tutor else 'Unassigned' }}</span>
+                            <span class="text-success"><i class="bi bi-check me-1"></i>Done</span>
+                        </div>
+                        <!-- Kanban Reopen Action -->
+                        <div class="d-flex justify-content-end align-items-center mt-2 pt-2 border-top" style="border-color:rgba(255,255,255,0.06);">
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 quick-status-item" data-id="{{ t.id }}" data-status="In Progress" style="font-size:0.68rem;">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i>Reopen
+                            </button>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4 text-white-50 small">No completed tasks yet.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- ==================== TABLE VIEW ==================== -->
     <div class="glass-card p-4">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h5 class="text-white fw-bold mb-0">
@@ -159,11 +343,12 @@
             <table class="table table-custom sortable" data-page-size="10">
                 <thead>
                     <tr>
-                        <th>Title &amp; Details</th>
+                        <th>Title &amp; Category</th>
                         {% if current_user.role == 'Admin' %}<th>Assigned To</th>{% endif %}
+                        <th>Priority</th>
                         <th>Due Date</th>
                         <th>Status</th>
-                        <th>Assigned</th>
+                        <th>Assigned Date</th>
                         {% if current_user.role == 'Admin' %}<th>Remarks</th>{% endif %}
                         <th class="text-end">Actions</th>
                     </tr>
@@ -174,7 +359,10 @@
                         {% set is_overdue = t.due_date and t.due_date < today and t.status != 'Completed' %}
                         <tr id="task-row-{{ t.id }}" class="align-middle" style="{% if is_overdue %}border-left: 3px solid #dc3545; background: rgba(220, 53, 69, 0.04);{% elif t.status == 'Completed' %}border-left: 3px solid #00BFA6;{% elif t.status == 'In Progress' %}border-left: 3px solid #0dcaf0;{% else %}border-left: 3px solid #ffc107;{% endif %}">
                             <td>
-                                <div class="fw-semibold text-white">{{ t.title }}</div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="fw-semibold text-white">{{ t.title }}</div>
+                                    <span class="badge" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7);font-size:0.6rem;">{{ t.category or 'General' }}</span>
+                                </div>
                                 {% if t.description %}
                                     <div class="small text-white-50 text-truncate mt-1" style="max-width:320px;font-size:0.73rem;">{{ t.description }}</div>
                                 {% endif %}
@@ -186,6 +374,11 @@
                                 </span>
                             </td>
                             {% endif %}
+                            <td>
+                                <span class="badge" style="{% if t.priority == 'High' %}background:rgba(220,53,69,0.2);color:#ff6b6b;border:1px solid rgba(220,53,69,0.4);{% elif t.priority == 'Medium' %}background:rgba(255,193,7,0.2);color:#ffc107;border:1px solid rgba(255,193,7,0.4);{% else %}background:rgba(108,117,125,0.2);color:#ced4da;{% endif %}font-size:0.68rem;">
+                                    {{ t.priority or 'Medium' }}
+                                </span>
+                            </td>
                             <td>
                                 {% if t.due_date %}
                                     {% if is_overdue %}
@@ -222,6 +415,14 @@
                             </td>
                             {% endif %}
                             <td class="text-end text-nowrap">
+                                <!-- WhatsApp Reminder for Admin (Item 15) -->
+                                {% if current_user.role == 'Admin' and t.status != 'Completed' and t.tutor and t.tutor.phone %}
+                                <a href="https://wa.me/{{ t.tutor.phone|replace('+', '')|replace(' ', '') }}?text=Hello%20{{ t.tutor.name }}%2C%20reminder%20regarding%20task%3A%20%22{{ t.title|urlencode }}%22{% if t.due_date %}%20due%20on%20{{ t.due_date.strftime('%d %b %Y') }}{% endif %}." 
+                                   target="_blank" class="btn btn-sm btn-outline-success me-1" title="Send WhatsApp Reminder">
+                                    <i class="bi bi-whatsapp"></i>
+                                </a>
+                                {% endif %}
+
                                 {% if current_user.role == 'Admin' %}
                                 <button type="button" class="btn btn-sm btn-outline-info edit-task-btn" 
                                         data-id="{{ t.id }}"
@@ -230,6 +431,8 @@
                                         data-description="{{ t.description or '' }}"
                                         data-due-date="{{ t.due_date.strftime('%Y-%m-%d') if t.due_date else '' }}"
                                         data-status="{{ t.status }}"
+                                        data-priority="{{ t.priority or 'Medium' }}"
+                                        data-category="{{ t.category or 'General' }}"
                                         data-notes="{{ t.notes or '' }}"
                                         title="Edit Task">
                                     <i class="bi bi-pencil-square"></i>
@@ -254,14 +457,14 @@
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="{% if current_user.role == 'Admin' %}7{% else %}5{% endif %}">
+                            <td colspan="{% if current_user.role == 'Admin' %}8{% else %}6{% endif %}">
                                 <div class="empty-state py-5 text-center">
                                     <div class="empty-state-content">
                                         <i class="bi bi-clipboard2-check fs-1 text-white-50 d-block mb-2"></i>
                                         <h5 class="empty-state-title text-white">No tasks found</h5>
                                         <p class="empty-state-subtitle text-white-50 small">
-                                            {% if selected_status or selected_tutor_id or search_q %}
-                                                No tasks match your current filter settings. <a href="{{ url_for('tasks.list_tasks') }}" class="text-info text-decoration-none">Clear filters</a>
+                                            {% if selected_status or selected_tutor_id or selected_priority or selected_category or search_q %}
+                                                No tasks match your current filter settings. <a href="{{ url_for('tasks.list_tasks', view=view_mode) }}" class="text-info text-decoration-none">Clear filters</a>
                                             {% elif current_user.role == 'Admin' %}
                                                 Assign a new task to your tutors to get started.
                                             {% else %}
@@ -277,6 +480,7 @@
             </table>
         </div>
     </div>
+    {% endif %}
 </div>
 
 <!-- Assign Task Modal (Admin only) -->
@@ -290,22 +494,40 @@
             </div>
             <form method="POST" action="{{ url_for('tasks.list_tasks') }}" hx-boost="false" data-no-ajax>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label text-white small fw-semibold">Assign To <span class="text-danger">*</span></label>
-                        <select class="form-select" name="tutor_id" required style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
-                            <option value="">-- Select Tutor --</option>
-                            {% for t in tutors %}
-                            <option value="{{ t.id }}">{{ t.name }}</option>
-                            {% endfor %}
-                        </select>
+                    <div class="row g-2 mb-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label text-white small fw-semibold">Assign To <span class="text-danger">*</span></label>
+                            <select class="form-select" name="tutor_id" required style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
+                                <option value="">-- Select Tutor --</option>
+                                {% for t in tutors %}
+                                <option value="{{ t.id }}">{{ t.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label text-white small fw-semibold">Priority</label>
+                            <select class="form-select" name="priority" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
+                                <option value="Medium" selected>Medium</option>
+                                <option value="High">High</option>
+                                <option value="Low">Low</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label text-white small fw-semibold">Category</label>
+                            <select class="form-select" name="category" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
+                                {% for cat in categories %}
+                                <option value="{{ cat }}" {% if cat == 'General' %}selected{% endif %}>{{ cat }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small fw-semibold">Task Title <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" name="title" placeholder="e.g. Complete syllabus planning for Term 1" required style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-white small fw-semibold">Description / Instructions</label>
-                        <textarea class="form-control" name="description" rows="3" placeholder="Provide details, deliverables, or guidelines..." style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);"></textarea>
+                        <label class="form-label text-white small fw-semibold">Description / Deliverables</label>
+                        <textarea class="form-control" name="description" rows="3" placeholder="Provide guidelines or required deliverables..." style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);"></textarea>
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small fw-semibold">Due Date</label>
@@ -331,13 +553,31 @@
             </div>
             <form id="dynamicEditTaskForm" method="POST" action="" hx-boost="false" data-no-ajax>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label text-white small fw-semibold">Assigned To</label>
-                        <select class="form-select" id="edit_tutor_id" name="tutor_id" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
-                            {% for tu in tutors %}
-                            <option value="{{ tu.id }}">{{ tu.name }}</option>
-                            {% endfor %}
-                        </select>
+                    <div class="row g-2 mb-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label text-white small fw-semibold">Assigned To</label>
+                            <select class="form-select" id="edit_tutor_id" name="tutor_id" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
+                                {% for tu in tutors %}
+                                <option value="{{ tu.id }}">{{ tu.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label text-white small fw-semibold">Priority</label>
+                            <select class="form-select" id="edit_priority" name="priority" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
+                                <option value="High">High</option>
+                                <option value="Medium">Medium</option>
+                                <option value="Low">Low</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label text-white small fw-semibold">Category</label>
+                            <select class="form-select" id="edit_category" name="category" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
+                                {% for cat in categories %}
+                                <option value="{{ cat }}">{{ cat }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small fw-semibold">Task Title <span class="text-danger">*</span></label>
@@ -347,17 +587,19 @@
                         <label class="form-label text-white small fw-semibold">Description</label>
                         <textarea class="form-control" id="edit_description" name="description" rows="2" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);"></textarea>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label text-white small fw-semibold">Due Date</label>
-                        <input type="date" class="form-control" id="edit_due_date" name="due_date" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label text-white small fw-semibold">Status</label>
-                        <select class="form-select" id="edit_status" name="status" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
-                            <option value="Pending">Pending</option>
-                            <option value="In Progress">In Progress</option>
-                            <option value="Completed">Completed</option>
-                        </select>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label text-white small fw-semibold">Due Date</label>
+                            <input type="date" class="form-control" id="edit_due_date" name="due_date" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-white small fw-semibold">Status</label>
+                            <select class="form-select" id="edit_status" name="status" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
+                                <option value="Pending">Pending</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Completed">Completed</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label text-white small fw-semibold">Remarks / Notes</label>
@@ -433,6 +675,12 @@ document.addEventListener('DOMContentLoaded', function() {
             var statusSelect = document.getElementById('edit_status');
             if (statusSelect) statusSelect.value = btn.getAttribute('data-status') || 'Pending';
 
+            var prioritySelect = document.getElementById('edit_priority');
+            if (prioritySelect) prioritySelect.value = btn.getAttribute('data-priority') || 'Medium';
+
+            var categorySelect = document.getElementById('edit_category');
+            if (categorySelect) categorySelect.value = btn.getAttribute('data-category') || 'General';
+
             var notesInput = document.getElementById('edit_notes');
             if (notesInput) notesInput.value = btn.getAttribute('data-notes') || '';
 
@@ -463,7 +711,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // 3. Quick Status Switcher Dropdown (AJAX)
+    // 3. Quick Status Switcher Dropdown & Kanban Action (AJAX)
     document.querySelectorAll('.quick-status-item').forEach(function(item) {
         item.addEventListener('click', function(e) {
             e.preventDefault();
@@ -471,7 +719,7 @@ document.addEventListener('DOMContentLoaded', function() {
             var newStatus = item.getAttribute('data-status');
             var labelEl = document.getElementById('status-label-' + taskId);
             var rowEl = document.getElementById('task-row-' + taskId);
-            var dropdownBtn = item.closest('.dropdown').querySelector('.dropdown-toggle');
+            var dropdownBtn = item.closest('.dropdown') ? item.closest('.dropdown').querySelector('.dropdown-toggle') : null;
 
             var formData = new FormData();
             formData.append('status', newStatus);
@@ -484,12 +732,20 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success) {
+                    // If in board view, reload to place card in correct column
+                    if (window.location.search.indexOf('view=kanban') !== -1) {
+                        window.location.reload();
+                        return;
+                    }
+
                     if (labelEl) labelEl.textContent = newStatus;
                     
                     // Update active styling on dropdown items
-                    item.closest('.dropdown-menu').querySelectorAll('.quick-status-item').forEach(function(el) {
-                        el.classList.toggle('active', el.getAttribute('data-status') === newStatus);
-                    });
+                    if (item.closest('.dropdown-menu')) {
+                        item.closest('.dropdown-menu').querySelectorAll('.quick-status-item').forEach(function(el) {
+                            el.classList.toggle('active', el.getAttribute('data-status') === newStatus);
+                        });
+                    }
 
                     // Update button styling
                     if (dropdownBtn) {
