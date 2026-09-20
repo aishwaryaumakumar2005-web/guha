@@ -27,6 +27,14 @@ def _empty_stats():
         "avg_student_attendance": None, "low_attendance_count": 0,
     }
 
+def _empty_staff_stats():
+    data = _empty_stats()
+    data.update({'active_students': 0, 'tutors': 0, 'courses': 0,
+                 'enquiries': 0, 'enquiries_new': 0, 'enquiries_contacted': 0,
+                 'enquiries_visited': 0, 'enquiries_converted': 0,
+                 'enquiries_lost': 0, 'monthly_fees_collected': 0.0})
+    return data
+
 
 def _safe(label, fn, default):
     """Run a dashboard section; on any DB error roll the session back (a
@@ -46,13 +54,14 @@ def _safe(label, fn, default):
 def get_dashboard_stats():
     from time import time
     role = getattr(current_user, 'role', 'anonymous')
-    bucket = _stats_cache.get(role, {"data": None, "time": 0})
+    cache_key = (role, getattr(current_user, 'id', None))
+    bucket = _stats_cache.get(cache_key, {"data": None, "time": 0})
     if time() - bucket["time"] < 30 and bucket["data"]:
         # Return a copy: callers (e.g. the Staff branch) add per-request keys,
         # and mutating the shared cached dict would leak them across roles.
         return dict(bucket["data"])
     try:
-        data = _compute_stats()
+        data = _compute_staff_stats() if role == 'Staff' else _compute_stats()
     except Exception:
         current_app.logger.exception('get_dashboard_stats failed; serving zeros')
         try:
@@ -60,8 +69,29 @@ def get_dashboard_stats():
         except Exception:
             pass
         return _empty_stats()
-    _stats_cache[role] = {"data": data, "time": time()}
+    _stats_cache[cache_key] = {"data": data, "time": time()}
     return dict(data)
+
+def _compute_staff_stats():
+    """Return only metrics belonging to the current tutor's assigned students."""
+    scope_ids = _staff_student_scope()
+    if not scope_ids:
+        return _empty_staff_stats()
+    today = date.today()
+    start_of_month = date(today.year, today.month, 1)
+    tutor = Tutor.query.filter_by(email=current_user.email).first()
+    course_ids = [c.id for c in tutor.courses] if tutor else []
+    q = Enquiry.query.filter(Enquiry.course_id.in_(course_ids)) if course_ids else Enquiry.query.filter(db.false())
+    counts = {status: q.filter_by(status=status).count() for status in ('New', 'Contacted', 'Visited', 'Converted', 'Lost')}
+    att = db.session.query(func.count(Attendance.id).label('total'), func.sum(case((Attendance.status == 'Present', 1), else_=0)).label('present')).filter(
+        Attendance.person_type == 'student', Attendance.person_id.in_(scope_ids), Attendance.date >= today - timedelta(days=14)).first()
+    total_att, present_att = att.total or 0, att.present or 0
+    return {'active_students': len(scope_ids), 'tutors': 1 if tutor else 0, 'courses': len(course_ids),
+            'enquiries': sum(counts.values()), 'enquiries_new': counts['New'], 'enquiries_contacted': counts['Contacted'],
+            'enquiries_visited': counts['Visited'], 'enquiries_converted': counts['Converted'], 'enquiries_lost': counts['Lost'],
+            'unresolved_enquiries': counts['New'] + counts['Contacted'], 'monthly_fees_collected': 0.0,
+            'avg_student_attendance': int(present_att * 100 / total_att) if total_att else None,
+            'low_attendance_count': _scope_low_attendance(today, scope_ids)}
 
 
 def _compute_stats():
@@ -76,11 +106,11 @@ def _compute_stats():
     enquiries_visited = Enquiry.query.filter_by(status='Visited').count()
     enquiries_converted = Enquiry.query.filter_by(status='Converted').count()
     enquiries_lost = Enquiry.query.filter_by(status='Lost').count()
-    total_enquiries = (enquiries_new + enquiries_contacted + enquiries_visited
-                       + enquiries_converted + enquiries_lost)
+    total_enquiries = Enquiry.query.count()
     unresolved_enquiries = enquiries_new + enquiries_contacted
     monthly_fees = db.session.query(db.func.sum(FeeRecord.amount_paid)).filter(
-        FeeRecord.payment_date >= start_of_month
+        FeeRecord.payment_date >= start_of_month,
+        FeeRecord.payment_date <= today
     ).scalar() or 0.0
     att_counts = db.session.query(
         func.count(Attendance.id).label('total'),
@@ -176,7 +206,8 @@ def _top_courses():
     return db.session.query(
         Course.id, Course.name, Course.capacity,
         func.count(student_courses.c.student_id).label('enrolled')
-    ).outerjoin(student_courses, Course.id == student_courses.c.course_id
+    ).outerjoin(student_courses, db.and_(Course.id == student_courses.c.course_id,
+                                         db.or_(student_courses.c.status == 'Enrolled', student_courses.c.status.is_(None)))
     ).group_by(Course.id, Course.name, Course.capacity
     ).order_by(func.count(student_courses.c.student_id).desc()
     ).limit(5).all()
@@ -467,8 +498,12 @@ def api_dashboard_insights():
     if current_user.role == 'Staff':
         return jsonify({"summary": "Staff dashboard loaded. AI advisor reports are hidden for Staff accounts.", "insights": []})
     stats = get_dashboard_stats()
-    insights = current_app.ai_engine.generate_institute_insights(stats)
-    return jsonify(insights)
+    try:
+        insights = current_app.ai_engine.generate_institute_insights(stats)
+        return jsonify(insights)
+    except Exception:
+        current_app.logger.exception('Dashboard AI insights failed')
+        return jsonify({'summary': 'AI insights are temporarily unavailable.', 'insights': [], 'degraded': True}), 200
 
 @dashboard_bp.route('/api/dashboard/predictive-analytics')
 @login_required
@@ -476,8 +511,12 @@ def api_predictive_analytics():
     if current_user.role == 'Staff':
         return jsonify({"summary": "Staff dashboard loaded. Predictive analytics are hidden for Staff accounts.", "predictions": []})
     stats = get_dashboard_stats()
-    predictive_data = current_app.ai_engine.generate_predictive_analytics(stats)
-    return jsonify(predictive_data)
+    try:
+        predictive_data = current_app.ai_engine.generate_predictive_analytics(stats)
+        return jsonify(predictive_data)
+    except Exception:
+        current_app.logger.exception('Dashboard predictive analytics failed')
+        return jsonify({'summary': 'Predictive analytics are temporarily unavailable.', 'predictions': [], 'degraded': True}), 200
 
 @dashboard_bp.route('/api/dashboard/todays-activities')
 @login_required
