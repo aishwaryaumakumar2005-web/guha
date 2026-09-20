@@ -6,6 +6,7 @@
     <title>{% block title %}Student Management System{% endblock %} - Computer Institute</title>
     <link rel="manifest" href="/static/manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="icon" href="/static/images/logo.png" type="image/png">
     <!-- Bootstrap 5 CSS CDN -->
@@ -15,7 +16,7 @@
     <!-- Core Customized Stylesheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=76">
     <!-- Bento grid breakpoint fix (unique filename: impossible to cache stale) -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/bento-v80.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bento-v84.css') }}">
 
     <!-- CDNs for QR and Scanning -->
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
