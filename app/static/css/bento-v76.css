@@ -1,0 +1,22 @@
+/* Bento grid layout — breakpoint fix.
+   Loaded AFTER the main stylesheet under a unique filename so no browser or
+   edge cache can ever serve a stale copy. Source-order + equal specificity
+   means these rules win for the dashboard cards regardless of what the main
+   stylesheet currently delivers. */
+
+.bento-card { grid-column: span 12; }
+
+@media (min-width: 768px) {
+    .bento-md-6 { grid-column: span 6; }
+    .bento-md-12 { grid-column: span 12; }
+}
+
+@media (min-width: 992px) {
+    .bento-xl-3 { grid-column: span 3; }
+    .bento-xl-4 { grid-column: span 4; }
+    .bento-xl-5 { grid-column: span 5; }
+    .bento-xl-6 { grid-column: span 6; }
+    .bento-xl-7 { grid-column: span 7; }
+    .bento-xl-8 { grid-column: span 8; }
+    .bento-xl-12 { grid-column: span 12; }
+}
