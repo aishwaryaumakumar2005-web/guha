@@ -32,6 +32,10 @@ def _backup_path_is_safe(backup_dir, filename):
     candidate = os.path.realpath(os.path.join(backup_root, filename))
     return candidate.startswith(backup_root + os.sep) and os.path.isfile(candidate)
 
+def _valid_phone(value):
+    normalized = re.sub(r'[\s()-]', '', value or '')
+    return bool(re.fullmatch(r'\+?[1-9]\d{9,14}', normalized))
+
 admin_bp = Blueprint('admin', __name__)
 
 @admin_bp.before_request
@@ -121,7 +125,7 @@ def admin_console():
         elif action == 'send_test_whatsapp':
             test_phone = request.form.get('test_wa_phone', '').strip()
             is_ajax = request.headers.get('X-Requested-With') in ('fetch', 'XMLHttpRequest') or request.is_json
-            if test_phone:
+            if test_phone and _valid_phone(test_phone):
                 ok, msg = current_app.messenger._send_sms_direct(test_phone, "WhatsApp integration is working! - Guha Academy")
                 resp_msg = "Test WhatsApp message sent successfully! Check device." if ok else f"WhatsApp dispatch failed: {msg}"
                 if is_ajax:
@@ -129,8 +133,8 @@ def admin_console():
                 flash(resp_msg, "success" if ok else "danger")
             else:
                 if is_ajax:
-                    return jsonify({'success': False, 'message': "Enter a recipient phone number."}), 400
-                flash("Enter a recipient phone number.", "warning")
+                    return jsonify({'success': False, 'message': "Enter a valid phone number with country code."}), 400
+                flash("Enter a valid phone number with country code.", "warning")
             return redirect(url_for('admin.admin_console', _anchor='ai'))
         elif action == 'whatsapp_fee_reminders':
             result = current_app.messenger.batch_fee_reminders()
@@ -167,7 +171,7 @@ def admin_console():
         elif action == 'send_test_sms':
             test_phone = request.form.get('test_sms_phone', '').strip()
             is_ajax = request.headers.get('X-Requested-With') in ('fetch', 'XMLHttpRequest') or request.is_json
-            if test_phone:
+            if test_phone and _valid_phone(test_phone):
                 ok = current_app.sms_service.send_test(test_phone)
                 resp_msg = "Test SMS sent successfully!" if ok else "Failed to send test SMS. Check gateway settings."
                 if is_ajax:
@@ -175,8 +179,8 @@ def admin_console():
                 flash(resp_msg, "success" if ok else "danger")
             else:
                 if is_ajax:
-                    return jsonify({'success': False, 'message': "Enter a recipient phone number."}), 400
-                flash("Enter a recipient phone number.", "warning")
+                    return jsonify({'success': False, 'message': "Enter a valid phone number with country code."}), 400
+                flash("Enter a valid phone number with country code.", "warning")
             return redirect(url_for('admin.admin_console', _anchor='ai'))
         elif action == 'sms_fee_reminders':
             result = current_app.sms_service.batch_fee_reminders()
@@ -223,15 +227,22 @@ def admin_console():
                     msg = "You cannot change your own role."
                     cat = 'danger'
                 else:
-                    user_to_change.role = 'Admin' if user_to_change.role == 'Staff' else 'Staff'
-                    if user_to_change.role == 'Staff':
-                        tutor = Tutor.query.filter_by(email=user_to_change.email).first()
-                        if not tutor:
-                            tutor = Tutor(name=user_to_change.name, email=user_to_change.email, phone='', specialization='', status='Active')
-                            db.session.add(tutor)
-                    db.session.commit()
-                    msg = f"Role for user {user_to_change.username} updated to {user_to_change.role}."
-                    cat = 'success'
+                    requested_role = request.form.get('role')
+                    if requested_role and requested_role not in ('Admin', 'Staff'):
+                        msg, cat = 'Unsupported role.', 'danger'
+                    elif requested_role == 'Staff' and user_to_change.role == 'Admin' and User.query.filter_by(role='Admin').count() <= 1:
+                        msg, cat = 'The last administrator cannot be demoted.', 'danger'
+                    else:
+                        user_to_change.role = requested_role or ('Admin' if user_to_change.role == 'Staff' else 'Staff')
+                        if user_to_change.role == 'Staff':
+                            tutor = Tutor.query.filter_by(email=user_to_change.email).first()
+                            if not tutor:
+                                tutor = Tutor(name=user_to_change.name, email=user_to_change.email, phone='', specialization='', status='Active')
+                                db.session.add(tutor)
+                        db.session.commit()
+                        _audit_admin_action('UPDATE', 'User', user_to_change.id, {'role': user_to_change.role})
+                        msg = f"Role for user {user_to_change.username} updated to {user_to_change.role}."
+                        cat = 'success'
             else:
                 msg = "User not found."
                 cat = 'danger'
@@ -265,6 +276,9 @@ def admin_console():
                 except (TypeError, ValueError):
                     flash(f"{label} must be a number between 0 and 100.", "danger")
                     return redirect(url_for('admin.admin_console', _anchor='org'))
+            if float(gst_rates['CGST_PCT']) + float(gst_rates['SGST_PCT']) > 100:
+                flash("Combined CGST and SGST cannot exceed 100%.", "danger")
+                return redirect(url_for('admin.admin_console', _anchor='org'))
             gstin = request.form.get('ORG_GSTIN', '').strip().upper()
             if gstin and not re.fullmatch(r'\d{2}[A-Z0-9]{13}', gstin):
                 flash("GSTIN must be 15 characters and start with a 2-digit state code.", "danger")
@@ -439,6 +453,8 @@ def admin_health():
 def test_ai_connection():
     data = request.get_json(silent=True) or request.form or {}
     provider = data.get('provider', 'gemini')
+    if provider not in ('gemini', 'openai'):
+        return jsonify({'success': False, 'message': 'Unsupported AI provider.'}), 400
     api_key = data.get('api_key', '').strip()
     
     if hasattr(current_app, 'ai_engine'):
@@ -481,8 +497,12 @@ def ai_playground():
     prompt = (data.get('prompt') or '').strip()
     if not prompt:
         return jsonify({'success': False, 'message': 'Prompt cannot be empty.'}), 400
+    if len(prompt) > 4000:
+        return jsonify({'success': False, 'message': 'Prompt is limited to 4,000 characters.'}), 413
     
     provider = data.get('provider') or None
+    if provider not in (None, 'auto', 'gemini', 'openai'):
+        return jsonify({'success': False, 'message': 'Unsupported AI provider.'}), 400
     if hasattr(current_app, 'ai_engine'):
         ai_engine = current_app.ai_engine
     else:

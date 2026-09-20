@@ -657,7 +657,10 @@
                                         <td class="text-end">
                                             <div class="d-flex gap-2 justify-content-end">
                                                 {% if u.id != current_user.id %}
-                                                <button type="button" class="btn btn-outline-premium btn-sm py-1" onclick="toggleRole({{ u.id }}, this)"><i class="bi bi-arrow-left-right me-1"></i>Toggle Role</button>
+                                                <select class="form-select form-select-sm" aria-label="Role for {{ u.username }}" onchange="setRole({{ u.id }}, this)">
+                                                    <option value="Staff" {% if u.role == 'Staff' %}selected{% endif %}>Staff</option>
+                                                    <option value="Admin" {% if u.role == 'Admin' %}selected{% endif %}>Admin</option>
+                                                </select>
                                                 <form action="{{ url_for('admin.admin_console') }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete user account: {{ u.username }}?')">
                                                     <input type="hidden" name="action" value="delete_user">
                                                     <input type="hidden" name="user_id" value="{{ u.id }}">
@@ -821,6 +824,18 @@ function toggleRole(userId, btn) {
     })
     .catch(function() { showToast('Failed to toggle role. Please try again.', 'danger'); })
     .finally(function() { btn.disabled = false; btn.innerHTML = original; });
+}
+
+function setRole(userId, select) {
+    var previous = select.getAttribute('data-previous') || select.value;
+    if (!confirm('Change this user\'s role to ' + select.value + '?')) { select.value = previous; return; }
+    select.disabled = true;
+    var fd = new FormData(); fd.append('action', 'toggle_role'); fd.append('user_id', userId); fd.append('role', select.value);
+    fetch('{{ url_for("admin.admin_console") }}', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'fetch' } })
+        .then(function(r) { return r.json(); })
+        .then(function(res) { if (!res.success) { select.value = previous; showToast(res.message, 'danger'); } else { select.setAttribute('data-previous', res.role); showToast(res.message, 'success'); } })
+        .catch(function() { select.value = previous; showToast('Failed to update role.', 'danger'); })
+        .finally(function() { select.disabled = false; });
 }
 
 function showToast(message, type) {
