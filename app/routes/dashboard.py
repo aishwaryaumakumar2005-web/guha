@@ -12,7 +12,8 @@ from time import time
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
-_stats_cache = {"data": None, "time": 0}
+# Keyed by role string so admin and staff stats never bleed into each other.
+_stats_cache: dict = {}
 
 
 def _empty_stats():
@@ -44,10 +45,12 @@ def _safe(label, fn, default):
 
 def get_dashboard_stats():
     from time import time
-    if time() - _stats_cache["time"] < 30 and _stats_cache["data"]:
+    role = getattr(current_user, 'role', 'anonymous')
+    bucket = _stats_cache.get(role, {"data": None, "time": 0})
+    if time() - bucket["time"] < 30 and bucket["data"]:
         # Return a copy: callers (e.g. the Staff branch) add per-request keys,
         # and mutating the shared cached dict would leak them across roles.
-        return dict(_stats_cache["data"])
+        return dict(bucket["data"])
     try:
         data = _compute_stats()
     except Exception:
@@ -57,8 +60,7 @@ def get_dashboard_stats():
         except Exception:
             pass
         return _empty_stats()
-    _stats_cache["data"] = data
-    _stats_cache["time"] = time()
+    _stats_cache[role] = {"data": data, "time": time()}
     return dict(data)
 
 
@@ -128,16 +130,29 @@ def _today_figures(today):
 
 def _recent_lists():
     return (Enquiry.query.order_by(Enquiry.id.desc()).limit(5).all(),
-            FeeRecord.query.order_by(FeeRecord.id.desc()).limit(5).all())
+            FeeRecord.query.order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).limit(5).all())
 
 
 def _fee_chart(today):
-    six_months_ago_month = today.month - 5
-    six_months_ago_year = today.year
-    if six_months_ago_month <= 0:
-        six_months_ago_month += 12
-        six_months_ago_year -= 1
-    six_months_ago = date(six_months_ago_year, six_months_ago_month, 1)
+    # Use relativedelta for correct month arithmetic across year boundaries.
+    # Pure-stdlib fallback if dateutil is not installed.
+    try:
+        from dateutil.relativedelta import relativedelta
+        def _month_offset(d, months_back):
+            shifted = d - relativedelta(months=months_back)
+            return shifted.year, shifted.month
+    except ImportError:
+        def _month_offset(d, months_back):
+            m = d.month - months_back
+            y = d.year
+            while m <= 0:
+                m += 12
+                y -= 1
+            return y, m
+
+    start_y, start_m = _month_offset(today, 5)
+    six_months_ago = date(start_y, start_m, 1)
+
     monthly = db.session.query(
         db.extract('month', FeeRecord.payment_date).label('m'),
         db.extract('year', FeeRecord.payment_date).label('y'),
@@ -148,11 +163,7 @@ def _fee_chart(today):
     chart_months = []
     chart_data = []
     for i in range(5, -1, -1):
-        m = today.month - i
-        y = today.year
-        if m <= 0:
-            m += 12
-            y -= 1
+        y, m = _month_offset(today, i)
         month_start = date(y, m, 1)
         chart_months.append(month_start.strftime("%b"))
         chart_data.append(totals_by_ym.get((y, m), 0.0))
@@ -212,17 +223,20 @@ def _fee_due_rows(student_ids=None):
         paid = round(paid, 2)
         concession = round(concession, 2)
         refunded = refunded_map.get(s.id, 0.0)
-        # Aging: days since enrollment while anything is still owed, mirroring
-        # the fees-matrix "Aging" column. None when there is no clock.
-        days_due = None
+        # Aging: days since enrollment — used for overdue-bucket display.
+        # Named days_enrolled to distinguish from "days the fee is late",
+        # which would require knowing each fee's due date.
+        days_enrolled = None
         if s.enrollment_date:
-            days_due = max(0, (date.today() - s.enrollment_date).days)
+            days_enrolled = max(0, (date.today() - s.enrollment_date).days)
         rows.append({
             'id': s.id, 'name': s.name, 'roll_no': s.roll_no,
             'total_fee': total_fee, 'total_taxable': total_taxable,
             'gst_amount': gst_amount, 'paid': paid,
             'concession': concession, 'refunded': refunded,
-            'days_due': days_due,
+            'days_enrolled': days_enrolled,
+            # Keep days_due as an alias so other callers (todays-activities) don't break.
+            'days_due': days_enrolled,
             'balance': round(total_fee - paid - concession + refunded, 2),
         })
     return rows
@@ -275,15 +289,16 @@ def _capacity():
 
 def _celebrations(today):
     # Birthdays & enrollment anniversaries today.
+    # Filter Active in SQL — never pull Inactive/Completed students into memory.
     today_md = (today.month, today.day)
-    active_students_all = Student.query.all()
+    active_students = Student.query.filter_by(status='Active').all()
     birthdays_today = [{'id': s.id, 'name': s.name, 'roll_no': s.roll_no, 'phone': s.phone,
                         'msg': current_app.messenger.birthday_message(s.name, today.year - s.date_of_birth.year)}
-                       for s in active_students_all
-                       if s.status == 'Active' and s.date_of_birth
+                       for s in active_students
+                       if s.date_of_birth
                        and (s.date_of_birth.month, s.date_of_birth.day) == today_md]
-    anniversaries_today = [{'name': s.name, 'roll_no': s.roll_no} for s in active_students_all
-                           if s.status == 'Active' and s.enrollment_date
+    anniversaries_today = [{'name': s.name, 'roll_no': s.roll_no} for s in active_students
+                           if s.enrollment_date
                            and (s.enrollment_date.month, s.enrollment_date.day) == today_md
                            and (s.enrollment_date.year, s.enrollment_date.month, s.enrollment_date.day) != (today.year, today.month, today.day)]
     return birthdays_today, anniversaries_today
@@ -486,19 +501,67 @@ def api_todays_activities():
                 'my_students_count': len(students),
                 'my_courses_count': len(course_ids),
             }
-            
-            # Simple staff tasks
+
+            # Check if today's attendance has already been marked for any student
+            today_attendance_count = db.session.query(db.func.count(Attendance.id)).filter(
+                Attendance.date == today, Attendance.person_type == 'student',
+                Attendance.person_id.in_(student_ids) if student_ids else db.false()
+            ).scalar() or 0 if student_ids else 0
+            attendance_done = today_attendance_count > 0
+            attendance_progress = min(100, int(today_attendance_count / len(students) * 100)) if students else 0
+
+            # Staff tasks with full renderer fields: priority, progress, icon, detail
             tasks = [
-                {'title': 'Mark Attendance', 'action_label': 'Mark attendance for today', 'action_url': url_for('attendance.attendance')},
-                {'title': 'Check Leaves', 'action_label': 'Review pending leave requests', 'action_url': url_for('leaves.leaves')},
+                {
+                    'title': 'Mark Attendance',
+                    'detail': f'{today_attendance_count}/{len(students)} students marked today',
+                    'priority': 'high' if not attendance_done else 'low',
+                    'progress': attendance_progress,
+                    'icon': 'calendar2-check-fill',
+                    'action_label': 'Mark attendance',
+                    'action_url': url_for('attendance.attendance'),
+                },
+                {
+                    'title': 'Leave Requests',
+                    'detail': f'{pending_leaves} pending approval' if pending_leaves else 'No pending requests',
+                    'priority': 'medium' if pending_leaves else 'low',
+                    'progress': 100 if not pending_leaves else 0,
+                    'icon': 'calendar-range-fill',
+                    'action_label': 'View leaves',
+                    'action_url': url_for('leaves.leaves'),
+                },
             ]
             if low_attendance_students:
-                tasks.append({'title': 'Follow-up Students', 'action_label': 'Contact students with low attendance', 'action_url': url_for('students.list')})
+                tasks.append({
+                    'title': 'Low Attendance Follow-up',
+                    'detail': f'{len(low_attendance_students)} student(s) below 75% in last 14 days',
+                    'priority': 'high',
+                    'progress': 0,
+                    'icon': 'exclamation-triangle-fill',
+                    'action_label': 'View students',
+                    'action_url': url_for('students.list'),
+                })
             if fee_due_students > 0:
-                tasks.append({'title': 'Fee Follow-up', 'action_label': 'Follow up on fee dues', 'action_url': url_for('fees.list')})
+                tasks.append({
+                    'title': 'Fee Follow-up',
+                    'detail': f'{fee_due_students} student(s) with outstanding fees',
+                    'priority': 'medium',
+                    'progress': 0,
+                    'icon': 'cash-stack',
+                    'action_label': 'View fees',
+                    'action_url': url_for('fees.list'),
+                })
             if today_exams:
-                tasks.append({'title': 'Exam Preparation', 'action_label': 'Prepare for today\'s exams', 'action_url': url_for('exams.exam_list')})
-            
+                tasks.append({
+                    'title': 'Exam Today',
+                    'detail': ', '.join(today_exams),
+                    'priority': 'high',
+                    'progress': 0,
+                    'icon': 'mortarboard-fill',
+                    'action_label': 'View exams',
+                    'action_url': url_for('exams.exam_list'),
+                })
+
             return jsonify({'tasks': tasks, 'meta': data})
         else:
             return jsonify({'tasks': [], 'meta': {}})

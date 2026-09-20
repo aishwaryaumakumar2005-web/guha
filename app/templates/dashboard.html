@@ -92,13 +92,13 @@
                     </div>
                     <div class="d-flex flex-column gap-2">
                         {% for d in due_students[:5] %}
-                            {% set days = d.days_due or 0 %}
+                            {% set days = d.days_enrolled or 0 %}
                             {% set age_color = 'hsl(0,100%,60%)' if days > 90 else ('hsl(40,100%,55%)' if days > 30 else 'rgba(255,255,255,0.4)') %}
                             <a href="{{ url_for('fees.list', student_id=d.id) }}" class="d-flex align-items-center gap-3 p-2 rounded text-decoration-none" style="background:rgba(255,255,255,0.03);">
                                 <div class="rounded d-flex align-items-center justify-content-center flex-shrink-0" style="width:32px;height:32px;background:rgba(255,51,102,0.12);color:hsl(0,100%,65%);"><i class="bi bi-person" aria-hidden="true"></i></div>
                                 <div class="flex-grow-1 min-width-0">
                                     <div class="fw-semibold small text-white text-truncate">{{ d.name }}</div>
-                                    <div class="text-white small" style="opacity:0.45;font-size:0.7rem;">{{ d.roll_no or '—' }}{% if days %}<span class="ms-1" title="Due since enrollment" style="color:{{ age_color }};">{{ days }}d overdue</span>{% endif %}</div>
+                                    <div class="text-white small" style="opacity:0.45;font-size:0.7rem;">{{ d.roll_no or '—' }}{% if d.days_enrolled %}<span class="ms-1" title="Days since enrollment" style="color:{{ age_color }};">enrolled {{ d.days_enrolled }}d ago</span>{% endif %}</div>
                                 </div>
                                 <div class="small fw-bold" style="color:hsl(0,100%,65%);">₹{{ "{:,.2f}".format(d.balance) }}</div>
                             </a>
@@ -348,8 +348,10 @@ function fetchWithTimeout(url, opts) {
     return fetch(url, Object.assign({}, opts, ctrl ? { signal: ctrl.signal } : {}))
         .then(function(res) { clearTimeout(timer); return res; });
 }
-// AI Advisor collapse toggle (global so the header button's inline handler works;
-// the button itself is keyboard-operable, unlike the previous clickable div).
+
+// AI Advisor collapse toggle — lazy-loads AI content on first open.
+// aiLoaded flag ensures we only fire the fetch once per page load.
+var _aiLoaded = false;
 function toggleAiAdvisor() {
     var btn = document.getElementById('aiAdvisorToggle');
     var c = document.getElementById('aiContent');
@@ -361,6 +363,11 @@ function toggleAiAdvisor() {
         icon.classList.toggle('bi-chevron-down', !open);
     }
     if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    // Lazy-load AI data only on the first expand
+    if (open && !_aiLoaded) {
+        _aiLoaded = true;
+        _loadAiAdvisor();
+    }
 }
 </script>
 {% if current_user.role == 'Admin' %}
@@ -474,41 +481,74 @@ function toggleAiAdvisor() {
             return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
         });
     }
-    // Predictive Analytics
-    var paContainer = document.getElementById('predictive-analytics-container');
-    if (paContainer) {
-        fetchWithTimeout('/api/dashboard/predictive-analytics')
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                data = data || {};
-                var enrollment = data.enrollment_forecast || [];
-                var revenue = data.revenue_forecast || [];
-                var growth = (data.growth_rate !== undefined && data.growth_rate !== null) ? data.growth_rate : 0;
-                var html = '<div class="row">';
-                html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);">';
-                html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-people-fill me-2" style="color:hsl(150,100%,40%);" aria-hidden="true"></i>Enrollment Forecast</h6>';
-                html += '<div class="d-flex justify-content-between align-items-center mb-2"><span class="text-white small">Growth:</span><span class="text-success fw-bold small">+' + esc(growth) + '%</span></div>';
-                html += '<div class="d-flex gap-2">';
-                enrollment.slice(0,3).forEach(function(val) { html += '<div class="text-center flex-fill"><div class="text-white fw-bold small">' + esc(Number(val) || 0) + '</div><div class="text-white" style="opacity:0.5;font-size:0.65rem;">Mo</div></div>'; });
-                html += '</div></div></div>';
-                html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);">';
-                html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-currency-rupee me-2" style="color:hsl(150,100%,40%);" aria-hidden="true"></i>Revenue Forecast</h6>';
-                html += '<div class="d-flex gap-2">';
-                revenue.slice(0,3).forEach(function(val) { html += '<div class="text-center flex-fill"><div class="text-white fw-bold small">' + (Number(val)/1000).toFixed(0) + 'k</div><div class="text-white" style="opacity:0.5;font-size:0.65rem;">Mo</div></div>'; });
-                html += '</div></div></div>';
-                html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);">';
-                html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-lightning-fill me-2" style="color:hsl(150,100%,40%);" aria-hidden="true"></i>Opportunities</h6><ul class="mb-0 ps-3">';
-                (data.opportunities || []).slice(0,3).forEach(function(opp) { html += '<li class="text-white small mb-1" style="opacity:0.7;">' + esc(opp) + '</li>'; });
-                html += '</ul></div></div></div>';
-                if (data.risk_factors && data.risk_factors.length) {
-                    html += '<div class="mt-2"><h6 class="text-white small fw-bold mb-2"><i class="bi bi-exclamation-triangle-fill me-2" style="color:#F59E0B;" aria-hidden="true"></i>Risks</h6><div class="d-flex flex-wrap gap-1">';
-                    data.risk_factors.forEach(function(risk) { html += '<span class="badge badge-custom badge-amber" style="font-size:0.6rem;">' + esc(risk) + '</span>'; });
-                    html += '</div></div>';
-                }
-                paContainer.innerHTML = html;
-            })
-            .catch(function() { paContainer.innerHTML = '<p class="text-danger small mb-0">Could not load analytics</p>'; });
-    }
+
+    // _loadAiAdvisor is called by toggleAiAdvisor() on first panel open (lazy load).
+    // It fetches both ai-insights (summary) and predictive-analytics in parallel.
+    window._loadAiAdvisor = function() {
+        var summaryEl = document.getElementById('ai-insights-summary');
+        var insightsEl = document.getElementById('ai-insights-container');
+        var paContainer = document.getElementById('predictive-analytics-container');
+
+        // AI Insights summary
+        if (summaryEl) {
+            fetchWithTimeout('/api/dashboard/ai-insights')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    data = data || {};
+                    if (summaryEl) summaryEl.innerHTML = '<p class="small text-white-50 mb-0">' + esc(data.summary || '') + '</p>';
+                    if (insightsEl) {
+                        var html = '';
+                        (data.insights || []).forEach(function(ins) {
+                            html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);">';
+                            html += '<h6 class="text-white small fw-bold mb-1">' + esc(ins.title || '') + '</h6>';
+                            html += '<p class="text-white small mb-0" style="opacity:0.65;">' + esc(ins.description || '') + '</p>';
+                            html += '</div></div>';
+                        });
+                        insightsEl.innerHTML = html;
+                    }
+                })
+                .catch(function() {
+                    if (summaryEl) summaryEl.innerHTML = '<p class="text-danger small mb-0">Could not load AI insights. <button class="btn btn-sm btn-link text-danger p-0" onclick="_aiLoaded=false;toggleAiAdvisor();toggleAiAdvisor();">Retry</button></p>';
+                });
+        }
+
+        // Predictive Analytics
+        if (paContainer) {
+            fetchWithTimeout('/api/dashboard/predictive-analytics')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    data = data || {};
+                    var enrollment = data.enrollment_forecast || [];
+                    var revenue = data.revenue_forecast || [];
+                    var growth = (data.growth_rate !== undefined && data.growth_rate !== null) ? data.growth_rate : 0;
+                    var html = '<div class="row">';
+                    html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);">';
+                    html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-people-fill me-2" style="color:hsl(150,100%,40%);" aria-hidden="true"></i>Enrollment Forecast</h6>';
+                    html += '<div class="d-flex justify-content-between align-items-center mb-2"><span class="text-white small">Growth:</span><span class="text-success fw-bold small">+' + esc(growth) + '%</span></div>';
+                    html += '<div class="d-flex gap-2">';
+                    enrollment.slice(0,3).forEach(function(val) { html += '<div class="text-center flex-fill"><div class="text-white fw-bold small">' + esc(Number(val) || 0) + '</div><div class="text-white" style="opacity:0.5;font-size:0.65rem;">Mo</div></div>'; });
+                    html += '</div></div></div>';
+                    html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);">';
+                    html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-currency-rupee me-2" style="color:hsl(150,100%,40%);" aria-hidden="true"></i>Revenue Forecast</h6>';
+                    html += '<div class="d-flex gap-2">';
+                    revenue.slice(0,3).forEach(function(val) { html += '<div class="text-center flex-fill"><div class="text-white fw-bold small">' + (Number(val)/1000).toFixed(0) + 'k</div><div class="text-white" style="opacity:0.5;font-size:0.65rem;">Mo</div></div>'; });
+                    html += '</div></div></div>';
+                    html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);">';
+                    html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-lightning-fill me-2" style="color:hsl(150,100%,40%);" aria-hidden="true"></i>Opportunities</h6><ul class="mb-0 ps-3">';
+                    (data.opportunities || []).slice(0,3).forEach(function(opp) { html += '<li class="text-white small mb-1" style="opacity:0.7;">' + esc(opp) + '</li>'; });
+                    html += '</ul></div></div></div>';
+                    if (data.risk_factors && data.risk_factors.length) {
+                        html += '<div class="mt-2"><h6 class="text-white small fw-bold mb-2"><i class="bi bi-exclamation-triangle-fill me-2" style="color:#F59E0B;" aria-hidden="true"></i>Risks</h6><div class="d-flex flex-wrap gap-1">';
+                        data.risk_factors.forEach(function(risk) { html += '<span class="badge badge-custom badge-amber" style="font-size:0.6rem;">' + esc(risk) + '</span>'; });
+                        html += '</div></div>';
+                    }
+                    paContainer.innerHTML = html;
+                })
+                .catch(function() {
+                    paContainer.innerHTML = '<p class="text-danger small mb-0">Could not load analytics. <button class="btn btn-sm btn-link text-danger p-0" onclick="_aiLoaded=false;toggleAiAdvisor();toggleAiAdvisor();">Retry</button></p>';
+                });
+        }
+    };
 
     // Today's Tasks
     (function() {

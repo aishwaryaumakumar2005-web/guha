@@ -24,7 +24,7 @@ def _reset_caches():
     import app
     import app.routes.dashboard as dashboard
     app._sidebar_cache = {"data": None, "time": 0}
-    dashboard._stats_cache = {"data": None, "time": 0}
+    dashboard._stats_cache = {}
 
 
 def _seed_base():
