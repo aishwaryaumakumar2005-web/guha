@@ -318,17 +318,13 @@ def admin_console():
     for key, default in [('LC_ABSENT_STREAK', '3'), ('LC_ABSENT_RATE', '75.0'), ('LC_ATT_WINDOW_DAYS', '30')]:
         s = SystemSetting.query.filter_by(key=key).first()
         lifecycle_settings[key.lower()] = s.value if s and s.value not in (None, '') else default
-    db_counts = {
-        "courses": Course.query.count(), "students": Student.query.count(), "tutors": Tutor.query.count(),
-        "enquiries": Enquiry.query.count(), "fees": FeeRecord.query.count(), "attendance": Attendance.query.count()
-    }
     g_active = bool(gemini_key or os.environ.get("GEMINI_API_KEY"))
     o_active = bool(openai_key or os.environ.get("OPENAI_API_KEY"))
     users = User.query.order_by(User.created_at.desc()).all()
     ai_logs = AuditLog.query.filter_by(action='AI_INFER').order_by(AuditLog.timestamp.desc()).limit(10).all()
 
     return render_template('admin.html', gemini_key=gemini_key, openai_key=openai_key, ai=ai_settings,
-        db_counts=db_counts, g_active=g_active, o_active=o_active, users=users, ai_logs=ai_logs,
+        g_active=g_active, o_active=o_active, users=users, ai_logs=ai_logs,
         smtp=smtp_settings, wa=wa_settings, sms=sms_settings, org=org_settings,
         lifecycle=lifecycle_settings,
         courses=Course.query.order_by(Course.name).all())

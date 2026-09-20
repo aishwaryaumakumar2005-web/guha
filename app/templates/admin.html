@@ -18,11 +18,6 @@
             </button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link" id="db-tab" data-bs-toggle="tab" data-bs-target="#db" type="button" role="tab">
-                <i class="bi bi-database-fill"></i> Database
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
             <button class="nav-link" id="org-tab" data-bs-toggle="tab" data-bs-target="#org" type="button" role="tab">
                 <i class="bi bi-building"></i> Organization
             </button>
@@ -511,8 +506,8 @@
             </div>
         </div>
 
-        <!-- ==================== TAB 2: DATABASE ==================== -->
-        <div class="tab-pane fade" id="db" role="tabpanel">
+        <!-- Database operations are available in the existing database module. -->
+        <div class="tab-pane fade d-none" id="db" role="tabpanel" aria-hidden="true">
             <div class="row">
                 <div class="col-lg-7 mb-4">
                     <div class="glass-card p-4 h-100">
@@ -1081,4 +1076,3 @@ function sendTestSms() {
 })();
 </script>
 {% endblock %}
-
