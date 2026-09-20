@@ -1,96 +1,298 @@
-{% extends 'base.html' %}{% block title %}Tasks{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li><li class="breadcrumb-item active" aria-current="page">Tasks</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+{% extends 'base.html' %}
+{% block title %}Task Manager{% endblock %}
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard.dashboard') }}">Home</a></li>
+<li class="breadcrumb-item active" aria-current="page">Tasks</li>
+{% endblock %}
+{% block content %}
+<div class="container-fluid p-0">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
-            <h2 class="text-white fw-bold"><i class="bi bi-check2-square me-2"></i>Task Manager</h2>
-            <p class="text-white mb-0">{% if current_user.role == 'Admin' %}Assign and track tasks for tutors.{% else %}View and update your assigned tasks.{% endif %}</p>
+            <h2 class="text-white fw-bold mb-1"><i class="bi bi-check2-square me-2" style="color:hsl(200,100%,55%);"></i>Task Manager</h2>
+            <p class="text-white mb-0" style="opacity:0.75;">
+                {% if current_user.role == 'Admin' %}
+                    Assign, schedule, and monitor operational tasks across the teaching team.
+                {% else %}
+                    View, execute, and report progress on your assigned tasks.
+                {% endif %}
+            </p>
         </div>
         {% if current_user.role == 'Admin' %}
-        <button class="btn btn-premium" data-bs-toggle="modal" data-bs-target="#assignTaskModal">
-            <i class="bi bi-plus-circle me-2"></i>Assign Task
-        </button>
+        <div class="d-flex gap-2">
+            <button class="btn btn-premium" data-bs-toggle="modal" data-bs-target="#assignTaskModal">
+                <i class="bi bi-plus-circle me-2"></i>Assign Task
+            </button>
+        </div>
         {% endif %}
     </div>
+
+    <!-- KPI Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-3">
+            <a href="{{ url_for('tasks.list_tasks') }}" class="text-decoration-none d-block h-100">
+                <div class="summary-card students p-3 h-100 position-relative">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="stat-number fs-3 fw-bold">{{ stats.total }}</div>
+                            <div class="stat-label">Total Tasks</div>
+                        </div>
+                        <i class="bi bi-list-check stat-icon fs-2" aria-hidden="true"></i>
+                    </div>
+                    <div class="stat-sub small mt-2 text-white-50">All scheduled items</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a href="{{ url_for('tasks.list_tasks', status='Pending') }}" class="text-decoration-none d-block h-100">
+                <div class="summary-card staff p-3 h-100 position-relative">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="stat-number fs-3 fw-bold" style="color:#ffc107;">{{ stats.pending }}</div>
+                            <div class="stat-label">Pending</div>
+                        </div>
+                        <i class="bi bi-clock-history stat-icon fs-2" style="color:#ffc107;" aria-hidden="true"></i>
+                    </div>
+                    <div class="stat-sub small mt-2" style="color:rgba(255,193,7,0.7);">Awaiting action</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a href="{{ url_for('tasks.list_tasks', status='In Progress') }}" class="text-decoration-none d-block h-100">
+                <div class="summary-card enrollments p-3 h-100 position-relative">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="stat-number fs-3 fw-bold" style="color:hsl(200,100%,60%);">{{ stats.in_progress }}</div>
+                            <div class="stat-label">In Progress</div>
+                        </div>
+                        <i class="bi bi-arrow-repeat stat-icon fs-2" style="color:hsl(200,100%,60%);" aria-hidden="true"></i>
+                    </div>
+                    <div class="stat-sub small mt-2" style="color:hsla(200,100%,60%,0.7);">Currently active</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a href="{{ url_for('tasks.list_tasks', status='Completed') }}" class="text-decoration-none d-block h-100">
+                <div class="summary-card lc-active p-3 h-100 position-relative">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="stat-number fs-3 fw-bold" style="color:#00BFA6;">{{ stats.completed }}</div>
+                            <div class="stat-label">Completed</div>
+                        </div>
+                        <i class="bi bi-check2-circle stat-icon fs-2" style="color:#00BFA6;" aria-hidden="true"></i>
+                    </div>
+                    <div class="stat-sub small mt-2 d-flex align-items-center justify-content-between">
+                        <span style="color:rgba(0,191,166,0.7);">Closed tasks</span>
+                        {% if stats.overdue > 0 %}
+                            <span class="badge bg-danger text-white ms-1" style="font-size:0.65rem;" title="{{ stats.overdue }} overdue task(s)">{{ stats.overdue }} Overdue</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter & Search Toolbar -->
+    <div class="glass-card p-3 mb-4">
+        <form method="GET" action="{{ url_for('tasks.list_tasks') }}" class="row g-2 align-items-center">
+            <!-- Status Pills Filter -->
+            <div class="col-12 col-xl-6">
+                <div class="d-flex flex-wrap gap-1">
+                    <a href="{{ url_for('tasks.list_tasks', tutor_id=selected_tutor_id if selected_tutor_id else none, q=search_q if search_q else none) }}" 
+                       class="btn btn-sm {% if not selected_status %}btn-premium{% else %}btn-outline-secondary text-white-50{% endif %}" style="font-size:0.75rem;padding:4px 12px;border-radius:6px;">
+                        All ({{ stats.total }})
+                    </a>
+                    <a href="{{ url_for('tasks.list_tasks', status='Pending', tutor_id=selected_tutor_id if selected_tutor_id else none, q=search_q if search_q else none) }}" 
+                       class="btn btn-sm {% if selected_status == 'Pending' %}btn-premium{% else %}btn-outline-secondary text-white-50{% endif %}" style="font-size:0.75rem;padding:4px 12px;border-radius:6px;">
+                        Pending ({{ stats.pending }})
+                    </a>
+                    <a href="{{ url_for('tasks.list_tasks', status='In Progress', tutor_id=selected_tutor_id if selected_tutor_id else none, q=search_q if search_q else none) }}" 
+                       class="btn btn-sm {% if selected_status == 'In Progress' %}btn-premium{% else %}btn-outline-secondary text-white-50{% endif %}" style="font-size:0.75rem;padding:4px 12px;border-radius:6px;">
+                        In Progress ({{ stats.in_progress }})
+                    </a>
+                    <a href="{{ url_for('tasks.list_tasks', status='Completed', tutor_id=selected_tutor_id if selected_tutor_id else none, q=search_q if search_q else none) }}" 
+                       class="btn btn-sm {% if selected_status == 'Completed' %}btn-premium{% else %}btn-outline-secondary text-white-50{% endif %}" style="font-size:0.75rem;padding:4px 12px;border-radius:6px;">
+                        Completed ({{ stats.completed }})
+                    </a>
+                    <a href="{{ url_for('tasks.list_tasks', status='Overdue', tutor_id=selected_tutor_id if selected_tutor_id else none, q=search_q if search_q else none) }}" 
+                       class="btn btn-sm {% if selected_status == 'Overdue' %}btn-danger text-white{% else %}btn-outline-danger text-danger{% endif %}" style="font-size:0.75rem;padding:4px 12px;border-radius:6px;">
+                        Overdue ({{ stats.overdue }})
+                    </a>
+                </div>
+            </div>
+
+            <!-- Tutor Dropdown Filter (Admin only) -->
+            {% if current_user.role == 'Admin' %}
+            <div class="col-12 col-md-5 col-xl-3">
+                <select name="tutor_id" class="form-select form-select-sm" onchange="this.form.submit()" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);font-size:0.75rem;">
+                    <option value="">All Tutors</option>
+                    {% for tu in tutors %}
+                        <option value="{{ tu.id }}" {% if selected_tutor_id == tu.id %}selected{% endif %}>{{ tu.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            <!-- Search Field -->
+            <div class="col-12 col-md-{{ '7' if current_user.role == 'Admin' else '12' }} col-xl-{{ '3' if current_user.role == 'Admin' else '6' }}">
+                <div class="input-group input-group-sm">
+                    {% if selected_status %}<input type="hidden" name="status" value="{{ selected_status }}">{% endif %}
+                    <input type="search" name="q" value="{{ search_q or '' }}" class="form-control" placeholder="Search tasks, details..." style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);font-size:0.75rem;">
+                    <button type="submit" class="btn btn-sm btn-outline-premium">Search</button>
+                    {% if selected_status or selected_tutor_id or search_q %}
+                        <a href="{{ url_for('tasks.list_tasks') }}" class="btn btn-sm btn-outline-secondary" title="Clear all filters"><i class="bi bi-x-lg"></i></a>
+                    {% endif %}
+                </div>
+            </div>
+        </form>
+    </div>
+
     <!-- Tasks Table -->
-    <div class="glass-card p-4" data-aos="fade-up">
-        <h4 class="mb-4 text-white fw-bold"><i class="bi bi-list-task me-2 text-white"></i>Task Records</h4>
+    <div class="glass-card p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="text-white fw-bold mb-0">
+                <i class="bi bi-list-task me-2" style="color:hsl(200,100%,50%);"></i>Task Records
+                <span class="text-white-50 small fw-normal ms-2" style="font-size:0.75rem;">({{ tasks|length }} shown)</span>
+            </h5>
+        </div>
         <div class="table-container">
             <table class="table table-custom sortable" data-page-size="10">
                 <thead>
                     <tr>
-                        <th>Title</th>
+                        <th>Title &amp; Details</th>
                         {% if current_user.role == 'Admin' %}<th>Assigned To</th>{% endif %}
-                        <th>Description</th>
                         <th>Due Date</th>
                         <th>Status</th>
+                        <th>Assigned</th>
                         {% if current_user.role == 'Admin' %}<th>Remarks</th>{% endif %}
-                        <th>Assigned Date</th>
-                        {% if current_user.role == 'Admin' %}<th>Assigned By</th>{% endif %}
-                        <th class="text-end">Action</th>
+                        <th class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% if tasks %} {% for t in tasks %}
-                    <tr>
-                        <td class="fw-medium text-white">{{ t.title }}</td>
-                        {% if current_user.role == 'Admin' %}<td>{{ t.tutor.name }}</td>{% endif %}
-                        <td class="text-secondary small">{{ t.description or '-' }}</td>
-                        <td>{% if t.due_date %}<span class="badge badge-custom {% if t.due_date < today and t.status != 'Completed' %}badge-amber{% else %}badge-cyan{% endif %}">{{ t.due_date.strftime('%d %b %Y') }}</span>{% else %}-{% endif %}</td>
-                        <td>
-                            {% if t.status == 'Completed' %}<span class="badge badge-custom badge-emerald">Completed</span>
-                            {% elif t.status == 'In Progress' %}<span class="badge badge-custom badge-cyan">In Progress</span>
-                            {% else %}<span class="badge badge-custom badge-amber">Pending</span>{% endif %}
-                        </td>
-                        {% if current_user.role == 'Admin' %}<td class="small text-secondary" style="max-width:200px;white-space:normal">{{ t.notes or '-' }}</td>{% endif %}
-                        <td class="small text-secondary">{{ t.assigned_date.strftime('%d %b %Y') if t.assigned_date else '-' }}</td>
-                        {% if current_user.role == 'Admin' %}<td class="small text-secondary">{{ t.assigner.name if t.assigner else 'System' }}</td>{% endif %}
-                        <td class="text-end text-nowrap">
+                    {% if tasks %}
+                        {% for t in tasks %}
+                        {% set is_overdue = t.due_date and t.due_date < today and t.status != 'Completed' %}
+                        <tr id="task-row-{{ t.id }}" class="align-middle" style="{% if is_overdue %}border-left: 3px solid #dc3545; background: rgba(220, 53, 69, 0.04);{% elif t.status == 'Completed' %}border-left: 3px solid #00BFA6;{% elif t.status == 'In Progress' %}border-left: 3px solid #0dcaf0;{% else %}border-left: 3px solid #ffc107;{% endif %}">
+                            <td>
+                                <div class="fw-semibold text-white">{{ t.title }}</div>
+                                {% if t.description %}
+                                    <div class="small text-white-50 text-truncate mt-1" style="max-width:320px;font-size:0.73rem;">{{ t.description }}</div>
+                                {% endif %}
+                            </td>
                             {% if current_user.role == 'Admin' %}
-                            <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#editTaskModal{{ t.id }}">
-                                <i class="bi bi-pencil-square"></i>
-                            </button>
-                            {% elif tutor and t.tutor_id == tutor.id %}
-                            <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#updateStatusModal{{ t.id }}">
-                                <i class="bi bi-pencil-square"></i>
-                            </button>
+                            <td>
+                                <span class="badge" style="background:rgba(255,255,255,0.08);color:#fff;font-weight:500;font-size:0.72rem;">
+                                    <i class="bi bi-person me-1"></i>{{ t.tutor.name if t.tutor else 'Unassigned' }}
+                                </span>
+                            </td>
                             {% endif %}
-                            {% if current_user.role == 'Admin' %}
-                            <a href="javascript:void(0)" class="btn btn-sm btn-outline-danger" onclick="confirmAction('Delete this task?', function() { window.location.href = '{{ url_for('tasks.delete_task', id=t.id) }}'; })">
-                                <i class="bi bi-trash"></i>
-                            </a>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %} {% else %}
-                    <tr>
-                        <td colspan="{% if current_user.role == 'Admin' %}9{% else %}6{% endif %}">
-                            <div class="empty-state">
-                                <div class="empty-state-content">
-                                    <h4 class="empty-state-title">No tasks found</h4>
-                                    <p class="empty-state-subtitle">{% if current_user.role == 'Admin' %}Assign a task to get started.{% else %}You have no assigned tasks.{% endif %}</p>
+                            <td>
+                                {% if t.due_date %}
+                                    {% if is_overdue %}
+                                        <span class="badge bg-danger text-white" title="Overdue!"><i class="bi bi-exclamation-circle me-1"></i>{{ t.due_date.strftime('%d %b %Y') }}</span>
+                                    {% else %}
+                                        <span class="badge badge-custom badge-cyan">{{ t.due_date.strftime('%d %b %Y') }}</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-white-50 small">&mdash;</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <!-- Quick Status Switcher Dropdown -->
+                                <div class="dropdown d-inline-block">
+                                    <button class="btn btn-sm dropdown-toggle py-1 px-2 border-0" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="{% if t.status == 'Completed' %}background:rgba(0,191,166,0.15);color:#00BFA6;border:1px solid rgba(0,191,166,0.3);{% elif t.status == 'In Progress' %}background:rgba(13,202,240,0.15);color:#0dcaf0;border:1px solid rgba(13,202,240,0.3);{% else %}background:rgba(255,193,7,0.15);color:#ffc107;border:1px solid rgba(255,193,7,0.3);{% endif %}font-size:0.72rem;border-radius:6px;">
+                                        <span id="status-label-{{ t.id }}">{{ t.status }}</span>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end shadow-sm" style="font-size:0.75rem;">
+                                        <li><a class="dropdown-item quick-status-item {% if t.status == 'Pending' %}active{% endif %}" href="#" data-id="{{ t.id }}" data-status="Pending"><i class="bi bi-clock me-2 text-warning"></i>Pending</a></li>
+                                        <li><a class="dropdown-item quick-status-item {% if t.status == 'In Progress' %}active{% endif %}" href="#" data-id="{{ t.id }}" data-status="In Progress"><i class="bi bi-arrow-repeat me-2 text-info"></i>In Progress</a></li>
+                                        <li><a class="dropdown-item quick-status-item {% if t.status == 'Completed' %}active{% endif %}" href="#" data-id="{{ t.id }}" data-status="Completed"><i class="bi bi-check2-circle me-2 text-success"></i>Completed</a></li>
+                                    </ul>
                                 </div>
-                            </div>
-                        </td>
-                    </tr>
+                            </td>
+                            <td class="small text-white-50" style="font-size:0.73rem;">
+                                {{ t.assigned_date.strftime('%d %b %Y') if t.assigned_date else '&mdash;'|safe }}
+                                {% if current_user.role == 'Admin' and t.assigner %}
+                                    <div style="font-size:0.65rem;opacity:0.6;">by {{ t.assigner.name }}</div>
+                                {% endif %}
+                            </td>
+                            {% if current_user.role == 'Admin' %}
+                            <td class="small text-white-50" style="max-width:180px;font-size:0.72rem;">
+                                {{ t.notes or '&mdash;'|safe }}
+                            </td>
+                            {% endif %}
+                            <td class="text-end text-nowrap">
+                                {% if current_user.role == 'Admin' %}
+                                <button type="button" class="btn btn-sm btn-outline-info edit-task-btn" 
+                                        data-id="{{ t.id }}"
+                                        data-tutor-id="{{ t.tutor_id }}"
+                                        data-title="{{ t.title }}"
+                                        data-description="{{ t.description or '' }}"
+                                        data-due-date="{{ t.due_date.strftime('%Y-%m-%d') if t.due_date else '' }}"
+                                        data-status="{{ t.status }}"
+                                        data-notes="{{ t.notes or '' }}"
+                                        title="Edit Task">
+                                    <i class="bi bi-pencil-square"></i>
+                                </button>
+                                <a href="javascript:void(0)" class="btn btn-sm btn-outline-danger ms-1" 
+                                   onclick="confirmAction('Delete task: {{ t.title|replace('\'', '\\\'') }}?', function() { window.location.href = '{{ url_for('tasks.delete_task', id=t.id) }}'; })" 
+                                   title="Delete Task">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                                {% elif tutor and t.tutor_id == tutor.id %}
+                                <button type="button" class="btn btn-sm btn-outline-info update-task-btn"
+                                        data-id="{{ t.id }}"
+                                        data-title="{{ t.title }}"
+                                        data-status="{{ t.status }}"
+                                        data-notes="{{ t.notes or '' }}"
+                                        title="Update Status">
+                                    <i class="bi bi-pencil-square"></i>
+                                </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="{% if current_user.role == 'Admin' %}7{% else %}5{% endif %}">
+                                <div class="empty-state py-5 text-center">
+                                    <div class="empty-state-content">
+                                        <i class="bi bi-clipboard2-check fs-1 text-white-50 d-block mb-2"></i>
+                                        <h5 class="empty-state-title text-white">No tasks found</h5>
+                                        <p class="empty-state-subtitle text-white-50 small">
+                                            {% if selected_status or selected_tutor_id or search_q %}
+                                                No tasks match your current filter settings. <a href="{{ url_for('tasks.list_tasks') }}" class="text-info text-decoration-none">Clear filters</a>
+                                            {% elif current_user.role == 'Admin' %}
+                                                Assign a new task to your tutors to get started.
+                                            {% else %}
+                                                You currently have no tasks assigned to you.
+                                            {% endif %}
+                                        </p>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
                     {% endif %}
                 </tbody>
             </table>
         </div>
     </div>
 </div>
+
 <!-- Assign Task Modal (Admin only) -->
 {% if current_user.role == 'Admin' %}
 <div class="modal fade" id="assignTaskModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title text-white"><i class="bi bi-plus-circle me-2"></i>Assign Task</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <div class="modal-content" style="background:#1a1d2e;border:1px solid rgba(255,255,255,0.15);box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+            <div class="modal-header border-secondary border-opacity-25">
+                <h5 class="modal-title text-white"><i class="bi bi-plus-circle me-2" style="color:hsl(200,100%,55%);"></i>Assign Task</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form method="POST" action="{{ url_for('tasks.list_tasks') }}" hx-boost="false" data-no-ajax>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label text-white small">Assign To</label>
-                        <select class="form-select" name="tutor_id" required>
+                        <label class="form-label text-white small fw-semibold">Assign To <span class="text-danger">*</span></label>
+                        <select class="form-select" name="tutor_id" required style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
                             <option value="">-- Select Tutor --</option>
                             {% for t in tutors %}
                             <option value="{{ t.id }}">{{ t.name }}</option>
@@ -98,115 +300,231 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-white small">Task Title</label>
-                        <input type="text" class="form-control" name="title" placeholder="e.g. Complete syllabus planning" required>
+                        <label class="form-label text-white small fw-semibold">Task Title <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="title" placeholder="e.g. Complete syllabus planning for Term 1" required style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-white small">Description</label>
-                        <textarea class="form-control" name="description" rows="3" placeholder="Task details..."></textarea>
+                        <label class="form-label text-white small fw-semibold">Description / Instructions</label>
+                        <textarea class="form-control" name="description" rows="3" placeholder="Provide details, deliverables, or guidelines..." style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);"></textarea>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-white small">Due Date</label>
-                        <input type="date" class="form-control" name="due_date">
+                        <label class="form-label text-white small fw-semibold">Due Date</label>
+                        <input type="date" class="form-control" name="due_date" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-premium"><i class="bi bi-send me-1"></i>Assign</button>
+                <div class="modal-footer border-secondary border-opacity-25">
+                    <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-premium btn-sm"><i class="bi bi-send me-1"></i>Assign Task</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
-{% endif %}
-<!-- Admin Edit Modals -->
-{% if current_user.role == 'Admin' %}
-{% for t in tasks %}
-<div class="modal fade" id="editTaskModal{{ t.id }}" tabindex="-1" aria-hidden="true">
+
+<!-- Reusable Dynamic Edit Task Modal (Admin) -->
+<div class="modal fade" id="dynamicEditTaskModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title text-white"><i class="bi bi-pencil-square me-2"></i>Edit Task</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <div class="modal-content" style="background:#1a1d2e;border:1px solid rgba(255,255,255,0.15);box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+            <div class="modal-header border-secondary border-opacity-25">
+                <h5 class="modal-title text-white"><i class="bi bi-pencil-square me-2" style="color:hsl(200,100%,55%);"></i>Edit Task</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="POST" action="{{ url_for('tasks.edit_task', id=t.id) }}" hx-boost="false" data-no-ajax>
+            <form id="dynamicEditTaskForm" method="POST" action="" hx-boost="false" data-no-ajax>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label text-white small">Assigned To</label>
-                        <select class="form-select" name="tutor_id">
+                        <label class="form-label text-white small fw-semibold">Assigned To</label>
+                        <select class="form-select" id="edit_tutor_id" name="tutor_id" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
                             {% for tu in tutors %}
-                            <option value="{{ tu.id }}" {% if tu.id == t.tutor_id %}selected{% endif %}>{{ tu.name }}</option>
+                            <option value="{{ tu.id }}">{{ tu.name }}</option>
                             {% endfor %}
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-white small">Task Title</label>
-                        <input type="text" class="form-control" name="title" value="{{ t.title }}" required>
+                        <label class="form-label text-white small fw-semibold">Task Title <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="edit_title" name="title" required style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-white small">Description</label>
-                        <textarea class="form-control" name="description" rows="2">{{ t.description or '' }}</textarea>
+                        <label class="form-label text-white small fw-semibold">Description</label>
+                        <textarea class="form-control" id="edit_description" name="description" rows="2" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);"></textarea>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-white small">Due Date</label>
-                        <input type="date" class="form-control" name="due_date" value="{{ t.due_date.strftime('%Y-%m-%d') if t.due_date else '' }}">
+                        <label class="form-label text-white small fw-semibold">Due Date</label>
+                        <input type="date" class="form-control" id="edit_due_date" name="due_date" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-white small">Status</label>
-                        <select class="form-select" name="status">
-                            <option value="Pending" {% if t.status == 'Pending' %}selected{% endif %}>Pending</option>
-                            <option value="In Progress" {% if t.status == 'In Progress' %}selected{% endif %}>In Progress</option>
-                            <option value="Completed" {% if t.status == 'Completed' %}selected{% endif %}>Completed</option>
+                        <label class="form-label text-white small fw-semibold">Status</label>
+                        <select class="form-select" id="edit_status" name="status" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
+                            <option value="Pending">Pending</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Completed">Completed</option>
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-white small">Remarks</label>
-                        <textarea class="form-control" name="notes" rows="2">{{ t.notes or '' }}</textarea>
+                        <label class="form-label text-white small fw-semibold">Remarks / Notes</label>
+                        <textarea class="form-control" id="edit_notes" name="notes" rows="2" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);"></textarea>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-premium"><i class="bi bi-check-lg me-1"></i>Save</button>
+                <div class="modal-footer border-secondary border-opacity-25">
+                    <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-premium btn-sm"><i class="bi bi-check-lg me-1"></i>Save Changes</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
-{% endfor %}
 {% endif %}
-<!-- Update Status Modals (Staff) -->
-{% for t in tasks %}
-{% if tutor and t.tutor_id == tutor.id %}
-<div class="modal fade" id="updateStatusModal{{ t.id }}" tabindex="-1" aria-hidden="true">
+
+<!-- Reusable Dynamic Update Status Modal (Staff) -->
+<div class="modal fade" id="dynamicUpdateStatusModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title text-white"><i class="bi bi-pencil-square me-2"></i>Update Task: {{ t.title }}</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <div class="modal-content" style="background:#1a1d2e;border:1px solid rgba(255,255,255,0.15);box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+            <div class="modal-header border-secondary border-opacity-25">
+                <h5 class="modal-title text-white" id="update_modal_title"><i class="bi bi-pencil-square me-2" style="color:hsl(200,100%,55%);"></i>Update Task</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="POST" action="{{ url_for('tasks.update_status', id=t.id) }}" hx-boost="false" data-no-ajax>
+            <form id="dynamicUpdateStatusForm" method="POST" action="" hx-boost="false" data-no-ajax>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label text-white small">Status</label>
-                        <select class="form-select" name="status" required>
-                            <option value="Pending" {% if t.status == 'Pending' %}selected{% endif %}>Pending</option>
-                            <option value="In Progress" {% if t.status == 'In Progress' %}selected{% endif %}>In Progress</option>
-                            <option value="Completed" {% if t.status == 'Completed' %}selected{% endif %}>Completed</option>
+                        <label class="form-label text-white small fw-semibold">Status</label>
+                        <select class="form-select" id="update_status" name="status" required style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
+                            <option value="Pending">Pending</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Completed">Completed</option>
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-white small">Remarks <span class="text-white-50">(optional)</span></label>
-                        <textarea class="form-control" name="notes" rows="3" placeholder="Add remarks...">{{ t.notes or '' }}</textarea>
+                        <label class="form-label text-white small fw-semibold">Progress Remarks <span class="text-white-50">(optional)</span></label>
+                        <textarea class="form-control" id="update_notes" name="notes" rows="3" placeholder="Add progress notes or completion remarks..." style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);"></textarea>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-premium"><i class="bi bi-check-lg me-1"></i>Update</button>
+                <div class="modal-footer border-secondary border-opacity-25">
+                    <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-premium btn-sm"><i class="bi bi-check-lg me-1"></i>Update Status</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
-{% endif %}
-{% endfor %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 1. Dynamic Edit Modal Population (Admin)
+    var editModalEl = document.getElementById('dynamicEditTaskModal');
+    var editModal = editModalEl ? new bootstrap.Modal(editModalEl) : null;
+    
+    document.querySelectorAll('.edit-task-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var taskId = btn.getAttribute('data-id');
+            var form = document.getElementById('dynamicEditTaskForm');
+            if (form) form.action = '/tasks/edit/' + taskId;
+
+            var tutorSelect = document.getElementById('edit_tutor_id');
+            if (tutorSelect) tutorSelect.value = btn.getAttribute('data-tutor-id') || '';
+
+            var titleInput = document.getElementById('edit_title');
+            if (titleInput) titleInput.value = btn.getAttribute('data-title') || '';
+
+            var descInput = document.getElementById('edit_description');
+            if (descInput) descInput.value = btn.getAttribute('data-description') || '';
+
+            var dueInput = document.getElementById('edit_due_date');
+            if (dueInput) dueInput.value = btn.getAttribute('data-due-date') || '';
+
+            var statusSelect = document.getElementById('edit_status');
+            if (statusSelect) statusSelect.value = btn.getAttribute('data-status') || 'Pending';
+
+            var notesInput = document.getElementById('edit_notes');
+            if (notesInput) notesInput.value = btn.getAttribute('data-notes') || '';
+
+            if (editModal) editModal.show();
+        });
+    });
+
+    // 2. Dynamic Update Status Modal Population (Staff)
+    var updateModalEl = document.getElementById('dynamicUpdateStatusModal');
+    var updateModal = updateModalEl ? new bootstrap.Modal(updateModalEl) : null;
+    
+    document.querySelectorAll('.update-task-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var taskId = btn.getAttribute('data-id');
+            var form = document.getElementById('dynamicUpdateStatusForm');
+            if (form) form.action = '/tasks/update-status/' + taskId;
+
+            var titleHeader = document.getElementById('update_modal_title');
+            if (titleHeader) titleHeader.innerHTML = '<i class="bi bi-pencil-square me-2" style="color:hsl(200,100%,55%);"></i>Update: ' + (btn.getAttribute('data-title') || '');
+
+            var statusSelect = document.getElementById('update_status');
+            if (statusSelect) statusSelect.value = btn.getAttribute('data-status') || 'Pending';
+
+            var notesInput = document.getElementById('update_notes');
+            if (notesInput) notesInput.value = btn.getAttribute('data-notes') || '';
+
+            if (updateModal) updateModal.show();
+        });
+    });
+
+    // 3. Quick Status Switcher Dropdown (AJAX)
+    document.querySelectorAll('.quick-status-item').forEach(function(item) {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+            var taskId = item.getAttribute('data-id');
+            var newStatus = item.getAttribute('data-status');
+            var labelEl = document.getElementById('status-label-' + taskId);
+            var rowEl = document.getElementById('task-row-' + taskId);
+            var dropdownBtn = item.closest('.dropdown').querySelector('.dropdown-toggle');
+
+            var formData = new FormData();
+            formData.append('status', newStatus);
+
+            fetch('/tasks/update-status/' + taskId, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    if (labelEl) labelEl.textContent = newStatus;
+                    
+                    // Update active styling on dropdown items
+                    item.closest('.dropdown-menu').querySelectorAll('.quick-status-item').forEach(function(el) {
+                        el.classList.toggle('active', el.getAttribute('data-status') === newStatus);
+                    });
+
+                    // Update button styling
+                    if (dropdownBtn) {
+                        if (newStatus === 'Completed') {
+                            dropdownBtn.style.background = 'rgba(0,191,166,0.15)';
+                            dropdownBtn.style.color = '#00BFA6';
+                            dropdownBtn.style.borderColor = 'rgba(0,191,166,0.3)';
+                        } else if (newStatus === 'In Progress') {
+                            dropdownBtn.style.background = 'rgba(13,202,240,0.15)';
+                            dropdownBtn.style.color = '#0dcaf0';
+                            dropdownBtn.style.borderColor = 'rgba(13,202,240,0.3)';
+                        } else {
+                            dropdownBtn.style.background = 'rgba(255,193,7,0.15)';
+                            dropdownBtn.style.color = '#ffc107';
+                            dropdownBtn.style.borderColor = 'rgba(255,193,7,0.3)';
+                        }
+                    }
+
+                    // Update row border styling
+                    if (rowEl) {
+                        if (newStatus === 'Completed') {
+                            rowEl.style.borderLeft = '3px solid #00BFA6';
+                        } else if (newStatus === 'In Progress') {
+                            rowEl.style.borderLeft = '3px solid #0dcaf0';
+                        } else {
+                            rowEl.style.borderLeft = '3px solid #ffc107';
+                        }
+                    }
+                }
+            })
+            .catch(function(err) {
+                console.error('Failed to update status:', err);
+            });
+        });
+    });
+});
+</script>
 {% endblock %}

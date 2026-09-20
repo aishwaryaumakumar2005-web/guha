@@ -43,17 +43,65 @@ def list_tasks():
         return redirect(url_for('tasks.list_tasks'))
 
     tutor = None
+    query = Task.query
     if current_user.role == 'Admin':
-        tasks = Task.query.order_by(Task.created_at.desc()).all()
+        pass
     else:
         tutor = Tutor.query.filter_by(email=current_user.email).first()
         if not tutor:
-            tasks = []
+            query = query.filter(db.false())
         else:
-            tasks = Task.query.filter_by(tutor_id=tutor.id).order_by(Task.created_at.desc()).all()
-    tutors = Tutor.query.order_by(Tutor.name).all()
+            query = query.filter(Task.tutor_id == tutor.id)
+
+    all_tasks = query.all()
     today = date.today()
-    return render_template('tasks.html', tasks=tasks, tutors=tutors, today=today, tutor=tutor)
+
+    # KPI Statistics for the scoped user
+    stats = {
+        'total': len(all_tasks),
+        'pending': sum(1 for t in all_tasks if t.status == 'Pending'),
+        'in_progress': sum(1 for t in all_tasks if t.status == 'In Progress'),
+        'completed': sum(1 for t in all_tasks if t.status == 'Completed'),
+        'overdue': sum(1 for t in all_tasks if t.due_date and t.due_date < today and t.status != 'Completed')
+    }
+
+    # Filters
+    selected_status = request.args.get('status', '').strip()
+    selected_tutor_id = request.args.get('tutor_id', type=int)
+    search_q = request.args.get('q', '').strip()
+
+    if selected_status == 'Pending':
+        query = query.filter(Task.status == 'Pending')
+    elif selected_status == 'In Progress':
+        query = query.filter(Task.status == 'In Progress')
+    elif selected_status == 'Completed':
+        query = query.filter(Task.status == 'Completed')
+    elif selected_status == 'Overdue':
+        query = query.filter(Task.due_date < today, Task.status != 'Completed')
+
+    if selected_tutor_id and current_user.role == 'Admin':
+        query = query.filter(Task.tutor_id == selected_tutor_id)
+
+    if search_q:
+        search_filter = f"%{search_q}%"
+        query = query.filter(db.or_(
+            Task.title.ilike(search_filter),
+            Task.description.ilike(search_filter),
+            Task.notes.ilike(search_filter)
+        ))
+
+    tasks = query.order_by(Task.created_at.desc()).all()
+    tutors = Tutor.query.order_by(Tutor.name).all()
+
+    return render_template('tasks.html',
+                           tasks=tasks,
+                           tutors=tutors,
+                           today=today,
+                           tutor=tutor,
+                           stats=stats,
+                           selected_status=selected_status,
+                           selected_tutor_id=selected_tutor_id,
+                           search_q=search_q)
 
 
 @tasks_bp.route('/tasks/update-status/<int:id>', methods=['POST'])
@@ -62,11 +110,22 @@ def update_status(id):
     task = Task.query.get_or_404(id)
     tutor = Tutor.query.filter_by(email=current_user.email).first()
     if current_user.role != 'Admin' and (not tutor or task.tutor_id != tutor.id):
+        if is_ajax_request() or request.is_json:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
         flash('You can only update your own tasks.', 'danger')
         return redirect(url_for('tasks.list_tasks'))
-    status = request.form.get('status', '').strip()
-    notes = request.form.get('notes', '').strip()
+    
+    if request.is_json:
+        data = request.get_json() or {}
+        status = (data.get('status') or '').strip()
+        notes = (data.get('notes') or '').strip()
+    else:
+        status = request.form.get('status', '').strip()
+        notes = request.form.get('notes', '').strip()
+
     if status not in ('Pending', 'In Progress', 'Completed'):
+        if is_ajax_request() or request.is_json:
+            return jsonify({'success': False, 'error': 'Invalid status'}), 400
         flash('Invalid status.', 'danger')
         return redirect(url_for('tasks.list_tasks'))
     task.status = status
@@ -77,6 +136,10 @@ def update_status(id):
     else:
         task.completed_date = None
     db.session.commit()
+
+    if is_ajax_request() or request.is_json:
+        return jsonify({'success': True, 'status': status, 'id': task.id, 'completed_date': task.completed_date.isoformat() if task.completed_date else None})
+
     flash(f'Task status updated to {status}.', 'success')
     return redirect(url_for('tasks.list_tasks'))
 
