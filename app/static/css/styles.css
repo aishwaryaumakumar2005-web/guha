@@ -1198,7 +1198,7 @@ body.dark-mode .glass-card:hover {
     .bento-md-6 { grid-column: span 6; }
     .bento-md-12 { grid-column: span 12; }
 }
-@media (min-width: 1200px) {
+@media (min-width: 992px) {
     .bento-xl-3 { grid-column: span 3; }
     .bento-xl-4 { grid-column: span 4; }
     .bento-xl-5 { grid-column: span 5; }
