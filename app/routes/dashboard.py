@@ -2,7 +2,7 @@ from datetime import date, datetime, timedelta
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import User, Student, Tutor, Course, Enquiry, FeeRecord, Attendance, LeaveRequest, Exam, student_courses
+from app.models import User, Student, Tutor, Course, Enquiry, FeeRecord, Attendance, LeaveRequest, Exam, Task, student_courses
 from app.helpers import admin_required, get_gst_rates, is_ajax_request
 from app.services.account_service import (compute_account_summary,
                                           agreed_enrollment_items_bulk,
