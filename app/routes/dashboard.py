@@ -171,12 +171,12 @@ def _fee_chart(today):
 
 
 def _top_courses():
-    # Top courses by enrollment count (for upcoming classes section).
+    # Top courses by enrollment count. Include capacity so we can show seat-fill %.
     return db.session.query(
-        Course.id, Course.name,
+        Course.id, Course.name, Course.capacity,
         func.count(student_courses.c.student_id).label('enrolled')
     ).outerjoin(student_courses, Course.id == student_courses.c.course_id
-    ).group_by(Course.id, Course.name
+    ).group_by(Course.id, Course.name, Course.capacity
     ).order_by(func.count(student_courses.c.student_id).desc()
     ).limit(5).all()
 
@@ -408,6 +408,18 @@ def dashboard():
         overflow_capacity = 0
         birthdays_today = []
         anniversaries_today = []
+        # Dynamic data for the "Your Access" card replacement (item 15)
+        def _staff_today_info():
+            tutor = Tutor.query.filter_by(email=current_user.email).first()
+            exams = []
+            att_done = today_attendance > 0
+            if tutor:
+                course_ids = [c.id for c in tutor.courses]
+                exams = [{'title': e.title, 'course': e.course.name if e.course else ''}
+                         for e in Exam.query.filter(Exam.exam_date == today,
+                                                    Exam.course_id.in_(course_ids)).all()]
+            return exams, att_done
+        staff_today_exams, staff_attendance_done = _safe('staff_today_info', _staff_today_info, ([], False))
     else:
         recent_enquiries, recent_fees = _safe('recent_lists', _recent_lists, ([], []))
         chart_months, chart_data = _safe(
@@ -421,6 +433,8 @@ def dashboard():
         stats['admin_pending_leaves'] = _safe(
             'admin_pending_leaves',
             lambda: LeaveRequest.query.filter_by(status='Pending').count(), 0)
+        staff_today_exams = []
+        staff_attendance_done = False
 
     return render_template('dashboard.html',
         stats=stats, recent_enquiries=recent_enquiries,
@@ -430,6 +444,7 @@ def dashboard():
         capacity_courses=capacity_courses, overflow_capacity=overflow_capacity,
         birthdays_today=birthdays_today, anniversaries_today=anniversaries_today,
         today=today, today_fees=float(today_fees), today_attendance=int(today_attendance),
+        staff_today_exams=staff_today_exams, staff_attendance_done=staff_attendance_done,
         account_balances=_safe(
             'account_balances',
             lambda: (compute_account_summary() if current_user.role == 'Admin' else []),

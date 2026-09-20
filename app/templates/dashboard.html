@@ -10,7 +10,7 @@
                 {% if current_user.role == 'Admin' %}
                 <span class="badge badge-custom badge-active"><i class="bi bi-currency-rupee me-1" aria-hidden="true"></i>₹{{ "{:,.0f}".format(today_fees) }} collected today <span style="opacity:0.6;">(incl. GST)</span></span>
                 <span class="badge badge-custom badge-active"><i class="bi bi-graph-up-arrow me-1" aria-hidden="true"></i>₹{{ "{:,.0f}".format(stats.monthly_fees_collected) }} this month <span style="opacity:0.6;">(incl. GST)</span></span>
-                <span class="badge badge-custom badge-amber"><i class="bi bi-funnel me-1" aria-hidden="true"></i>{{ stats.unresolved_enquiries }} unresolved enquiries</span>
+                <a href="{{ url_for('enquiries.kanban') }}" class="badge badge-custom badge-amber text-decoration-none"><i class="bi bi-funnel me-1" aria-hidden="true"></i>{{ stats.unresolved_enquiries }} unresolved enquiries</a>
                 {% endif %}
             </div>
         </div>
@@ -19,56 +19,70 @@
     <div class="bento-grid">
         <!-- Stat Cards -->
         <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll">
+            <a href="{{ url_for('students.list') }}" class="text-decoration-none d-block h-100">
             <div class="summary-card students">
                 <div><div class="stat-number">{{ stats.active_students }}</div><div class="stat-label">Students</div></div>
                 <div class="stat-sub">Active enrollments</div>
                 <i class="bi bi-people-fill stat-icon" aria-hidden="true"></i>
             </div>
+            </a>
         </div>
         {% if current_user.role == 'Admin' %}
         <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll stagger-1">
+            <a href="{{ url_for('courses.list') }}" class="text-decoration-none d-block h-100">
             <div class="summary-card courses">
                 <div><div class="stat-number">{{ stats.courses }}</div><div class="stat-label">Courses</div></div>
                 <div class="stat-sub">Active programs</div>
                 <i class="bi bi-journal-code stat-icon" aria-hidden="true"></i>
             </div>
+            </a>
         </div>
         <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll stagger-2">
+            <a href="{{ url_for('tutors.list') }}" class="text-decoration-none d-block h-100">
             <div class="summary-card staff">
                 <div><div class="stat-number">{{ stats.tutors }}</div><div class="stat-label">Staff</div></div>
                 <div class="stat-sub">Mentors &amp; instructors</div>
                 <i class="bi bi-person-workspace stat-icon" aria-hidden="true"></i>
             </div>
+            </a>
         </div>
         {% else %}
         <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll stagger-1">
+            <a href="{{ url_for('tutors.list') }}" class="text-decoration-none d-block h-100">
             <div class="summary-card staff">
                 <div><div class="stat-number">{{ stats.tutors }}</div><div class="stat-label">Staff</div></div>
                 <div class="stat-sub">Teaching team</div>
                 <i class="bi bi-person-workspace stat-icon" aria-hidden="true"></i>
             </div>
+            </a>
         </div>
         <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll stagger-2">
+            <a href="{{ url_for('leaves.leaves') }}" class="text-decoration-none d-block h-100">
             <div class="summary-card enrollments">
                 <div><div class="stat-number">{{ stats.pending_leaves_count }}</div><div class="stat-label">Pending</div></div>
                 <div class="stat-sub">Leave requests</div>
                 <i class="bi bi-hourglass-split stat-icon" aria-hidden="true"></i>
             </div>
+            </a>
         </div>
         <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll stagger-3">
+            <a href="{{ url_for('leaves.leaves') }}" class="text-decoration-none d-block h-100">
             <div class="summary-card lc-active">
                 <div><div class="stat-number">{{ stats.leave_days_used_month }}</div><div class="stat-label">Leave days</div></div>
                 <div class="stat-sub">Used so far</div>
                 <i class="bi bi-calendar2-minus stat-icon" aria-hidden="true"></i>
             </div>
+            </a>
         </div>
         {% endif %}
         <div class="bento-card bento-xl-{{ 4 if current_user.role != 'Admin' else 3 }} bento-md-6 animate-on-scroll stagger-4">
+            <a href="{{ url_for('attendance.attendance') }}" class="text-decoration-none d-block h-100">
             <div class="summary-card staff">
                 <div><div class="stat-number">{{ ('%d%%' % stats.avg_student_attendance) if stats.avg_student_attendance is not none else '—' }}</div><div class="stat-label">Attendance</div></div>
                 <div class="stat-sub">{% if current_user.role == 'Admin' %}Last 14 days{% else %}My students &middot; last 14 days{% endif %}</div>
                 <i class="bi bi-calendar-check stat-icon" aria-hidden="true"></i>
             </div>
+            </a>
         </div>
 
         {% if current_user.role == 'Admin' %}
@@ -154,23 +168,38 @@
                         <div class="text-center py-3"><p class="small text-white-50 mb-0">No courses yet.</p></div>
                     {% endif %}
                 </div>
+                {% if capacity_courses|length > 5 %}
+                <div class="mt-3 pt-2 border-top text-center" style="border-color:rgba(255,255,255,0.08);">
+                    <a href="{{ url_for('courses.list') }}" class="small text-decoration-none" style="color:rgba(255,255,255,0.45);font-size:0.72rem;">Showing 5 of {{ capacity_courses|length }} courses</a>
+                </div>
+                {% endif %}
             </div>
         </div>
 
         <!-- Top Courses -->
         <div class="bento-card bento-xl-4 bento-md-12 animate-on-scroll stagger-1">
             <div class="glass-card p-4 h-100">
-                <h5 class="mb-4 fw-bold"><i class="bi bi-trophy me-2" style="color:hsl(200,100%,50%);" aria-hidden="true"></i>Top Courses</h5>
+                <h5 class="mb-3 fw-bold"><i class="bi bi-trophy me-2" style="color:hsl(200,100%,50%);" aria-hidden="true"></i>Top Courses <span class="small fw-normal text-white-50" style="font-size:0.7rem;">by enrollment</span></h5>
                 <div class="d-flex flex-column gap-2">
                     {% if top_courses %}
                         {% for course in top_courses %}
-                            <div class="d-flex align-items-center gap-3 p-2 rounded" style="background:rgba(255,255,255,0.03);">
-                                <div class="rounded d-flex align-items-center justify-content-center" style="width:36px;height:36px;background:rgba(27, 110, 243,0.1);color:hsl(200,100%,50%);flex-shrink:0;"><i class="bi bi-journal-code" aria-hidden="true"></i></div>
-                                <div class="flex-grow-1 min-width-0">
-                                    <div class="fw-semibold small text-white text-truncate">{{ course.name }}</div>
-                                    <div class="text-white small" style="opacity:0.5;font-size:0.75rem;">{{ course.enrolled }} enrolled</div>
+                            {% set seats = course.capacity or 30 %}
+                            {% set fill_pct = [((course.enrolled / seats * 100)|round|int), 100]|min %}
+                            {% set fill_color = 'hsl(0,100%,60%)' if fill_pct >= 90 else ('hsl(40,100%,55%)' if fill_pct >= 70 else 'hsl(200,100%,50%)') %}
+                            <div class="p-2 rounded" style="background:rgba(255,255,255,0.03);">
+                                <div class="d-flex align-items-center gap-3 mb-1">
+                                    <div class="rounded d-flex align-items-center justify-content-center flex-shrink-0" style="width:32px;height:32px;background:rgba(27,110,243,0.1);color:hsl(200,100%,50%);">
+                                        <i class="bi bi-journal-code" aria-hidden="true"></i>
+                                    </div>
+                                    <div class="flex-grow-1 min-width-0">
+                                        <div class="fw-semibold small text-white text-truncate">{{ course.name }}</div>
+                                        <div class="text-white small" style="opacity:0.5;font-size:0.72rem;">{{ course.enrolled }} / {{ seats }} seats</div>
+                                    </div>
+                                    <div class="small fw-bold flex-shrink-0" style="color:{{ fill_color }};">{{ fill_pct }}%</div>
                                 </div>
-                                <div class="small fw-bold" style="color:hsl(200,100%,50%);">{{ (course.enrolled / stats.active_students * 100)|round|int if stats.active_students else '—' }}%</div>
+                                <div class="progress" style="height:3px;background:rgba(255,255,255,0.08);border-radius:2px;">
+                                    <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ fill_pct }}" style="width:{{ fill_pct }}%;background:{{ fill_color }};border-radius:2px;transition:width 0.5s ease;"></div>
+                                </div>
                             </div>
                         {% endfor %}
                     {% else %}
@@ -241,7 +270,7 @@
                 </div>
                 <div class="table-container">
                     <table class="table table-custom sortable" data-page-size="10">
-                        <thead><tr><th scope="col" aria-sort="none">Student</th><th scope="col" aria-sort="none">Amount</th><th scope="col" aria-sort="none">Date</th><th scope="col" class="no-sort">Method</th></tr></thead>
+                        <thead><tr><th scope="col" aria-sort="none">Student</th><th scope="col" aria-sort="none">Amount</th><th scope="col" aria-sort="none">Date</th><th scope="col" class="no-sort">Method</th><th scope="col" class="no-sort">Status</th></tr></thead>
                         <tbody>
                             {% if recent_fees %}
                                 {% for fee in recent_fees %}
@@ -250,10 +279,17 @@
                                         <td data-label="Amount" class="fw-semibold small" style="color:hsl(200,100%,50%);">₹{{ "{:,.2f}".format(fee.amount_paid) }}</td>
                                         <td data-label="Date" class="text-white small" style="opacity:0.7;">{{ fee.payment_date.strftime("%d %b %Y") }}</td>
                                         <td data-label="Method"><span class="badge badge-custom badge-cyan" style="font-size:0.6rem;">{{ fee.payment_method }}</span></td>
+                                        <td data-label="Status">
+                                            {% if fee.concession and fee.concession > 0 %}
+                                                <span class="badge" style="background:rgba(255,193,7,0.2);color:#ffc107;border:1px solid rgba(255,193,7,0.3);font-size:0.58rem;">Concession</span>
+                                            {% else %}
+                                                <span class="badge" style="background:rgba(0,191,166,0.15);color:#00BFA6;border:1px solid rgba(0,191,166,0.3);font-size:0.58rem;">Full</span>
+                                            {% endif %}
+                                        </td>
                                     </tr>
                                 {% endfor %}
                             {% else %}
-                                <tr>{{ empty_state('No recent payments', 'Fee payments will appear here once a collection is recorded', 'fees', none, none, none, 4) }}</tr>
+                                <tr>{{ empty_state('No recent payments', 'Fee payments will appear here once a collection is recorded', 'fees', none, none, none, 5) }}</tr>
                             {% endif %}
                         </tbody>
                     </table>
@@ -327,14 +363,41 @@
         </div>
         <div class="bento-card bento-xl-6 bento-md-12 animate-on-scroll stagger-1">
             <div class="glass-card p-4 h-100">
-                <h5 class="mb-4 fw-bold"><i class="bi bi-shield-check me-2" style="color:hsl(200,100%,50%);" aria-hidden="true"></i>Your Access</h5>
-                <ul class="list-unstyled mb-0 small" style="line-height:2;">
-                    <li><i class="bi bi-check-circle me-2" style="color:hsl(150,100%,40%);" aria-hidden="true"></i>Mark daily attendance</li>
-                    <li><i class="bi bi-check-circle me-2" style="color:hsl(150,100%,40%);" aria-hidden="true"></i>Submit leave requests</li>
-                    <li><i class="bi bi-check-circle me-2" style="color:hsl(150,100%,40%);" aria-hidden="true"></i>View attendance trends</li>
-                    <li><i class="bi bi-x-circle me-2" style="color:hsl(0,100%,60%);" aria-hidden="true"></i>Financial &amp; course management</li>
-                </ul>
-                <div class="mt-3 p-2 rounded small" style="background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.4);">Contact admin for advanced permissions.</div>
+                <h5 class="mb-3 fw-bold"><i class="bi bi-calendar2-event-fill me-2" style="color:hsl(200,100%,50%);" aria-hidden="true"></i>Today's Schedule</h5>
+                <!-- Attendance status -->
+                <div class="d-flex align-items-center gap-3 p-3 rounded mb-3" style="background:rgba(255,255,255,0.03);">
+                    {% if staff_attendance_done %}
+                        <i class="bi bi-check-circle-fill fs-5" style="color:hsl(150,100%,40%);" aria-hidden="true"></i>
+                        <div>
+                            <div class="small fw-semibold text-white">Attendance Marked</div>
+                            <div class="small" style="color:rgba(255,255,255,0.4);font-size:0.72rem;">{{ today_attendance }} student(s) recorded today</div>
+                        </div>
+                    {% else %}
+                        <i class="bi bi-exclamation-circle-fill fs-5" style="color:hsl(40,100%,55%);" aria-hidden="true"></i>
+                        <div class="flex-grow-1">
+                            <div class="small fw-semibold" style="color:hsl(40,100%,60%);">Attendance Not Marked</div>
+                            <div class="small" style="color:rgba(255,255,255,0.4);font-size:0.72rem;">Don't forget to log today's attendance</div>
+                        </div>
+                        <a href="{{ url_for('attendance.attendance') }}" class="btn btn-sm flex-shrink-0" style="background:rgba(255,193,7,0.15);border:1px solid rgba(255,193,7,0.3);color:#ffc107;border-radius:6px;font-size:0.7rem;padding:2px 10px;">Mark Now</a>
+                    {% endif %}
+                </div>
+                <!-- Today's exams -->
+                <div class="small text-white-50 fw-semibold mb-2" style="opacity:0.6;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em;">Exams Today</div>
+                {% if staff_today_exams %}
+                    <div class="d-flex flex-column gap-2">
+                        {% for exam in staff_today_exams %}
+                        <div class="d-flex align-items-center gap-2 p-2 rounded" style="background:rgba(255,255,255,0.03);">
+                            <i class="bi bi-mortarboard-fill flex-shrink-0" style="color:hsl(200,100%,55%);" aria-hidden="true"></i>
+                            <div class="min-width-0">
+                                <div class="small fw-semibold text-white text-truncate">{{ exam.title }}</div>
+                                <div class="small" style="color:rgba(255,255,255,0.4);font-size:0.7rem;">{{ exam.course }}</div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="small text-center py-2" style="color:rgba(255,255,255,0.3);">No exams scheduled today.</div>
+                {% endif %}
             </div>
         </div>
         {% endif %}
@@ -413,6 +476,8 @@ function toggleAiAdvisor() {
     var wishAllBtn = document.getElementById('wish-all-btn');
     if (wishAllBtn) {
         wishAllBtn.addEventListener('click', function() {
+            var count = document.querySelectorAll('.wish-single-btn').length;
+            if (!confirm('Send WhatsApp birthday wishes to ' + count + ' person(s) today?')) return;
             wishAllBtn.disabled = true;
             wishAllBtn.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:0.7rem;height:0.7rem;"></span>';
             busy('Sending wishes to all birthdays today...');
