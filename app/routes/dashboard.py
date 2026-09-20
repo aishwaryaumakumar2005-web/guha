@@ -500,6 +500,9 @@ def api_dashboard_insights():
     stats = get_dashboard_stats()
     try:
         insights = current_app.ai_engine.generate_institute_insights(stats)
+        if isinstance(insights, dict):
+            insights.setdefault('generated_at', datetime.utcnow().isoformat() + 'Z')
+            insights.setdefault('data_period', 'Current dashboard snapshot')
         return jsonify(insights)
     except Exception:
         current_app.logger.exception('Dashboard AI insights failed')
@@ -513,7 +516,30 @@ def api_predictive_analytics():
     stats = get_dashboard_stats()
     try:
         predictive_data = current_app.ai_engine.generate_predictive_analytics(stats)
+        if isinstance(predictive_data, dict):
+            predictive_data.setdefault('generated_at', datetime.utcnow().isoformat() + 'Z')
+            predictive_data.setdefault('data_period', 'Current dashboard snapshot')
         return jsonify(predictive_data)
+
+@dashboard_bp.route('/dashboard/export')
+@login_required
+def dashboard_export():
+    """Export the role-scoped dashboard headline metrics as CSV."""
+    import csv
+    from io import StringIO
+    output = StringIO()
+    writer = csv.writer(output)
+    stats = get_dashboard_stats()
+    writer.writerow(['Metric', 'Value'])
+    labels = {'active_students': 'Active students', 'courses': 'Courses', 'tutors': 'Staff',
+              'enquiries': 'Enquiries', 'unresolved_enquiries': 'Unresolved enquiries',
+              'monthly_fees_collected': 'Monthly fees collected',
+              'avg_student_attendance': 'Average attendance', 'low_attendance_count': 'Low attendance'}
+    for key, label in labels.items():
+        writer.writerow([label, stats.get(key, '')])
+    response = current_app.response_class(output.getvalue(), mimetype='text/csv')
+    response.headers['Content-Disposition'] = 'attachment; filename=dashboard-metrics.csv'
+    return response
     except Exception:
         current_app.logger.exception('Dashboard predictive analytics failed')
         return jsonify({'summary': 'Predictive analytics are temporarily unavailable.', 'predictions': [], 'degraded': True}), 200
@@ -683,7 +709,11 @@ def api_todays_activities():
         'fee_due_aged_critical': fee_due_aged_critical,
         'fee_due_max_age': fee_due_max_age,
     }
-    tasks = current_app.ai_engine.generate_todays_tasks(data)
+    try:
+        tasks = current_app.ai_engine.generate_todays_tasks(data)
+    except Exception:
+        current_app.logger.exception('Dashboard todays-task generation failed')
+        tasks = []
 
     route_map = {
         'view pipeline': 'enquiries.kanban',
