@@ -1,17 +1,13 @@
-/* Bento grid layout — breakpoint fix.
-   Loaded AFTER the main stylesheet under a unique filename so no browser or
-   edge cache can ever serve a stale copy. Source-order + equal specificity
-   means these rules win for the dashboard cards regardless of what the main
-   stylesheet currently delivers. */
+/* Bento grid layout — desktop breakpoint lowered to 768px so the arrangement
+   engages even on scaled displays (Windows 125%/150% DPI shrinks the CSS
+   viewport well below the physical screen). Loaded AFTER the main stylesheet
+   under a unique filename so no browser or edge cache can serve a stale copy. */
 
 .bento-card { grid-column: span 12; }
 
 @media (min-width: 768px) {
     .bento-md-6 { grid-column: span 6; }
     .bento-md-12 { grid-column: span 12; }
-}
-
-@media (min-width: 992px) {
     .bento-xl-3 { grid-column: span 3; }
     .bento-xl-4 { grid-column: span 4; }
     .bento-xl-5 { grid-column: span 5; }
