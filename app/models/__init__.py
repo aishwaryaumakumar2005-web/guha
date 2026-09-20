@@ -15,4 +15,4 @@ from .audit import AuditLog
 from .account import Account
 from .company import Company
 from .lifecycle_ack import LifecycleAck
-from .google_sync import GoogleSyncRow
+from .google_sync import GoogleSyncRow, GoogleSyncConnection

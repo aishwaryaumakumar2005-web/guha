@@ -8,7 +8,7 @@ from datetime import datetime
 from flask import Blueprint, render_template, request, jsonify, flash, session, current_app
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import Enquiry, Course, SystemSetting, GoogleSyncRow, AuditLog
+from app.models import Enquiry, Course, SystemSetting, GoogleSyncRow, GoogleSyncConnection, AuditLog
 from app.helpers import admin_required
 
 google_sync_bp = Blueprint('google_sync', __name__)
@@ -89,14 +89,27 @@ def google_sync_save_sheet():
     payload = request.get_json(silent=True) or {}
     sheet_id = payload.get('sheet_id', '').strip()
     form_url = payload.get('form_url', '').strip()
+    worksheet = (payload.get('worksheet') or '').strip()[:100]
+    try:
+        sync_limit = max(100, min(int(payload.get('sync_limit', 1000)), 10000))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Sync limit must be a number between 100 and 10,000.'}), 400
     if not _valid_sheet_id(sheet_id):
         return jsonify({'error': 'Enter a valid Google Sheet ID.'}), 400
     if not _valid_form_url(form_url):
         return jsonify({'error': 'Form URL must be a Google Forms HTTPS URL.'}), 400
-    for key, val in [('enquiry_sheet_id', sheet_id), ('enquiry_form_url', form_url)]:
+    for key, val in [('enquiry_sheet_id', sheet_id), ('enquiry_form_url', form_url), ('enquiry_worksheet', worksheet), ('enquiry_sync_limit', str(sync_limit))]:
         setting = SystemSetting.query.filter_by(key=key).first()
         if setting: setting.value = val
         else: db.session.add(SystemSetting(key=key, value=val))
+    db.session.commit()
+    connection = GoogleSyncConnection.query.filter_by(sheet_id=sheet_id).first()
+    if not connection:
+        connection = GoogleSyncConnection(name='Google Form Enquiries', sheet_id=sheet_id)
+        db.session.add(connection)
+    connection.worksheet = worksheet
+    connection.form_url = form_url
+    connection.sync_limit = sync_limit
     db.session.commit()
     _audit('UPDATE', {'sheet_id_changed': True, 'form_url_configured': bool(form_url)})
     db.session.commit()
@@ -112,6 +125,7 @@ def google_sync_status():
         return jsonify({'connected': False, 'error': 'Google Sheets integration is not installed.'}), 503
     sa_setting = SystemSetting.query.filter_by(key='sa_key').first()
     sheet_setting = SystemSetting.query.filter_by(key='enquiry_sheet_id').first()
+    worksheet_setting = SystemSetting.query.filter_by(key='enquiry_worksheet').first()
     if not (sa_setting and sa_setting.value):
         return jsonify({'connected': False, 'error': 'Service account key not found. Complete Step 1 first.'})
     if not (sheet_setting and sheet_setting.value):
@@ -121,7 +135,8 @@ def google_sync_status():
         if 'client_email' not in key_dict:
             return jsonify({'connected': False, 'error': 'Invalid service account JSON - missing client_email field.'})
         gc = gspread.service_account_from_dict(key_dict, scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"])
-        sheet = gc.open_by_key(sheet_setting.value).sheet1
+        book = gc.open_by_key(sheet_setting.value)
+        sheet = book.worksheet(worksheet_setting.value) if worksheet_setting and worksheet_setting.value else book.sheet1
         headers = sheet.row_values(1)
         return jsonify({'connected': True, 'headers': headers, 'row_count': len(sheet.get_all_values())})
     except Exception as e:
@@ -141,7 +156,10 @@ def google_sync_preview():
     try:
         import gspread
         gc = gspread.service_account_from_dict(json.loads(sa_setting.value), scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"])
-        rows = gc.open_by_key(sheet_setting.value).sheet1.get_all_records()
+        worksheet_setting = SystemSetting.query.filter_by(key='enquiry_worksheet').first()
+        book = gc.open_by_key(sheet_setting.value)
+        ws = book.worksheet(worksheet_setting.value) if worksheet_setting and worksheet_setting.value else book.sheet1
+        rows = ws.get_all_records()
     except Exception as e:
         return jsonify({'error': _safe_error(e)}), 400
     rows = rows[:100]
@@ -168,8 +186,15 @@ def google_sync_sync():
     try:
         import gspread
         gc = gspread.service_account_from_dict(json.loads(sa_setting.value), scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"])
-        ws = gc.open_by_key(sheet_setting.value).sheet1
-        rows = ws.get_all_records()
+        worksheet_setting = SystemSetting.query.filter_by(key='enquiry_worksheet').first()
+        limit_setting = SystemSetting.query.filter_by(key='enquiry_sync_limit').first()
+        try:
+            limit = max(100, min(int(limit_setting.value) if limit_setting and limit_setting.value else 1000, 10000))
+        except (TypeError, ValueError):
+            limit = 1000
+        book = gc.open_by_key(sheet_setting.value)
+        ws = book.worksheet(worksheet_setting.value) if worksheet_setting and worksheet_setting.value else book.sheet1
+        rows = ws.get_all_records()[:limit]
     except Exception as e:
         return jsonify({'error': _safe_error(e)}), 400
     if len(rows) > 10000:
@@ -178,6 +203,11 @@ def google_sync_sync():
     skipped = 0
     invalid = []
     batch_id = uuid.uuid4().hex
+    connection = GoogleSyncConnection.query.filter_by(sheet_id=sheet_setting.value).first()
+    if connection:
+        connection.last_sync_status = 'running'
+        connection.last_sync_error = None
+        db.session.commit()
     all_courses = {c.name.lower(): c for c in Course.query.all()}
     for row_number, r in enumerate(rows, start=2):
         source_key = str(r.get('Timestamp') or r.get('Response ID') or row_number).strip()
@@ -228,6 +258,10 @@ def google_sync_sync():
     else:
         db.session.add(SystemSetting(key='enquiry_last_sync', value=now_str))
     _audit('SYNC', {'batch_id': batch_id, 'imported': imported, 'skipped': skipped, 'invalid': len(invalid)})
+    if connection:
+        connection.last_sync_at = datetime.utcnow()
+        connection.last_sync_status = 'completed'
+        db.session.commit()
     db.session.commit()
     return jsonify({'status': 'ok', 'batch_id': batch_id, 'imported': imported,
                     'skipped': skipped, 'invalid': invalid}), 200
