@@ -117,10 +117,27 @@
                                 <div class="small fw-bold" style="color:hsl(0,100%,65%);">₹{{ "{:,.2f}".format(d.balance) }}</div>
                             </a>
                         {% endfor %}
+                        {% if due_students|length > 5 %}
+                        <div id="more-due-students" class="d-none d-flex flex-column gap-2">
+                            {% for d in due_students[5:] %}
+                                {% set days = d.days_enrolled or 0 %}
+                                {% set age_color = 'hsl(0,100%,60%)' if days > 90 else ('hsl(40,100%,55%)' if days > 30 else 'rgba(255,255,255,0.4)') %}
+                                <a href="{{ url_for('fees.list', student_id=d.id) }}" class="d-flex align-items-center gap-3 p-2 rounded text-decoration-none" style="background:rgba(255,255,255,0.03);">
+                                    <div class="rounded d-flex align-items-center justify-content-center flex-shrink-0" style="width:32px;height:32px;background:rgba(255,51,102,0.12);color:hsl(0,100%,65%);"><i class="bi bi-person" aria-hidden="true"></i></div>
+                                    <div class="flex-grow-1 min-width-0">
+                                        <div class="fw-semibold small text-white text-truncate">{{ d.name }}</div>
+                                        <div class="text-white small" style="opacity:0.45;font-size:0.7rem;">{{ d.roll_no or '—' }}{% if d.days_enrolled %}<span class="ms-1" title="Days since enrollment" style="color:{{ age_color }};">enrolled {{ d.days_enrolled }}d ago</span>{% endif %}</div>
+                                    </div>
+                                    <div class="small fw-bold" style="color:hsl(0,100%,65%);">₹{{ "{:,.2f}".format(d.balance) }}</div>
+                                </a>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
                     </div>
                     {% if due_students|length > 5 %}
-                        <div class="mt-2 text-center">
-                            <a href="{{ url_for('fees.list') }}" class="small text-decoration-none" style="color:hsla(200,100%,65%,0.85);">+{{ due_students|length - 5 }} more with dues</a>
+                        <div class="mt-2 d-flex justify-content-between align-items-center pt-2 border-top" style="border-color:rgba(255,255,255,0.08);">
+                            <button type="button" class="btn btn-sm p-0 text-decoration-none border-0 bg-transparent" style="color:hsla(200,100%,65%,0.85);font-size:0.75rem;" onclick="var el=document.getElementById('more-due-students');var isHidden=el.classList.toggle('d-none');this.innerHTML=isHidden?'+{{ due_students|length - 5 }} more with dues':'Show less';">+{{ due_students|length - 5 }} more with dues</button>
+                            <a href="{{ url_for('fees.list') }}" class="small text-decoration-none text-white-50" style="font-size:0.72rem;">View all in Fees &rarr;</a>
                         </div>
                     {% endif %}
                 {% else %}
