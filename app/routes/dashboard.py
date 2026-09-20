@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
 from app.extensions import db
@@ -521,6 +522,10 @@ def api_predictive_analytics():
             predictive_data.setdefault('data_period', 'Current dashboard snapshot')
         return jsonify(predictive_data)
 
+    except Exception:
+        current_app.logger.exception('Dashboard predictive analytics failed')
+        return jsonify({'summary': 'Predictive analytics are temporarily unavailable.', 'predictions': [], 'degraded': True}), 200
+
 @dashboard_bp.route('/dashboard/export')
 @login_required
 def dashboard_export():
@@ -540,9 +545,6 @@ def dashboard_export():
     response = current_app.response_class(output.getvalue(), mimetype='text/csv')
     response.headers['Content-Disposition'] = 'attachment; filename=dashboard-metrics.csv'
     return response
-    except Exception:
-        current_app.logger.exception('Dashboard predictive analytics failed')
-        return jsonify({'summary': 'Predictive analytics are temporarily unavailable.', 'predictions': [], 'degraded': True}), 200
 
 @dashboard_bp.route('/api/dashboard/todays-activities')
 @login_required
