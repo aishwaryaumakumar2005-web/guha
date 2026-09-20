@@ -198,22 +198,75 @@ class AIEngine:
             print(f"OpenAI API Error: {e}")
         return None
 
-    def call_ai(self, prompt, provider=None, timeout=60, first_only=False):
-        """Unified LLM caller respecting preferred provider, model parameters, and custom system instructions."""
+    def is_feature_enabled(self, feature_name):
+        """Check if a specific AI feature module toggle is enabled."""
+        key = f"AI_FEATURE_{feature_name.upper()}"
+        val = self._get_setting(key, "1")
+        return str(val).strip().lower() not in ("0", "false", "off", "no")
+
+    def _log_ai_activity(self, feature, provider, model, latency_ms, status, details=""):
+        try:
+            from app.models import AuditLog
+            from app.extensions import db
+            from flask_login import current_user
+            username = current_user.username if current_user and hasattr(current_user, 'username') else 'system'
+            user_id = current_user.id if current_user and hasattr(current_user, 'id') else None
+            log_entry = AuditLog(
+                user_id=user_id,
+                username=username,
+                action='AI_INFER',
+                entity_type='AIEngine',
+                entity_id=None,
+                changes=json.dumps({
+                    'feature': feature,
+                    'provider': provider,
+                    'model': model,
+                    'latency_ms': latency_ms,
+                    'status': status,
+                    'details': details[:200] if details else ''
+                })
+            )
+            db.session.add(log_entry)
+            db.session.commit()
+        except Exception:
+            try:
+                from app.extensions import db
+                db.session.rollback()
+            except Exception:
+                pass
+
+    def call_ai(self, prompt, provider=None, timeout=60, first_only=False, feature="GENERAL"):
+        """Unified LLM caller respecting preferred provider, model parameters, custom system instructions, and audit logging."""
+        t0 = time.time()
         system_prompt = (self._get_setting("AI_SYSTEM_PROMPT") or "").strip()
         full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
         
         pref = (provider or self._get_setting("AI_DEFAULT_PROVIDER", "gemini")).lower()
+        active_provider = "Google Gemini"
+        active_model = self._get_setting("GEMINI_MODEL", "gemini-2.5-flash")
+        
+        res = None
         if pref == "openai":
+            active_provider = "OpenAI"
+            active_model = self._get_setting("OPENAI_MODEL", "gpt-4o-mini")
             res = self._call_openai(full_prompt, timeout=timeout)
-            if res:
-                return res
-            return self._call_gemini(full_prompt, timeout=timeout, first_only=first_only)
+            if not res:
+                res = self._call_gemini(full_prompt, timeout=timeout, first_only=first_only)
+                if res:
+                    active_provider = "Google Gemini"
+                    active_model = self._get_setting("GEMINI_MODEL", "gemini-2.5-flash")
         else:
             res = self._call_gemini(full_prompt, timeout=timeout, first_only=first_only)
-            if res:
-                return res
-            return self._call_openai(full_prompt, timeout=timeout)
+            if not res:
+                res = self._call_openai(full_prompt, timeout=timeout)
+                if res:
+                    active_provider = "OpenAI"
+                    active_model = self._get_setting("OPENAI_MODEL", "gpt-4o-mini")
+
+        latency_ms = round((time.time() - t0) * 1000, 1)
+        status = "SUCCESS" if res else "FAILED"
+        self._log_ai_activity(feature=feature, provider=active_provider, model=active_model, latency_ms=latency_ms, status=status)
+        return res
 
     def generate_enquiry_followup(self, student_name, course_name, source, notes):
         prompt = (
@@ -226,7 +279,11 @@ class AIEngine:
             f"Make the tone warm and inspiring. Highlight that the institute offers hands-on projects, industry-expert tutors, and career support. "
             f"Encourage them to book a free demo session this week. Keep it under 250 words and include placeholders for contact info."
         )
-        ai_response = self._call_gemini(prompt) or self._call_openai(prompt)
+        if not self.is_feature_enabled("ADMISSIONS_DRAFTING"):
+            ai_response = None
+        else:
+            ai_response = self.call_ai(prompt, feature="ADMISSIONS_DRAFTING")
+
         if ai_response:
             return ai_response.strip()
         subjects_highlights = {
@@ -278,7 +335,10 @@ class AIEngine:
             f"- Unresolved Enquiries: {stats['unresolved_enquiries']}\n"
             f"- Low Attendance Students (<75%): {stats['low_attendance_count']}\n"
         )
-        ai_response = self._call_gemini(prompt) or self._call_openai(prompt)
+        if not self.is_feature_enabled("DASHBOARD_INSIGHTS"):
+            ai_response = None
+        else:
+            ai_response = self.call_ai(prompt, feature="DASHBOARD_INSIGHTS")
         if ai_response:
             try:
                 cleaned = ai_response.strip()

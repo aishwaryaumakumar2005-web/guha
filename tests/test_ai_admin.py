@@ -211,3 +211,75 @@ def test_ai_engine_error_handling():
         res = engine.test_provider_connection(provider='gemini', custom_key='ratelimited_key')
         assert res['success'] is False
         assert 'Rate limit' in res['message']
+
+
+def test_ai_feature_toggle_disabling(app):
+    engine = AIEngine()
+    with app.app_context():
+        db.session.add(SystemSetting(key='AI_FEATURE_DASHBOARD_INSIGHTS', value='0'))
+        db.session.add(SystemSetting(key='AI_FEATURE_ADMISSIONS_DRAFTING', value='0'))
+        db.session.commit()
+
+        assert engine.is_feature_enabled('DASHBOARD_INSIGHTS') is False
+        assert engine.is_feature_enabled('ADMISSIONS_DRAFTING') is False
+
+        # Insights will return fallback heuristics instead of calling AI
+        stats = {
+            'active_students': 10, 'tutors': 2, 'courses': 3,
+            'enquiries': 5, 'enquiries_new': 2, 'enquiries_contacted': 2, 'enquiries_converted': 1,
+            'avg_student_attendance': 85.0, 'monthly_fees_collected': 25000,
+            'unresolved_enquiries': 2, 'low_attendance_count': 0
+        }
+        insights = engine.generate_institute_insights(stats)
+        assert 'summary' in insights
+        assert len(insights['insights']) == 3
+
+        # Admissions follow-up returns rule-based fallback draft
+        followup = engine.generate_enquiry_followup('Rahul', 'Python Programming', 'Website', 'Interested in evening batch')
+        assert 'Dear Rahul' in followup
+        assert 'Guha Academy' in followup
+
+
+def test_ai_activity_audit_logging(app):
+    from app.models import AuditLog
+    engine = AIEngine()
+    with app.app_context():
+        engine._log_ai_activity(
+            feature='PLAYGROUND_TEST',
+            provider='Google Gemini',
+            model='gemini-2.5-flash',
+            latency_ms=150.5,
+            status='SUCCESS',
+            details='Prompt inference executed'
+        )
+        log = AuditLog.query.filter_by(action='AI_INFER').order_by(AuditLog.id.desc()).first()
+        assert log is not None
+        d = log.changes_dict()
+        assert d['feature'] == 'PLAYGROUND_TEST'
+        assert d['provider'] == 'Google Gemini'
+        assert d['status'] == 'SUCCESS'
+
+
+def test_admin_send_test_whatsapp_ajax(admin_client):
+    with patch('app.services.messenger.MessengerService._send_sms_direct', return_value=(True, 'Delivered')):
+        resp = admin_client.post('/admin', data={
+            'action': 'send_test_whatsapp',
+            'test_wa_phone': '919876543210'
+        }, headers={'X-Requested-With': 'fetch'})
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['success'] is True
+        assert 'sent successfully' in data['message']
+
+
+def test_admin_send_test_sms_ajax(admin_client):
+    with patch('app.services.sms_service.SMSService.send_test', return_value=True):
+        resp = admin_client.post('/admin', data={
+            'action': 'send_test_sms',
+            'test_sms_phone': '919876543210'
+        }, headers={'X-Requested-With': 'fetch'})
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['success'] is True
+        assert 'sent successfully' in data['message']
+

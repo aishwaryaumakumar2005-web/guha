@@ -35,8 +35,22 @@ def admin_console():
                     setting.value = val
                 else:
                     db.session.add(SystemSetting(key=k, value=val))
+
+            feature_keys = [
+                'AI_FEATURE_DASHBOARD_INSIGHTS', 'AI_FEATURE_ADMISSIONS_DRAFTING',
+                'AI_FEATURE_RETENTION_ADVISORY', 'AI_FEATURE_AUTOMATED_TASKS'
+            ]
+            for fk in feature_keys:
+                form_key = fk.lower()
+                val = '1' if request.form.get(form_key) in ('1', 'true', 'on') else '0'
+                setting = SystemSetting.query.filter_by(key=fk).first()
+                if setting:
+                    setting.value = val
+                else:
+                    db.session.add(SystemSetting(key=fk, value=val))
+
             db.session.commit()
-            msg = "AI Configuration & Model Settings saved successfully!"
+            msg = "AI Configuration, Model Settings & Feature Flags saved successfully!"
             if request.headers.get('X-Requested-With') in ('fetch', 'XMLHttpRequest') or request.is_json:
                 return jsonify({'success': True, 'message': msg})
             flash(msg, "success")
@@ -67,12 +81,18 @@ def admin_console():
             return redirect(url_for('admin.admin_console'))
         elif action == 'send_test_whatsapp':
             test_phone = request.form.get('test_wa_phone', '').strip()
+            is_ajax = request.headers.get('X-Requested-With') in ('fetch', 'XMLHttpRequest') or request.is_json
             if test_phone:
                 ok, msg = current_app.messenger._send_sms_direct(test_phone, "WhatsApp integration is working! - Guha Academy")
-                flash("Test message sent! Check your WhatsApp." if ok else f"Failed: {msg}", "success" if ok else "danger")
+                resp_msg = "Test WhatsApp message sent successfully! Check device." if ok else f"WhatsApp dispatch failed: {msg}"
+                if is_ajax:
+                    return jsonify({'success': ok, 'message': resp_msg})
+                flash(resp_msg, "success" if ok else "danger")
             else:
+                if is_ajax:
+                    return jsonify({'success': False, 'message': "Enter a recipient phone number."}), 400
                 flash("Enter a recipient phone number.", "warning")
-            return redirect(url_for('admin.admin_console'))
+            return redirect(url_for('admin.admin_console', _anchor='ai'))
         elif action == 'whatsapp_fee_reminders':
             result = current_app.messenger.batch_fee_reminders()
             flash(f"Fee reminders: {result['sent']} sent, {result['failed']} failed.", "success" if result['sent'] else "warning")
@@ -103,12 +123,18 @@ def admin_console():
             return redirect(url_for('admin.admin_console'))
         elif action == 'send_test_sms':
             test_phone = request.form.get('test_sms_phone', '').strip()
+            is_ajax = request.headers.get('X-Requested-With') in ('fetch', 'XMLHttpRequest') or request.is_json
             if test_phone:
                 ok = current_app.sms_service.send_test(test_phone)
-                flash("Test SMS sent!" if ok else "Failed to send test SMS. Check gateway settings.", "success" if ok else "danger")
+                resp_msg = "Test SMS sent successfully!" if ok else "Failed to send test SMS. Check gateway settings."
+                if is_ajax:
+                    return jsonify({'success': ok, 'message': resp_msg})
+                flash(resp_msg, "success" if ok else "danger")
             else:
+                if is_ajax:
+                    return jsonify({'success': False, 'message': "Enter a recipient phone number."}), 400
                 flash("Enter a recipient phone number.", "warning")
-            return redirect(url_for('admin.admin_console'))
+            return redirect(url_for('admin.admin_console', _anchor='ai'))
         elif action == 'sms_fee_reminders':
             result = current_app.sms_service.batch_fee_reminders()
             flash(f"SMS fee reminders: {result['sent']} sent, {result['failed']} failed.", "success" if result['sent'] else "warning")
@@ -259,7 +285,11 @@ def admin_console():
         ('GEMINI_MODEL', 'gemini-2.5-flash'),
         ('OPENAI_MODEL', 'gpt-4o-mini'),
         ('AI_TEMPERATURE', '0.7'),
-        ('AI_SYSTEM_PROMPT', '')
+        ('AI_SYSTEM_PROMPT', ''),
+        ('AI_FEATURE_DASHBOARD_INSIGHTS', '1'),
+        ('AI_FEATURE_ADMISSIONS_DRAFTING', '1'),
+        ('AI_FEATURE_RETENTION_ADVISORY', '1'),
+        ('AI_FEATURE_AUTOMATED_TASKS', '1')
     ]:
         s = SystemSetting.query.filter_by(key=key).first()
         ai_settings[key.lower()] = s.value if s and s.value not in (None, '') else default
@@ -295,8 +325,10 @@ def admin_console():
     g_active = bool(gemini_key or os.environ.get("GEMINI_API_KEY"))
     o_active = bool(openai_key or os.environ.get("OPENAI_API_KEY"))
     users = User.query.order_by(User.created_at.desc()).all()
+    ai_logs = AuditLog.query.filter_by(action='AI_INFER').order_by(AuditLog.timestamp.desc()).limit(10).all()
+
     return render_template('admin.html', gemini_key=gemini_key, openai_key=openai_key, ai=ai_settings,
-        db_counts=db_counts, g_active=g_active, o_active=o_active, users=users,
+        db_counts=db_counts, g_active=g_active, o_active=o_active, users=users, ai_logs=ai_logs,
         smtp=smtp_settings, wa=wa_settings, sms=sms_settings, org=org_settings,
         lifecycle=lifecycle_settings,
         courses=Course.query.order_by(Course.name).all())

@@ -178,6 +178,51 @@
                                 </div>
                             </div>
 
+                            <!-- Module Feature Switches -->
+                            <div class="mb-4 p-3 rounded" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);">
+                                <label class="form-label text-white small fw-bold mb-2 d-flex align-items-center">
+                                    <i class="bi bi-toggle2-on me-2 text-info"></i>Module-Level AI Feature Switches
+                                </label>
+                                <div class="row g-2">
+                                    <div class="col-md-6">
+                                        <div class="form-check form-switch p-2 rounded" style="background: rgba(0,0,0,0.15);">
+                                            <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" name="ai_feature_dashboard_insights" id="featDashboard" value="1" {% if ai.ai_feature_dashboard_insights != '0' %}checked{% endif %}>
+                                            <label class="form-check-label text-white small" for="featDashboard">
+                                                <strong>Dashboard Insights</strong>
+                                                <div class="text-muted" style="font-size: 0.72rem;">Executive KPI health & recommendations</div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check form-switch p-2 rounded" style="background: rgba(0,0,0,0.15);">
+                                            <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" name="ai_feature_admissions_drafting" id="featAdmissions" value="1" {% if ai.ai_feature_admissions_drafting != '0' %}checked{% endif %}>
+                                            <label class="form-check-label text-white small" for="featAdmissions">
+                                                <strong>Admissions Copywriter</strong>
+                                                <div class="text-muted" style="font-size: 0.72rem;">Personalized student enquiry follow-up</div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check form-switch p-2 rounded" style="background: rgba(0,0,0,0.15);">
+                                            <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" name="ai_feature_retention_advisory" id="featRetention" value="1" {% if ai.ai_feature_retention_advisory != '0' %}checked{% endif %}>
+                                            <label class="form-check-label text-white small" for="featRetention">
+                                                <strong>Retention Advisory</strong>
+                                                <div class="text-muted" style="font-size: 0.72rem;">At-risk attendance & lifecycle slippage</div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check form-switch p-2 rounded" style="background: rgba(0,0,0,0.15);">
+                                            <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" name="ai_feature_automated_tasks" id="featTasks" value="1" {% if ai.ai_feature_automated_tasks != '0' %}checked{% endif %}>
+                                            <label class="form-check-label text-white small" for="featTasks">
+                                                <strong>Operations Tasks</strong>
+                                                <div class="text-muted" style="font-size: 0.72rem;">Daily prioritized task generation</div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- Custom System Persona Prompt -->
                             <div class="mb-4">
                                 <label class="form-label text-secondary small fw-bold d-flex justify-content-between">
@@ -254,6 +299,66 @@
                 </div>
             </div>
 
+            <!-- ==================== RECENT AI AUDIT & INFERENCE LOGS ==================== -->
+            <div class="row mt-2">
+                <div class="col-12 mb-4">
+                    <div class="glass-card p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="text-white fw-bold mb-0"><i class="bi bi-clock-history me-2 text-info"></i>Recent AI Activity & Execution Logs</h5>
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Audit Trail</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover align-middle mb-0" style="background: transparent;">
+                                <thead>
+                                    <tr class="text-secondary small border-bottom border-secondary border-opacity-25">
+                                        <th>Timestamp</th>
+                                        <th>Triggered By</th>
+                                        <th>Feature / Context</th>
+                                        <th>Provider & Model</th>
+                                        <th>Latency</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="small">
+                                    {% if ai_logs %}
+                                        {% for log in ai_logs %}
+                                            {% set d = log.changes_dict() %}
+                                            <tr>
+                                                <td class="text-muted">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else 'N/A' }}</td>
+                                                <td><span class="badge bg-dark border border-secondary">{{ log.username or 'system' }}</span></td>
+                                                <td class="text-white fw-semibold">{{ d.get('feature', 'GENERAL') }}</td>
+                                                <td>
+                                                    <span class="text-info">{{ d.get('provider', 'AI') }}</span>
+                                                    {% if d.get('model') %}<span class="text-muted">({{ d.get('model') }})</span>{% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if d.get('latency_ms') %}
+                                                        <span class="badge bg-info-subtle text-info border border-info-subtle">{{ d.get('latency_ms') }} ms</span>
+                                                    {% else %}
+                                                        <span class="text-muted">-</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if d.get('status') == 'SUCCESS' %}
+                                                        <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-check-circle-fill me-1"></i>SUCCESS</span>
+                                                    {% else %}
+                                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="bi bi-exclamation-triangle-fill me-1"></i>{{ d.get('status', 'LOGGED') }}</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted py-3">No recent AI executions logged yet. Use the Playground or trigger dashboard insights to generate activity.</td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- ==================== COMMUNICATIONS ROW: WHATSAPP & SMS ==================== -->
             <div class="row mt-2">
                 <div class="col-lg-6 mb-4">
@@ -280,6 +385,17 @@
                             </div>
                             <button type="submit" class="btn btn-premium mt-3 w-100" style="background: linear-gradient(135deg, #25D366, #128C7E); border: none;"><i class="bi bi-whatsapp me-2"></i>Save WhatsApp Settings</button>
                         </form>
+
+                        <!-- WhatsApp Real-Time Test Dispatcher -->
+                        <div class="mt-4 pt-3 border-top border-secondary border-opacity-25">
+                            <label class="form-label small fw-bold text-white mb-2"><i class="bi bi-send-check me-1 text-success"></i>Send Test WhatsApp Message</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control form-control-sm" id="test_wa_phone_input" placeholder="e.g. 919876543210">
+                                <button class="btn btn-sm btn-outline-success" type="button" id="btnTestWhatsApp" onclick="sendTestWhatsApp()">
+                                    <i class="bi bi-send-fill me-1"></i>Send Test
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="col-lg-6 mb-4">
@@ -329,6 +445,17 @@
                             </div>
                             <button type="submit" class="btn btn-premium mt-3 w-100" style="background: linear-gradient(135deg, #1b6ef3, #1545b2); border: none;"><i class="bi bi-chat-dots me-2"></i>Save SMS Gateway Settings</button>
                         </form>
+
+                        <!-- SMS Real-Time Test Dispatcher -->
+                        <div class="mt-4 pt-3 border-top border-secondary border-opacity-25">
+                            <label class="form-label small fw-bold text-white mb-2"><i class="bi bi-send-check me-1 text-primary"></i>Send Test SMS</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control form-control-sm" id="test_sms_phone_input" placeholder="e.g. 919876543210">
+                                <button class="btn btn-sm btn-outline-primary" type="button" id="btnTestSms" onclick="sendTestSms()">
+                                    <i class="bi bi-send-fill me-1"></i>Send Test
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -866,6 +993,74 @@ function copySimulationOutput() {
     if (!outEl || !outEl.textContent) return;
     navigator.clipboard.writeText(outEl.textContent).then(function() {
         showToast('Simulation output copied to clipboard!', 'info');
+    });
+}
+
+function sendTestWhatsApp() {
+    var phoneInput = document.getElementById('test_wa_phone_input');
+    var btn = document.getElementById('btnTestWhatsApp');
+    var phone = phoneInput ? phoneInput.value.trim() : '';
+    if (!phone) {
+        showToast('Please enter a valid phone number for the test WhatsApp message.', 'warning');
+        return;
+    }
+    var origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
+
+    var formData = new FormData();
+    formData.append('action', 'send_test_whatsapp');
+    formData.append('test_wa_phone', phone);
+
+    fetch('{{ url_for("admin.admin_console") }}', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'fetch' },
+        body: formData
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        showToast(res.message, res.success ? 'success' : 'danger');
+    })
+    .catch(function() {
+        showToast('Failed to dispatch test WhatsApp message.', 'danger');
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+    });
+}
+
+function sendTestSms() {
+    var phoneInput = document.getElementById('test_sms_phone_input');
+    var btn = document.getElementById('btnTestSms');
+    var phone = phoneInput ? phoneInput.value.trim() : '';
+    if (!phone) {
+        showToast('Please enter a valid phone number for the test SMS.', 'warning');
+        return;
+    }
+    var origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
+
+    var formData = new FormData();
+    formData.append('action', 'send_test_sms');
+    formData.append('test_sms_phone', phone);
+
+    fetch('{{ url_for("admin.admin_console") }}', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'fetch' },
+        body: formData
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        showToast(res.message, res.success ? 'success' : 'danger');
+    })
+    .catch(function() {
+        showToast('Failed to dispatch test SMS message.', 'danger');
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
     });
 }
 
