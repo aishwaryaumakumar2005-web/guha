@@ -89,3 +89,42 @@ def test_extras_phase2_tabs_and_diagnostics(admin_client):
     assert 'Table Record Distribution' in html
     assert 'Students Master List' in html
     assert 'Broadcast Template Playground' in html
+
+
+def test_extras_diagnostics_scan_api(admin_client):
+    resp = admin_client.get('/extras/diagnostics/scan')
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert 'integrity_score' in data
+    assert 'issues_count' in data
+    assert 'checks' in data
+    assert isinstance(data['checks'], list)
+    assert len(data['checks']) >= 4
+
+
+def test_extras_flush_cache_api(admin_client):
+    resp = admin_client.post('/extras/maintenance/flush-cache', headers={'X-Requested-With': 'fetch'})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data.get('success') is True
+
+
+def test_extras_bulk_csv_exports(admin_client):
+    csv_endpoints = [
+        ('/extras/export/students.csv', 'students_master_'),
+        ('/extras/export/fees.csv', 'fees_ledger_'),
+        ('/extras/export/attendance.csv', 'attendance_register_'),
+        ('/extras/export/enquiries.csv', 'enquiries_pipeline_'),
+        ('/extras/export/expenses.csv', 'expenses_ledger_'),
+        ('/extras/export/tutors.csv', 'tutors_directory_'),
+    ]
+    for url, filename_prefix in csv_endpoints:
+        resp = admin_client.get(url)
+        assert resp.status_code == 200
+        assert 'text/csv' in resp.content_type
+        cd = resp.headers.get('Content-Disposition', '')
+        assert 'attachment' in cd
+        assert filename_prefix in cd
+        content = resp.data.decode('utf-8-sig')
+        lines = content.strip().split('\n')
+        assert len(lines) >= 1  # At least headers line

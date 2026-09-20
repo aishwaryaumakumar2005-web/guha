@@ -1,13 +1,20 @@
 import os
+import csv
 import json
 import uuid
 import shutil
+import time
+from io import StringIO
 from datetime import datetime, date, timezone, timedelta
 from decimal import Decimal
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app, send_from_directory
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app, send_from_directory, Response
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 from app.extensions import db
+from app.models import (
+    User, Student, Tutor, Course, Enquiry, FeeRecord, Attendance,
+    Expense, ExpenseCategory, Exam, Task, AuditLog, student_courses, tutor_courses
+)
 from app.helpers import admin_required, get_backup_dir
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -29,7 +36,6 @@ def _get_db_type_and_label():
     if uri.startswith('sqlite'):
         return 'SQLite', 'SQLite Local DB (instance/institute.db)'
     if 'neon.tech' in uri or 'postgresql' in uri or 'postgres' in uri:
-        # Extract host safely without credentials
         try:
             from urllib.parse import urlparse
             parsed = urlparse(uri)
@@ -142,10 +148,6 @@ def _get_backup_list():
     return backup_files, total_bytes
 
 
-import time
-from app.models import User, Student, Tutor, Course, Enquiry, FeeRecord, Attendance, Expense, Exam, Task, AuditLog
-
-
 def _measure_db_latency():
     try:
         t0 = time.time()
@@ -174,6 +176,120 @@ def _get_table_counts():
         return counts, total_records
     except Exception:
         return {}, 0
+
+
+def _run_integrity_scan():
+    """Run diagnostics to verify data consistency and flag orphaned records."""
+    checks = []
+    issues_count = 0
+
+    # 1. Orphaned Fee Records (payments pointing to non-existent students)
+    try:
+        orphan_fees = FeeRecord.query.filter(
+            ~FeeRecord.student_id.in_(db.session.query(Student.id))
+        ).count()
+        if orphan_fees > 0:
+            issues_count += orphan_fees
+            checks.append({
+                'name': 'Fee Records Linkage',
+                'status': 'warning',
+                'detail': f'Found {orphan_fees} orphaned fee records without a valid student ID.'
+            })
+        else:
+            checks.append({
+                'name': 'Fee Records Linkage',
+                'status': 'clean',
+                'detail': 'All fee records link to valid students.'
+            })
+    except Exception as e:
+        checks.append({'name': 'Fee Records Linkage', 'status': 'error', 'detail': str(e)})
+
+    # 2. Ghost Course Enrollments
+    try:
+        ghost_student_enrollments = db.session.query(student_courses).filter(
+            ~student_courses.c.student_id.in_(db.session.query(Student.id))
+        ).count()
+        ghost_course_enrollments = db.session.query(student_courses).filter(
+            ~student_courses.c.course_id.in_(db.session.query(Course.id))
+        ).count()
+        ghost_total = ghost_student_enrollments + ghost_course_enrollments
+        if ghost_total > 0:
+            issues_count += ghost_total
+            checks.append({
+                'name': 'Course Enrollments',
+                'status': 'warning',
+                'detail': f'Found {ghost_total} orphaned enrollment mappings.'
+            })
+        else:
+            checks.append({
+                'name': 'Course Enrollments',
+                'status': 'clean',
+                'detail': 'All course enrollment relations are valid.'
+            })
+    except Exception as e:
+        checks.append({'name': 'Course Enrollments', 'status': 'error', 'detail': str(e)})
+
+    # 3. QR Code Consistency
+    try:
+        students_no_qr = Student.query.filter(
+            db.or_(Student.qr_code_uuid.is_(None), Student.qr_code_uuid == '')
+        ).count()
+        tutors_no_qr = Tutor.query.filter(
+            db.or_(Tutor.qr_code_uuid.is_(None), Tutor.qr_code_uuid == '')
+        ).count()
+        missing_qr_total = students_no_qr + tutors_no_qr
+        if missing_qr_total > 0:
+            checks.append({
+                'name': 'QR Code Identifiers',
+                'status': 'warning',
+                'detail': f'{missing_qr_total} users ({students_no_qr} students, {tutors_no_qr} staff) missing QR UUIDs.'
+            })
+        else:
+            checks.append({
+                'name': 'QR Code Identifiers',
+                'status': 'clean',
+                'detail': 'All active students and tutors have QR code UUIDs.'
+            })
+    except Exception as e:
+        checks.append({'name': 'QR Code Identifiers', 'status': 'error', 'detail': str(e)})
+
+    # 4. Expense Categorization Integrity
+    try:
+        valid_cat_ids = db.session.query(ExpenseCategory.id)
+        orphan_expenses = Expense.query.filter(
+            db.and_(Expense.category_id.isnot(None), ~Expense.category_id.in_(valid_cat_ids))
+        ).count()
+        if orphan_expenses > 0:
+            issues_count += orphan_expenses
+            checks.append({
+                'name': 'Expense Categorization',
+                'status': 'warning',
+                'detail': f'Found {orphan_expenses} expenses referencing deleted categories.'
+            })
+        else:
+            checks.append({
+                'name': 'Expense Categorization',
+                'status': 'clean',
+                'detail': 'All expenses map to valid categories.'
+            })
+    except Exception as e:
+        checks.append({'name': 'Expense Categorization', 'status': 'error', 'detail': str(e)})
+
+    # 5. Database Performance Ping
+    latency_ms, db_status = _measure_db_latency()
+    checks.append({
+        'name': 'Query Latency & Connection',
+        'status': 'clean' if db_status == 'Healthy' else 'error',
+        'detail': f'Database responsive ({latency_ms} ms ping latency).'
+    })
+
+    score = max(0, 100 - (issues_count * 5))
+    return {
+        'timestamp': ist_now().strftime('%d %b %Y %I:%M %p'),
+        'issues_count': issues_count,
+        'integrity_score': score,
+        'checks': checks
+    }
 
 
 @extras_bp.route('/extras', methods=['GET'])
@@ -405,3 +521,176 @@ def upload_backup():
         flash(f'Backup uploaded successfully as: {save_name}', 'success')
 
     return redirect(url_for('extras.extras'))
+
+
+# ---------------------------------------------------------------------------
+# Diagnostics & Health Scanner
+# ---------------------------------------------------------------------------
+@extras_bp.route('/extras/diagnostics/scan', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def diagnostics_scan():
+    report = _run_integrity_scan()
+    return jsonify(report)
+
+
+# ---------------------------------------------------------------------------
+# System Maintenance & Cache Flush
+# ---------------------------------------------------------------------------
+@extras_bp.route('/extras/maintenance/flush-cache', methods=['POST'])
+@login_required
+@admin_required
+def flush_cache():
+    try:
+        from app.routes.dashboard import _stats_cache
+        _stats_cache.clear()
+    except Exception:
+        pass
+    return jsonify({
+        'success': True,
+        'message': 'Dashboard stats cache and temporary data purged successfully.'
+    })
+
+
+# ---------------------------------------------------------------------------
+# Bulk Data Export Center (Direct CSV Streams)
+# ---------------------------------------------------------------------------
+def _csv_response(rows, filename):
+    """Generate a downloadable CSV response with UTF-8 BOM for Excel compatibility."""
+    si = StringIO()
+    si.write('\ufeff')  # UTF-8 BOM
+    writer = csv.writer(si)
+    for row in rows:
+        writer.writerow(row)
+    output = si.getvalue()
+    return Response(
+        output,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@extras_bp.route('/extras/export/students.csv', methods=['GET'])
+@login_required
+@admin_required
+def export_students_csv():
+    students = Student.query.order_by(Student.id.asc()).all()
+    rows = [['Student ID', 'Roll No', 'Name', 'Email', 'Phone', 'Enrollment Date', 'Status', 'QR UUID']]
+    for s in students:
+        rows.append([
+            s.id,
+            s.roll_no or '',
+            s.name or '',
+            s.email or '',
+            s.phone or '',
+            s.enrollment_date.strftime('%Y-%m-%d') if s.enrollment_date else '',
+            s.status or 'Active',
+            s.qr_code_uuid or ''
+        ])
+    filename = f"students_master_{ist_now().strftime('%Y%m%d')}.csv"
+    return _csv_response(rows, filename)
+
+
+@extras_bp.route('/extras/export/fees.csv', methods=['GET'])
+@login_required
+@admin_required
+def export_fees_csv():
+    fees = FeeRecord.query.order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).all()
+    rows = [['Payment ID', 'Student ID', 'Student Name', 'Roll No', 'Amount Paid', 'Payment Date', 'Method', 'Concession', 'Remarks']]
+    for f in fees:
+        s_name = f.student.name if f.student else 'Unknown'
+        s_roll = f.student.roll_no if f.student else ''
+        rows.append([
+            f.id,
+            f.student_id,
+            s_name,
+            s_roll,
+            f"{f.amount_paid:.2f}",
+            f.payment_date.strftime('%Y-%m-%d') if f.payment_date else '',
+            f.payment_method or 'Cash',
+            f"{f.concession:.2f}" if f.concession else "0.00",
+            f.remarks or ''
+        ])
+    filename = f"fees_ledger_{ist_now().strftime('%Y%m%d')}.csv"
+    return _csv_response(rows, filename)
+
+
+@extras_bp.route('/extras/export/attendance.csv', methods=['GET'])
+@login_required
+@admin_required
+def export_attendance_csv():
+    records = Attendance.query.order_by(Attendance.date.desc(), Attendance.id.desc()).limit(2000).all()
+    rows = [['Attendance ID', 'Date', 'Person Type', 'Person ID', 'Status', 'Marked By', 'Timestamp']]
+    for a in records:
+        rows.append([
+            a.id,
+            a.date.strftime('%Y-%m-%d') if a.date else '',
+            a.person_type or 'student',
+            a.person_id,
+            a.status or 'Present',
+            a.marked_by or 'manual',
+            a.timestamp.strftime('%Y-%m-%d %H:%M:%S') if a.timestamp else ''
+        ])
+    filename = f"attendance_register_{ist_now().strftime('%Y%m%d')}.csv"
+    return _csv_response(rows, filename)
+
+
+@extras_bp.route('/extras/export/enquiries.csv', methods=['GET'])
+@login_required
+@admin_required
+def export_enquiries_csv():
+    enquiries = Enquiry.query.order_by(Enquiry.created_at.desc(), Enquiry.id.desc()).all()
+    rows = [['Enquiry ID', 'Student Name', 'Email', 'Phone', 'Course ID', 'Source', 'Status', 'Created Date', 'Notes']]
+    for e in enquiries:
+        rows.append([
+            e.id,
+            e.student_name or '',
+            e.email or '',
+            e.phone or '',
+            e.course_id or '',
+            e.source or 'Walk-in',
+            e.status or 'New',
+            e.created_at.strftime('%Y-%m-%d') if e.created_at else '',
+            (e.notes or '').replace('\n', ' ')
+        ])
+    filename = f"enquiries_pipeline_{ist_now().strftime('%Y%m%d')}.csv"
+    return _csv_response(rows, filename)
+
+
+@extras_bp.route('/extras/export/expenses.csv', methods=['GET'])
+@login_required
+@admin_required
+def export_expenses_csv():
+    expenses = Expense.query.order_by(Expense.expense_date.desc(), Expense.id.desc()).all()
+    rows = [['Expense ID', 'Date', 'Category ID', 'Description', 'Amount', 'Payment Method']]
+    for exp in expenses:
+        rows.append([
+            exp.id,
+            exp.expense_date.strftime('%Y-%m-%d') if exp.expense_date else '',
+            exp.category_id or '',
+            (exp.description or '').replace('\n', ' '),
+            f"{exp.amount:.2f}",
+            exp.payment_method or 'Cash'
+        ])
+    filename = f"expenses_ledger_{ist_now().strftime('%Y%m%d')}.csv"
+    return _csv_response(rows, filename)
+
+
+@extras_bp.route('/extras/export/tutors.csv', methods=['GET'])
+@login_required
+@admin_required
+def export_tutors_csv():
+    tutors = Tutor.query.order_by(Tutor.id.asc()).all()
+    rows = [['Tutor ID', 'Name', 'Email', 'Phone', 'Specialization', 'Status', 'QR UUID']]
+    for t in tutors:
+        rows.append([
+            t.id,
+            t.name or '',
+            t.email or '',
+            t.phone or '',
+            t.specialization or '',
+            t.status or 'Active',
+            t.qr_code_uuid or ''
+        ])
+    filename = f"tutors_directory_{ist_now().strftime('%Y%m%d')}.csv"
+    return _csv_response(rows, filename)

@@ -284,10 +284,14 @@
                             </div>
                         </div>
 
-                        <div class="p-3 rounded" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);">
+                        <div class="p-3 rounded mb-3" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);">
                             <div class="small text-white-50 mb-1">Connection Details</div>
                             <div class="small text-white font-monospace text-truncate" title="{{ stats.db_label }}">{{ stats.db_label }}</div>
                         </div>
+
+                        <button type="button" class="btn btn-outline-info w-100" id="run-scan-btn" onclick="runIntegrityScan()">
+                            <i class="bi bi-shield-check me-1"></i> Run Integrity &amp; Orphan Scanner
+                        </button>
                     </div>
                 </div>
 
@@ -312,6 +316,21 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Integrity Scanner Results (Loaded dynamically) -->
+                <div class="col-12" id="integrity-results-container" style="display:none;">
+                    <div class="glass-card p-4 border border-info border-opacity-25">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                            <h5 class="text-white fw-bold mb-0 d-flex align-items-center gap-2">
+                                <i class="bi bi-shield-fill-check text-success"></i> System Integrity Scan Report
+                            </h5>
+                            <span class="badge" id="integrity-badge" style="background:rgba(0,191,166,0.15);color:#00BFA6;font-size:0.8rem;">
+                                Score: 100%
+                            </span>
+                        </div>
+                        <div id="integrity-checks-list" class="d-flex flex-column gap-2"></div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -324,7 +343,7 @@
                             <i class="bi bi-cloud-arrow-down-fill me-2 text-info"></i>Bulk Data Export Center
                         </h4>
                         <div class="text-white small" style="opacity:0.65;">
-                            One-click master ledger and CSV exports for offline auditing, compliance, and backups.
+                            One-click master CSV and ledger exports for offline auditing, compliance, and accounting.
                         </div>
                     </div>
                     <a href="{{ url_for('reports.reports') }}" class="btn btn-outline-premium btn-sm">
@@ -342,11 +361,11 @@
                                     <h6 class="text-white fw-bold mb-0">Students Master List</h6>
                                 </div>
                                 <p class="text-white-50 small mb-3" style="font-size:0.78rem;">
-                                    Complete student directory including enrollments, contact numbers, roll codes, and balance status.
+                                    Complete student directory including enrollments, contact numbers, roll codes, and QR status.
                                 </p>
                             </div>
-                            <a href="{{ url_for('students.list') }}" class="btn btn-sm btn-outline-info w-100">
-                                <i class="bi bi-people me-1"></i> View Students Directory
+                            <a href="{{ url_for('extras.export_students_csv') }}" class="btn btn-sm btn-outline-info w-100">
+                                <i class="bi bi-download me-1"></i> Download Students (CSV)
                             </a>
                         </div>
                     </div>
@@ -363,8 +382,8 @@
                                     Itemized fee collections, payment methods, GST breakdowns, concessions, and transaction dates.
                                 </p>
                             </div>
-                            <a href="{{ url_for('reports.report_excel') }}" class="btn btn-sm btn-outline-success w-100">
-                                <i class="bi bi-file-earmark-excel me-1"></i> Export Fee Ledger (Excel)
+                            <a href="{{ url_for('extras.export_fees_csv') }}" class="btn btn-sm btn-outline-success w-100">
+                                <i class="bi bi-download me-1"></i> Download Fee Ledger (CSV)
                             </a>
                         </div>
                     </div>
@@ -378,11 +397,11 @@
                                     <h6 class="text-white fw-bold mb-0">Attendance Register</h6>
                                 </div>
                                 <p class="text-white-50 small mb-3" style="font-size:0.78rem;">
-                                    Daily attendance logs for students and staff with timestamps, presence status, and course tracking.
+                                    Daily attendance logs for students and staff with timestamps, presence status, and methods.
                                 </p>
                             </div>
-                            <a href="{{ url_for('attendance.attendance') }}" class="btn btn-sm btn-outline-warning w-100">
-                                <i class="bi bi-calendar-check me-1"></i> View Attendance Register
+                            <a href="{{ url_for('extras.export_attendance_csv') }}" class="btn btn-sm btn-outline-warning w-100">
+                                <i class="bi bi-download me-1"></i> Download Attendance (CSV)
                             </a>
                         </div>
                     </div>
@@ -399,8 +418,8 @@
                                     Admission pipeline data, lead source channels, contact phone numbers, and conversion status.
                                 </p>
                             </div>
-                            <a href="{{ url_for('enquiries.list') }}" class="btn btn-sm btn-outline-primary w-100">
-                                <i class="bi bi-arrow-right me-1"></i> View Enquiries Pipeline
+                            <a href="{{ url_for('extras.export_enquiries_csv') }}" class="btn btn-sm btn-outline-primary w-100">
+                                <i class="bi bi-download me-1"></i> Download Enquiries (CSV)
                             </a>
                         </div>
                     </div>
@@ -417,26 +436,26 @@
                                     Institute operating expense records, categorizations, student expense mappings, and notes.
                                 </p>
                             </div>
-                            <a href="{{ url_for('expenses.list') }}" class="btn btn-sm btn-outline-danger w-100">
-                                <i class="bi bi-arrow-right me-1"></i> View Expenses Ledger
+                            <a href="{{ url_for('extras.export_expenses_csv') }}" class="btn btn-sm btn-outline-danger w-100">
+                                <i class="bi bi-download me-1"></i> Download Expenses (CSV)
                             </a>
                         </div>
                     </div>
 
-                    <!-- Export Card 6: Audit Trail -->
+                    <!-- Export Card 6: Staff & Tutors -->
                     <div class="col-md-6 col-xl-4">
                         <div class="p-3 rounded h-100 d-flex flex-column justify-content-between" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
                             <div>
                                 <div class="d-flex align-items-center gap-2 mb-2">
-                                    <i class="bi bi-shield-lock-fill text-info fs-5"></i>
-                                    <h6 class="text-white fw-bold mb-0">System Audit Trail</h6>
+                                    <i class="bi bi-person-badge-fill text-info fs-5"></i>
+                                    <h6 class="text-white fw-bold mb-0">Staff &amp; Tutors Directory</h6>
                                 </div>
                                 <p class="text-white-50 small mb-3" style="font-size:0.78rem;">
-                                    Security audit logs of all user actions, database edits, deletions, and administrative overrides.
+                                    Faculty directory, specialization subjects, contact phone numbers, and active status.
                                 </p>
                             </div>
-                            <a href="{{ url_for('admin.audit_log') }}" class="btn btn-sm btn-outline-info w-100">
-                                <i class="bi bi-arrow-right me-1"></i> View Audit Log
+                            <a href="{{ url_for('extras.export_tutors_csv') }}" class="btn btn-sm btn-outline-info w-100">
+                                <i class="bi bi-download me-1"></i> Download Tutors (CSV)
                             </a>
                         </div>
                     </div>
@@ -454,17 +473,25 @@
                             <i class="bi bi-chat-dots-fill text-success"></i> Broadcast Template Playground
                         </h5>
                         <p class="text-white-50 small mb-3">
-                            Test dynamic placeholders for WhatsApp / SMS broadcast messages before sending them to students.
+                            Test dynamic placeholders for WhatsApp / SMS broadcast messages with live character &amp; SMS segment counting.
                         </p>
                         <div class="mb-3">
                             <label class="form-label text-white small fw-semibold">Template Text</label>
                             <textarea id="template-input" class="form-control text-white bg-dark border-secondary" rows="3" oninput="renderTemplatePreview()">Dear {name}, your outstanding fee balance is ₹{balance} for course {course}. Please settle by {due_date}. Thank you, Guha Academy.</textarea>
-                            <div class="small text-white-50 mt-1" style="font-size:0.72rem;">
-                                Supported tags: <code class="text-info">{name}</code>, <code class="text-info">{balance}</code>, <code class="text-info">{course}</code>, <code class="text-info">{due_date}</code>, <code class="text-info">{date}</code>
+                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                <div class="small text-white-50" style="font-size:0.72rem;">
+                                    Supported tags: <code class="text-info">{name}</code>, <code class="text-info">{balance}</code>, <code class="text-info">{course}</code>, <code class="text-info">{due_date}</code>, <code class="text-info">{date}</code>
+                                </div>
+                                <div class="small text-white fw-semibold" id="template-length-counter" style="font-size:0.72rem;">0 chars (1 SMS)</div>
                             </div>
                         </div>
                         <div class="p-3 rounded" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
-                            <div class="small text-white-50 mb-1 fw-semibold"><i class="bi bi-whatsapp text-success me-1"></i> Live Rendered Preview:</div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div class="small text-white-50 fw-semibold"><i class="bi bi-whatsapp text-success me-1"></i> Live Rendered Preview:</div>
+                                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:0.7rem;" onclick="copyRenderedTemplate()">
+                                    <i class="bi bi-clipboard me-1"></i>Copy
+                                </button>
+                            </div>
                             <div class="text-white small" id="template-output" style="white-space:pre-wrap;line-height:1.5;">...</div>
                         </div>
                     </div>
@@ -483,9 +510,9 @@
                             <div class="p-3 rounded d-flex justify-content-between align-items-center" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
                                 <div>
                                     <div class="text-white fw-semibold small">Dashboard Stats Cache</div>
-                                    <div class="text-white-50" style="font-size:0.72rem;">Force reload of live aggregation numbers</div>
+                                    <div class="text-white-50" style="font-size:0.72rem;">Purge server-side cached aggregates</div>
                                 </div>
-                                <button type="button" class="btn btn-sm btn-outline-warning" onclick="showToast('Dashboard stats cache purged.', 'success')">
+                                <button type="button" class="btn btn-sm btn-outline-warning" id="flush-cache-btn" onclick="executeCacheFlush()">
                                     <i class="bi bi-arrow-clockwise"></i> Flush
                                 </button>
                             </div>
@@ -901,6 +928,69 @@ function executeDelete() {
     });
 }
 
+function runIntegrityScan() {
+    var btn = document.getElementById('run-scan-btn');
+    var original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Scanning Database...';
+
+    fetch('{{ url_for("extras.diagnostics_scan") }}')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        var container = document.getElementById('integrity-results-container');
+        var list = document.getElementById('integrity-checks-list');
+        var badge = document.getElementById('integrity-badge');
+
+        badge.textContent = 'Score: ' + data.integrity_score + '% (' + (data.issues_count === 0 ? 'All Clean' : data.issues_count + ' Issues') + ')';
+        badge.style.background = data.issues_count === 0 ? 'rgba(0,191,166,0.15)' : 'rgba(255,193,7,0.15)';
+        badge.style.color = data.issues_count === 0 ? '#00BFA6' : '#ffc107';
+
+        list.innerHTML = data.checks.map(function(c) {
+            var icon = c.status === 'clean' ? 'bi-check-circle-fill text-success' : (c.status === 'warning' ? 'bi-exclamation-triangle-fill text-warning' : 'bi-x-circle-fill text-danger');
+            return '<div class="p-3 rounded d-flex align-items-center justify-content-between" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);">' +
+                '<div class="d-flex align-items-center gap-2">' +
+                    '<i class="bi ' + icon + ' fs-5"></i>' +
+                    '<div><div class="small fw-semibold text-white">' + c.name + '</div><div class="small text-white-50" style="font-size:0.75rem;">' + c.detail + '</div></div>' +
+                '</div>' +
+                '<span class="badge text-uppercase" style="font-size:0.65rem;background:rgba(255,255,255,0.06);">' + c.status + '</span>' +
+            '</div>';
+        }).join('');
+
+        container.style.display = 'block';
+        showToast('Integrity scan completed. Score: ' + data.integrity_score + '%', 'success');
+    })
+    .catch(function(err) {
+        showToast('Scan failed: ' + err.message, 'danger');
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btn.innerHTML = original;
+    });
+}
+
+function executeCacheFlush() {
+    var btn = document.getElementById('flush-cache-btn');
+    var original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    fetch('{{ url_for("extras.flush_cache") }}', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'fetch' }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        showToast(res.message || 'Stats cache flushed.', 'success');
+    })
+    .catch(function(err) {
+        showToast('Flush failed: ' + err.message, 'danger');
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btn.innerHTML = original;
+    });
+}
+
 function renderTemplatePreview() {
     var raw = document.getElementById('template-input').value;
     var out = raw
@@ -910,6 +1000,17 @@ function renderTemplatePreview() {
         .replace(/{due_date}/g, '25 Sep 2026')
         .replace(/{date}/g, '20 Sep 2026');
     document.getElementById('template-output').textContent = out;
+
+    var len = out.length;
+    var segments = Math.ceil(len / 160) || 1;
+    document.getElementById('template-length-counter').textContent = len + ' chars (' + segments + ' SMS segment' + (segments > 1 ? 's' : '') + ')';
+}
+
+function copyRenderedTemplate() {
+    var text = document.getElementById('template-output').textContent;
+    navigator.clipboard.writeText(text).then(function() {
+        showToast('Rendered template copied to clipboard.', 'success');
+    });
 }
 
 function escapeHtml(str) {
