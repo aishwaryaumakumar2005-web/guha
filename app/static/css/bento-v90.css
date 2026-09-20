@@ -1,0 +1,35 @@
+/* Bento grid — unconditional desktop layout. All spans apply at every width,
+   so no viewport, zoom level, or display scaling can ever produce a stacked
+   dashboard. Only truly narrow/phone windows (<520px) fall back to stacked
+   cards. Unique filename: no cache can ever serve a stale copy. */
+
+.bento-grid {
+    display: grid !important;
+    grid-template-columns: repeat(12, 1fr) !important;
+    gap: 24px;
+}
+
+.bento-card { grid-column: span 12; }
+
+.bento-md-6 { grid-column: span 6; }
+.bento-md-12 { grid-column: span 12; }
+
+.bento-xl-3 { grid-column: span 3; }
+.bento-xl-4 { grid-column: span 4; }
+.bento-xl-5 { grid-column: span 5; }
+.bento-xl-6 { grid-column: span 6; }
+.bento-xl-7 { grid-column: span 7; }
+.bento-xl-8 { grid-column: span 8; }
+.bento-xl-12 { grid-column: span 12; }
+
+@media (max-width: 519px) {
+    .bento-md-6,
+    .bento-md-12,
+    .bento-xl-3,
+    .bento-xl-4,
+    .bento-xl-5,
+    .bento-xl-6,
+    .bento-xl-7,
+    .bento-xl-8,
+    .bento-xl-12 { grid-column: span 12; }
+}
