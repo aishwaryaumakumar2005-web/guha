@@ -133,7 +133,7 @@ def _recent_lists():
             FeeRecord.query.order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).limit(5).all())
 
 
-def _fee_chart(today):
+def _fee_chart(today, months=6):
     # Use relativedelta for correct month arithmetic across year boundaries.
     # Pure-stdlib fallback if dateutil is not installed.
     try:
@@ -150,22 +150,23 @@ def _fee_chart(today):
                 y -= 1
             return y, m
 
-    start_y, start_m = _month_offset(today, 5)
-    six_months_ago = date(start_y, start_m, 1)
+    months = max(1, min(24, int(months or 6)))
+    start_y, start_m = _month_offset(today, months - 1)
+    start_date = date(start_y, start_m, 1)
 
     monthly = db.session.query(
         db.extract('month', FeeRecord.payment_date).label('m'),
         db.extract('year', FeeRecord.payment_date).label('y'),
         db.func.sum(FeeRecord.amount_paid).label('total')
-    ).filter(FeeRecord.payment_date >= six_months_ago
+    ).filter(FeeRecord.payment_date >= start_date
     ).group_by('y', 'm').order_by('y', 'm').all()
     totals_by_ym = {(int(r.y), int(r.m)): float(r.total) for r in monthly}
     chart_months = []
     chart_data = []
-    for i in range(5, -1, -1):
+    for i in range(months - 1, -1, -1):
         y, m = _month_offset(today, i)
         month_start = date(y, m, 1)
-        chart_months.append(month_start.strftime("%b"))
+        chart_months.append(month_start.strftime("%b %y") if months > 6 else month_start.strftime("%b"))
         chart_data.append(totals_by_ym.get((y, m), 0.0))
     return chart_months, chart_data
 
@@ -449,6 +450,16 @@ def dashboard():
             'account_balances',
             lambda: (compute_account_summary() if current_user.role == 'Admin' else []),
             []))
+
+@dashboard_bp.route('/api/dashboard/fee-chart')
+@login_required
+def api_fee_chart():
+    if current_user.role == 'Staff':
+        return jsonify({"months": [], "data": []})
+    months = request.args.get('months', 6, type=int)
+    months_labels, data_points = _safe('fee_chart', lambda: _fee_chart(date.today(), months=months), ([], []))
+    return jsonify({"months": months_labels, "data": data_points})
+
 
 @dashboard_bp.route('/api/dashboard/ai-insights')
 @login_required

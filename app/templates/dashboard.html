@@ -1,6 +1,22 @@
 {% extends 'base.html' %}{% block title %}Dashboard{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item active" aria-current="page">Dashboard</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+    {% if today_attendance == 0 %}
+    <!-- Attendance Alert Banner -->
+    <div id="attendance-alert-banner" class="alert alert-dismissible fade show p-3 mb-4 rounded-3 d-flex flex-wrap align-items-center justify-content-between gap-2" style="background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.35); color: #ffc107;" role="alert">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0" aria-hidden="true"></i>
+            <div>
+                <strong>Attendance Notice:</strong> No student attendance has been recorded for today yet.
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a href="{{ url_for('attendance.attendance') }}" class="btn btn-sm" style="background: #ffc107; color: #111; font-weight: 600; border-radius: 6px; padding: 4px 12px; font-size: 0.78rem;">Mark Attendance Now &rarr;</a>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert" aria-label="Close" style="font-size: 0.7rem;"></button>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
             <h2 class="mb-1 fw-bold text-white">Dashboard</h2>
             <p class="text-white mb-0" style="opacity: 0.7;">{{ stats.active_students }} active students &middot; {{ stats.courses }} courses</p>
@@ -14,6 +30,15 @@
                 {% endif %}
             </div>
         </div>
+        {% if current_user.role == 'Admin' %}
+        <!-- Quick Actions Toolbar -->
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{{ url_for('students.list') }}" class="btn btn-sm btn-outline-premium" style="font-size:0.78rem;padding:5px 12px;"><i class="bi bi-person-plus-fill me-1"></i>Enroll Student</a>
+            <a href="{{ url_for('fees.list') }}" class="btn btn-sm btn-premium" style="font-size:0.78rem;padding:5px 12px;"><i class="bi bi-plus-circle-fill me-1"></i>Collect Fee</a>
+            <a href="{{ url_for('attendance.attendance') }}" class="btn btn-sm btn-outline-premium" style="font-size:0.78rem;padding:5px 12px;"><i class="bi bi-calendar-check-fill me-1"></i>Attendance</a>
+            <a href="{{ url_for('enquiries.kanban') }}" class="btn btn-sm btn-outline-premium" style="font-size:0.78rem;padding:5px 12px;"><i class="bi bi-funnel me-1"></i>Pipeline</a>
+        </div>
+        {% endif %}
     </div>
 
     <div class="bento-grid">
@@ -225,6 +250,31 @@
                 </div>
             </div>
         </div>
+
+        {% if current_user.role == 'Admin' %}
+        <!-- Fee Collection Trend Chart (Item 16) -->
+        <div class="bento-card bento-xl-12 bento-md-12 animate-on-scroll">
+            <div class="glass-card p-4">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                    <div>
+                        <h5 class="mb-0 fw-bold"><i class="bi bi-graph-up me-2" style="color:hsl(150,100%,40%);"></i>Fee Collection Trend</h5>
+                        <div class="small text-white-50 mt-1" style="font-size:0.75rem;">Revenue collection history over time &middot; incl. GST</div>
+                    </div>
+                    <div class="d-flex align-items-center gap-1 p-1 rounded-3" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);" id="fee-chart-range-btns">
+                        <button type="button" class="btn btn-sm py-1 px-3 fee-range-btn" data-months="3" style="font-size:0.72rem;border-radius:6px;background:transparent;color:rgba(255,255,255,0.7);border:0;">3M</button>
+                        <button type="button" class="btn btn-sm py-1 px-3 fee-range-btn active" data-months="6" style="font-size:0.72rem;border-radius:6px;background:rgba(27,110,243,0.3);color:#fff;border:1px solid rgba(27,110,243,0.5);">6M</button>
+                        <button type="button" class="btn btn-sm py-1 px-3 fee-range-btn" data-months="12" style="font-size:0.72rem;border-radius:6px;background:transparent;color:rgba(255,255,255,0.7);border:0;">1Y</button>
+                    </div>
+                </div>
+                <div id="fee-chart-container" class="pt-2">
+                    <div class="d-flex align-items-center justify-content-center text-secondary small py-4">
+                        <span class="spinner-border spinner-border-sm me-2" style="color:hsl(150,100%,40%);" role="status"></span>
+                        Loading collection trends...
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Today's Activities -->
         <div class="bento-card bento-xl-12 bento-md-12 animate-on-scroll">
@@ -564,15 +614,78 @@ function toggleAiAdvisor() {
         });
     }
 
-    // _loadAiAdvisor is called by toggleAiAdvisor() on first panel open (lazy load).
-    // It fetches both ai-insights (summary) and predictive-analytics in parallel.
+    // --- Item 16: Fee Collection Trend Chart (Dynamic Range Switcher) ---
+    var feeChartContainer = document.getElementById('fee-chart-container');
+    function loadFeeChart(months) {
+        if (!feeChartContainer) return;
+        months = months || 6;
+        feeChartContainer.innerHTML = '<div class="d-flex align-items-center justify-content-center text-secondary small py-4"><span class="spinner-border spinner-border-sm me-2" style="color:hsl(150,100%,40%);" role="status"></span>Loading ' + months + 'M trend...</div>';
+        
+        fetchWithTimeout('/api/dashboard/fee-chart?months=' + months)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var monthsLabels = data.months || [];
+                var dataPoints = data.data || [];
+                if (!monthsLabels.length) {
+                    feeChartContainer.innerHTML = '<div class="text-center py-3 text-white-50 small">No collection records found for this period.</div>';
+                    return;
+                }
+                var maxVal = Math.max.apply(null, dataPoints.concat([1]));
+                var totalSum = dataPoints.reduce(function(a, b) { return a + b; }, 0);
+                
+                var html = '<div class="d-flex justify-content-between align-items-center mb-3 px-1">';
+                html += '<span class="small text-white-50">Period Total:</span>';
+                html += '<span class="fw-bold" style="color:hsl(150,100%,45%);font-size:0.95rem;">₹' + totalSum.toLocaleString('en-IN', {maximumFractionDigits: 0}) + '</span>';
+                html += '</div>';
+
+                html += '<div class="d-flex align-items-end gap-2 gap-md-3 pt-3 px-1" style="min-height:120px;border-bottom:1px solid rgba(255,255,255,0.1);">';
+                monthsLabels.forEach(function(m, idx) {
+                    var val = dataPoints[idx] || 0;
+                    var heightPct = maxVal > 0 ? Math.max(8, Math.round((val / maxVal) * 100)) : 8;
+                    html += '<div class="flex-fill d-flex flex-column align-items-center" style="min-width:0;">';
+                    html += '<div class="small fw-semibold text-white mb-1" style="font-size:0.65rem;white-space:nowrap;">₹' + (val >= 1000 ? (val/1000).toFixed(val >= 10000 ? 0 : 1) + 'k' : val) + '</div>';
+                    html += '<div class="w-100 rounded-top" title="' + esc(m) + ': ₹' + val.toLocaleString('en-IN') + '" style="height:' + heightPct + 'px;background:linear-gradient(180deg, hsl(150,100%,45%) 0%, rgba(0,191,166,0.3) 100%);transition:height 0.4s ease;cursor:pointer;"></div>';
+                    html += '<div class="text-white-50 mt-2" style="font-size:0.68rem;opacity:0.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(m) + '</div>';
+                    html += '</div>';
+                });
+                html += '</div>';
+                feeChartContainer.innerHTML = html;
+            })
+            .catch(function() {
+                feeChartContainer.innerHTML = '<div class="text-danger small py-3">Could not load fee collection chart. <button type="button" class="btn btn-sm btn-link text-danger p-0" onclick="loadFeeChart(' + months + ')">Retry</button></div>';
+            });
+    }
+    window.loadFeeChart = loadFeeChart;
+
+    // Attach range button listeners
+    document.querySelectorAll('.fee-range-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.fee-range-btn').forEach(function(b) {
+                b.classList.remove('active');
+                b.style.background = 'transparent';
+                b.style.color = 'rgba(255,255,255,0.7)';
+                b.style.border = '0';
+            });
+            btn.classList.add('active');
+            btn.style.background = 'rgba(27,110,243,0.3)';
+            btn.style.color = '#fff';
+            btn.style.border = '1px solid rgba(27,110,243,0.5)';
+            var m = parseInt(btn.getAttribute('data-months'), 10) || 6;
+            loadFeeChart(m);
+        });
+    });
+    if (feeChartContainer) {
+        loadFeeChart(6);
+    }
+
+    // --- Item 20: AI Advisor Lazy Load & Retry ---
     window._loadAiAdvisor = function() {
         var summaryEl = document.getElementById('ai-insights-summary');
         var insightsEl = document.getElementById('ai-insights-container');
         var paContainer = document.getElementById('predictive-analytics-container');
 
-        // AI Insights summary
         if (summaryEl) {
+            summaryEl.innerHTML = '<div class="d-flex align-items-center text-secondary small"><span class="spinner-border spinner-border-sm me-2" style="color:hsl(200,100%,50%);" role="status"></span>Analyzing institute data...</div>';
             fetchWithTimeout('/api/dashboard/ai-insights')
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
@@ -581,7 +694,7 @@ function toggleAiAdvisor() {
                     if (insightsEl) {
                         var html = '';
                         (data.insights || []).forEach(function(ins) {
-                            html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);">';
+                            html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);">';
                             html += '<h6 class="text-white small fw-bold mb-1">' + esc(ins.title || '') + '</h6>';
                             html += '<p class="text-white small mb-0" style="opacity:0.65;">' + esc(ins.description || '') + '</p>';
                             html += '</div></div>';
@@ -590,12 +703,12 @@ function toggleAiAdvisor() {
                     }
                 })
                 .catch(function() {
-                    if (summaryEl) summaryEl.innerHTML = '<p class="text-danger small mb-0">Could not load AI insights. <button class="btn btn-sm btn-link text-danger p-0" onclick="_aiLoaded=false;toggleAiAdvisor();toggleAiAdvisor();">Retry</button></p>';
+                    if (summaryEl) summaryEl.innerHTML = '<p class="text-danger small mb-0"><i class="bi bi-exclamation-circle me-1"></i>Could not load AI insights. <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-1 fw-bold" onclick="_loadAiAdvisor();">Retry Now</button></p>';
                 });
         }
 
-        // Predictive Analytics
         if (paContainer) {
+            paContainer.innerHTML = '<div class="d-flex align-items-center text-secondary small"><span class="spinner-border spinner-border-sm me-2" style="color:hsl(150,100%,40%);" role="status"></span>Loading predictive trends...</div>';
             fetchWithTimeout('/api/dashboard/predictive-analytics')
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
@@ -604,18 +717,18 @@ function toggleAiAdvisor() {
                     var revenue = data.revenue_forecast || [];
                     var growth = (data.growth_rate !== undefined && data.growth_rate !== null) ? data.growth_rate : 0;
                     var html = '<div class="row">';
-                    html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);">';
+                    html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);">';
                     html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-people-fill me-2" style="color:hsl(150,100%,40%);" aria-hidden="true"></i>Enrollment Forecast</h6>';
                     html += '<div class="d-flex justify-content-between align-items-center mb-2"><span class="text-white small">Growth:</span><span class="text-success fw-bold small">+' + esc(growth) + '%</span></div>';
                     html += '<div class="d-flex gap-2">';
                     enrollment.slice(0,3).forEach(function(val) { html += '<div class="text-center flex-fill"><div class="text-white fw-bold small">' + esc(Number(val) || 0) + '</div><div class="text-white" style="opacity:0.5;font-size:0.65rem;">Mo</div></div>'; });
                     html += '</div></div></div>';
-                    html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);">';
+                    html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);">';
                     html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-currency-rupee me-2" style="color:hsl(150,100%,40%);" aria-hidden="true"></i>Revenue Forecast</h6>';
                     html += '<div class="d-flex gap-2">';
                     revenue.slice(0,3).forEach(function(val) { html += '<div class="text-center flex-fill"><div class="text-white fw-bold small">' + (Number(val)/1000).toFixed(0) + 'k</div><div class="text-white" style="opacity:0.5;font-size:0.65rem;">Mo</div></div>'; });
                     html += '</div></div></div>';
-                    html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);">';
+                    html += '<div class="col-md-4 mb-3"><div class="p-3 rounded" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);">';
                     html += '<h6 class="text-white small fw-bold mb-2"><i class="bi bi-lightning-fill me-2" style="color:hsl(150,100%,40%);" aria-hidden="true"></i>Opportunities</h6><ul class="mb-0 ps-3">';
                     (data.opportunities || []).slice(0,3).forEach(function(opp) { html += '<li class="text-white small mb-1" style="opacity:0.7;">' + esc(opp) + '</li>'; });
                     html += '</ul></div></div></div>';
@@ -627,16 +740,31 @@ function toggleAiAdvisor() {
                     paContainer.innerHTML = html;
                 })
                 .catch(function() {
-                    paContainer.innerHTML = '<p class="text-danger small mb-0">Could not load analytics. <button class="btn btn-sm btn-link text-danger p-0" onclick="_aiLoaded=false;toggleAiAdvisor();toggleAiAdvisor();">Retry</button></p>';
+                    paContainer.innerHTML = '<p class="text-danger small mb-0"><i class="bi bi-exclamation-circle me-1"></i>Could not load analytics. <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-1 fw-bold" onclick="_loadAiAdvisor();">Retry Now</button></p>';
                 });
         }
     };
 
-    // Today's Tasks
+    // --- Item 18: Today's Tasks with Persistence & Dismissal ---
     (function() {
         var container = document.getElementById('todays-tasks-container');
         var badge = document.getElementById('tasks-count-badge');
         if (!container) return;
+        
+        var todayKey = 'guha_tasks_done_' + (new Date()).toISOString().slice(0, 10);
+        function getDoneTasks() {
+            try {
+                return JSON.parse(localStorage.getItem(todayKey) || '{}');
+            } catch(e) { return {}; }
+        }
+        function saveDoneTask(taskKey, isDone) {
+            try {
+                var done = getDoneTasks();
+                if (isDone) { done[taskKey] = true; } else { delete done[taskKey]; }
+                localStorage.setItem(todayKey, JSON.stringify(done));
+            } catch(e) {}
+        }
+
         fetchWithTimeout('/api/dashboard/todays-activities')
             .then(function(r) { return r.json(); })
             .then(function(resp) {
@@ -646,41 +774,79 @@ function toggleAiAdvisor() {
                     if (badge) badge.textContent = '0';
                     return;
                 }
-                if (badge) badge.textContent = tasks.length;
-                var html = '';
-                var completedCount = 0;
-                tasks.forEach(function(t) {
-                    t = t || {};
-                    var colors = {high: '#dc3545', medium: '#ffc107', low: '#6c757d'};
-                    var labels = {high: 'HIGH', medium: 'MED', low: 'LOW'};
-                    var pri = t.priority || 'low';
-                    var c = colors[pri] || '#6c757d';
-                    var progress = Math.max(0, Math.min(100, Number(t.progress) || 0));
-                    var isCompleted = progress === 100;
-                    if (isCompleted) completedCount++;
 
-                    html += '<div class="d-flex align-items-center gap-3 p-2 mb-2 rounded" style="background:rgba(255,255,255,0.03);">';
-                    html += '<span class="badge" style="background:' + c + ';color:#fff;font-size:0.5rem;padding:2px 6px;">' + esc(labels[pri] || pri) + '</span>';
-                    html += '<i class="bi bi-' + esc(isCompleted ? 'check-circle-fill' : (t.icon || 'bell')) + ' flex-shrink-0" style="color:' + (isCompleted ? '#00BFA6' : c) + ';font-size:1.1rem;" aria-hidden="true"></i>';
-                    html += '<div class="flex-grow-1 min-width-0"><div class="d-flex justify-content-between align-items-center mb-1"><div class="text-white small fw-semibold">' + esc(t.title) + '</div>';
-                    html += '<span class="small" style="color:' + (isCompleted ? '#00BFA6' : 'rgba(255,255,255,0.6)') + ';font-size:0.7rem;">' + progress + '%</span></div>';
-                    html += '<div class="text-white-50 small" style="opacity:0.6;font-size:0.75rem;">' + esc(t.detail) + '</div>';
-                    html += '<div class="progress mt-1" style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;"><div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + progress + '" style="width:' + progress + '%;background:' + (isCompleted ? '#00BFA6' : c) + ';border-radius:2px;transition:width 0.3s ease;"></div></div></div>';
-                    if (t.action_url && !isCompleted) {
-                        html += '<a href="' + esc(t.action_url) + '" class="btn btn-sm flex-shrink-0" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:0.7rem;padding:2px 10px;white-space:nowrap;">' + esc(t.action_label || 'Go') + '</a>';
+                function renderTaskList() {
+                    var doneMap = getDoneTasks();
+                    var completedCount = 0;
+                    var html = '';
+
+                    tasks.forEach(function(t, idx) {
+                        t = t || {};
+                        var taskKey = (t.title || ('task_' + idx)).toLowerCase().replace(/[^a-z0-9]/g, '_');
+                        var isDone = !!doneMap[taskKey];
+                        var colors = {high: '#dc3545', medium: '#ffc107', low: '#6c757d'};
+                        var labels = {high: 'HIGH', medium: 'MED', low: 'LOW'};
+                        var pri = t.priority || 'low';
+                        var c = colors[pri] || '#6c757d';
+                        var progress = isDone ? 100 : Math.max(0, Math.min(100, Number(t.progress) || 0));
+                        var isCompleted = progress === 100 || isDone;
+                        if (isCompleted) completedCount++;
+
+                        html += '<div class="d-flex align-items-center gap-3 p-2 mb-2 rounded" style="background:' + (isCompleted ? 'rgba(0,191,166,0.06)' : 'rgba(255,255,255,0.03)') + ';border:1px solid ' + (isCompleted ? 'rgba(0,191,166,0.2)' : 'rgba(255,255,255,0.04)') + ';">';
+                        html += '<button type="button" class="btn btn-sm p-0 border-0 bg-transparent task-check-btn" data-key="' + esc(taskKey) + '" data-done="' + (isDone ? '1' : '0') + '" title="' + (isDone ? 'Mark uncompleted' : 'Mark as done') + '" style="color:' + (isCompleted ? '#00BFA6' : 'rgba(255,255,255,0.3)') + ';font-size:1.15rem;line-height:1;">';
+                        html += '<i class="bi bi-' + (isCompleted ? 'check-circle-fill' : 'circle') + '"></i>';
+                        html += '</button>';
+                        html += '<span class="badge" style="background:' + c + ';color:#fff;font-size:0.5rem;padding:2px 6px;">' + esc(labels[pri] || pri) + '</span>';
+                        html += '<div class="flex-grow-1 min-width-0">';
+                        html += '<div class="d-flex justify-content-between align-items-center mb-1">';
+                        html += '<div class="small fw-semibold ' + (isDone ? 'text-decoration-line-through text-white-50' : 'text-white') + '">' + esc(t.title) + '</div>';
+                        html += '<span class="small" style="color:' + (isCompleted ? '#00BFA6' : 'rgba(255,255,255,0.6)') + ';font-size:0.7rem;">' + progress + '%</span>';
+                        html += '</div>';
+                        html += '<div class="text-white-50 small" style="opacity:0.6;font-size:0.75rem;">' + esc(t.detail) + '</div>';
+                        html += '<div class="progress mt-1" style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;"><div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + progress + '" style="width:' + progress + '%;background:' + (isCompleted ? '#00BFA6' : c) + ';border-radius:2px;transition:width 0.3s ease;"></div></div>';
+                        html += '</div>';
+                        if (t.action_url && !isDone) {
+                            html += '<a href="' + esc(t.action_url) + '" class="btn btn-sm flex-shrink-0" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;font-size:0.7rem;padding:2px 10px;white-space:nowrap;">' + esc(t.action_label || 'Go') + '</a>';
+                        }
+                        html += '</div>';
+                    });
+
+                    if (badge) badge.textContent = (tasks.length - completedCount);
+                    
+                    var overallProgress = Math.round((completedCount / tasks.length) * 100);
+                    var progressHtml = '<div class="mt-3 pt-3 border-top d-flex flex-column gap-2" style="border-color:rgba(255,255,255,0.08);">';
+                    progressHtml += '<div class="d-flex justify-content-between align-items-center"><span class="small text-white-50">Overall Progress</span><span class="small fw-bold" style="color:#00BFA6;">' + completedCount + '/' + tasks.length + ' completed</span></div>';
+                    progressHtml += '<div class="progress" style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;"><div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + overallProgress + '" style="width:' + overallProgress + '%;background:linear-gradient(90deg,#00BFA6,#1b6ef3);border-radius:3px;transition:width 0.5s ease;"></div></div>';
+                    if (completedCount > 0) {
+                        progressHtml += '<div class="text-end"><button type="button" class="btn btn-sm btn-link text-white-50 p-0 text-decoration-none" id="reset-tasks-btn" style="font-size:0.7rem;"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset checked tasks</button></div>';
                     }
-                    html += '</div>';
-                });
-                // Add overall progress summary
-                var overallProgress = Math.round((completedCount / tasks.length) * 100);
-                var progressHtml = '<div class="mt-3 pt-3 border-top" style="border-color:rgba(255,255,255,0.08);">';
-                progressHtml += '<div class="d-flex justify-content-between align-items-center mb-2"><span class="small text-white-50">Overall Progress</span><span class="small fw-bold" style="color:#00BFA6;">' + completedCount + '/' + tasks.length + ' completed</span></div>';
-                progressHtml += '<div class="progress" style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;"><div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + overallProgress + '" style="width:' + overallProgress + '%;background:linear-gradient(90deg,#00BFA6,#1b6ef3);border-radius:3px;transition:width 0.5s ease;"></div></div>';
-                progressHtml += '</div>';
-                container.innerHTML = html + progressHtml;
+                    progressHtml += '</div>';
+
+                    container.innerHTML = html + progressHtml;
+
+                    // Bind check toggle buttons
+                    container.querySelectorAll('.task-check-btn').forEach(function(b) {
+                        b.addEventListener('click', function() {
+                            var key = b.getAttribute('data-key');
+                            var currentlyDone = b.getAttribute('data-done') === '1';
+                            saveDoneTask(key, !currentlyDone);
+                            renderTaskList();
+                        });
+                    });
+
+                    var resetBtn = document.getElementById('reset-tasks-btn');
+                    if (resetBtn) {
+                        resetBtn.addEventListener('click', function() {
+                            localStorage.removeItem(todayKey);
+                            renderTaskList();
+                        });
+                    }
+                }
+
+                renderTaskList();
             })
             .catch(function() {
-                container.innerHTML = '<div class="text-danger small">Could not load tasks.</div>';
+                container.innerHTML = '<div class="text-danger small">Could not load tasks. <button type="button" class="btn btn-sm btn-link text-danger p-0" onclick="location.reload();">Retry</button></div>';
             });
     })();
 })();
