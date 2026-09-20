@@ -103,32 +103,61 @@ class AIEngine:
 
         return {"success": False, "provider": provider, "message": "Unknown provider requested."}
 
-    def _get_api_key(self, name):
+    def clear_cache(self):
+        """Purge in-memory AI and analytical forecast caches."""
+        global _tasks_cache, _pa_cache
+        _tasks_cache = {"signature": None, "data": None, "time": 0.0}
+        _pa_cache = {"signature": None, "data": None, "time": 0.0}
+        return True
+
+    def _get_setting(self, name, default=None):
         from app.models import SystemSetting
         try:
             setting = SystemSetting.query.filter_by(key=name).first()
-            if setting and setting.value:
+            if setting and setting.value is not None and setting.value.strip() != "":
                 return setting.value
-        except Exception as e:
-            print(f"Error loading {name}: {e}")
-        return os.environ.get(name)
+        except Exception:
+            pass
+        return os.environ.get(name, default)
+
+    def _get_api_key(self, name):
+        return self._get_setting(name)
 
     def _call_gemini(self, prompt, timeout=60, first_only=False):
         key = self._get_api_key("GEMINI_API_KEY")
         if not key:
             return None
-        models = [
+            
+        configured_model = self._get_setting("GEMINI_MODEL", "gemini-2.5-flash")
+        temp_val = 0.7
+        try:
+            temp_val = float(self._get_setting("AI_TEMPERATURE", "0.7"))
+        except (ValueError, TypeError):
+            temp_val = 0.7
+
+        fallback_models = [
+            configured_model,
             "gemini-2.5-flash",
             "gemini-flash-latest",
             "gemini-flash-lite-latest",
         ]
+        # Deduplicate while preserving priority order
+        models = []
+        for m in fallback_models:
+            if m and m not in models:
+                models.append(m)
+
         if first_only:
             models = models[:1]
+
         for model in models:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
                 headers = {"Content-Type": "application/json"}
-                data = {"contents": [{"parts": [{"text": prompt}]}]}
+                data = {
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"temperature": temp_val}
+                }
                 response = requests.post(url, headers=headers, json=data, timeout=timeout)
                 if response.status_code == 200:
                     result = response.json()
@@ -142,6 +171,14 @@ class AIEngine:
         key = self._get_api_key("OPENAI_API_KEY")
         if not key:
             return None
+            
+        configured_model = self._get_setting("OPENAI_MODEL", "gpt-4o-mini")
+        temp_val = 0.7
+        try:
+            temp_val = float(self._get_setting("AI_TEMPERATURE", "0.7"))
+        except (ValueError, TypeError):
+            temp_val = 0.7
+
         try:
             url = "https://api.openai.com/v1/chat/completions"
             headers = {
@@ -149,9 +186,9 @@ class AIEngine:
                 "Authorization": f"Bearer {key}"
             }
             data = {
-                "model": "gpt-4o-mini",
+                "model": configured_model,
                 "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.7
+                "temperature": temp_val
             }
             response = requests.post(url, headers=headers, json=data, timeout=timeout)
             if response.status_code == 200:
@@ -160,6 +197,23 @@ class AIEngine:
         except Exception as e:
             print(f"OpenAI API Error: {e}")
         return None
+
+    def call_ai(self, prompt, provider=None, timeout=60, first_only=False):
+        """Unified LLM caller respecting preferred provider, model parameters, and custom system instructions."""
+        system_prompt = (self._get_setting("AI_SYSTEM_PROMPT") or "").strip()
+        full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
+        
+        pref = (provider or self._get_setting("AI_DEFAULT_PROVIDER", "gemini")).lower()
+        if pref == "openai":
+            res = self._call_openai(full_prompt, timeout=timeout)
+            if res:
+                return res
+            return self._call_gemini(full_prompt, timeout=timeout, first_only=first_only)
+        else:
+            res = self._call_gemini(full_prompt, timeout=timeout, first_only=first_only)
+            if res:
+                return res
+            return self._call_openai(full_prompt, timeout=timeout)
 
     def generate_enquiry_followup(self, student_name, course_name, source, notes):
         prompt = (

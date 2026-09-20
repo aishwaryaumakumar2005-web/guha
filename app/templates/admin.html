@@ -43,62 +43,222 @@
         <!-- ==================== TAB 1: AI & INTEGRATIONS ==================== -->
         <div class="tab-pane fade show active" id="ai" role="tabpanel">
             <div class="row">
+                <!-- ==================== AI CONFIGURATION & TUNING ==================== -->
                 <div class="col-lg-7 mb-4">
-                    <!-- AI Keys -->
                     <div class="glass-card p-4 h-100">
-                        <h4 class="mb-3 text-white fw-bold"><i class="bi bi-cpu-fill me-2 text-info"></i>AI Engine Integration</h4>
-                        <p class="text-secondary small mb-4">Store your custom LLM API keys directly inside the local database. These keys are applied instantly across the entire application without needing server reboots.</p>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h4 class="text-white fw-bold mb-0"><i class="bi bi-cpu-fill me-2 text-info"></i>AI Engine Integration</h4>
+                            <button type="button" class="btn btn-sm btn-outline-warning" onclick="clearAiCache()" title="Purge forecast and advisor caches">
+                                <i class="bi bi-arrow-repeat me-1"></i>Purge AI Cache
+                            </button>
+                        </div>
+                        <p class="text-secondary small mb-4">Store your custom LLM API keys and model parameters directly inside the database. Applied instantly across dashboard insights, admissions drafting, and automated tasks.</p>
+                        
                         <form action="{{ url_for('admin.admin_console') }}" method="POST">
                             <input type="hidden" name="action" value="save_keys">
+                            
+                            <!-- Primary Provider Selector -->
+                            <div class="mb-4 p-3 rounded" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);">
+                                <label class="form-label text-white small fw-bold d-flex align-items-center mb-2">
+                                    <i class="bi bi-toggles me-2 text-info"></i>Default AI Provider Routing
+                                </label>
+                                <div class="row g-2">
+                                    <div class="col-md-4">
+                                        <div class="form-check custom-radio-card p-2 rounded" style="background: rgba(0,0,0,0.2);">
+                                            <input class="form-check-input" type="radio" name="ai_default_provider" id="providerGemini" value="gemini" {% if ai.ai_default_provider == 'gemini' %}checked{% endif %}>
+                                            <label class="form-check-label text-white small ms-1" for="providerGemini">
+                                                <strong>Google Gemini</strong>
+                                                <div class="text-muted" style="font-size: 0.75rem;">Default primary</div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-check custom-radio-card p-2 rounded" style="background: rgba(0,0,0,0.2);">
+                                            <input class="form-check-input" type="radio" name="ai_default_provider" id="providerOpenAI" value="openai" {% if ai.ai_default_provider == 'openai' %}checked{% endif %}>
+                                            <label class="form-check-label text-white small ms-1" for="providerOpenAI">
+                                                <strong>OpenAI</strong>
+                                                <div class="text-muted" style="font-size: 0.75rem;">GPT-4o Mini / Turbo</div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-check custom-radio-card p-2 rounded" style="background: rgba(0,0,0,0.2);">
+                                            <input class="form-check-input" type="radio" name="ai_default_provider" id="providerAuto" value="auto" {% if ai.ai_default_provider == 'auto' %}checked{% endif %}>
+                                            <label class="form-check-label text-white small ms-1" for="providerAuto">
+                                                <strong>Auto Fallback</strong>
+                                                <div class="text-muted" style="font-size: 0.75rem;">Gemini &rarr; OpenAI</div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Gemini Config Section -->
                             <div class="mb-4">
                                 <label class="form-label text-secondary small fw-bold d-flex justify-content-between align-items-center">
-                                    <span>Gemini Developer API Key</span>
+                                    <span>Google Gemini API Key</span>
                                     {% if g_active %}<span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-patch-check-fill me-1"></i>Active / Configured</span>
-                                    {% else %}<span class="badge bg-warning-subtle text-warning border border-warning-subtle"><i class="bi bi-exclamation-triangle-fill me-1"></i>Inactive (Simulating locally)</span>{% endif %}
+                                    {% else %}<span class="badge bg-warning-subtle text-warning border border-warning-subtle"><i class="bi bi-exclamation-triangle-fill me-1"></i>Inactive (Local Simulation)</span>{% endif %}
                                 </label>
-                                <div class="input-group">
+                                <div class="input-group mb-2">
                                     <span class="input-group-text bg-dark border-color text-muted"><i class="bi bi-google"></i></span>
-                                    <input type="password" class="form-control" id="gemini_api_key_input" name="gemini_api_key" placeholder="AIzaSy..." value="{{ gemini_key }}">
+                                    <input type="password" class="form-control" id="gemini_api_key_input" name="gemini_api_key" placeholder="AIzaSy..." value="{{ ai.gemini_api_key }}">
                                     <button class="btn btn-outline-secondary" type="button" title="Toggle visibility" onclick="toggleKeyVisibility('gemini_api_key_input', 'gemini_eye_icon')">
                                         <i class="bi bi-eye" id="gemini_eye_icon"></i>
                                     </button>
                                 </div>
-                                <div class="d-flex justify-content-between align-items-center mt-2">
-                                    <small class="text-muted">Acquire an API Key from Google AI Studio. Powers dashboard recommendations & follow-ups.</small>
-                                    <button type="button" class="btn btn-sm btn-outline-info text-nowrap ms-2" id="btnTestGemini" onclick="testAiConnection('gemini')">
-                                        <i class="bi bi-lightning-charge-fill me-1"></i>Test Connection
-                                    </button>
+                                <div class="row g-2 align-items-center">
+                                    <div class="col-md-7">
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text bg-dark border-color text-muted">Model</span>
+                                            <select class="form-select form-select-sm" name="gemini_model">
+                                                <option value="gemini-2.5-flash" {% if ai.gemini_model == 'gemini-2.5-flash' %}selected{% endif %}>gemini-2.5-flash (Fast & Accurate)</option>
+                                                <option value="gemini-flash-latest" {% if ai.gemini_model == 'gemini-flash-latest' %}selected{% endif %}>gemini-flash-latest (Auto Updated)</option>
+                                                <option value="gemini-flash-lite-latest" {% if ai.gemini_model == 'gemini-flash-lite-latest' %}selected{% endif %}>gemini-flash-lite (High Speed)</option>
+                                                <option value="gemini-2.5-pro" {% if ai.gemini_model == 'gemini-2.5-pro' %}selected{% endif %}>gemini-2.5-pro (Deep Reasoning)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-5 text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-info text-nowrap w-100" id="btnTestGemini" onclick="testAiConnection('gemini')">
+                                            <i class="bi bi-lightning-charge-fill me-1"></i>Test Connection
+                                        </button>
+                                    </div>
                                 </div>
                                 <div id="gemini_test_result" class="mt-2" style="display:none;"></div>
                             </div>
+
+                            <!-- OpenAI Config Section -->
                             <div class="mb-4">
                                 <label class="form-label text-secondary small fw-bold d-flex justify-content-between align-items-center">
-                                    <span>OpenAI API Key (Alternate)</span>
+                                    <span>OpenAI API Key (Alternate / Fallback)</span>
                                     {% if o_active %}<span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-patch-check-fill me-1"></i>Active / Configured</span>
                                     {% else %}<span class="badge bg-warning-subtle text-warning border border-warning-subtle"><i class="bi bi-exclamation-triangle-fill me-1"></i>Inactive</span>{% endif %}
                                 </label>
-                                <div class="input-group">
+                                <div class="input-group mb-2">
                                     <span class="input-group-text bg-dark border-color text-muted"><i class="bi bi-cpu"></i></span>
-                                    <input type="password" class="form-control" id="openai_api_key_input" name="openai_api_key" placeholder="sk-proj-..." value="{{ openai_key }}">
+                                    <input type="password" class="form-control" id="openai_api_key_input" name="openai_api_key" placeholder="sk-proj-..." value="{{ ai.openai_api_key }}">
                                     <button class="btn btn-outline-secondary" type="button" title="Toggle visibility" onclick="toggleKeyVisibility('openai_api_key_input', 'openai_eye_icon')">
                                         <i class="bi bi-eye" id="openai_eye_icon"></i>
                                     </button>
                                 </div>
-                                <div class="d-flex justify-content-between align-items-center mt-2">
-                                    <small class="text-muted">Fallback system. If Gemini is not configured, the advisor checks OpenAI.</small>
-                                    <button type="button" class="btn btn-sm btn-outline-info text-nowrap ms-2" id="btnTestOpenAI" onclick="testAiConnection('openai')">
-                                        <i class="bi bi-lightning-charge-fill me-1"></i>Test Connection
-                                    </button>
+                                <div class="row g-2 align-items-center">
+                                    <div class="col-md-7">
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text bg-dark border-color text-muted">Model</span>
+                                            <select class="form-select form-select-sm" name="openai_model">
+                                                <option value="gpt-4o-mini" {% if ai.openai_model == 'gpt-4o-mini' %}selected{% endif %}>gpt-4o-mini (Cost-Effective & Smart)</option>
+                                                <option value="gpt-4o" {% if ai.openai_model == 'gpt-4o' %}selected{% endif %}>gpt-4o (High Capability)</option>
+                                                <option value="gpt-3.5-turbo" {% if ai.openai_model == 'gpt-3.5-turbo' %}selected{% endif %}>gpt-3.5-turbo (Legacy Standard)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-5 text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-info text-nowrap w-100" id="btnTestOpenAI" onclick="testAiConnection('openai')">
+                                            <i class="bi bi-lightning-charge-fill me-1"></i>Test Connection
+                                        </button>
+                                    </div>
                                 </div>
                                 <div id="openai_test_result" class="mt-2" style="display:none;"></div>
                             </div>
-                            <button type="submit" class="btn btn-premium w-100 mt-2"><i class="bi bi-shield-fill-check me-2"></i>Save AI Credentials</button>
+
+                            <!-- Temperature & Hyperparameters -->
+                            <div class="mb-4 p-3 rounded" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <label class="form-label text-white small fw-bold mb-0">
+                                        <i class="bi bi-sliders me-1 text-info"></i>Sampling Temperature (Creativity)
+                                    </label>
+                                    <span class="badge bg-info-subtle text-info border border-info-subtle" id="tempValueBadge">{{ ai.ai_temperature }}</span>
+                                </div>
+                                <input type="range" class="form-range" name="ai_temperature" id="aiTempSlider" min="0.0" max="1.0" step="0.05" value="{{ ai.ai_temperature }}" oninput="updateTemperatureLabel(this.value)">
+                                <div class="d-flex justify-content-between text-muted" style="font-size: 0.72rem;">
+                                    <span>0.0 (Strict & Deterministic)</span>
+                                    <span>0.7 (Balanced Advisor)</span>
+                                    <span>1.0 (Highly Creative)</span>
+                                </div>
+                            </div>
+
+                            <!-- Custom System Persona Prompt -->
+                            <div class="mb-4">
+                                <label class="form-label text-secondary small fw-bold d-flex justify-content-between">
+                                    <span>Custom AI Persona / System Instructions</span>
+                                    <span class="text-muted" style="font-size:0.75rem;">Optional system tuning</span>
+                                </label>
+                                <textarea class="form-control text-white" name="ai_system_prompt" rows="3" placeholder="e.g. You are the Senior Academic Director and Admissions Advisor at Guha Academy. Focus recommendations on practical student learning outcomes, revenue sustainability, and timely fee follow-ups.">{{ ai.ai_system_prompt }}</textarea>
+                                <small class="text-muted d-block mt-1">These instructions are prepended to operational insights and communication generators.</small>
+                            </div>
+
+                            <button type="submit" class="btn btn-premium w-100 mt-2"><i class="bi bi-shield-fill-check me-2"></i>Save AI Configuration & Tuning</button>
                         </form>
                     </div>
                 </div>
+
+                <!-- ==================== INTERACTIVE AI PLAYGROUND & DIAGNOSTICS ==================== -->
                 <div class="col-lg-5 mb-4">
+                    <div class="glass-card p-4 h-100 d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h4 class="text-white fw-bold mb-0"><i class="bi bi-terminal-fill me-2 text-primary"></i>AI Live Playground</h4>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Simulator</span>
+                        </div>
+                        <p class="text-secondary small mb-3">Test AI generation in real-time. Verify latency, custom system prompt influence, and response formatting before users see output.</p>
+
+                        <div class="mb-3">
+                            <label class="form-label text-secondary small fw-bold">Load Preset Scenario</label>
+                            <select class="form-select form-select-sm" id="playgroundScenarioSelect" onchange="loadPlaygroundTemplate(this.value)">
+                                <option value="">-- Choose a test template --</option>
+                                <option value="health">Academy Operational Health Briefing</option>
+                                <option value="enquiry">High-Conversion Student Follow-up</option>
+                                <option value="retention">At-Risk Retention & Attendance Advisory</option>
+                                <option value="course_pitch">Course Syllabus Value Pitch (Python & Web)</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3 flex-grow-1">
+                            <label class="form-label text-secondary small fw-bold d-flex justify-content-between">
+                                <span>Test Prompt</span>
+                                <span class="text-muted" style="font-size: 0.75rem;" id="promptCharCount">0 chars</span>
+                            </label>
+                            <textarea class="form-control text-white" id="playground_prompt" rows="4" placeholder="Enter custom prompt to test AI engine..." oninput="document.getElementById('promptCharCount').textContent = this.value.length + ' chars'">Analyze our computer institute attendance rate of 82% across 45 active students and propose 2 quick engagement ideas.</textarea>
+                        </div>
+
+                        <div class="row g-2 align-items-center mb-3">
+                            <div class="col-6">
+                                <select class="form-select form-select-sm" id="playground_provider">
+                                    <option value="">System Default Provider</option>
+                                    <option value="gemini">Force Google Gemini</option>
+                                    <option value="openai">Force OpenAI</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <button type="button" class="btn btn-sm btn-primary w-100" id="btnRunSimulation" onclick="runAiSimulation()">
+                                    <i class="bi bi-play-circle-fill me-1"></i>Run Simulation
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Response Viewport -->
+                        <div id="playground_result_wrapper" class="p-3 rounded flex-grow-1 d-flex flex-column" style="background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.08); min-height: 180px;">
+                            <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-secondary border-opacity-25">
+                                <span class="small text-muted fw-bold"><i class="bi bi-chat-left-text-fill me-1 text-info"></i>Simulation Output</span>
+                                <div id="playground_meta" class="d-flex align-items-center gap-2" style="display:none !important;">
+                                    <span class="badge bg-dark border border-secondary" id="simLatency">0 ms</span>
+                                    <span class="badge bg-dark border border-secondary" id="simWords">0 words</span>
+                                    <button class="btn btn-xs btn-outline-secondary py-0 px-1" title="Copy to clipboard" onclick="copySimulationOutput()"><i class="bi bi-clipboard"></i></button>
+                                </div>
+                            </div>
+                            <div id="playground_output" class="text-white-50 small flex-grow-1" style="white-space: pre-wrap; max-height: 250px; overflow-y: auto; font-family: monospace, sans-serif;">
+                                Ready. Select a scenario or enter a prompt above and click "Run Simulation".
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== COMMUNICATIONS ROW: WHATSAPP & SMS ==================== -->
+            <div class="row mt-2">
+                <div class="col-lg-6 mb-4">
                     <!-- WhatsApp Config -->
-                    <div class="glass-card p-4 mb-4">
+                    <div class="glass-card p-4 h-100">
                         <h4 class="mb-3 fw-bold" style="color: #ffffff !important;"><i class="bi bi-whatsapp me-2" style="color: #25D366 !important;"></i>WhatsApp Business API</h4>
                         <p class="small mb-4" style="color: #ffffff !important;">Send fee reminders, attendance alerts, and exam schedules directly to students' WhatsApp via Meta Cloud API.</p>
                         <form action="{{ url_for('admin.admin_console') }}" method="POST">
@@ -121,8 +281,10 @@
                             <button type="submit" class="btn btn-premium mt-3 w-100" style="background: linear-gradient(135deg, #25D366, #128C7E); border: none;"><i class="bi bi-whatsapp me-2"></i>Save WhatsApp Settings</button>
                         </form>
                     </div>
+                </div>
+                <div class="col-lg-6 mb-4">
                     <!-- SMS Gateway Config -->
-                    <div class="glass-card p-4">
+                    <div class="glass-card p-4 h-100">
                         <h4 class="mb-3 fw-bold" style="color: #ffffff !important;"><i class="bi bi-chat-dots me-2" style="color: #1b6ef3 !important;"></i>SMS Gateway</h4>
                         <p class="small mb-4" style="color: #ffffff !important;">Send fee reminders, attendance alerts, and exam schedules via SMS using an HTTP gateway.</p>
                         <form action="{{ url_for('admin.admin_console') }}" method="POST">
@@ -156,11 +318,11 @@
                                     <label class="form-label small" style="color: #ffffff !important;">Message Param</label>
                                     <input type="text" class="form-control" name="SMS_MSG_PARAM" placeholder="message" value="{{ sms.sms_msg_param or 'message' }}">
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-6">
                                     <label class="form-label small" style="color: #ffffff !important;">Key Param Name</label>
                                     <input type="text" class="form-control" name="SMS_KEY_PARAM" placeholder="api_key" value="{{ sms.sms_key_param or 'api_key' }}">
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-6">
                                     <label class="form-label small" style="color: #ffffff !important;">Sender Param Name</label>
                                     <input type="text" class="form-control" name="SMS_SENDER_PARAM" placeholder="sender" value="{{ sms.sms_sender_param or 'sender' }}">
                                 </div>
@@ -596,6 +758,114 @@ function testAiConnection(provider) {
     .finally(function() {
         btn.disabled = false;
         btn.innerHTML = origBtnHtml;
+    });
+}
+
+function updateTemperatureLabel(val) {
+    var num = parseFloat(val).toFixed(2);
+    var desc = num < 0.3 ? 'Deterministic' : (num > 0.7 ? 'Creative' : 'Balanced');
+    var badge = document.getElementById('tempValueBadge');
+    if (badge) {
+        badge.textContent = num + ' (' + desc + ')';
+    }
+}
+
+function clearAiCache() {
+    if (!confirm('Purge all cached AI predictions, task recommendations, and dashboard statistics?')) return;
+    fetch('{{ url_for("admin.clear_ai_cache") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'fetch'
+        }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (res.success) {
+            showToast(res.message, 'success');
+        } else {
+            showToast(res.message || 'Failed to clear cache.', 'danger');
+        }
+    })
+    .catch(function() {
+        showToast('Error communicating with server while purging cache.', 'danger');
+    });
+}
+
+function loadPlaygroundTemplate(type) {
+    var promptEl = document.getElementById('playground_prompt');
+    if (!promptEl) return;
+    var templates = {
+        health: "Evaluate our computer academy's operational metrics:\n- 45 Active Students, 4 Tutors, 6 Courses\n- Average Attendance: 84%\n- Monthly Collection: ₹1,45,000\n- 8 Unresolved Prospective Leads\nGenerate 3 strategic operational directives to maximize retention and revenue.",
+        enquiry: "Draft a high-conversion, welcoming follow-up message for Priya Sharma who inquired about Full-Stack Python & Web Development through a Google search. Highlight live weekend projects and free demo lab access.",
+        retention: "We have 3 students with attendance below 70% in the Data Science batch. Draft a supportive, constructive WhatsApp/Email check-in asking if they need extra mentor tutoring sessions.",
+        course_pitch: "Write an inspiring 3-point value proposition for our upcoming 'AI & Python Automation Bootcamp' aimed at college students and working professionals."
+    };
+    if (templates[type]) {
+        promptEl.value = templates[type];
+        var countEl = document.getElementById('promptCharCount');
+        if (countEl) countEl.textContent = promptEl.value.length + ' chars';
+    }
+}
+
+function runAiSimulation() {
+    var promptEl = document.getElementById('playground_prompt');
+    var providerEl = document.getElementById('playground_provider');
+    var btn = document.getElementById('btnRunSimulation');
+    var outEl = document.getElementById('playground_output');
+    var metaEl = document.getElementById('playground_meta');
+    var latencyEl = document.getElementById('simLatency');
+    var wordsEl = document.getElementById('simWords');
+    
+    var prompt = promptEl ? promptEl.value.trim() : '';
+    if (!prompt) {
+        showToast('Please enter or select a prompt to simulate.', 'warning');
+        return;
+    }
+    
+    var provider = providerEl ? providerEl.value : '';
+    var origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generating...';
+    outEl.innerHTML = '<span class="text-info"><i class="bi bi-cpu me-1"></i>Running LLM inference...</span>';
+    if (metaEl) metaEl.style.setProperty('display', 'none', 'important');
+
+    fetch('{{ url_for("admin.ai_playground") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'fetch'
+        },
+        body: JSON.stringify({ prompt: prompt, provider: provider })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (res.success) {
+            outEl.textContent = res.response;
+            if (metaEl) metaEl.style.setProperty('display', 'flex', 'important');
+            if (latencyEl) latencyEl.textContent = res.latency_ms + ' ms';
+            if (wordsEl) wordsEl.textContent = res.word_count + ' words (' + res.char_count + ' chars)';
+            showToast('Simulation generated successfully in ' + res.latency_ms + 'ms!', 'success');
+        } else {
+            outEl.innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>' + (res.message || 'Simulation failed.') + '</span>';
+            showToast(res.message || 'Simulation failed.', 'danger');
+        }
+    })
+    .catch(function(err) {
+        outEl.innerHTML = '<span class="text-danger"><i class="bi bi-wifi-off me-1"></i>Network or server error while executing prompt.</span>';
+        showToast('Network error during simulation.', 'danger');
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+    });
+}
+
+function copySimulationOutput() {
+    var outEl = document.getElementById('playground_output');
+    if (!outEl || !outEl.textContent) return;
+    navigator.clipboard.writeText(outEl.textContent).then(function() {
+        showToast('Simulation output copied to clipboard!', 'info');
     });
 }
 

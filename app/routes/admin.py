@@ -23,20 +23,20 @@ def admin_console():
     if request.method == 'POST':
         action = request.form.get('action')
         if action == 'save_keys':
-            gemini_val = request.form.get('gemini_api_key', '').strip()
-            openai_val = request.form.get('openai_api_key', '').strip()
-            g_setting = SystemSetting.query.filter_by(key='GEMINI_API_KEY').first()
-            if g_setting:
-                g_setting.value = gemini_val
-            else:
-                db.session.add(SystemSetting(key='GEMINI_API_KEY', value=gemini_val))
-            o_setting = SystemSetting.query.filter_by(key='OPENAI_API_KEY').first()
-            if o_setting:
-                o_setting.value = openai_val
-            else:
-                db.session.add(SystemSetting(key='OPENAI_API_KEY', value=openai_val))
+            ai_keys = [
+                'GEMINI_API_KEY', 'OPENAI_API_KEY', 'AI_DEFAULT_PROVIDER',
+                'GEMINI_MODEL', 'OPENAI_MODEL', 'AI_TEMPERATURE', 'AI_SYSTEM_PROMPT'
+            ]
+            for k in ai_keys:
+                form_key = k.lower()
+                val = request.form.get(form_key, '').strip()
+                setting = SystemSetting.query.filter_by(key=k).first()
+                if setting:
+                    setting.value = val
+                else:
+                    db.session.add(SystemSetting(key=k, value=val))
             db.session.commit()
-            msg = "AI Credentials saved and applied instantly!"
+            msg = "AI Configuration & Model Settings saved successfully!"
             if request.headers.get('X-Requested-With') in ('fetch', 'XMLHttpRequest') or request.is_json:
                 return jsonify({'success': True, 'message': msg})
             flash(msg, "success")
@@ -252,14 +252,22 @@ def admin_console():
             except Exception as e:
                 flash(f"Database Reset Error: {e}", "danger")
             return redirect(url_for('admin.admin_console'))
-    gemini_key = ""
-    g_setting = SystemSetting.query.filter_by(key='GEMINI_API_KEY').first()
-    if g_setting:
-        gemini_key = g_setting.value
-    openai_key = ""
-    o_setting = SystemSetting.query.filter_by(key='OPENAI_API_KEY').first()
-    if o_setting:
-        openai_key = o_setting.value
+    ai_settings = {}
+    for key, default in [
+        ('GEMINI_API_KEY', ''), ('OPENAI_API_KEY', ''),
+        ('AI_DEFAULT_PROVIDER', 'gemini'),
+        ('GEMINI_MODEL', 'gemini-2.5-flash'),
+        ('OPENAI_MODEL', 'gpt-4o-mini'),
+        ('AI_TEMPERATURE', '0.7'),
+        ('AI_SYSTEM_PROMPT', '')
+    ]:
+        s = SystemSetting.query.filter_by(key=key).first()
+        ai_settings[key.lower()] = s.value if s and s.value not in (None, '') else default
+        if key == 'GEMINI_API_KEY':
+            gemini_key = ai_settings[key.lower()]
+        elif key == 'OPENAI_API_KEY':
+            openai_key = ai_settings[key.lower()]
+
     smtp_settings = {}
     for key in ['SMTP_SERVER', 'SMTP_PORT', 'SMTP_USE_TLS', 'SMTP_USERNAME', 'SMTP_PASSWORD', 'FROM_EMAIL', 'FROM_NAME', 'ADMIN_EMAIL']:
         s = SystemSetting.query.filter_by(key=key).first()
@@ -287,7 +295,7 @@ def admin_console():
     g_active = bool(gemini_key or os.environ.get("GEMINI_API_KEY"))
     o_active = bool(openai_key or os.environ.get("OPENAI_API_KEY"))
     users = User.query.order_by(User.created_at.desc()).all()
-    return render_template('admin.html', gemini_key=gemini_key, openai_key=openai_key,
+    return render_template('admin.html', gemini_key=gemini_key, openai_key=openai_key, ai=ai_settings,
         db_counts=db_counts, g_active=g_active, o_active=o_active, users=users,
         smtp=smtp_settings, wa=wa_settings, sms=sms_settings, org=org_settings,
         lifecycle=lifecycle_settings,
@@ -309,6 +317,63 @@ def test_ai_connection():
         
     result = ai_engine.test_provider_connection(provider=provider, custom_key=api_key)
     return jsonify(result)
+
+@admin_bp.route('/admin/ai/clear-cache', methods=['POST'])
+@login_required
+@admin_required
+def clear_ai_cache():
+    if hasattr(current_app, 'ai_engine'):
+        ai_engine = current_app.ai_engine
+    else:
+        from app.services.ai_engine import AIEngine
+        ai_engine = AIEngine()
+    ai_engine.clear_cache()
+    
+    # Also purge application analytical cache
+    import app as main_app
+    import app.routes.dashboard as dashboard
+    main_app._sidebar_cache = {"data": None, "time": 0}
+    dashboard._stats_cache = {}
+    
+    return jsonify({
+        'success': True,
+        'message': 'AI forecast caches, advisory memory, and statistical caches purged successfully!'
+    })
+
+@admin_bp.route('/admin/ai/playground', methods=['POST'])
+@login_required
+@admin_required
+def ai_playground():
+    import time
+    data = request.get_json(silent=True) or request.form or {}
+    prompt = (data.get('prompt') or '').strip()
+    if not prompt:
+        return jsonify({'success': False, 'message': 'Prompt cannot be empty.'}), 400
+    
+    provider = data.get('provider') or None
+    if hasattr(current_app, 'ai_engine'):
+        ai_engine = current_app.ai_engine
+    else:
+        from app.services.ai_engine import AIEngine
+        ai_engine = AIEngine()
+        
+    t0 = time.time()
+    response_text = ai_engine.call_ai(prompt, provider=provider)
+    latency_ms = round((time.time() - t0) * 1000, 1)
+    
+    if response_text:
+        return jsonify({
+            'success': True,
+            'response': response_text,
+            'latency_ms': latency_ms,
+            'char_count': len(response_text),
+            'word_count': len(response_text.split())
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'message': 'No response received from the configured AI provider. Please verify API credentials and model configuration.'
+        })
 
 @admin_bp.route('/admin/backup')
 @login_required

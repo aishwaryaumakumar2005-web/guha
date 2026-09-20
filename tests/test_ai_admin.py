@@ -13,14 +13,26 @@ def test_admin_console_ai_tab_rendered(admin_client):
     assert 'AI Engine Integration' in html
     assert 'gemini_api_key' in html
     assert 'openai_api_key' in html
+    assert 'ai_default_provider' in html
+    assert 'gemini_model' in html
+    assert 'openai_model' in html
+    assert 'ai_temperature' in html
+    assert 'ai_system_prompt' in html
+    assert 'AI Live Playground' in html
     assert 'testAiConnection' in html
+    assert 'runAiSimulation' in html
 
 
-def test_admin_save_ai_keys_form(admin_client, app):
+def test_admin_save_ai_advanced_settings(admin_client, app):
     resp = admin_client.post('/admin', data={
         'action': 'save_keys',
         'gemini_api_key': 'test-gemini-key-12345',
-        'openai_api_key': 'test-openai-key-67890'
+        'openai_api_key': 'test-openai-key-67890',
+        'ai_default_provider': 'openai',
+        'gemini_model': 'gemini-2.5-pro',
+        'openai_model': 'gpt-4o',
+        'ai_temperature': '0.85',
+        'ai_system_prompt': 'You are a friendly counselor.'
     }, follow_redirects=False)
     assert resp.status_code == 302
     assert '#ai' in resp.headers.get('Location', '')
@@ -28,8 +40,19 @@ def test_admin_save_ai_keys_form(admin_client, app):
     with app.app_context():
         g_setting = SystemSetting.query.filter_by(key='GEMINI_API_KEY').first()
         o_setting = SystemSetting.query.filter_by(key='OPENAI_API_KEY').first()
-        assert g_setting is not None and g_setting.value == 'test-gemini-key-12345'
-        assert o_setting is not None and o_setting.value == 'test-openai-key-67890'
+        provider_setting = SystemSetting.query.filter_by(key='AI_DEFAULT_PROVIDER').first()
+        g_model = SystemSetting.query.filter_by(key='GEMINI_MODEL').first()
+        o_model = SystemSetting.query.filter_by(key='OPENAI_MODEL').first()
+        temp_setting = SystemSetting.query.filter_by(key='AI_TEMPERATURE').first()
+        prompt_setting = SystemSetting.query.filter_by(key='AI_SYSTEM_PROMPT').first()
+
+        assert g_setting.value == 'test-gemini-key-12345'
+        assert o_setting.value == 'test-openai-key-67890'
+        assert provider_setting.value == 'openai'
+        assert g_model.value == 'gemini-2.5-pro'
+        assert o_model.value == 'gpt-4o'
+        assert temp_setting.value == '0.85'
+        assert prompt_setting.value == 'You are a friendly counselor.'
 
 
 def test_admin_save_ai_keys_ajax(admin_client, app):
@@ -105,6 +128,69 @@ def test_ai_test_connection_openai_success(admin_client):
         assert data['success'] is True
         assert 'gpt-4o-mini' in data['model']
         assert data['provider'] == 'OpenAI'
+
+
+def test_clear_ai_cache_endpoint_staff(staff_client):
+    staff_resp = staff_client.post('/admin/ai/clear-cache')
+    assert staff_resp.status_code in (302, 403)
+
+
+def test_clear_ai_cache_endpoint_admin(admin_client):
+    admin_resp = admin_client.post('/admin/ai/clear-cache')
+    assert admin_resp.status_code == 200
+    data = admin_resp.get_json()
+    assert data['success'] is True
+    assert 'purged successfully' in data['message']
+
+
+def test_ai_playground_endpoint(admin_client):
+    # Empty prompt validation
+    resp_empty = admin_client.post('/admin/ai/playground', json={'prompt': ''})
+    assert resp_empty.status_code == 400
+
+    # Successful playground inference simulation
+    with patch.object(AIEngine, 'call_ai', return_value='Simulation generated response for testing.'):
+        resp = admin_client.post('/admin/ai/playground', json={
+            'prompt': 'Analyze attendance metrics',
+            'provider': 'gemini'
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['success'] is True
+        assert data['response'] == 'Simulation generated response for testing.'
+        assert data['word_count'] == 5
+        assert data['latency_ms'] >= 0
+
+
+def test_ai_engine_call_ai_system_prompt_and_routing(app):
+    engine = AIEngine()
+
+    with app.app_context():
+        db.session.add(SystemSetting(key='GEMINI_API_KEY', value='test-key'))
+        db.session.add(SystemSetting(key='AI_SYSTEM_PROMPT', value='Custom persona instructions.'))
+        db.session.add(SystemSetting(key='AI_DEFAULT_PROVIDER', value='gemini'))
+        db.session.commit()
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            'candidates': [{'content': {'parts': [{'text': 'AI Reply Text'}]}}]
+        }
+
+        with patch('requests.post', return_value=mock_resp) as mock_post:
+            result = engine.call_ai("User prompt test")
+            assert result == 'AI Reply Text'
+            # Check that prompt sent to Gemini includes the custom system prompt
+            sent_payload = mock_post.call_args[1]['json']
+            sent_text = sent_payload['contents'][0]['parts'][0]['text']
+            assert 'Custom persona instructions.' in sent_text
+            assert 'User prompt test' in sent_text
+
+
+def test_ai_engine_clear_cache():
+    engine = AIEngine()
+    res = engine.clear_cache()
+    assert res is True
 
 
 def test_ai_engine_error_handling():
