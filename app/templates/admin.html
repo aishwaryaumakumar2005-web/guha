@@ -5,8 +5,8 @@
             <h2 class="text-white fw-bold">Admin Console</h2>
             <p class="text-white mb-0">Control global settings, manage database tables, and configure neural API integrations.</p>
         </div>
-        <span class="badge badge-custom py-2 px-3" style="background: rgba(107, 142, 35, 0.85); color: #ffffff; border: 1px solid rgba(107, 142, 35, 0.9);">
-            <i class="bi bi-cpu-fill me-1"></i> System Status: Online
+        <span class="badge badge-custom py-2 px-3" style="background: rgba(107, 142, 35, 0.85); color: #ffffff; border: 1px solid rgba(107, 142, 35, 0.9);" title="Database: {{ system_health.database }}; latest backup: {{ system_health.latest_backup or 'none' }}">
+            <i class="bi bi-heart-pulse-fill me-1"></i> System: {{ system_health.database|capitalize }}
         </span>
     </div>
 
@@ -97,7 +97,7 @@
                                 </label>
                                 <div class="input-group mb-2">
                                     <span class="input-group-text bg-dark border-color text-muted"><i class="bi bi-google"></i></span>
-                                    <input type="password" class="form-control" id="gemini_api_key_input" name="gemini_api_key" placeholder="AIzaSy..." value="{{ ai.gemini_api_key }}">
+                                    <input type="password" class="form-control" id="gemini_api_key_input" name="gemini_api_key" placeholder="{% if g_active %}Configured — enter a new key to replace{% else %}AIzaSy...{% endif %}" value="" autocomplete="new-password">
                                     <button class="btn btn-outline-secondary" type="button" title="Toggle visibility" onclick="toggleKeyVisibility('gemini_api_key_input', 'gemini_eye_icon')">
                                         <i class="bi bi-eye" id="gemini_eye_icon"></i>
                                     </button>
@@ -132,7 +132,7 @@
                                 </label>
                                 <div class="input-group mb-2">
                                     <span class="input-group-text bg-dark border-color text-muted"><i class="bi bi-cpu"></i></span>
-                                    <input type="password" class="form-control" id="openai_api_key_input" name="openai_api_key" placeholder="sk-proj-..." value="{{ ai.openai_api_key }}">
+                                    <input type="password" class="form-control" id="openai_api_key_input" name="openai_api_key" placeholder="{% if o_active %}Configured — enter a new key to replace{% else %}sk-proj-...{% endif %}" value="" autocomplete="new-password">
                                     <button class="btn btn-outline-secondary" type="button" title="Toggle visibility" onclick="toggleKeyVisibility('openai_api_key_input', 'openai_eye_icon')">
                                         <i class="bi bi-eye" id="openai_eye_icon"></i>
                                     </button>
@@ -535,6 +535,8 @@
                         <hr class="border-secondary opacity-25 my-3">
                         <form action="{{ url_for('admin.admin_console') }}" method="POST" onsubmit="return confirm('WARNING: This will wipe out all current students, tutors, courses, fee structures, and attendance records! Do you want to proceed with factory resetting the system?')">
                             <input type="hidden" name="action" value="reset_db">
+                            <label class="form-label small text-white-50" for="reset-confirm">Type RESET DATABASE to enable reset</label>
+                            <input id="reset-confirm" name="confirm_reset" class="form-control mb-2" placeholder="RESET DATABASE" autocomplete="off">
                             <button type="submit" class="btn btn-danger w-100 text-white fw-bold"><i class="bi bi-arrow-counterclockwise me-2"></i>Wipe & Re-Seed Database</button>
                         </form>
                     </div>
@@ -1098,6 +1100,25 @@ function previewInvoiceSettings() {
 }
 
 updateGstSummary();
+
+// Add the admin CSRF token to normal forms and AJAX requests on this page.
+(function() {
+    var token = '{{ admin_csrf_token }}';
+    document.querySelectorAll('form[action*="admin"]').forEach(function(form) {
+        if (!form.querySelector('input[name="admin_csrf_token"]')) {
+            var input = document.createElement('input');
+            input.type = 'hidden'; input.name = 'admin_csrf_token'; input.value = token;
+            form.appendChild(input);
+        }
+    });
+    var nativeFetch = window.fetch;
+    window.fetch = function(input, init) {
+        init = init || {};
+        init.headers = new Headers(init.headers || {});
+        init.headers.set('X-CSRFToken', token);
+        return nativeFetch(input, init);
+    };
+})();
 
 (function() {
     var hash = window.location.hash;

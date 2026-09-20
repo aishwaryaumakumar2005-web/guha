@@ -3,8 +3,9 @@ import json
 import uuid
 import sqlite3
 import re
+import secrets
 from datetime import datetime, date, timezone, timedelta
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app, session, abort
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import User, Course, Student, Tutor, Enquiry, FeeRecord, Attendance, SystemSetting, ExpenseCategory, Expense, Exam, ExamScore, ExamAssignment, AuditLog
@@ -15,7 +16,32 @@ IST = timezone(timedelta(hours=5, minutes=30))
 def ist_now():
     return datetime.now(IST)
 
+def _audit_admin_action(action, entity_type='System', entity_id=None, changes=None):
+    """Best-effort audit record for privileged console actions."""
+    try:
+        db.session.add(AuditLog(user_id=current_user.id, username=current_user.username,
+                                action=action[:10], entity_type=entity_type,
+                                entity_id=entity_id,
+                                changes=json.dumps(changes or {}, default=str)))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+def _backup_path_is_safe(backup_dir, filename):
+    backup_root = os.path.realpath(backup_dir)
+    candidate = os.path.realpath(os.path.join(backup_root, filename))
+    return candidate.startswith(backup_root + os.sep) and os.path.isfile(candidate)
+
 admin_bp = Blueprint('admin', __name__)
+
+@admin_bp.before_request
+def protect_admin_posts():
+    if 'admin_csrf_token' not in session:
+        session['admin_csrf_token'] = secrets.token_urlsafe(32)
+    if request.method == 'POST' and not current_app.testing:
+        submitted = request.form.get('admin_csrf_token') or request.headers.get('X-CSRFToken')
+        if not submitted or not secrets.compare_digest(submitted, session['admin_csrf_token']):
+            abort(400, description='Invalid admin security token.')
 
 @admin_bp.route('/admin', methods=['GET', 'POST'])
 @login_required
@@ -31,6 +57,10 @@ def admin_console():
             for k in ai_keys:
                 form_key = k.lower()
                 val = request.form.get(form_key, '').strip()
+                if k in ('GEMINI_API_KEY', 'OPENAI_API_KEY') and not val:
+                    existing = SystemSetting.query.filter_by(key=k).first()
+                    if existing and existing.value:
+                        continue
                 setting = SystemSetting.query.filter_by(key=k).first()
                 if setting:
                     setting.value = val
@@ -60,6 +90,10 @@ def admin_console():
             keys = ['SMTP_SERVER', 'SMTP_PORT', 'SMTP_USE_TLS', 'SMTP_USERNAME', 'SMTP_PASSWORD', 'FROM_EMAIL', 'FROM_NAME', 'ADMIN_EMAIL']
             for key in keys:
                 val = request.form.get(key, '').strip()
+                if key == 'SMTP_PASSWORD' and not val:
+                    existing = SystemSetting.query.filter_by(key=key).first()
+                    if existing and existing.value:
+                        continue
                 setting = SystemSetting.query.filter_by(key=key).first()
                 if setting:
                     setting.value = val
@@ -72,6 +106,10 @@ def admin_console():
             wa_keys = ['WHATSAPP_TOKEN', 'WHATSAPP_PHONE_ID', 'WHATSAPP_BUSINESS_ID']
             for key in wa_keys:
                 val = request.form.get(key, '').strip()
+                if key == 'WHATSAPP_TOKEN' and not val:
+                    existing = SystemSetting.query.filter_by(key=key).first()
+                    if existing and existing.value:
+                        continue
                 setting = SystemSetting.query.filter_by(key=key).first()
                 if setting:
                     setting.value = val
@@ -114,6 +152,10 @@ def admin_console():
             sms_keys = ['SMS_GATEWAY_URL', 'SMS_API_KEY', 'SMS_SENDER_ID', 'SMS_PHONE_PARAM', 'SMS_MSG_PARAM', 'SMS_KEY_PARAM', 'SMS_SENDER_PARAM', 'SMS_METHOD']
             for key in sms_keys:
                 val = request.form.get(key, '').strip()
+                if key == 'SMS_API_KEY' and not val:
+                    existing = SystemSetting.query.filter_by(key=key).first()
+                    if existing and existing.value:
+                        continue
                 setting = SystemSetting.query.filter_by(key=key).first()
                 if setting:
                     setting.value = val
@@ -206,6 +248,7 @@ def admin_console():
                 else:
                     db.session.delete(user_to_delete)
                     db.session.commit()
+                    _audit_admin_action('DELETE', 'User', user_to_delete.id, {'username': user_to_delete.username})
                     flash(f"User account {user_to_delete.username} deleted.", "success")
             return redirect(url_for('admin.admin_console', _anchor='users'))
         elif action == 'save_org':
@@ -239,6 +282,7 @@ def admin_console():
                 flash("Invoice prefix must be 1-12 characters using letters, numbers, _ or -.", "danger")
                 return redirect(url_for('admin.admin_console', _anchor='org'))
             org_keys = ['ORG_NAME', 'ORG_ADDRESS', 'ORG_GSTIN', 'ORG_HSN', 'ORG_STATE', 'ORG_STATE_CODE', 'CGST_PCT', 'SGST_PCT', 'INVOICE_PREFIX']
+            previous = {key: (SystemSetting.query.filter_by(key=key).first().value if SystemSetting.query.filter_by(key=key).first() else '') for key in org_keys}
             for key in org_keys:
                 if key in gst_rates:
                     val = gst_rates[key]
@@ -254,6 +298,7 @@ def admin_console():
                 else:
                     db.session.add(SystemSetting(key=key, value=val))
             db.session.commit()
+            _audit_admin_action('UPDATE', 'Organization', None, {'changed': [k for k in org_keys if previous.get(k) != (SystemSetting.query.filter_by(key=k).first().value if SystemSetting.query.filter_by(key=k).first() else '')]})
             flash("Organization & GST settings saved!", "success")
             return redirect(url_for('admin.admin_console', _anchor='org'))
         elif action == 'save_lifecycle':
@@ -292,9 +337,13 @@ def admin_console():
             flash("Student lifecycle thresholds saved!", "success")
             return redirect(url_for('admin.admin_console'))
         elif action == 'reset_db':
+            if request.form.get('confirm_reset') != 'RESET DATABASE':
+                flash("Type RESET DATABASE to confirm this destructive action.", "danger")
+                return redirect(url_for('admin.admin_console', _anchor='db'))
             from init_db import seed_database
             try:
                 seed_database()
+                _audit_admin_action('RESET', 'Database', None, {'seeded': True})
                 flash("Database reset and seeded with premium demo logs successfully!", "success")
             except Exception as e:
                 flash(f"Database Reset Error: {e}", "danger")
@@ -347,12 +396,42 @@ def admin_console():
     o_active = bool(openai_key or os.environ.get("OPENAI_API_KEY"))
     users = User.query.order_by(User.created_at.desc()).all()
     ai_logs = AuditLog.query.filter_by(action='AI_INFER').order_by(AuditLog.timestamp.desc()).limit(10).all()
+    backup_dir = get_backup_dir(current_app._get_current_object())
+    backup_files = [os.path.join(backup_dir, name) for name in os.listdir(backup_dir)] if os.path.isdir(backup_dir) else []
+    latest_backup = max((p for p in backup_files if os.path.isfile(p)), key=os.path.getmtime, default=None)
+    system_health = {
+        'database': 'healthy',
+        'ai': 'configured' if (g_active or o_active) else 'not_configured',
+        'smtp': 'configured' if smtp_settings.get('smtp_server') else 'not_configured',
+        'sms': 'configured' if sms_settings.get('sms_gateway_url') else 'not_configured',
+        'whatsapp': 'configured' if wa_settings.get('whatsapp_token') else 'not_configured',
+        'latest_backup': datetime.fromtimestamp(os.path.getmtime(latest_backup), IST).strftime('%d %b %Y %I:%M %p') if latest_backup else None,
+    }
 
     return render_template('admin.html', gemini_key=gemini_key, openai_key=openai_key, ai=ai_settings,
         db_counts=db_counts, g_active=g_active, o_active=o_active, users=users, ai_logs=ai_logs,
         smtp=smtp_settings, wa=wa_settings, sms=sms_settings, org=org_settings,
         lifecycle=lifecycle_settings,
-        courses=Course.query.order_by(Course.name).all())
+        courses=Course.query.order_by(Course.name).all(), system_health=system_health,
+        admin_csrf_token=session['admin_csrf_token'])
+
+@admin_bp.route('/admin/health')
+@login_required
+@admin_required
+def admin_health():
+    """Small JSON health summary for monitoring and the admin overview."""
+    try:
+        db.session.execute(db.text('SELECT 1'))
+        database = 'healthy'
+    except Exception:
+        database = 'failed'
+    def configured(*keys):
+        return any((SystemSetting.query.filter_by(key=k).first() and SystemSetting.query.filter_by(key=k).first().value) or os.environ.get(k) for k in keys)
+    return jsonify({'database': database,
+                    'ai': 'configured' if configured('GEMINI_API_KEY', 'OPENAI_API_KEY') else 'not_configured',
+                    'smtp': 'configured' if configured('SMTP_SERVER') else 'not_configured',
+                    'sms': 'configured' if configured('SMS_GATEWAY_URL') else 'not_configured',
+                    'whatsapp': 'configured' if configured('WHATSAPP_TOKEN') else 'not_configured'})
 
 @admin_bp.route('/admin/ai/test-connection', methods=['POST'])
 @login_required
@@ -516,7 +595,7 @@ def _dump_postgres(backup_path):
 def list_backups():
     backup_dir = get_backup_dir(current_app._get_current_object())
     os.makedirs(backup_dir, exist_ok=True)
-    backups = sorted(os.listdir(backup_dir), reverse=True)
+    backups = sorted((b for b in os.listdir(backup_dir) if os.path.isfile(os.path.join(backup_dir, b))), reverse=True)
     backup_files = []
     for b in backups:
         fp = os.path.join(backup_dir, b)
@@ -525,18 +604,22 @@ def list_backups():
         backup_files.append({"name": b, "size": f"{size/1024:.1f} KB", "modified": modified})
     return jsonify(backup_files)
 
-@admin_bp.route('/admin/backup/restore/<filename>')
+@admin_bp.route('/admin/backup/restore/<filename>', methods=['POST'])
 @login_required
 @admin_required
 def restore_backup(filename):
     backup_dir = get_backup_dir(current_app._get_current_object())
-    backup_path = os.path.join(backup_dir, filename)
-    if not os.path.exists(backup_path):
+    if not _backup_path_is_safe(backup_dir, filename):
         flash("Backup file not found.", "danger")
+        return redirect(url_for('admin.admin_console'))
+    backup_path = os.path.realpath(os.path.join(backup_dir, filename))
+    if request.form.get('confirm_restore') != 'RESTORE DATABASE':
+        flash("Type RESTORE DATABASE to confirm this destructive action.", "danger")
         return redirect(url_for('admin.admin_console'))
     if filename.endswith('.json'):
         ok, msg = _restore_from_json(backup_path)
         if ok:
+            _audit_admin_action('RESTORE', 'Database', None, {'filename': filename})
             flash(f"Database restored from: {filename}.", "success")
         else:
             flash(f"Restore failed: {msg}", "danger")
@@ -544,6 +627,7 @@ def restore_backup(filename):
     import shutil
     db_path = os.path.join(os.path.dirname(os.path.abspath(current_app.root_path)), 'instance', 'institute.db')
     shutil.copy2(backup_path, db_path)
+    _audit_admin_action('RESTORE', 'Database', None, {'filename': filename})
     flash(f"Database restored from: {filename}. Restarting app...", "success")
     return redirect(url_for('admin.admin_console'))
 
@@ -983,11 +1067,13 @@ def audit_log():
 @login_required
 @admin_required
 def diag_accounts():
+    if not current_app.config.get('ENABLE_ADMIN_DIAGNOSTICS', False):
+        return jsonify({'error': 'Not found'}), 404
     rows = db.session.execute(db.text(
         "SELECT id, name, account_type, is_active FROM account ORDER BY id"
     )).fetchall()
     return jsonify({
-        'uri': current_app.config.get('SQLALCHEMY_DATABASE_URI', ''),
+        'uri': '[redacted]',
         'accounts': [{'id': r[0], 'name': r[1], 'account_type': r[2], 'is_active': r[3]} for r in rows],
         'payment_methods': [r[0] for r in db.session.execute(db.text(
             "SELECT DISTINCT payment_method FROM fee_record WHERE payment_method IS NOT NULL ORDER BY 1")).fetchall()],
