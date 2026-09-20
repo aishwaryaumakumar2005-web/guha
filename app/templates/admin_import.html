@@ -34,6 +34,7 @@
   {% elif preview %}
   {# ---- Step 2: Preview ---- #}
   <form method="POST" action="{{ url_for('admin.import_database') }}">
+    <input type="hidden" name="admin_csrf_token" value="{{ admin_csrf_token }}">
     <input type="hidden" name="confirm_import" value="1">
     <input type="hidden" name="temp_path" value="{{ temp_path }}">
     <div class="glass-card p-4 mb-4">
@@ -90,6 +91,7 @@
     <h4 class="fw-bold mb-3" style="color:#ffffff;"><i class="bi bi-cloud-upload me-2"></i>Upload Source Database</h4>
     <p class="small mb-4" style="color:#ffffffcc;">Choose a <code>.db</code> file exported from another instance of this application. The import will match existing records and merge new ones.</p>
     <form method="POST" action="{{ url_for('admin.import_database') }}" enctype="multipart/form-data">
+    <input type="hidden" name="admin_csrf_token" value="{{ admin_csrf_token }}">
       <div class="mb-4">
         <label class="form-label small fw-bold" style="color:#ffffff;">SQLite Database File</label>
         <input type="file" class="form-control" name="db_file" accept=".db,.sqlite,.sqlite3" required style="padding:0.75rem;">

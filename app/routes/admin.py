@@ -353,7 +353,7 @@ def admin_console():
         elif action == 'reset_db':
             if request.form.get('confirm_reset') != 'RESET DATABASE':
                 flash("Type RESET DATABASE to confirm this destructive action.", "danger")
-                return redirect(url_for('admin.admin_console', _anchor='db'))
+                return redirect(url_for('admin.admin_console', _anchor='data'))
             from init_db import seed_database
             try:
                 seed_database()
@@ -1022,7 +1022,7 @@ def import_database():
                     os.remove(temp_path)
                 flash(f'Could not read database: {e}', 'danger')
                 return redirect(url_for('admin.import_database'))
-            return render_template('admin_import.html', preview=preview, temp_path=temp_path)
+            return render_template('admin_import.html', preview=preview, temp_path=temp_path, admin_csrf_token=session['admin_csrf_token'])
 
         # Step 2 — confirm import
         if 'confirm_import' in request.form:
@@ -1033,7 +1033,7 @@ def import_database():
             selected = request.form.getlist('tables')
             try:
                 results = _execute_import(temp_path, selected)
-                return render_template('admin_import.html', results=results)
+                return render_template('admin_import.html', results=results, admin_csrf_token=session['admin_csrf_token'])
             except Exception as e:
                 flash(f'Import failed: {e}', 'danger')
                 return redirect(url_for('admin.import_database'))
@@ -1044,7 +1044,7 @@ def import_database():
                     except Exception:
                         pass
 
-    return render_template('admin_import.html')
+    return render_template('admin_import.html', admin_csrf_token=session['admin_csrf_token'])
 
 
 def _audit_entity_label(et):
@@ -1081,6 +1081,29 @@ def audit_log():
     return render_template('admin_audit.html', logs=logs, page=page, per_page=per_page, total=total,
                            entity_filter=entity_filter, action_filter=action_filter,
                            entity_types=entity_types, label=_audit_entity_label)
+
+@admin_bp.route('/admin/audit-log/export')
+@login_required
+@admin_required
+def export_audit_log():
+    import csv
+    from io import StringIO
+    entity_filter = request.args.get('entity', '')
+    action_filter = request.args.get('action', '')
+    q = AuditLog.query
+    if entity_filter:
+        q = q.filter(AuditLog.entity_type == entity_filter)
+    if action_filter:
+        q = q.filter(AuditLog.action == action_filter)
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Timestamp', 'User', 'Action', 'Entity', 'Entity ID', 'Changes'])
+    for log in q.order_by(AuditLog.timestamp.desc()).all():
+        writer.writerow([log.timestamp.isoformat(), log.username or '', log.action,
+                         log.entity_type, log.entity_id or '', log.changes or ''])
+    response = current_app.response_class(output.getvalue(), mimetype='text/csv')
+    response.headers['Content-Disposition'] = 'attachment; filename=admin-audit-log.csv'
+    return response
 
 
 @admin_bp.route('/admin/_diag-accounts')

@@ -6,6 +6,7 @@
     </div>
     <div class="text-end">
       <span class="badge badge-custom py-2 px-3" style="background:rgba(27, 110, 243,0.15);color:#fff;border:1px solid rgba(27, 110, 243,0.3);">{{ total }} entries</span>
+      <a class="btn btn-sm btn-outline-light ms-2" href="{{ url_for('admin.export_audit_log', entity=entity_filter, action=action_filter) }}"><i class="bi bi-download me-1"></i>Export CSV</a>
     </div>
   </div>
 
