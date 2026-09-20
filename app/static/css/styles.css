@@ -2439,18 +2439,12 @@ body.dark-mode .chat-panel-header .status-dot { background: #22c55e; box-shadow:
 .bento-span-4 { grid-column: span 4; }
 .bento-span-3 { grid-column: span 3; }
 
-@media (max-width: 1200px) {
-    .bento-span-8, .bento-span-7, .bento-span-6, .bento-span-5, .bento-span-4, .bento-span-3 {
-        grid-column: span 12;
-    }
-}
-@media (max-width: 768px) {
+@media (max-width: 767px) {
     .bento-grid-container {
         gap: 16px;
-        grid-template-columns: 1fr;
     }
     .bento-span-12, .bento-span-8, .bento-span-7, .bento-span-6, .bento-span-5, .bento-span-4, .bento-span-3 {
-        grid-column: span 1;
+        grid-column: span 12;
     }
 }
 

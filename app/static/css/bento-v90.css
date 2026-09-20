@@ -1,28 +1,46 @@
-/* Bento grid — unconditional desktop layout. All spans apply at every width,
-   so no viewport, zoom level, or display scaling can ever produce a stacked
-   dashboard. Only truly narrow/phone windows (<520px) fall back to stacked
-   cards. Unique filename: no cache can ever serve a stale copy. */
+/* Bento grid — Responsive layout system for desktop, tablet, and mobile.
+   Desktop (>= 992px): bento-xl-* classes control 12-column grid spans.
+   Tablet (768px - 991px): bento-md-* classes control column spans.
+   Mobile (< 768px): cards stack cleanly into single-column layout (span 12). */
 
-.bento-grid {
+.bento-grid,
+.bento-grid-container {
     display: grid !important;
     grid-template-columns: repeat(12, 1fr) !important;
-    gap: 24px;
+    gap: 24px !important;
+    width: 100% !important;
 }
 
-.bento-card { grid-column: span 12; }
+.bento-card,
+.bento-grid-item {
+    grid-column: span 12;
+}
 
-.bento-md-6 { grid-column: span 6; }
-.bento-md-12 { grid-column: span 12; }
+/* Tablet Layout (768px - 991px) */
+@media (min-width: 768px) {
+    .bento-md-6 { grid-column: span 6 !important; }
+    .bento-md-12 { grid-column: span 12 !important; }
+}
 
-.bento-xl-3 { grid-column: span 3; }
-.bento-xl-4 { grid-column: span 4; }
-.bento-xl-5 { grid-column: span 5; }
-.bento-xl-6 { grid-column: span 6; }
-.bento-xl-7 { grid-column: span 7; }
-.bento-xl-8 { grid-column: span 8; }
-.bento-xl-12 { grid-column: span 12; }
+/* Desktop Layout (>= 992px) */
+@media (min-width: 992px) {
+    .bento-xl-3, .bento-span-3 { grid-column: span 3 !important; }
+    .bento-xl-4, .bento-span-4 { grid-column: span 4 !important; }
+    .bento-xl-5, .bento-span-5 { grid-column: span 5 !important; }
+    .bento-xl-6, .bento-span-6 { grid-column: span 6 !important; }
+    .bento-xl-7, .bento-span-7 { grid-column: span 7 !important; }
+    .bento-xl-8, .bento-span-8 { grid-column: span 8 !important; }
+    .bento-xl-12, .bento-span-12 { grid-column: span 12 !important; }
+}
 
-@media (max-width: 519px) {
+/* Mobile Layout (< 768px) */
+@media (max-width: 767px) {
+    .bento-grid,
+    .bento-grid-container {
+        gap: 16px !important;
+    }
+    .bento-card,
+    .bento-grid-item,
     .bento-md-6,
     .bento-md-12,
     .bento-xl-3,
@@ -31,5 +49,14 @@
     .bento-xl-6,
     .bento-xl-7,
     .bento-xl-8,
-    .bento-xl-12 { grid-column: span 12; }
+    .bento-xl-12,
+    .bento-span-3,
+    .bento-span-4,
+    .bento-span-5,
+    .bento-span-6,
+    .bento-span-7,
+    .bento-span-8,
+    .bento-span-12 {
+        grid-column: span 12 !important;
+    }
 }
