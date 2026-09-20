@@ -13,7 +13,96 @@ _PA_CACHE_TTL = 300  # seconds
 class AIEngine:
     def __init__(self):
         pass
-        
+
+    def test_provider_connection(self, provider="gemini", custom_key=None):
+        """Test API connectivity and measure latency to the selected AI provider."""
+        t0 = time.time()
+        test_prompt = "Say 'Guha Academy AI Online' in 5 words."
+
+        if provider.lower() == "gemini":
+            key = (custom_key or '').strip() or self._get_api_key("GEMINI_API_KEY")
+            if not key:
+                return {"success": False, "provider": "Google Gemini", "message": "No API key configured."}
+            models = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-flash-lite-latest"]
+            for model in models:
+                try:
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+                    headers = {"Content-Type": "application/json"}
+                    data = {"contents": [{"parts": [{"text": test_prompt}]}]}
+                    response = requests.post(url, headers=headers, json=data, timeout=8)
+                    latency_ms = round((time.time() - t0) * 1000, 1)
+                    if response.status_code == 200:
+                        result = response.json()
+                        reply = result['candidates'][0]['content']['parts'][0]['text'].strip()
+                        return {
+                            "success": True,
+                            "provider": "Google Gemini",
+                            "model": model,
+                            "latency_ms": latency_ms,
+                            "message": f"Connected to {model} successfully! ({latency_ms}ms)",
+                            "reply": reply
+                        }
+                    elif response.status_code in (400, 403):
+                        return {
+                            "success": False,
+                            "provider": "Google Gemini",
+                            "status_code": response.status_code,
+                            "message": "Invalid API key or unauthorized. Please check your Gemini API key from Google AI Studio."
+                        }
+                    elif response.status_code == 429:
+                        return {
+                            "success": False,
+                            "provider": "Google Gemini",
+                            "status_code": 429,
+                            "message": "Rate limit or quota exceeded for this Gemini API key."
+                        }
+                except requests.exceptions.Timeout:
+                    return {"success": False, "provider": "Google Gemini", "message": "Connection timed out (Google Gemini server took >8s to respond)."}
+                except Exception as e:
+                    return {"success": False, "provider": "Google Gemini", "message": f"Connection error: {e}"}
+            return {"success": False, "provider": "Google Gemini", "message": "Failed to connect to Google Gemini models."}
+
+        elif provider.lower() == "openai":
+            key = (custom_key or '').strip() or self._get_api_key("OPENAI_API_KEY")
+            if not key:
+                return {"success": False, "provider": "OpenAI", "message": "No API key configured."}
+            try:
+                url = "https://api.openai.com/v1/chat/completions"
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {key}"
+                }
+                data = {
+                    "model": "gpt-4o-mini",
+                    "messages": [{"role": "user", "content": test_prompt}],
+                    "temperature": 0.7
+                }
+                response = requests.post(url, headers=headers, json=data, timeout=8)
+                latency_ms = round((time.time() - t0) * 1000, 1)
+                if response.status_code == 200:
+                    result = response.json()
+                    reply = result['choices'][0]['message']['content'].strip()
+                    return {
+                        "success": True,
+                        "provider": "OpenAI",
+                        "model": "gpt-4o-mini",
+                        "latency_ms": latency_ms,
+                        "message": f"Connected to gpt-4o-mini successfully! ({latency_ms}ms)",
+                        "reply": reply
+                    }
+                elif response.status_code in (401, 403):
+                    return {"success": False, "provider": "OpenAI", "message": "Invalid API key. Please check your OpenAI API key."}
+                elif response.status_code == 429:
+                    return {"success": False, "provider": "OpenAI", "message": "OpenAI rate limit or credit quota exceeded."}
+                else:
+                    return {"success": False, "provider": "OpenAI", "message": f"OpenAI returned status code {response.status_code}"}
+            except requests.exceptions.Timeout:
+                return {"success": False, "provider": "OpenAI", "message": "Connection timed out (OpenAI server took >8s)."}
+            except Exception as e:
+                return {"success": False, "provider": "OpenAI", "message": f"Connection error: {e}"}
+
+        return {"success": False, "provider": provider, "message": "Unknown provider requested."}
+
     def _get_api_key(self, name):
         from app.models import SystemSetting
         try:

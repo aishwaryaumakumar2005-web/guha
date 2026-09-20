@@ -46,33 +46,51 @@
                 <div class="col-lg-7 mb-4">
                     <!-- AI Keys -->
                     <div class="glass-card p-4 h-100">
-                        <h4 class="mb-3 text-dark fw-bold"><i class="bi bi-key-fill me-2 text-dark"></i>AI Engine Integration</h4>
+                        <h4 class="mb-3 text-white fw-bold"><i class="bi bi-cpu-fill me-2 text-info"></i>AI Engine Integration</h4>
                         <p class="text-secondary small mb-4">Store your custom LLM API keys directly inside the local database. These keys are applied instantly across the entire application without needing server reboots.</p>
                         <form action="{{ url_for('admin.admin_console') }}" method="POST">
                             <input type="hidden" name="action" value="save_keys">
                             <div class="mb-4">
-                                <label class="form-label text-secondary small fw-bold d-flex justify-content-between">
+                                <label class="form-label text-secondary small fw-bold d-flex justify-content-between align-items-center">
                                     <span>Gemini Developer API Key</span>
-                                    {% if g_active %}<span class="text-dark small"><i class="bi bi-patch-check-fill me-1"></i>Active / Configured</span>
-                                    {% else %}<span class="text-rose small"><i class="bi bi-exclamation-triangle-fill me-1"></i>Inactive (Simulating locally)</span>{% endif %}
+                                    {% if g_active %}<span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-patch-check-fill me-1"></i>Active / Configured</span>
+                                    {% else %}<span class="badge bg-warning-subtle text-warning border border-warning-subtle"><i class="bi bi-exclamation-triangle-fill me-1"></i>Inactive (Simulating locally)</span>{% endif %}
                                 </label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-dark border-color text-muted"><i class="bi bi-google"></i></span>
-                                    <input type="password" class="form-control" name="gemini_api_key" placeholder="AIzaSy..." value="{{ gemini_key }}">
+                                    <input type="password" class="form-control" id="gemini_api_key_input" name="gemini_api_key" placeholder="AIzaSy..." value="{{ gemini_key }}">
+                                    <button class="btn btn-outline-secondary" type="button" title="Toggle visibility" onclick="toggleKeyVisibility('gemini_api_key_input', 'gemini_eye_icon')">
+                                        <i class="bi bi-eye" id="gemini_eye_icon"></i>
+                                    </button>
                                 </div>
-                                <small class="text-muted d-block mt-1">Acquire an API Key from Google AI Studio. This powers the operational dashboard recommendations and enquiry follow-ups.</small>
+                                <div class="d-flex justify-content-between align-items-center mt-2">
+                                    <small class="text-muted">Acquire an API Key from Google AI Studio. Powers dashboard recommendations & follow-ups.</small>
+                                    <button type="button" class="btn btn-sm btn-outline-info text-nowrap ms-2" id="btnTestGemini" onclick="testAiConnection('gemini')">
+                                        <i class="bi bi-lightning-charge-fill me-1"></i>Test Connection
+                                    </button>
+                                </div>
+                                <div id="gemini_test_result" class="mt-2" style="display:none;"></div>
                             </div>
                             <div class="mb-4">
-                                <label class="form-label text-secondary small fw-bold d-flex justify-content-between">
+                                <label class="form-label text-secondary small fw-bold d-flex justify-content-between align-items-center">
                                     <span>OpenAI API Key (Alternate)</span>
-                                    {% if o_active %}<span class="text-dark small"><i class="bi bi-patch-check-fill me-1"></i>Active / Configured</span>
-                                    {% else %}<span class="text-rose small"><i class="bi bi-exclamation-triangle-fill me-1"></i>Inactive</span>{% endif %}
+                                    {% if o_active %}<span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-patch-check-fill me-1"></i>Active / Configured</span>
+                                    {% else %}<span class="badge bg-warning-subtle text-warning border border-warning-subtle"><i class="bi bi-exclamation-triangle-fill me-1"></i>Inactive</span>{% endif %}
                                 </label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-dark border-color text-muted"><i class="bi bi-cpu"></i></span>
-                                    <input type="password" class="form-control" name="openai_api_key" placeholder="sk-proj-..." value="{{ openai_key }}">
+                                    <input type="password" class="form-control" id="openai_api_key_input" name="openai_api_key" placeholder="sk-proj-..." value="{{ openai_key }}">
+                                    <button class="btn btn-outline-secondary" type="button" title="Toggle visibility" onclick="toggleKeyVisibility('openai_api_key_input', 'openai_eye_icon')">
+                                        <i class="bi bi-eye" id="openai_eye_icon"></i>
+                                    </button>
                                 </div>
-                                <small class="text-muted d-block mt-1">Fallback system. If Gemini is not set, the advisor searches for this key first.</small>
+                                <div class="d-flex justify-content-between align-items-center mt-2">
+                                    <small class="text-muted">Fallback system. If Gemini is not configured, the advisor checks OpenAI.</small>
+                                    <button type="button" class="btn btn-sm btn-outline-info text-nowrap ms-2" id="btnTestOpenAI" onclick="testAiConnection('openai')">
+                                        <i class="bi bi-lightning-charge-fill me-1"></i>Test Connection
+                                    </button>
+                                </div>
+                                <div id="openai_test_result" class="mt-2" style="display:none;"></div>
                             </div>
                             <button type="submit" class="btn btn-premium w-100 mt-2"><i class="bi bi-shield-fill-check me-2"></i>Save AI Credentials</button>
                         </form>
@@ -518,6 +536,67 @@ function showToast(message, type) {
     toast.innerHTML = message + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
     container.appendChild(toast);
     setTimeout(function() { toast.remove(); }, 5000);
+}
+
+function toggleKeyVisibility(inputId, iconId) {
+    var input = document.getElementById(inputId);
+    var icon = document.getElementById(iconId);
+    if (!input || !icon) return;
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'bi bi-eye-slash';
+    } else {
+        input.type = 'password';
+        icon.className = 'bi bi-eye';
+    }
+}
+
+function testAiConnection(provider) {
+    var inputId = provider === 'gemini' ? 'gemini_api_key_input' : 'openai_api_key_input';
+    var btnId = provider === 'gemini' ? 'btnTestGemini' : 'btnTestOpenAI';
+    var resultId = provider === 'gemini' ? 'gemini_test_result' : 'openai_test_result';
+    
+    var input = document.getElementById(inputId);
+    var btn = document.getElementById(btnId);
+    var resBox = document.getElementById(resultId);
+    
+    var apiKey = input ? input.value.trim() : '';
+    var origBtnHtml = btn.innerHTML;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Testing...';
+    resBox.style.display = 'block';
+    resBox.innerHTML = '<div class="alert alert-secondary py-2 small mb-0"><i class="bi bi-hourglass-split me-1"></i>Connecting to ' + (provider === 'gemini' ? 'Google Gemini' : 'OpenAI') + ' API...</div>';
+
+    fetch('{{ url_for("admin.test_ai_connection") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'fetch'
+        },
+        body: JSON.stringify({ provider: provider, api_key: apiKey })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (res.success) {
+            var latencyInfo = res.latency_ms ? ' <span class="badge bg-dark ms-1">' + res.latency_ms + 'ms</span>' : '';
+            var modelInfo = res.model ? '<div class="small opacity-75 mt-1">Model: <code>' + res.model + '</code></div>' : '';
+            var replyInfo = res.reply ? '<div class="small opacity-75 mt-1">Sample response: <em>"' + res.reply + '"</em></div>' : '';
+            resBox.innerHTML = '<div class="alert alert-success py-2 small mb-0"><i class="bi bi-check-circle-fill me-1"></i><strong>' + res.message + '</strong>' + latencyInfo + modelInfo + replyInfo + '</div>';
+            showToast(res.message, 'success');
+        } else {
+            resBox.innerHTML = '<div class="alert alert-danger py-2 small mb-0"><i class="bi bi-exclamation-octagon-fill me-1"></i><strong>Connection Failed:</strong> ' + (res.message || 'Unknown error') + '</div>';
+            showToast(res.message || 'Connection test failed', 'danger');
+        }
+    })
+    .catch(function(err) {
+        resBox.innerHTML = '<div class="alert alert-danger py-2 small mb-0"><i class="bi bi-exclamation-octagon-fill me-1"></i>Network or server error while testing connection.</div>';
+        showToast('Network error while testing connection.', 'danger');
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btn.innerHTML = origBtnHtml;
+    });
 }
 
 (function() {

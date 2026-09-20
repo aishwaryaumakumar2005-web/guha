@@ -36,8 +36,11 @@ def admin_console():
             else:
                 db.session.add(SystemSetting(key='OPENAI_API_KEY', value=openai_val))
             db.session.commit()
-            flash("AI Credentials saved and applied instantly!", "success")
-            return redirect(url_for('admin.admin_console'))
+            msg = "AI Credentials saved and applied instantly!"
+            if request.headers.get('X-Requested-With') in ('fetch', 'XMLHttpRequest') or request.is_json:
+                return jsonify({'success': True, 'message': msg})
+            flash(msg, "success")
+            return redirect(url_for('admin.admin_console', _anchor='ai'))
         elif action == 'save_smtp':
             keys = ['SMTP_SERVER', 'SMTP_PORT', 'SMTP_USE_TLS', 'SMTP_USERNAME', 'SMTP_PASSWORD', 'FROM_EMAIL', 'FROM_NAME', 'ADMIN_EMAIL']
             for key in keys:
@@ -289,6 +292,23 @@ def admin_console():
         smtp=smtp_settings, wa=wa_settings, sms=sms_settings, org=org_settings,
         lifecycle=lifecycle_settings,
         courses=Course.query.order_by(Course.name).all())
+
+@admin_bp.route('/admin/ai/test-connection', methods=['POST'])
+@login_required
+@admin_required
+def test_ai_connection():
+    data = request.get_json(silent=True) or request.form or {}
+    provider = data.get('provider', 'gemini')
+    api_key = data.get('api_key', '').strip()
+    
+    if hasattr(current_app, 'ai_engine'):
+        ai_engine = current_app.ai_engine
+    else:
+        from app.services.ai_engine import AIEngine
+        ai_engine = AIEngine()
+        
+    result = ai_engine.test_provider_connection(provider=provider, custom_key=api_key)
+    return jsonify(result)
 
 @admin_bp.route('/admin/backup')
 @login_required
