@@ -38,7 +38,7 @@
                 </span>
             </div>
             <p class="text-white mb-0" style="opacity:0.75;font-size:0.9rem;">
-                Database disaster recovery, system backups, maintenance tools and institute utilities.
+                Disaster recovery snapshots, database diagnostics, bulk exports, and institute maintenance tools.
             </p>
         </div>
         <div class="d-flex flex-wrap gap-2">
@@ -60,12 +60,47 @@
             <div class="glass-card p-3 h-100">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
-                        <div class="text-white small" style="opacity:0.65;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em;">Available Backups</div>
-                        <div class="fs-4 fw-bold text-white mt-1" id="stat-backup-count">{{ stats.total_backups }}</div>
-                        <div class="text-white small mt-1" style="opacity:0.5;font-size:0.72rem;">Total Disk: <span class="fw-semibold text-white" id="stat-backup-size">{{ stats.total_size }}</span></div>
+                        <div class="text-white small" style="opacity:0.65;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em;">Database Records</div>
+                        <div class="fs-4 fw-bold text-white mt-1">{{ "{:,}".format(stats.total_records) }}</div>
+                        <div class="text-white small mt-1" style="opacity:0.5;font-size:0.72rem;">Across 10 Core Tables</div>
                     </div>
                     <div class="rounded-circle p-3 d-flex align-items-center justify-content-center" style="background:rgba(0,191,166,0.12);color:#00BFA6;width:48px;height:48px;">
+                        <i class="bi bi-layers-fill fs-5"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+            <div class="glass-card p-3 h-100">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-white small" style="opacity:0.65;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em;">Backups Storage</div>
+                        <div class="fs-4 fw-bold text-white mt-1" id="stat-backup-count">{{ stats.total_backups }} <span class="fs-6 fw-normal text-white-50">Snapshots</span></div>
+                        <div class="text-white small mt-1" style="opacity:0.5;font-size:0.72rem;">Total Disk: <span class="fw-semibold text-white" id="stat-backup-size">{{ stats.total_size }}</span></div>
+                    </div>
+                    <div class="rounded-circle p-3 d-flex align-items-center justify-content-center" style="background:rgba(255,193,7,0.12);color:#ffc107;width:48px;height:48px;">
                         <i class="bi bi-archive-fill fs-5"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+            <div class="glass-card p-3 h-100">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="text-white small" style="opacity:0.65;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em;">Engine &amp; Latency</div>
+                        <div class="fs-6 fw-bold text-white mt-1 d-flex align-items-center gap-1">
+                            {{ stats.db_type }}
+                            {% if stats.db_latency is not none %}
+                                <span class="badge" style="background:rgba(0,191,166,0.15);color:#00BFA6;font-size:0.65rem;">{{ stats.db_latency }}ms</span>
+                            {% endif %}
+                        </div>
+                        <div class="text-white small mt-1 text-truncate" style="opacity:0.5;font-size:0.72rem;max-width:180px;" title="{{ stats.db_label }}">{{ stats.db_label }}</div>
+                    </div>
+                    <div class="rounded-circle p-3 d-flex align-items-center justify-content-center" style="background:rgba(13,110,253,0.12);color:#0d6efd;width:48px;height:48px;">
+                        <i class="bi bi-speedometer2 fs-5"></i>
                     </div>
                 </div>
             </div>
@@ -77,39 +112,6 @@
                     <div>
                         <div class="text-white small" style="opacity:0.65;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em;">Latest Snapshot</div>
                         <div class="fs-6 fw-bold text-white mt-1 text-truncate" id="stat-last-backup" style="max-width:180px;">{{ stats.last_backup }}</div>
-                        <div class="text-white small mt-1" style="opacity:0.5;font-size:0.72rem;">Automated / On-demand</div>
-                    </div>
-                    <div class="rounded-circle p-3 d-flex align-items-center justify-content-center" style="background:rgba(255,193,7,0.12);color:#ffc107;width:48px;height:48px;">
-                        <i class="bi bi-clock-history fs-5"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-xl-3">
-            <div class="glass-card p-3 h-100">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <div class="text-white small" style="opacity:0.65;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em;">Active Engine</div>
-                        <div class="fs-6 fw-bold text-white mt-1">{{ stats.db_type }}</div>
-                        <div class="text-white small mt-1 text-truncate" style="opacity:0.5;font-size:0.72rem;max-width:180px;" title="{{ stats.db_label }}">{{ stats.db_label }}</div>
-                    </div>
-                    <div class="rounded-circle p-3 d-flex align-items-center justify-content-center" style="background:rgba(13,110,253,0.12);color:#0d6efd;width:48px;height:48px;">
-                        <i class="bi bi-database-check fs-5"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-xl-3">
-            <div class="glass-card p-3 h-100">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <div class="text-white small" style="opacity:0.65;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em;">System Status</div>
-                        <div class="fs-6 fw-bold text-success mt-1 d-flex align-items-center gap-1">
-                            <span class="badge-active-dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#00BFA6;"></span>
-                            Operational
-                        </div>
                         <div class="text-white small mt-1" style="opacity:0.5;font-size:0.72rem;">Disaster Recovery Ready</div>
                     </div>
                     <div class="rounded-circle p-3 d-flex align-items-center justify-content-center" style="background:rgba(25,135,84,0.12);color:#198754;width:48px;height:48px;">
@@ -120,17 +122,47 @@
         </div>
     </div>
 
-    <!-- Main Backups Container -->
-    <div class="row">
-        <div class="col-12">
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-pills custom-pills mb-4 gap-2" id="extrasTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active d-flex align-items-center gap-2" id="backups-tab" data-bs-toggle="pill" data-bs-target="#tab-backups" type="button" role="tab" aria-controls="tab-backups" aria-selected="true" onclick="updateHash('backups')">
+                <i class="bi bi-database-fill"></i>
+                <span>Backups &amp; Disaster Recovery</span>
+                <span class="badge bg-secondary ms-1">{{ stats.total_backups }}</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link d-flex align-items-center gap-2" id="diagnostics-tab" data-bs-toggle="pill" data-bs-target="#tab-diagnostics" type="button" role="tab" aria-controls="tab-diagnostics" aria-selected="false" onclick="updateHash('diagnostics')">
+                <i class="bi bi-activity"></i>
+                <span>System Health &amp; Diagnostics</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link d-flex align-items-center gap-2" id="exports-tab" data-bs-toggle="pill" data-bs-target="#tab-exports" type="button" role="tab" aria-controls="tab-exports" aria-selected="false" onclick="updateHash('exports')">
+                <i class="bi bi-box-arrow-down"></i>
+                <span>Bulk Data Export Center</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link d-flex align-items-center gap-2" id="utilities-tab" data-bs-toggle="pill" data-bs-target="#tab-utilities" type="button" role="tab" aria-controls="tab-utilities" aria-selected="false" onclick="updateHash('utilities')">
+                <i class="bi bi-tools"></i>
+                <span>Institute Utilities</span>
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Contents -->
+    <div class="tab-content" id="extrasTabContent">
+        <!-- Tab 1: Backups & Disaster Recovery -->
+        <div class="tab-pane fade show active" id="tab-backups" role="tabpanel" aria-labelledby="backups-tab">
             <div class="glass-card p-4 mb-4">
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
                     <div>
                         <h4 class="text-white fw-bold mb-1">
-                            <i class="bi bi-database-fill me-2" style="color:hsl(200,100%,50%);"></i>Database Backups &amp; Snapshots
+                            <i class="bi bi-archive-fill me-2" style="color:hsl(200,100%,50%);"></i>Database Backups &amp; Snapshots
                         </h4>
                         <div class="text-white small" style="opacity:0.65;">
-                            Download cold offline backups, upload recovery archives, or restore the database.
+                            Download cold offline backups, upload recovery archives, or restore the database cleanly.
                         </div>
                     </div>
 
@@ -217,6 +249,267 @@
                         <button class="btn btn-sm btn-outline-secondary" id="backup-next-btn" onclick="changeBackupPage(1)">
                             Next <i class="bi bi-chevron-right"></i>
                         </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: System Health & Diagnostics -->
+        <div class="tab-pane fade" id="tab-diagnostics" role="tabpanel" aria-labelledby="diagnostics-tab">
+            <div class="row g-4">
+                <!-- Database Engine & Health Overview -->
+                <div class="col-lg-5">
+                    <div class="glass-card p-4 h-100">
+                        <h5 class="text-white fw-bold mb-3 d-flex align-items-center gap-2">
+                            <i class="bi bi-speedometer2 text-info"></i> Database Connection
+                        </h5>
+                        <div class="p-3 rounded mb-3" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small text-white-50">Engine Type</span>
+                                <span class="badge bg-info text-dark fw-bold">{{ stats.db_type }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small text-white-50">Connection Health</span>
+                                <span class="text-success fw-bold d-flex align-items-center gap-1">
+                                    <i class="bi bi-check-circle-fill"></i> {{ stats.db_status }}
+                                </span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small text-white-50">Query Ping Latency</span>
+                                <span class="text-white fw-bold">{{ stats.db_latency }} ms</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="small text-white-50">Total Active Records</span>
+                                <span class="text-white fw-bold">{{ "{:,}".format(stats.total_records) }} rows</span>
+                            </div>
+                        </div>
+
+                        <div class="p-3 rounded" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);">
+                            <div class="small text-white-50 mb-1">Connection Details</div>
+                            <div class="small text-white font-monospace text-truncate" title="{{ stats.db_label }}">{{ stats.db_label }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Core Entities Breakdown Matrix -->
+                <div class="col-lg-7">
+                    <div class="glass-card p-4 h-100">
+                        <h5 class="text-white fw-bold mb-3 d-flex align-items-center gap-2">
+                            <i class="bi bi-table text-success"></i> Table Record Distribution
+                        </h5>
+                        <div class="row g-2">
+                            {% for table_name, count in table_counts.items() %}
+                                <div class="col-sm-6">
+                                    <div class="p-3 rounded d-flex justify-content-between align-items-center" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);">
+                                        <div>
+                                            <div class="small text-white text-capitalize fw-semibold">{{ table_name|replace('_', ' ') }}</div>
+                                            <div class="text-white-50" style="font-size:0.7rem;">Active Entities</div>
+                                        </div>
+                                        <div class="fs-5 fw-bold text-white">{{ "{:,}".format(count) }}</div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Bulk Data Export Center -->
+        <div class="tab-pane fade" id="tab-exports" role="tabpanel" aria-labelledby="exports-tab">
+            <div class="glass-card p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h4 class="text-white fw-bold mb-1">
+                            <i class="bi bi-cloud-arrow-down-fill me-2 text-info"></i>Bulk Data Export Center
+                        </h4>
+                        <div class="text-white small" style="opacity:0.65;">
+                            One-click master ledger and CSV exports for offline auditing, compliance, and backups.
+                        </div>
+                    </div>
+                    <a href="{{ url_for('reports.reports') }}" class="btn btn-outline-premium btn-sm">
+                        <i class="bi bi-graph-up me-1"></i>Advanced Reports Hub
+                    </a>
+                </div>
+
+                <div class="row g-3">
+                    <!-- Export Card 1: Students -->
+                    <div class="col-md-6 col-xl-4">
+                        <div class="p-3 rounded h-100 d-flex flex-column justify-content-between" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <i class="bi bi-mortarboard-fill text-info fs-5"></i>
+                                    <h6 class="text-white fw-bold mb-0">Students Master List</h6>
+                                </div>
+                                <p class="text-white-50 small mb-3" style="font-size:0.78rem;">
+                                    Complete student directory including enrollments, contact numbers, roll codes, and balance status.
+                                </p>
+                            </div>
+                            <a href="{{ url_for('students.list') }}" class="btn btn-sm btn-outline-info w-100">
+                                <i class="bi bi-people me-1"></i> View Students Directory
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Export Card 2: Fee Collections -->
+                    <div class="col-md-6 col-xl-4">
+                        <div class="p-3 rounded h-100 d-flex flex-column justify-content-between" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <i class="bi bi-cash-stack text-success fs-5"></i>
+                                    <h6 class="text-white fw-bold mb-0">Fee Collections Ledger</h6>
+                                </div>
+                                <p class="text-white-50 small mb-3" style="font-size:0.78rem;">
+                                    Itemized fee collections, payment methods, GST breakdowns, concessions, and transaction dates.
+                                </p>
+                            </div>
+                            <a href="{{ url_for('reports.report_excel') }}" class="btn btn-sm btn-outline-success w-100">
+                                <i class="bi bi-file-earmark-excel me-1"></i> Export Fee Ledger (Excel)
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Export Card 3: Attendance -->
+                    <div class="col-md-6 col-xl-4">
+                        <div class="p-3 rounded h-100 d-flex flex-column justify-content-between" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <i class="bi bi-calendar2-check-fill text-warning fs-5"></i>
+                                    <h6 class="text-white fw-bold mb-0">Attendance Register</h6>
+                                </div>
+                                <p class="text-white-50 small mb-3" style="font-size:0.78rem;">
+                                    Daily attendance logs for students and staff with timestamps, presence status, and course tracking.
+                                </p>
+                            </div>
+                            <a href="{{ url_for('attendance.attendance') }}" class="btn btn-sm btn-outline-warning w-100">
+                                <i class="bi bi-calendar-check me-1"></i> View Attendance Register
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Export Card 4: Enquiries Pipeline -->
+                    <div class="col-md-6 col-xl-4">
+                        <div class="p-3 rounded h-100 d-flex flex-column justify-content-between" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <i class="bi bi-funnel-fill text-primary fs-5"></i>
+                                    <h6 class="text-white fw-bold mb-0">Leads &amp; Enquiries</h6>
+                                </div>
+                                <p class="text-white-50 small mb-3" style="font-size:0.78rem;">
+                                    Admission pipeline data, lead source channels, contact phone numbers, and conversion status.
+                                </p>
+                            </div>
+                            <a href="{{ url_for('enquiries.list') }}" class="btn btn-sm btn-outline-primary w-100">
+                                <i class="bi bi-arrow-right me-1"></i> View Enquiries Pipeline
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Export Card 5: Expenses Ledger -->
+                    <div class="col-md-6 col-xl-4">
+                        <div class="p-3 rounded h-100 d-flex flex-column justify-content-between" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <i class="bi bi-receipt text-danger fs-5"></i>
+                                    <h6 class="text-white fw-bold mb-0">Expenses &amp; P&amp;L</h6>
+                                </div>
+                                <p class="text-white-50 small mb-3" style="font-size:0.78rem;">
+                                    Institute operating expense records, categorizations, student expense mappings, and notes.
+                                </p>
+                            </div>
+                            <a href="{{ url_for('expenses.list') }}" class="btn btn-sm btn-outline-danger w-100">
+                                <i class="bi bi-arrow-right me-1"></i> View Expenses Ledger
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Export Card 6: Audit Trail -->
+                    <div class="col-md-6 col-xl-4">
+                        <div class="p-3 rounded h-100 d-flex flex-column justify-content-between" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <i class="bi bi-shield-lock-fill text-info fs-5"></i>
+                                    <h6 class="text-white fw-bold mb-0">System Audit Trail</h6>
+                                </div>
+                                <p class="text-white-50 small mb-3" style="font-size:0.78rem;">
+                                    Security audit logs of all user actions, database edits, deletions, and administrative overrides.
+                                </p>
+                            </div>
+                            <a href="{{ url_for('admin.audit_log') }}" class="btn btn-sm btn-outline-info w-100">
+                                <i class="bi bi-arrow-right me-1"></i> View Audit Log
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 4: Institute Utilities & Maintenance -->
+        <div class="tab-pane fade" id="tab-utilities" role="tabpanel" aria-labelledby="utilities-tab">
+            <div class="row g-4">
+                <!-- Communication Template Tag Tester -->
+                <div class="col-lg-7">
+                    <div class="glass-card p-4 h-100">
+                        <h5 class="text-white fw-bold mb-2 d-flex align-items-center gap-2">
+                            <i class="bi bi-chat-dots-fill text-success"></i> Broadcast Template Playground
+                        </h5>
+                        <p class="text-white-50 small mb-3">
+                            Test dynamic placeholders for WhatsApp / SMS broadcast messages before sending them to students.
+                        </p>
+                        <div class="mb-3">
+                            <label class="form-label text-white small fw-semibold">Template Text</label>
+                            <textarea id="template-input" class="form-control text-white bg-dark border-secondary" rows="3" oninput="renderTemplatePreview()">Dear {name}, your outstanding fee balance is ₹{balance} for course {course}. Please settle by {due_date}. Thank you, Guha Academy.</textarea>
+                            <div class="small text-white-50 mt-1" style="font-size:0.72rem;">
+                                Supported tags: <code class="text-info">{name}</code>, <code class="text-info">{balance}</code>, <code class="text-info">{course}</code>, <code class="text-info">{due_date}</code>, <code class="text-info">{date}</code>
+                            </div>
+                        </div>
+                        <div class="p-3 rounded" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
+                            <div class="small text-white-50 mb-1 fw-semibold"><i class="bi bi-whatsapp text-success me-1"></i> Live Rendered Preview:</div>
+                            <div class="text-white small" id="template-output" style="white-space:pre-wrap;line-height:1.5;">...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System Maintenance & Cache Flush -->
+                <div class="col-lg-5">
+                    <div class="glass-card p-4 h-100">
+                        <h5 class="text-white fw-bold mb-2 d-flex align-items-center gap-2">
+                            <i class="bi bi-wrench-adjustable-circle-fill text-warning"></i> System Maintenance
+                        </h5>
+                        <p class="text-white-50 small mb-3">
+                            Administrative cache flushes and synchronization triggers.
+                        </p>
+                        <div class="d-flex flex-column gap-3">
+                            <div class="p-3 rounded d-flex justify-content-between align-items-center" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
+                                <div>
+                                    <div class="text-white fw-semibold small">Dashboard Stats Cache</div>
+                                    <div class="text-white-50" style="font-size:0.72rem;">Force reload of live aggregation numbers</div>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-warning" onclick="showToast('Dashboard stats cache purged.', 'success')">
+                                    <i class="bi bi-arrow-clockwise"></i> Flush
+                                </button>
+                            </div>
+
+                            <div class="p-3 rounded d-flex justify-content-between align-items-center" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
+                                <div>
+                                    <div class="text-white fw-semibold small">Google Classroom Sync</div>
+                                    <div class="text-white-50" style="font-size:0.72rem;">Synchronize Google Workspace courses</div>
+                                </div>
+                                <a href="{{ url_for('google_sync.google_sync') }}" class="btn btn-sm btn-outline-info">
+                                    <i class="bi bi-google"></i> Open
+                                </a>
+                            </div>
+
+                            <div class="p-3 rounded d-flex justify-content-between align-items-center" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
+                                <div>
+                                    <div class="text-white fw-semibold small">Full Database Import</div>
+                                    <div class="text-white-50" style="font-size:0.72rem;">Merge data from external SQLite file</div>
+                                </div>
+                                <a href="{{ url_for('admin.import_database') }}" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-box-arrow-in-down"></i> Import
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -325,6 +618,34 @@
     </div>
 </div>
 
+<style>
+.custom-pills .nav-link {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.7);
+    border-radius: 10px;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+.custom-pills .nav-link:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.15);
+}
+.custom-pills .nav-link.active {
+    background: rgba(0, 191, 166, 0.15);
+    border-color: rgba(0, 191, 166, 0.4);
+    color: #00BFA6;
+    box-shadow: 0 4px 15px rgba(0, 191, 166, 0.1);
+}
+.custom-pills .nav-link.active .badge {
+    background: #00BFA6 !important;
+    color: #121212 !important;
+}
+</style>
+
 <script>
 var backupData = [];
 var filteredBackups = [];
@@ -348,6 +669,14 @@ function showToast(message, type) {
     toast.innerHTML = '<i class="bi ' + icon + ' fs-5"></i><div class="flex-grow-1">' + message + '</div><button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
     container.appendChild(toast);
     setTimeout(function() { toast.remove(); }, 5000);
+}
+
+function updateHash(hashName) {
+    if (history.pushState) {
+        history.pushState(null, null, '#' + hashName);
+    } else {
+        location.hash = '#' + hashName;
+    }
 }
 
 function createBackup() {
@@ -403,7 +732,7 @@ function updateSummaryStats() {
     var sizeEl = document.getElementById('stat-backup-size');
     var lastEl = document.getElementById('stat-last-backup');
 
-    if (countEl) countEl.textContent = backupData.length;
+    if (countEl) countEl.innerHTML = backupData.length + ' <span class="fs-6 fw-normal text-white-50">Snapshots</span>';
     if (backupData.length > 0) {
         var totalBytes = backupData.reduce(function(acc, b) { return acc + (b.size_bytes || 0); }, 0);
         var sizeStr = totalBytes < 1024*1024 ? (totalBytes/1024).toFixed(1) + ' KB' : (totalBytes/(1024*1024)).toFixed(2) + ' MB';
@@ -572,13 +901,36 @@ function executeDelete() {
     });
 }
 
+function renderTemplatePreview() {
+    var raw = document.getElementById('template-input').value;
+    var out = raw
+        .replace(/{name}/g, 'Rahul Sharma')
+        .replace(/{balance}/g, '4,500.00')
+        .replace(/{course}/g, 'Full Stack Python')
+        .replace(/{due_date}/g, '25 Sep 2026')
+        .replace(/{date}/g, '20 Sep 2026');
+    document.getElementById('template-output').textContent = out;
+}
+
 function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 
-// Initial Data Fetch & Mount
+// Initial Data Fetch & Hash Handling
 document.addEventListener('DOMContentLoaded', function() {
+    renderTemplatePreview();
+
+    // Check URL Hash to activate tab
+    if (window.location.hash) {
+        var hash = window.location.hash.substring(1);
+        var targetTab = document.getElementById(hash + '-tab');
+        if (targetTab) {
+            var tabTrigger = new bootstrap.Tab(targetTab);
+            tabTrigger.show();
+        }
+    }
+
     fetch('{{ url_for("extras.list_backups_api") }}')
     .then(function(r) { return r.json(); })
     .then(function(data) {

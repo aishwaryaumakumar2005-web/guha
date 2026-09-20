@@ -74,3 +74,18 @@ def test_extras_upload_backup(admin_client, app):
                 os.remove(os.path.join(backup_dir, f))
             except Exception:
                 pass
+
+
+def test_extras_phase2_tabs_and_diagnostics(admin_client):
+    resp = admin_client.get('/extras')
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    # Check 4 Navigation Tabs
+    assert 'Backups &amp; Disaster Recovery' in html or 'Backups & Disaster Recovery' in html
+    assert 'System Health &amp; Diagnostics' in html or 'System Health & Diagnostics' in html
+    assert 'Bulk Data Export Center' in html
+    assert 'Institute Utilities' in html
+    # Check Diagnostics Table Matrix
+    assert 'Table Record Distribution' in html
+    assert 'Students Master List' in html
+    assert 'Broadcast Template Playground' in html

@@ -142,6 +142,40 @@ def _get_backup_list():
     return backup_files, total_bytes
 
 
+import time
+from app.models import User, Student, Tutor, Course, Enquiry, FeeRecord, Attendance, Expense, Exam, Task, AuditLog
+
+
+def _measure_db_latency():
+    try:
+        t0 = time.time()
+        db.session.execute(db.text("SELECT 1")).fetchone()
+        latency_ms = round((time.time() - t0) * 1000, 1)
+        return latency_ms, "Healthy"
+    except Exception as e:
+        return None, f"Error: {e}"
+
+
+def _get_table_counts():
+    try:
+        counts = {
+            'students': Student.query.count(),
+            'tutors': Tutor.query.count(),
+            'courses': Course.query.count(),
+            'enquiries': Enquiry.query.count(),
+            'fees': FeeRecord.query.count(),
+            'attendance': Attendance.query.count(),
+            'expenses': Expense.query.count(),
+            'exams': Exam.query.count(),
+            'tasks': Task.query.count(),
+            'audit_logs': AuditLog.query.count(),
+        }
+        total_records = sum(counts.values())
+        return counts, total_records
+    except Exception:
+        return {}, 0
+
+
 @extras_bp.route('/extras', methods=['GET'])
 @login_required
 @admin_required
@@ -150,6 +184,8 @@ def extras():
     backup_files, total_bytes = _get_backup_list()
     total_size_str = f"{total_bytes/1024:.1f} KB" if total_bytes < 1024*1024 else f"{total_bytes/(1024*1024):.2f} MB"
     last_backup = backup_files[0]['modified'] if backup_files else 'Never'
+    latency_ms, db_status = _measure_db_latency()
+    table_counts, total_records = _get_table_counts()
 
     stats = {
         'total_backups': len(backup_files),
@@ -157,9 +193,16 @@ def extras():
         'last_backup': last_backup,
         'db_type': db_type,
         'db_label': db_label,
+        'db_latency': latency_ms,
+        'db_status': db_status,
+        'total_records': total_records,
     }
 
-    return render_template('extras.html', stats=stats, backups=backup_files)
+    return render_template('extras.html',
+                           stats=stats,
+                           backups=backup_files,
+                           table_counts=table_counts,
+                           total_records=total_records)
 
 
 @extras_bp.route('/extras/backups', methods=['GET'])
