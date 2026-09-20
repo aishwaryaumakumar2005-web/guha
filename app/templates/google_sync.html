@@ -254,6 +254,9 @@ Synced</th>
 <style>
 #syncResult.d-none { display: none; }#syncResult:not(.d-none) { display: block; }</style>
 {% endblock %}{% block scripts %}<script>
+const googleSyncCsrf = '{{ admin_csrf_token }}';
+const nativeGoogleFetch = window.fetch;
+window.fetch = function(input, init) { init = init || {}; init.headers = new Headers(init.headers || {}); init.headers.set('X-CSRFToken', googleSyncCsrf); return nativeGoogleFetch(input, init); };
 async function uploadKey() {    const file = document.getElementById('keyFileInput').files[0];    const paste = document.getElementById('keyJsonTextarea').value.trim();    let keyJson = paste;    if (file) {        keyJson = await file.text();    }    if (!keyJson) {        document.getElementById('keyStatus').innerHTML = '<span class="text-danger">
 Provide a file or paste JSON content.</span>
 ';        return;    }    const btn = document.getElementById('saveKeyBtn');    btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm">
