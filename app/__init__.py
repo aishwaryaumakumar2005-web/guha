@@ -61,10 +61,14 @@ def create_app(config_object=None):
         db_url = 'postgresql' + db_url[len('postgres'):]
     app.config['SQLALCHEMY_DATABASE_URI'] = db_url
     if db_url.startswith('sqlite'):
-        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        engine_opts = {
             'connect_args': {'check_same_thread': False},
             'pool_pre_ping': True,
         }
+        if ':memory:' in db_url or os.environ.get('FLASK_ENV') == 'testing':
+            from sqlalchemy.pool import StaticPool
+            engine_opts['poolclass'] = StaticPool
+        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = engine_opts
     else:
         # Configure pooling for Postgres. Use environment variables to tune.
         # If using pgbouncer in transaction pooling mode, set USE_PGBOUNCER=true
@@ -668,7 +672,7 @@ def create_app(config_object=None):
         return render_template('errors/500.html'), 500
 
     # Auto-seed all sample data on first deploy (fresh database)
-    # Skip auto-seeding in production to avoid startup delays and errors
+    # Skip auto-seeding in production environments
     if os.environ.get('FLASK_ENV') != 'production':
         with app.app_context():
             from init_db import seed_if_empty

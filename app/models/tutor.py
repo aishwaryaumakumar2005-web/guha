@@ -31,4 +31,16 @@ class Tutor(db.Model):
 @event.listens_for(Tutor, 'before_insert')
 def _assign_emp_code(mapper, connection, target):
     if not target.emp_code:
-        target.emp_code = next_code('TUT', Tutor, 'emp_code')
+        result = connection.execute(
+            db.select(Tutor.emp_code).where(Tutor.emp_code.like('TUT%'))
+        ).scalars().all()
+        max_num = 0
+        for code in result:
+            if code and code.startswith('TUT'):
+                try:
+                    num = int(code[3:])
+                    if num > max_num:
+                        max_num = num
+                except ValueError:
+                    pass
+        target.emp_code = f"TUT{max_num + 1:04d}"
