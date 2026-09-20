@@ -12,10 +12,20 @@ tasks_bp = Blueprint('tasks', __name__)
 @login_required
 def list_tasks():
     if request.method == 'POST':
+        if current_user.role != 'Admin':
+            flash('Only administrators can assign tasks.', 'danger')
+            return redirect(url_for('tasks.list_tasks'))
         tutor_id = request.form.get('tutor_id', type=int)
         title = request.form.get('title', '').strip()
         description = request.form.get('description', '').strip()
         due_date_str = request.form.get('due_date', '').strip()
+        if not tutor_id:
+            flash('Please select a tutor to assign the task to.', 'danger')
+            return redirect(url_for('tasks.list_tasks'))
+        tutor_obj = Tutor.query.get(tutor_id)
+        if not tutor_obj:
+            flash('Selected tutor was not found.', 'danger')
+            return redirect(url_for('tasks.list_tasks'))
         if not title:
             flash('Task title is required.', 'danger')
             return redirect(url_for('tasks.list_tasks'))
@@ -64,6 +74,8 @@ def update_status(id):
         task.notes = notes
     if status == 'Completed':
         task.completed_date = datetime.utcnow()
+    else:
+        task.completed_date = None
     db.session.commit()
     flash(f'Task status updated to {status}.', 'success')
     return redirect(url_for('tasks.list_tasks'))
@@ -71,6 +83,7 @@ def update_status(id):
 
 @tasks_bp.route('/tasks/edit/<int:id>', methods=['POST'])
 @login_required
+@admin_required
 def edit_task(id):
     task = Task.query.get_or_404(id)
     title = request.form.get('title', '').strip()
@@ -85,7 +98,8 @@ def edit_task(id):
     task.title = title
     task.description = description
     if tutor_id:
-        task.tutor_id = tutor_id
+        if Tutor.query.get(tutor_id):
+            task.tutor_id = tutor_id
     if due_date_str:
         try:
             task.due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
@@ -97,14 +111,17 @@ def edit_task(id):
         task.status = status
         if status == 'Completed':
             task.completed_date = datetime.utcnow()
+        else:
+            task.completed_date = None
     task.notes = notes
     db.session.commit()
     flash('Task updated successfully.', 'success')
     return redirect(url_for('tasks.list_tasks'))
 
 
-@tasks_bp.route('/tasks/delete/<int:id>')
+@tasks_bp.route('/tasks/delete/<int:id>', methods=['POST', 'GET'])
 @login_required
+@admin_required
 def delete_task(id):
     task = Task.query.get_or_404(id)
     db.session.delete(task)

@@ -12,7 +12,7 @@
     </div>
     <!-- Tasks Table -->
     <div class="glass-card p-4" data-aos="fade-up">
-        <h4 class="mb-4 text-dark fw-bold"><i class="bi bi-list-task me-2 text-dark"></i>Task Records</h4>
+        <h4 class="mb-4 text-white fw-bold"><i class="bi bi-list-task me-2 text-white"></i>Task Records</h4>
         <div class="table-container">
             <table class="table table-custom sortable" data-page-size="10">
                 <thead>
@@ -31,7 +31,7 @@
                 <tbody>
                     {% if tasks %} {% for t in tasks %}
                     <tr>
-                        <td class="fw-medium text-dark">{{ t.title }}</td>
+                        <td class="fw-medium text-white">{{ t.title }}</td>
                         {% if current_user.role == 'Admin' %}<td>{{ t.tutor.name }}</td>{% endif %}
                         <td class="text-secondary small">{{ t.description or '-' }}</td>
                         <td>{% if t.due_date %}<span class="badge badge-custom {% if t.due_date < today and t.status != 'Completed' %}badge-amber{% else %}badge-cyan{% endif %}">{{ t.due_date.strftime('%d %b %Y') }}</span>{% else %}-{% endif %}</td>
