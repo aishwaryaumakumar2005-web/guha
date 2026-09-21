@@ -140,13 +140,25 @@ class AccountingService:
         pdf = FPDF()
         pdf.alias_nb_pages()
         pdf.set_auto_page_break(auto=True, margin=20)
+        # Helvetica cannot encode Indian-language names or other Unicode
+        # student/company data. DejaVu is bundled with the application and is
+        # supported by fpdf2 on Render and locally.
+        font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static', 'fonts')
+        regular_font = os.path.join(font_dir, 'DejaVuSans.ttf')
+        bold_font = os.path.join(font_dir, 'DejaVuSans-Bold.ttf')
+        if os.path.exists(regular_font) and os.path.exists(bold_font):
+            pdf.add_font('DejaVu', '', regular_font)
+            pdf.add_font('DejaVu', 'B', bold_font)
+            pdf_font = 'DejaVu'
+        else:
+            pdf_font = 'Helvetica'
         pdf.add_page()
 
         def text_color(r, g, b):
             pdf.set_text_color(r, g, b)
 
         def set_font(style='', size=10):
-            pdf.set_font('Helvetica', style, size)
+            pdf.set_font(pdf_font, style, size)
 
         # Header band (light grey)
         pdf.set_fill_color(241, 243, 246)

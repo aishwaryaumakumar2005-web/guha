@@ -28,7 +28,15 @@ def download_invoice(fee_id):
     elif current_user.role != 'Admin':
         from flask import abort
         abort(403)
-    buf, inv_no = current_app.accounting.generate_invoice_pdf(fee_record)
+    try:
+        buf, inv_no = current_app.accounting.generate_invoice_pdf(fee_record)
+    except Exception:
+        current_app.logger.exception('Invoice PDF generation failed for fee_id=%s', fee_id)
+        message = 'Receipt PDF could not be generated. Please check the receipt data or contact an administrator.'
+        if request.accept_mimetypes.best == 'application/json':
+            return jsonify({'success': False, 'message': message}), 500
+        flash(message, 'danger')
+        return redirect(url_for('fees.list'))
     student = fee_record.student
     return send_file(buf, mimetype='application/pdf',
         as_attachment=True,
