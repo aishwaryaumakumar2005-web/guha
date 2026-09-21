@@ -7,9 +7,10 @@
 {% block content %}<style>
     .leave-calendar { display: flex; flex-direction: column; gap: 8px; }
     .lc-head, .lc-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
-    .lc-head span { text-align: center; font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; color: #7a869e; }
-    .lc-day { min-height: 72px; border: 1px solid rgba(13, 39, 64, .12); border-radius: 10px; padding: 6px; background: rgba(255, 255, 255, .05); }
-    body.dark-mode .lc-day { border-color: rgba(255, 255, 255, .08); }
+    .lc-head span { text-align: center; font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; color: #49627a !important; font-weight: 800; }
+    .lc-day { min-height: 72px; border: 1px solid #b9c7d4; border-radius: 10px; padding: 6px; background: #f8fbfd !important; color: #16324b !important; }
+    body.dark-mode .lc-day { border-color: #46627b; background: #142b40 !important; color: #f4f8fb !important; }
+    body.dark-mode .lc-head span { color: #c7d5e1 !important; }
     .lc-day.lc-empty { border-style: dashed; background: transparent; }
     .lc-day.lc-weekend { opacity: .55; }
     .lc-day.lc-today { outline: 2px solid #FFB347; outline-offset: -2px; }
@@ -18,10 +19,11 @@
     body.dark-mode .lc-daynum { color: #ffffff !important; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
     body:not(.dark-mode) .lc-daynum { color: #16324b !important; }
     .lc-day.lc-weekend .lc-daynum { opacity: .9 !important; }
-    .lc-chip { display: block; font-size: .62rem; font-weight: 600; border-radius: 999px; padding: 1px 7px; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-    .lc-approved { background: #00BFA6; color: #00231f; }
-    .lc-pending { background: #FFB347; color: #3a2700; }
-    .lc-more { font-size: .62rem; color: #7a869e; font-weight: 600; }
+    .lc-chip { display: block; font-size: .62rem; font-weight: 700; border-radius: 999px; padding: 1px 7px; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; opacity: 1 !important; }
+    .lc-approved { background: #00BFA6 !important; color: #00231f !important; }
+    .lc-pending { background: #FFB347 !important; color: #3a2700 !important; }
+    .lc-more { font-size: .62rem; color: #49627a !important; font-weight: 700; }
+    body.dark-mode .lc-more { color: #c7d5e1 !important; }
     .reason-cell { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>
 <div class="container-fluid p-0">
