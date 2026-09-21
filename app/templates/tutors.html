@@ -18,6 +18,7 @@ Import Excel            </button>
 Add Instructor            </button>
         </div>
     </div>
+    <div class="glass-card p-3 mb-3"><form method="GET" class="row g-2 align-items-end"><div class="col-md-6"><label for="tutor-search" class="form-label small text-white">Search staff</label><input id="tutor-search" name="q" value="{{ q|default('') }}" class="form-control form-control-sm" placeholder="Name, employee code, email or phone"></div><div class="col-md-3"><label for="tutor-status" class="form-label small text-white">Status</label><select id="tutor-status" name="status" class="form-select form-select-sm"><option value="">All statuses</option>{% for s in tutor_statuses|default([]) %}<option value="{{ s }}" {% if status_filter|default('') == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div><div class="col-md-2"><button class="btn btn-sm btn-premium w-100" type="submit">Filter</button></div></form></div>
     <div class="mb-3 d-flex flex-wrap gap-2">
         <span class="badge badge-custom badge-cyan">
 Total Instructors: {{ tutors|length }}</span>
@@ -61,7 +62,7 @@ Actions</th>
                                             <span class="student-initials me-2" aria-hidden="true">{{ tutor.name|first|upper }}</span>
                                         {% endif %}
                                         <span class="fw-medium text-white">
-{{ tutor.name }}</span>
+<a class="fw-medium text-white" href="{{ url_for('tutors.profile', id=tutor.id) }}">{{ tutor.name }}</a>
                                     </div>
                                     <div class="small text-white-50 text-truncate" style="max-width:220px;opacity:0.7;">{{ tutor.email }}</div>
                                 </td>
@@ -96,7 +97,7 @@ No courses mapped</span>
                                                 <li><button class="dropdown-item" type="button"                                                 data-idcard-name="{{ tutor.name }}"                                                data-idcard-email="{{ tutor.email }}"                                                data-idcard-phone="{{ tutor.phone }}"                                                data-idcard-qr="{{ tutor.qr_code_uuid }}"                                                data-idcard-extra="{{ tutor.specialization or 'All Systems' }}"                                                data-idcard-photo="{{ url_for('tutors.tutor_photo', tutor_id=tutor.id) if tutor.photo_data else '' }}"                                                onclick="showTutorIDCard(this)"><i class="bi bi-qr-code-scan me-2" aria-hidden="true"></i>Print ID Card</button></li>
                                                 <li><button class="dropdown-item" type="button" onclick="openEditTutor(this)"                                                 data-edit-url="{{ url_for('tutors.edit', id=tutor.id) }}"                                                data-tutor-id="{{ tutor.id }}"                                                data-name="{{ tutor.name }}"                                                data-email="{{ tutor.email }}"                                                data-phone="{{ tutor.phone }}"                                                data-specialization="{{ tutor.specialization or '' }}"                                                data-status="{{ tutor.status }}"                                                data-course-ids="{% for c in tutor.courses %}{{ c.id }}{% if not loop.last %},{% endif %}{% endfor %}"                                                data-has-photo="{{ '1' if tutor.photo_data else '' }}"                                                data-photo-url="{{ url_for('tutors.tutor_photo', tutor_id=tutor.id) if tutor.photo_data else '' }}"><i class="bi bi-pencil-square me-2" aria-hidden="true"></i>Edit Instructor</button></li>
                                                 <li><hr class="dropdown-divider"></li>
-                                                <li><button class="dropdown-item text-danger" type="button" onclick="confirmAction('Are you sure you want to delete this instructor? This action cannot be undone.', function() { var f = document.createElement('form'); f.method = 'POST'; f.action = '{{ url_for('tutors.delete', id=tutor.id) }}'; document.body.appendChild(f); f.submit(); })"><i class="bi bi-trash3-fill me-2" aria-hidden="true"></i>Delete Instructor</button></li>
+                                                <li><button class="dropdown-item text-warning" type="button" onclick="confirmAction('Mark this staff member inactive? Attendance and assignment history will be preserved.', function() { var f = document.createElement('form'); f.method = 'POST'; f.action = '{{ url_for('tutors.delete', id=tutor.id) }}'; document.body.appendChild(f); f.submit(); })"><i class="bi bi-person-dash me-2" aria-hidden="true"></i>Deactivate Instructor</button></li>
                                             </ul>
                                         </div>
                                     </div>

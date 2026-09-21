@@ -7,6 +7,20 @@ from app.forms import TutorForm
 from sqlalchemy.exc import IntegrityError
 import tempfile
 import io
+import re
+
+MAX_TUTOR_IMPORT_BYTES = 5 * 1024 * 1024
+MAX_TUTOR_IMPORT_ROWS = 5000
+
+
+def _norm_phone(value):
+    raw = (value or '').strip()
+    digits = re.sub(r'\D', '', raw)
+    return '+' + digits if raw.startswith('+') else digits
+
+
+def _norm_email(value):
+    return ' '.join((value or '').strip().split()).casefold()
 
 tutors_bp = Blueprint('tutors', __name__)
 
@@ -46,8 +60,8 @@ def list():
                 flash(msg, 'danger')
             return redirect(url_for('tutors.list'))
         name = form.data.get('name', '').strip()
-        email = form.data.get('email', '').strip()
-        phone = form.data.get('phone', '').strip()
+        email = _norm_email(form.data.get('email'))
+        phone = _norm_phone(form.data.get('phone'))
         specialization = form.data.get('specialization', '').strip()
         status = form.data.get('status', 'Active')
         selected_courses = [c for c in request.form.getlist('courses') if c]
@@ -101,9 +115,19 @@ def list():
                 return jsonify({"success": True, "message": message}), 201
             flash(message, "success")
         return redirect(url_for('tutors.list'))
-    all_tutors = Tutor.query.all()
-    all_courses = Course.query.all()
-    return render_template('tutors.html', tutors=all_tutors, courses=all_courses)
+    q = (request.args.get('q') or '').strip()
+    status_filter = request.args.get('status', '').strip()
+    query = Tutor.query
+    if q:
+        like = f'%{q}%'
+        query = query.filter(db.or_(Tutor.name.ilike(like), Tutor.email.ilike(like),
+                                    Tutor.phone.ilike(like), Tutor.emp_code.ilike(like)))
+    if status_filter in TUTOR_STATUSES:
+        query = query.filter(Tutor.status == status_filter)
+    all_tutors = query.order_by(Tutor.name).all()
+    all_courses = Course.query.filter(Course.status != 'Archived').order_by(Course.name).all()
+    return render_template('tutors.html', tutors=all_tutors, courses=all_courses,
+                           q=q, status_filter=status_filter, tutor_statuses=TUTOR_STATUSES)
 
 @tutors_bp.route('/tutors/edit/<int:id>', methods=['POST'])
 @login_required
@@ -117,7 +141,16 @@ def edit(id):
         for msg in form.error_messages:
             flash(msg, 'danger')
         return redirect(url_for('tutors.list'))
-    new_email = form.data.get('email', '').strip()
+    new_email = _norm_email(form.data.get('email'))
+    from app.models import User
+    if new_email != _norm_email(tutor.email):
+        linked_user = User.query.filter(db.func.lower(User.email) == (tutor.email or '').lower()).first()
+        if linked_user:
+            msg = 'This staff member has a linked login account. Change the login email from the user management screen first.'
+            if is_ajax_request():
+                return jsonify({'success': False, 'errors': [msg]}), 409
+            flash(msg, 'warning')
+            return redirect(url_for('tutors.list'))
     if new_email.lower() != (tutor.email or '').lower():
         exists = Tutor.query.filter(
             db.func.lower(Tutor.email) == new_email.lower()).first()
@@ -129,7 +162,7 @@ def edit(id):
             return redirect(url_for('tutors.list'))
     tutor.name = form.data.get('name', '').strip()
     tutor.email = new_email
-    tutor.phone = form.data.get('phone', '').strip()
+    tutor.phone = _norm_phone(form.data.get('phone'))
     tutor.specialization = form.data.get('specialization', '').strip()
     tutor.status = form.data.get('status', 'Active')
     if request.form.get('remove_photo'):
@@ -180,12 +213,9 @@ def delete(id):
             return jsonify({"success": False, "message": message}), 409
         flash(message, 'warning')
         return redirect(url_for('tutors.list'))
-    # Same orphan-row hazard as students: attendance uses a plain person_id.
-    Attendance.query.filter_by(
-        person_type='tutor', person_id=tutor.id).delete(synchronize_session=False)
-    db.session.delete(tutor)
+    tutor.status = 'Inactive'
     db.session.commit()
-    message = "Tutor record removed!"
+    message = "Staff member marked inactive. Attendance and assignment history were preserved."
     if is_ajax_request():
         return jsonify({"success": True, "message": message}), 200
     flash(message, "success")
@@ -195,8 +225,8 @@ def delete(id):
 @login_required
 @admin_required
 def check_duplicate():
-    email = request.args.get('email', '').strip().lower()
-    phone = request.args.get('phone', '').strip()
+    email = _norm_email(request.args.get('email'))
+    phone = _norm_phone(request.args.get('phone'))
     exclude_id = request.args.get('exclude_id', type=int)
     matches = []
     q = Tutor.query
@@ -211,6 +241,19 @@ def check_duplicate():
         if other:
             matches.append({'field': 'phone', 'value': other.phone, 'name': other.name})
     return jsonify({'duplicates': matches})
+
+
+@tutors_bp.route('/tutors/<int:id>')
+@login_required
+@admin_required
+def profile(id):
+    tutor = Tutor.query.get_or_404(id)
+    active_courses = [c for c in tutor.courses if (c.status or 'Active') != 'Archived']
+    return render_template('tutor_profile.html', tutor=tutor,
+                           active_courses=active_courses,
+                           active_students=sum(
+                               c.students.filter_by(status='Active').count()
+                               for c in active_courses))
 
 
 @tutors_bp.route('/api/tutors/import-excel', methods=['POST'])
@@ -228,6 +271,11 @@ def import_excel():
     # so reject it up front with an actionable message.
     if not file.filename.lower().endswith('.xlsx'):
         return jsonify({"success": False, "errors": ["Invalid file format. Please upload an .xlsx file (legacy .xls is not supported)"]}), 400
+    file.stream.seek(0, 2)
+    size = file.stream.tell()
+    file.stream.seek(0)
+    if size > MAX_TUTOR_IMPORT_BYTES:
+        return jsonify({"success": False, "errors": ["File is too large. Maximum size is 5 MB."]}), 413
     ai_validation = request.form.get('ai_validation', 'true').lower() == 'true'
     auto_course_mapping = request.form.get('auto_course_mapping', 'false').lower() == 'true'
     tmp_file_path = None
@@ -235,7 +283,7 @@ def import_excel():
         with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
             file.save(tmp_file.name)
             tmp_file_path = tmp_file.name
-        workbook = load_workbook(tmp_file_path)
+        workbook = load_workbook(tmp_file_path, read_only=True, data_only=True)
         sheet = workbook.active
         headers = [str(cell.value).strip().lower() if cell.value else '' for cell in sheet[1]]
         column_map = {}
@@ -257,7 +305,9 @@ def import_excel():
         if missing_columns:
             return jsonify({"success": False, "errors": [f"Missing required columns: {', '.join(missing_columns)}"]}), 400
         tutors_data = []
-        for row in sheet.iter_rows(min_row=2, values_only=True):
+        for row_number, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+            if row_number > MAX_TUTOR_IMPORT_ROWS + 1:
+                return jsonify({"success": False, "errors": [f"Import is limited to {MAX_TUTOR_IMPORT_ROWS} rows."]}), 413
             if not any(row):
                 continue
             raw_status = cell_text(row[column_map['status']]) if 'status' in column_map and column_map['status'] < len(row) else ''
