@@ -2,8 +2,9 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 from app.extensions import db
-from app.models import User, Tutor, PasswordResetToken
+from app.models import User, Tutor, PasswordResetToken, AuditLog
 import hashlib
+import json
 import secrets
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
@@ -11,6 +12,44 @@ from app.forms import LoginForm, RegistrationForm, ForgotPasswordForm
 from flask import current_app
 
 auth_bp = Blueprint('auth', __name__)
+_login_attempts = {}
+
+def _client_key(username):
+    return f"{request.remote_addr or 'unknown'}:{(username or '').lower()}"
+
+def _throttled(username):
+    now = datetime.utcnow()
+    entry = _login_attempts.get(_client_key(username))
+    if not entry:
+        return False
+    if entry.get('locked_until') and entry['locked_until'] > now:
+        return True
+    if entry.get('locked_until') and entry['locked_until'] <= now:
+        _login_attempts.pop(_client_key(username), None)
+    return False
+
+def _record_login(username, success):
+    key = _client_key(username)
+    now = datetime.utcnow()
+    entry = _login_attempts.setdefault(key, {'failures': 0, 'locked_until': None})
+    if success:
+        _login_attempts.pop(key, None)
+    else:
+        entry['failures'] += 1
+        if entry['failures'] >= 5:
+            entry['locked_until'] = now + timedelta(minutes=15)
+    if len(_login_attempts) > 5000:
+        _login_attempts.clear()
+
+def _audit_auth(action, username, success, detail=None, user_id=None):
+    try:
+        db.session.add(AuditLog(user_id=user_id, username=username[:50] if username else None,
+                                action=action[:10], entity_type='Authentication', entity_id=user_id,
+                                changes=json.dumps({'success': success, 'ip': request.remote_addr,
+                                                    'detail': detail}, default=str)))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 @auth_bp.app_context_processor
 def inject_auth_csrf():
@@ -74,12 +113,22 @@ def login():
                 return render_template('login.html')
             username = form.data.get('username', '').strip()
             password = form.data.get('password', '')
+            if _throttled(username):
+                _audit_auth('LOCKOUT', username, False, 'Too many failed attempts')
+                flash("Too many failed attempts. Please try again in 15 minutes.", "danger")
+                return render_template('login.html')
             current_app.logger.debug(f'Login attempt for username={username}')
             # Usernames are identifiers, not display text. Matching
             # case-insensitively avoids surprising failures after imports or
             # manual database restores (e.g. Staff vs staff).
             user = User.query.filter(db.func.lower(User.username) == username.lower()).first()
-            if user and check_password_hash(user.password_hash, password):
+            if user and getattr(user, 'is_active', True) is False:
+                _record_login(username, False)
+                _audit_auth('LOGIN', username, False, 'Inactive account', user.id)
+                flash("Invalid username or password.", "danger")
+            elif user and check_password_hash(user.password_hash, password):
+                _record_login(username, True)
+                _audit_auth('LOGIN', username, True, user_id=user.id)
                 try:
                     _ensure_tutor(user)
                     db.session.commit()
@@ -106,6 +155,8 @@ def login():
                 next_page = _safe_next(request.args.get('next'))
                 return redirect(next_page or url_for('dashboard.dashboard'))
             else:
+                _record_login(username, False)
+                _audit_auth('LOGIN', username, False, 'Invalid credentials', user.id if user else None)
                 flash("Invalid username or password.", "danger")
         except Exception as e:
             # Ensure we print full traceback to console for debugging local 500s
@@ -195,6 +246,30 @@ def forgot_password():
         if token and token.is_valid:
             return render_template('forgot_password.html', show_reset=True, reset_token=reset_token)
     return render_template('forgot_password.html')
+
+@auth_bp.route('/change-password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    if request.method == 'POST':
+        _check_csrf()
+        current = request.form.get('current_password', '')
+        new_password = request.form.get('new_password', '')
+        confirm = request.form.get('confirm_password', '')
+        if not check_password_hash(current_user.password_hash, current):
+            flash('Current password is incorrect.', 'danger')
+        elif len(new_password) < 8:
+            flash('New password must be at least 8 characters.', 'danger')
+        elif new_password != confirm:
+            flash('Passwords do not match.', 'danger')
+        else:
+            current_user.password_hash = generate_password_hash(new_password)
+            db.session.commit()
+            _audit_auth('PASSWORD', current_user.username, True, 'Password changed', current_user.id)
+            logout_user()
+            session.clear()
+            flash('Password changed successfully. Please sign in again.', 'success')
+            return redirect(url_for('auth.login'))
+    return render_template('change_password.html')
 
 @auth_bp.route('/logout', methods=['POST'])
 def logout():

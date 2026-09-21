@@ -242,6 +242,12 @@ def create_app(config_object=None):
         auto_migrate = app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite') or os.environ.get('AUTO_MIGRATE', '').lower() in ('1', 'true', 'yes')
         if auto_migrate:
             db.create_all()
+            # Additive compatibility migration for account activation.
+            try:
+                db.session.execute(db.text('ALTER TABLE "user" ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE'))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
             try:
                 from app.services.db_migration import migrate_renames
                 migrate_renames()
