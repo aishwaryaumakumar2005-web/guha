@@ -25,6 +25,8 @@ Enroll Student            </button>
                 <option value="">All Courses</option>
                 {% for c in courses %}                    <option value="{{ c.id }}" {% if selected_course_id == c.id %}selected{% endif %}>{{ c.name }}</option>
                 {% endfor %}            </select>
+            <label for="status-filter" class="text-white small mb-0">Status:</label>
+            <select id="status-filter" name="status" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()"><option value="">All statuses</option>{% for s in statuses %}<option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
             <label for="student-search" class="visually-hidden">Search students</label>
             <input type="search" id="student-search" name="q" value="{{ q }}" class="form-control form-control-sm" style="width:220px;" placeholder="Name, phone, email or ID" aria-label="Search students">
             <button type="submit" class="btn btn-sm btn-outline-premium">Search</button>
@@ -96,7 +98,7 @@ Actions</th>
                                             <span class="student-initials me-2" aria-hidden="true">{{ student.name|first|upper }}</span>
                                         {% endif %}
                                         <span class="fw-medium text-white">
-{{ student.name }}</span>
+<a class="fw-medium text-white" href="{{ url_for('students.profile', id=student.id) }}">{{ student.name }}</a>
                                     </div>
                                     <div class="small text-white-50 text-truncate" style="max-width:220px;opacity:0.7;">{{ student.email }}</div>
                                 </td>
@@ -131,7 +133,7 @@ Actions</th>
                                                 {% if not is_staff %}
                                                 <li><button class="dropdown-item" type="button" onclick="openEditStudent(this)"                                                 data-edit-url="{{ url_for('students.edit', id=student.id) }}"                                                data-student-id="{{ student.id }}"                                                data-name="{{ student.name }}"                                                data-email="{{ student.email }}"                                                data-phone="{{ student.phone }}"                                                data-dob="{{ student.date_of_birth.isoformat() if student.date_of_birth else '' }}"                                                data-status="{{ student.status }}"                                                data-course-ids="{% for c in student.courses %}{{ c.id }}{% if not loop.last %},{% endif %}{% endfor %}"                                                data-has-photo="{{ '1' if student.photo_data else '' }}"                                                data-photo-url="{{ url_for('students.student_photo', student_id=student.id) if student.photo_data else '' }}"><i class="bi bi-pencil-square me-2" aria-hidden="true"></i>Edit Student</button></li>
                                                 <li><hr class="dropdown-divider"></li>
-                                                <li><button class="dropdown-item text-danger" type="button" onclick="confirmAction('Are you sure you want to completely remove this student record? This action cannot be undone.', function() { var f = document.createElement('form'); f.method = 'POST'; f.action = '{{ url_for('students.delete', id=student.id) }}'; document.body.appendChild(f); f.submit(); })"><i class="bi bi-trash3-fill me-2" aria-hidden="true"></i>Delete Student</button></li>
+                                                <li><button class="dropdown-item text-warning" type="button" onclick="confirmAction('Archive this student? Historical attendance, fees and enrollment records will be preserved.', function() { var f = document.createElement('form'); f.method = 'POST'; f.action = '{{ url_for('students.delete', id=student.id) }}'; document.body.appendChild(f); f.submit(); })"><i class="bi bi-archive me-2" aria-hidden="true"></i>Archive Student</button></li>
                                                 {% endif %}
                                             </ul>
                                         </div>
@@ -679,4 +681,3 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
-

@@ -6,6 +6,7 @@ from app.helpers import admin_required, cell_text, commit_with_retry, is_ajax_re
 from sqlalchemy.exc import IntegrityError
 from app.forms import StudentForm
 from datetime import date
+import re
 import tempfile
 import io
 
@@ -21,6 +22,16 @@ def _parse_date(raw):
         return date.fromisoformat(raw)
     except ValueError:
         return None
+
+
+def _normalize_email(value):
+    return ' '.join((value or '').strip().split()).casefold()
+
+
+def _normalize_phone(value):
+    value = (value or '').strip()
+    digits = re.sub(r'\D', '', value)
+    return ('+' + digits) if value.startswith('+') else digits
 
 
 #: Statuses the directory knows how to render; anything else from an import
@@ -57,9 +68,15 @@ def list():
                 return jsonify({"success": False, "errors": [err]}), 400
             flash(err, 'danger')
             return redirect(url_for('students.list'))
+        if date_of_birth and date_of_birth > date.today():
+            err = "Date of birth cannot be in the future"
+            if is_ajax_request():
+                return jsonify({"success": False, "errors": [err]}), 400
+            flash(err, 'danger')
+            return redirect(url_for('students.list'))
         name = form.data.get('name', '').strip()
-        email = form.data.get('email', '').strip()
-        phone = form.data.get('phone', '').strip()
+        email = _normalize_email(form.data.get('email'))
+        phone = _normalize_phone(form.data.get('phone'))
         status = form.data.get('status', 'Active')
         selected_courses = [c for c in request.form.getlist('courses') if c]
         exists = Student.query.filter(
@@ -121,13 +138,15 @@ def list():
     if page < 1:
         page = 1
     q = (request.args.get('q') or '').strip()
+    status_filter = (request.args.get('status') or '').strip()
     course_filter = request.args.get('course_id', type=int)
     if current_user.role == 'Staff':
         tutor = Tutor.query.filter_by(email=current_user.email).first()
         if tutor:
             course_ids = [c.id for c in tutor.courses]
             student_subquery = db.session.query(student_courses.c.student_id).filter(
-                student_courses.c.course_id.in_(course_ids)
+                student_courses.c.course_id.in_(course_ids),
+                db.or_(student_courses.c.status.is_(None), student_courses.c.status == 'Enrolled')
             ).distinct()
             base = Student.query.filter(Student.id.in_(student_subquery))
         else:
@@ -135,7 +154,8 @@ def list():
     else:
         if course_filter:
             student_subquery = db.session.query(student_courses.c.student_id).filter(
-                student_courses.c.course_id == course_filter
+                student_courses.c.course_id == course_filter,
+                db.or_(student_courses.c.status.is_(None), student_courses.c.status == 'Enrolled')
             ).distinct()
             base = Student.query.filter(Student.id.in_(student_subquery))
         else:
@@ -145,6 +165,8 @@ def list():
         base = base.filter(db.or_(
             Student.name.ilike(like), Student.email.ilike(like),
             Student.phone.ilike(like), Student.roll_no.ilike(like)))
+    if status_filter in STUDENT_STATUSES:
+        base = base.filter(Student.status == status_filter)
     pagination = base.order_by(Student.id).paginate(
         page=page, per_page=STUDENTS_PER_PAGE, error_out=False)
 
@@ -159,7 +181,8 @@ def list():
     all_courses = Course.query.all()
     return render_template('students.html', students=pagination.items, courses=all_courses,
         is_staff=(current_user.role == 'Staff'), selected_course_id=course_filter,
-        pagination=pagination, q=q, scope_courses=scope_courses)
+        pagination=pagination, q=q, status_filter=status_filter,
+        statuses=STUDENT_STATUSES, scope_courses=scope_courses)
 
 
 @students_bp.route('/api/students/export-excel')
@@ -175,7 +198,8 @@ def export_excel():
         if tutor:
             course_ids = [c.id for c in tutor.courses]
             student_subquery = db.session.query(student_courses.c.student_id).filter(
-                student_courses.c.course_id.in_(course_ids)
+                student_courses.c.course_id.in_(course_ids),
+                db.or_(student_courses.c.status.is_(None), student_courses.c.status == 'Enrolled')
             ).distinct()
             students = Student.query.filter(Student.id.in_(student_subquery)).order_by(Student.id).all()
         else:
@@ -183,7 +207,8 @@ def export_excel():
     else:
         if course_filter:
             student_subquery = db.session.query(student_courses.c.student_id).filter(
-                student_courses.c.course_id == course_filter
+                student_courses.c.course_id == course_filter,
+                db.or_(student_courses.c.status.is_(None), student_courses.c.status == 'Enrolled')
             ).distinct()
             students = Student.query.filter(Student.id.in_(student_subquery)).order_by(Student.id).all()
         else:
@@ -266,7 +291,7 @@ def edit(id):
         for msg in form.error_messages:
             flash(msg, 'danger')
         return redirect(url_for('students.list'))
-    new_email = form.data.get('email', '').strip()
+    new_email = _normalize_email(form.data.get('email'))
     if new_email.lower() != (student.email or '').lower():
         exists = Student.query.filter(
             db.func.lower(Student.email) == new_email.lower()).first()
@@ -286,7 +311,7 @@ def edit(id):
         return redirect(url_for('students.list'))
     student.name = form.data.get('name', '').strip()
     student.email = new_email
-    student.phone = form.data.get('phone', '').strip()
+    student.phone = _normalize_phone(form.data.get('phone'))
     student.date_of_birth = date_of_birth
     student.status = form.data.get('status', 'Active')
     if request.form.get('remove_photo'):
@@ -313,7 +338,11 @@ def edit(id):
     # NB: this module defines a view named `list`, so the builtin list()
     # is shadowed here — collect removals first instead.
     for c in [c for c in student.courses if c.id not in requested_ids]:
-        student.courses.remove(c)
+        db.session.execute(student_courses.update().where(
+            student_courses.c.student_id == student.id,
+            student_courses.c.course_id == c.id,
+            db.or_(student_courses.c.status.is_(None), student_courses.c.status == 'Enrolled')
+        ).values(status='Dropped', drop_reason='Removed from student profile'))
     added_ids = set()
     for cid in requested_ids - existing_ids:
         course = Course.query.get(cid)
@@ -341,11 +370,9 @@ def delete(id):
     # Attendance rows reference students by plain person_id (no FK), so they
     # must be removed explicitly — otherwise orphan rows keep polluting the
     # lifecycle attendance metrics. (Fees/exam rows cascade via FK.)
-    Attendance.query.filter_by(
-        person_type='student', person_id=student.id).delete(synchronize_session=False)
-    db.session.delete(student)
+    student.status = 'Archived'
     db.session.commit()
-    message = "Student record deleted!"
+    message = "Student archived successfully. Historical records were preserved."
     if is_ajax_request():
         return jsonify({"success": True, "message": message}), 200
     flash(message, "success")
@@ -355,8 +382,8 @@ def delete(id):
 @login_required
 @admin_required
 def check_duplicate():
-    email = request.args.get('email', '').strip().lower()
-    phone = request.args.get('phone', '').strip()
+    email = _normalize_email(request.args.get('email'))
+    phone = _normalize_phone(request.args.get('phone'))
     exclude_id = request.args.get('exclude_id', type=int)
     matches = []
     q = Student.query
@@ -371,6 +398,20 @@ def check_duplicate():
         if other:
             matches.append({'field': 'phone', 'value': other.phone, 'name': other.name})
     return jsonify({'duplicates': matches})
+
+
+@students_bp.route('/students/<int:id>')
+@login_required
+def profile(id):
+    """Read-only profile and enrollment history for directory users."""
+    if not staff_can_view_student(id):
+        return '', 403
+    student = Student.query.get_or_404(id)
+    enrollments = db.session.query(student_courses, Course).join(
+        Course, student_courses.c.course_id == Course.id
+    ).filter(student_courses.c.student_id == id).order_by(Course.name).all()
+    return render_template('student_profile.html', student=student,
+                           enrollments=enrollments)
 
 @students_bp.route('/api/students/import-excel', methods=['POST'])
 @login_required
