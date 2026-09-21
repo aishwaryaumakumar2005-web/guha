@@ -46,6 +46,7 @@ code{color:#aaa;font-size:.8rem}
 {% endif %}
 {% endwith %}
 <form action="{{ url_for('auth.login') }}{% if request.args.get('next') %}?next={{ request.args.get('next') }}{% endif %}" method="POST">
+<input type="hidden" name="auth_csrf_token" value="{{ session.get('auth_csrf_token', '') }}">
 <label for="username">Username</label>
 <input type="text" id="username" name="username" placeholder="Enter username" autocomplete="username" required autofocus>
 <label for="password">Password</label>
@@ -72,4 +73,3 @@ function togglePassword(btn) {
 </div>
 </body>
 </html>
-

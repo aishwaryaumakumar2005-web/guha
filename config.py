@@ -7,7 +7,11 @@ _basedir = os.path.abspath(os.path.dirname(__file__))
 
 
 class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'change-this-in-production')
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'development-only-change-me'
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SECURE = os.environ.get('FLASK_ENV') == 'production'
+    PERMANENT_SESSION_LIFETIME = 1800
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {'pool_pre_ping': True}
     TEMPLATES_AUTO_RELOAD = False

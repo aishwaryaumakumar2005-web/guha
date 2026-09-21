@@ -19,6 +19,20 @@ class User(db.Model, UserMixin):
         return f"<User {self.username} ({self.role})>"
 
 
+class PasswordResetToken(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    token_hash = db.Column(db.String(128), unique=True, nullable=False, index=True)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    used_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    user = db.relationship('User', backref=db.backref('password_reset_tokens', cascade='all, delete-orphan'))
+
+    @property
+    def is_valid(self):
+        return self.used_at is None and self.expires_at > datetime.utcnow()
+
+
 class LeaveRequest(db.Model):
     __table_args__ = (
         db.Index('idx_leave_user_status', 'user_id', 'status'),

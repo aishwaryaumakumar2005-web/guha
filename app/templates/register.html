@@ -30,7 +30,7 @@ Create Staff Account</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close">
 </button>
                     </div>
-                {% endfor %}            {% endif %}        {% endwith %}        <form action="{{ url_for('auth.register') }}" method="POST">
+                {% endfor %}            {% endif %}        {% endwith %}        <form action="{{ url_for('auth.register') }}" method="POST"><input type="hidden" name="auth_csrf_token" value="{{ session.get('auth_csrf_token', '') }}">
             <div class="mb-3">
                 <label for="name" class="form-label text-white fw-medium small">
 Full Name</label>
@@ -134,4 +134,3 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 </body>
 </html>
-
