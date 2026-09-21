@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
 <title>Login - Guha Academy</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -29,8 +30,8 @@ code{color:#aaa;font-size:.8rem}
 @media(max-width:576px){.card{padding:28px 20px;margin:12px}.logo{font-size:1.6rem}body{padding:10px;align-items:flex-start;padding-top:40px}}
 </style>
 </head>
-<body>
-<div class="card">
+<body class="auth-page">
+<div class="card auth-card">
 <div style="display:flex;align-items:center;justify-content:center;gap:12px">
 <img src="{{ url_for('static', filename='images/logo.png') }}" alt="GUHA ACADEMY" style="height:48px;width:auto;filter:brightness(2.0) contrast(1.1) saturate(1.4)">
 <div style="text-align:left">
@@ -41,7 +42,7 @@ code{color:#aaa;font-size:.8rem}
 {% with messages = get_flashed_messages(with_categories=true) %}
 {% if messages %}
 {% for category, message in messages %}
-<div class="flash">{{ message }}</div>
+<div class="flash auth-message" role="alert">{{ message }}</div>
 {% endfor %}
 {% endif %}
 {% endwith %}
