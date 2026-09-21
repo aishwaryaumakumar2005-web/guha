@@ -116,11 +116,11 @@ def student_outstanding_bulk(student_ids):
     total_gst_pct = cgst_pct + sgst_pct
     paid_rows = db.session.query(
         FeeRecord.student_id, db.func.sum(FeeRecord.amount_paid)
-    ).filter(FeeRecord.student_id.in_(student_ids)).group_by(FeeRecord.student_id).all()
+    ).filter(FeeRecord.student_id.in_(student_ids), FeeRecord.status != 'Voided').group_by(FeeRecord.student_id).all()
     paid_map = {sid: round(float(total or 0), 2) for sid, total in paid_rows}
     conc_rows = db.session.query(
         FeeRecord.student_id, db.func.sum(db.func.coalesce(FeeRecord.concession, 0))
-    ).filter(FeeRecord.student_id.in_(student_ids)).group_by(FeeRecord.student_id).all()
+    ).filter(FeeRecord.student_id.in_(student_ids), FeeRecord.status != 'Voided').group_by(FeeRecord.student_id).all()
     conc_map = {sid: round(float(total or 0), 2) for sid, total in conc_rows}
     refunded_map = student_refunded_totals_bulk(student_ids)
     items_map = agreed_enrollment_items_bulk(student_ids)
@@ -229,7 +229,7 @@ def _raw_balances():
     """Compute live income/expense totals keyed by normalized payment method."""
     fees = db.session.query(
         FeeRecord.payment_method, db.func.sum(FeeRecord.amount_paid), db.func.count(FeeRecord.id)
-    ).group_by(FeeRecord.payment_method).all()
+    ).filter(FeeRecord.status != 'Voided').group_by(FeeRecord.payment_method).all()
     exp = db.session.query(
         Expense.payment_method, db.func.sum(Expense.amount), db.func.count(Expense.id)
     ).group_by(Expense.payment_method).all()
@@ -423,7 +423,7 @@ def account_breakdown(account_name, limit=200):
         return {'income': [], 'expenses': [], 'funding': [],
                 'limit': limit, 'totals': {'income': 0, 'expenses': 0, 'funding': 0}}
 
-    fee_q = FeeRecord.query
+    fee_q = FeeRecord.query.filter(FeeRecord.status != 'Voided')
     exp_q = Expense.query
     fund_q = OwnerFunding.query
     ors_fee = db.or_(*(db.func.lower(db.func.coalesce(FeeRecord.payment_method, '')) == m for m in methods))

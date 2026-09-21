@@ -23,6 +23,10 @@ class FeeRecord(db.Model):
     # (balance = due - paid - concessions) but is NOT cash collected.
     concession = db.Column(db.Float, default=0.0)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+    status = db.Column(db.String(20), nullable=False, default='Active')
+    voided_at = db.Column(db.DateTime, nullable=True)
+    voided_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+    void_reason = db.Column(db.String(300), nullable=True)
 
     creator = db.relationship('User', backref='fee_records', lazy=True)
 

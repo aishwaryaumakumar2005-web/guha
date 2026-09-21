@@ -304,6 +304,11 @@ def create_app(config_object=None):
                 print("Migration migrate_fee_concession_column completed OK", flush=True)
             except Exception as e:
                 print("Migration migrate_fee_concession_column FAILED:", e, flush=True)
+            try:
+                from app.services.db_migration import migrate_fee_audit_columns
+                migrate_fee_audit_columns()
+            except Exception as e:
+                print("Migration migrate_fee_audit_columns FAILED:", e, flush=True)
 
             try:
                 from app.services.db_migration import migrate_indexes
@@ -633,6 +638,11 @@ def create_app(config_object=None):
                 migrate_fee_concession_column()
             except Exception as e:
                 print('Failed to ensure fee_record.concession:', e, file=sys.stderr)
+            try:
+                from app.services.db_migration import migrate_fee_audit_columns
+                migrate_fee_audit_columns()
+            except Exception as e:
+                print('Failed to ensure fee_record audit columns:', e, file=sys.stderr)
 
         # Same self-heal for the agreed-dues snapshot columns, which the dues
         # helper selects explicitly on legacy databases.

@@ -63,7 +63,7 @@
             <div class="col-6 col-lg-3"><div class="glass-card p-3 text-center"><div class="text-secondary small text-uppercase">Opening</div><div class="fw-bold fs-5" style="color:{{ method_colors.get(active_name, '#DDD') }};">₹{{ "{:,.2f}".format(active_acc.opening_balance if active_acc else 0) }}</div></div></div>
             <div class="col-6 col-lg-3"><div class="glass-card p-3 text-center"><div class="text-secondary small text-uppercase">Income</div><div class="fw-bold fs-5" style="color:var(--accent-emerald);">+₹{{ "{:,.2f}".format(total_in) }}</div></div></div>
             <div class="col-6 col-lg-3"><div class="glass-card p-3 text-center"><div class="text-secondary small text-uppercase">Expense</div><div class="fw-bold fs-5 text-danger">-₹{{ "{:,.2f}".format(total_out) }}</div></div></div>
-            <div class="col-6 col-lg-3"><div class="glass-card p-3 text-center"><div class="text-secondary small text-uppercase">Balance</div><div class="fw-bold fs-5 {% if (total_in - total_out) < 0 %}text-danger{% endif %}" style="color:{% if (total_in - total_out) >= 0 %}{{ method_colors.get(active_name, '#00BFA6') }}{% endif %};">₹{{ "{:,.2f}".format(total_in - total_out) }}</div></div></div>
+            <div class="col-6 col-lg-3"><div class="glass-card p-3 text-center"><div class="text-secondary small text-uppercase">Balance</div><div class="fw-bold fs-5 {% if (total_in + (active_acc.opening_balance if active_acc else 0) - total_out) < 0 %}text-danger{% endif %}" style="color:{% if (total_in + (active_acc.opening_balance if active_acc else 0) - total_out) >= 0 %}{{ method_colors.get(active_name, '#00BFA6') }}{% endif %};">₹{{ "{:,.2f}".format(total_in + (active_acc.opening_balance if active_acc else 0) - total_out) }}</div></div></div>
         </div>
         <div class="d-flex flex-wrap gap-2 mb-3">
             <span class="small text-secondary align-self-center me-1">Recorded modes:</span>
@@ -76,7 +76,7 @@
         <div class="d-flex flex-wrap gap-3 mb-3">
             <span class="badge badge-custom badge-cyan">Inflow: ₹{{ "{:,.2f}".format(total_in) }}</span>
             <span class="badge badge-custom badge-danger">Outflow: ₹{{ "{:,.2f}".format(total_out) }}</span>
-            <span class="badge badge-custom badge-active">Net: ₹{{ "{:,.2f}".format(total_in - total_out) }}</span>
+            <span class="badge badge-custom badge-active">Net: ₹{{ "{:,.2f}".format(total_in + (active_acc.opening_balance if active_acc else 0) - total_out) }}</span>
         </div>
 
         <div class="table-container">

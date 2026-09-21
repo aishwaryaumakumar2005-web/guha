@@ -156,6 +156,18 @@ def list():
         cgst_pct, sgst_pct = get_gst_rates()
         taxable_amount, gst_amount = _split_gst(amount, selected_company)
 
+        duplicate = FeeRecord.query.filter(
+            FeeRecord.status != 'Voided', FeeRecord.student_id == student_id,
+            FeeRecord.amount_paid == amount, FeeRecord.payment_date == payment_date,
+            FeeRecord.payment_method == payment_method,
+        ).first()
+        if duplicate and request.form.get('confirm_duplicate') != '1':
+            message = 'A matching active payment already exists for this student, amount, date and method.'
+            if is_ajax_request():
+                return jsonify({"success": False, "duplicate": True, "message": message}), 409
+            flash(message + ' Confirm it is not a duplicate before recording again.', 'warning')
+            return redirect(url_for('fees.list'))
+
         new_record = FeeRecord(
             student_id=student_id,
             company_id=selected_company.id if selected_company else None,
@@ -189,7 +201,7 @@ def list():
     student_filter = request.args.get('student_id')
     student_filter_id = int(student_filter) if student_filter and student_filter.isdigit() else None
 
-    query = FeeRecord.query
+    query = FeeRecord.query.filter(FeeRecord.status != 'Voided')
 
     if company_id:
         query = query.filter(FeeRecord.company_id == company_id)
@@ -302,7 +314,11 @@ def list():
     # staff scope); dues aggregates come from the (equally scoped) matrix.
     today = date.today()
     month_start = date(today.year, today.month, 1)
-    month_q = FeeRecord.query.filter(FeeRecord.payment_date >= month_start)
+    month_q = FeeRecord.query.filter(FeeRecord.status != 'Voided', FeeRecord.payment_date >= month_start)
+    if from_date:
+        month_q = month_q.filter(FeeRecord.payment_date >= from_date)
+    if to_date:
+        month_q = month_q.filter(FeeRecord.payment_date <= to_date)
     if company_id:
         month_q = month_q.filter(FeeRecord.company_id == company_id)
     if student_ids is not None:
@@ -410,6 +426,12 @@ def receipt(id):
 @admin_required
 def edit(id):
     record = FeeRecord.query.get_or_404(id)
+    if record.status == 'Voided':
+        message = 'Voided fee transactions cannot be edited.'
+        if is_ajax_request():
+            return jsonify({"success": False, "message": message}), 400
+        flash(message, 'danger')
+        return redirect(url_for('fees.list'))
     form = FeeForm(request.form)
     if not form.validate():
         if is_ajax_request():
@@ -459,11 +481,22 @@ def edit(id):
 @admin_required
 def delete(id):
     fee = FeeRecord.query.get_or_404(id)
-    db.session.delete(fee)
+    if fee.status == 'Voided':
+        message = 'This fee transaction is already voided.'
+        if is_ajax_request():
+            return jsonify({"success": False, "message": message}), 400
+        flash(message, 'warning')
+        return redirect(url_for('fees.list'))
+    reason = (request.form.get('reason') or request.form.get('remarks') or '').strip()
+    if not reason:
+        reason = 'Voided by administrator'
+    fee.status = 'Voided'
+    fee.voided_at = datetime.utcnow()
+    fee.voided_by = current_user.id
+    fee.void_reason = reason[:300]
     db.session.commit()
-    message = "Fee transaction record removed!"
+    message = "Fee transaction voided. The original record remains available for audit."
     if is_ajax_request():
         return jsonify({"success": True, "message": message}), 200
     flash(message, "success")
     return redirect(url_for('fees.list'))
-

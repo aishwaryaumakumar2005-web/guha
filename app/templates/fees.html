@@ -90,7 +90,7 @@
     <div class="row g-3 mb-4">
         <div class="col-6 col-lg-3">
             <div class="glass-card p-3 text-center">
-                <div class="text-white-50 small text-uppercase">Collected this month</div>
+                <div class="text-white-50 small text-uppercase">Collected in period</div>
                 <div class="fw-bold fs-5 text-white">₹{{ "{:,.2f}".format(kpi.month_collected) }}</div>
             </div>
         </div>
@@ -246,7 +246,7 @@
                                         title="Edit fee record (receipt number is preserved)">
                                         <i class="bi bi-pencil"></i>
                                     </button>
-                                    <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Reverse and delete this fee transaction record? This action cannot be undone.', function() { var f = document.createElement('form'); f.method = 'POST'; f.action = '{{ url_for('fees.delete', id=record.id) }}'; document.body.appendChild(f); f.submit(); })">
+                                    <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Void this fee transaction? The original record will remain available for audit.', function() { var f = document.createElement('form'); f.method = 'POST'; f.action = '{{ url_for('fees.delete', id=record.id) }}'; var r = document.createElement('input'); r.type = 'hidden'; r.name = 'reason'; r.value = 'Voided from fee history'; f.appendChild(r); document.body.appendChild(f); f.submit(); })" title="Void transaction">
                                         <i class="bi bi-x-square-fill"></i>
                                     </button>
                                     {% endif %}

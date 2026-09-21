@@ -12,7 +12,7 @@ accounting_bp = Blueprint('accounting', __name__)
 @login_required
 @admin_required
 def download_invoice(fee_id):
-    fee_record = FeeRecord.query.get_or_404(fee_id)
+    fee_record = FeeRecord.query.filter(FeeRecord.status != 'Voided').get_or_404(fee_id)
     buf, inv_no = current_app.accounting.generate_invoice_pdf(fee_record)
     student = fee_record.student
     return send_file(buf, mimetype='application/pdf',
@@ -26,7 +26,7 @@ def export_tally():
     from_date = request.args.get('from_date')
     to_date = request.args.get('to_date')
     company_id = request.args.get('company_id')
-    query = FeeRecord.query
+    query = FeeRecord.query.filter(FeeRecord.status != 'Voided')
     if company_id and company_id.isdigit():
         query = query.filter(FeeRecord.company_id == int(company_id))
     if from_date:
@@ -51,7 +51,7 @@ def export_zoho():
     from_date = request.args.get('from_date')
     to_date = request.args.get('to_date')
     company_id = request.args.get('company_id')
-    query = FeeRecord.query
+    query = FeeRecord.query.filter(FeeRecord.status != 'Voided')
     if company_id and company_id.isdigit():
         query = query.filter(FeeRecord.company_id == int(company_id))
     if from_date:

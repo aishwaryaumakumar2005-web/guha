@@ -404,6 +404,33 @@ def migrate_fee_concession_column():
             print(f"Migration migrate_fee_concession_column: FAILED to add fee_record.concession: {e}", flush=True)
 
 
+def migrate_fee_audit_columns():
+    """Add immutable financial-transaction void/audit fields."""
+    if not _table_exists('fee_record'):
+        return
+    ts_type = 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'
+    for column, col_type in [
+        ('status', "VARCHAR(20) DEFAULT 'Active'"),
+        ('voided_at', ts_type),
+        ('voided_by', 'INTEGER'),
+        ('void_reason', 'VARCHAR(300)'),
+    ]:
+        if not _has_column('fee_record', column):
+            try:
+                db.session.execute(text('ALTER TABLE "fee_record" ADD COLUMN "%s" %s' % (column, col_type)))
+                db.session.commit()
+                print(f"Migration migrate_fee_audit_columns: added fee_record.{column}", flush=True)
+            except Exception as e:
+                db.session.rollback()
+                print(f"Migration migrate_fee_audit_columns: FAILED to add fee_record.{column}: {e}", flush=True)
+    try:
+        db.session.execute(text("UPDATE fee_record SET status = 'Active' WHERE status IS NULL"))
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"Migration migrate_fee_audit_columns: FAILED to backfill status: {e}", flush=True)
+
+
 def migrate_payroll_commission_breakdown_column():
     """Add payroll_record.commission_breakdown (nullable JSON text).
 
