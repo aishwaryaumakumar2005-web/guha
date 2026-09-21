@@ -6,7 +6,7 @@ from app.helpers import admin_required, is_ajax_request
 from app.services.account_service import (
     compute_account_summary, account_breakdown, ensure_default_accounts, matching_methods,
 )
-from app.services.payment_methods import classify_method
+from app.services.payment_methods import classify_method, METHOD_COLORS
 
 
 accounts_bp = Blueprint('accounts', __name__)
@@ -38,6 +38,7 @@ def index():
         'accounts.html', accounts=summary, active_name=default_name,
         breakdown=breakdown, active_methods=active_methods,
         active_method_labels=_display_modes(active_methods),
+        method_colors=METHOD_COLORS,
         companies=companies, account_types=ACCOUNT_TYPES,
     )
 
@@ -55,6 +56,7 @@ def detail(account_name):
         'accounts.html', accounts=summary, active_name=account_name,
         breakdown=breakdown, active_methods=active_methods,
         active_method_labels=_display_modes(active_methods),
+        method_colors=METHOD_COLORS,
         companies=companies, account_types=ACCOUNT_TYPES,
     )
 
