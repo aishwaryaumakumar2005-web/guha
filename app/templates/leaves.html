@@ -13,8 +13,11 @@
     .lc-day.lc-empty { border-style: dashed; background: transparent; }
     .lc-day.lc-weekend { opacity: .55; }
     .lc-day.lc-today { outline: 2px solid #FFB347; outline-offset: -2px; }
-    .lc-daynum { font-size: .78rem; font-weight: 700; color: #1E1E2F; margin-bottom: 4px; }
-    body.dark-mode .lc-daynum { color: #ffffff; }
+    /* Keep calendar numerals above theme overlays and readable in both modes. */
+    .lc-daynum { position: relative; z-index: 1; display: block; font-size: .82rem; line-height: 1.2; font-weight: 800; color: #1E1E2F !important; margin-bottom: 4px; opacity: 1 !important; }
+    body.dark-mode .lc-daynum { color: #ffffff !important; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+    body:not(.dark-mode) .lc-daynum { color: #16324b !important; }
+    .lc-day.lc-weekend .lc-daynum { opacity: .9 !important; }
     .lc-chip { display: block; font-size: .62rem; font-weight: 600; border-radius: 999px; padding: 1px 7px; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
     .lc-approved { background: #00BFA6; color: #00231f; }
     .lc-pending { background: #FFB347; color: #3a2700; }
