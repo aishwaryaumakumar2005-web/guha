@@ -1,4 +1,4 @@
-from .user import User, LeaveRequest
+from .user import User, LeaveRequest, PasswordResetToken
 from .course import Course
 from .student import Student, student_courses, ensure_enrolled_on, stamp_agreed_dues
 from .tutor import Tutor, tutor_courses
