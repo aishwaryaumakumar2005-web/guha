@@ -2649,6 +2649,17 @@ body.theme-transitioning ::after {
 
 .dashboard-action-center { scroll-margin-top: 1rem; }
 .dashboard-action-center h5 { letter-spacing: -.01em; }
+.dashboard-widget-hidden { display: none !important; }
+.dashboard-preferences-inner {
+    max-width: 760px;
+    padding: .9rem 1rem;
+    border: 1px solid var(--dashboard-border);
+    border-radius: 12px;
+    background: var(--dashboard-surface-raised);
+    color: var(--text-primary);
+}
+.dashboard-preferences label { cursor: pointer; color: var(--dashboard-muted); }
+.dashboard-preferences input { accent-color: var(--accent-azure); margin-right: .35rem; }
 
 .dashboard-action-center .btn,
 .dashboard-panel .btn { border-radius: 9px; }
