@@ -42,7 +42,10 @@ def login():
             username = form.data.get('username', '').strip()
             password = form.data.get('password', '')
             current_app.logger.debug(f'Login attempt for username={username}')
-            user = User.query.filter_by(username=username).first()
+            # Usernames are identifiers, not display text. Matching
+            # case-insensitively avoids surprising failures after imports or
+            # manual database restores (e.g. Staff vs staff).
+            user = User.query.filter(db.func.lower(User.username) == username.lower()).first()
             if user and check_password_hash(user.password_hash, password):
                 try:
                     _ensure_tutor(user)
