@@ -27,6 +27,15 @@
     min-height: 100%;
 }
 
+@media (min-width: 992px) {
+    /* Staff has four headline cards followed by one full-width attendance
+       summary. This prevents the fifth card from appearing as an accidental
+       orphan beside the first row. */
+    .staff-attendance-kpi {
+        grid-column: span 12 !important;
+    }
+}
+
 /* Tablet Layout (768px - 991px) */
 @media (min-width: 768px) {
     .bento-md-6 { grid-column: span 6 !important; }
