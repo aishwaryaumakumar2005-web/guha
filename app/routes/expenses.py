@@ -34,6 +34,14 @@ def _parse_student_id(raw):
     return sid
 
 
+def _parse_student_reference(raw):
+    """Return (student_id, error), rejecting malformed refund references."""
+    if raw in (None, ''):
+        return None, None
+    sid = _parse_student_id(raw)
+    return (sid, None) if sid else (None, 'The selected student does not exist.')
+
+
 def _refund_category_id():
     """The canonical 'Refund' category, creating it if the baseline seed lacks it."""
     cat = ExpenseCategory.query.filter_by(name='Refund').first()
@@ -153,7 +161,9 @@ def list():
         expense_date = form.cleaned_data.get('expense_date', date.today())
         # W3: optional student link = this Expense is a refund that reduces
         # that student's dues.
-        student_id = _parse_student_id(request.form.get('student_id')) or None
+        student_id, student_error = _parse_student_reference(request.form.get('student_id'))
+        if student_error:
+            return _reject(student_error)
         category_id, refund_error = _canonicalize_refund(category_id, student_id)
         if refund_error:
             return _reject(refund_error)
@@ -166,6 +176,16 @@ def list():
         if explicit_company:
             company_id = explicit_company
         payment_ref = _payment_ref(request.form.get('payment_ref'))
+        if payment_method != 'Cash' and not payment_ref:
+            return _reject('A payment reference is required for non-cash expenses.')
+        duplicate = Expense.query.filter(
+            Expense.status != 'Voided', Expense.amount == amount,
+            Expense.expense_date == expense_date,
+            Expense.payment_method == payment_method,
+            Expense.description == description,
+        ).first()
+        if duplicate and request.form.get('confirm_duplicate') != '1':
+            return _reject('A matching active expense already exists. Confirm it is not a duplicate before saving.', 409)
         att = _save_attachment(request)
         if isinstance(att[0], Exception):
             return _reject(str(att[0]))
@@ -186,7 +206,7 @@ def list():
     filter_category = request.args.get('category_id', type=int)
     filter_month = request.args.get('month', type=int)
     filter_year = request.args.get('year', type=int)
-    query = Expense.query.options(
+    query = Expense.query.filter(Expense.status != 'Voided').options(
         joinedload(Expense.category), joinedload(Expense.creator),
         joinedload(Expense.student), joinedload(Expense.company))
     if filter_category:
@@ -203,7 +223,7 @@ def list():
     active_categories = [c for c in categories if c.is_active]
     totals_query = db.session.query(
         Expense.category_id, db.func.sum(Expense.amount).label('total')
-    ).filter(db.extract('year', Expense.expense_date) == year)
+    ).filter(Expense.status != 'Voided', db.extract('year', Expense.expense_date) == year)
     if month:
         totals_query = totals_query.filter(db.extract('month', Expense.expense_date) == month)
     totals_map = {cat_id: float(total) for cat_id, total in totals_query.group_by(Expense.category_id).all()}
@@ -231,6 +251,8 @@ def list():
 @admin_required
 def edit(id):
     expense = Expense.query.get_or_404(id)
+    if expense.status == 'Voided':
+        return _reject('Voided expenses cannot be edited.', 400)
     form = ExpenseForm(request.form)
     if not form.validate():
         if is_ajax_request():
@@ -241,11 +263,16 @@ def edit(id):
     category_id = form.cleaned_data.get('category_id')
     if ExpenseCategory.query.get(category_id) is None:
         return _reject("Selected category does not exist")
-    expense.student_id = _parse_student_id(request.form.get('student_id'))
+    expense.student_id, student_error = _parse_student_reference(request.form.get('student_id'))
+    if student_error:
+        return _reject(student_error)
     category_id, refund_error = _canonicalize_refund(category_id, expense.student_id)
     if refund_error:
         return _reject(refund_error)
     expense.category_id = category_id
+    final_cat = ExpenseCategory.query.get(category_id)
+    if final_cat and not final_cat.is_active:
+        return _reject('Archived categories cannot be used for new expense postings.')
     expense.amount = form.cleaned_data.get('amount', 0)
     expense.description = request.form.get('description', '').strip()
     expense.payment_method = request.form.get('payment_method', 'Cash').strip()
@@ -277,6 +304,8 @@ def edit(id):
 @admin_required
 def delete(id):
     expense = Expense.query.get_or_404(id)
+    if expense.status == 'Voided':
+        return _reject('This expense is already voided.', 400)
     if expense.payroll_records:
         message = ("This expense is linked to a paid payroll record. "
                    "Reverse the payroll record instead of deleting the expense.")
@@ -284,9 +313,12 @@ def delete(id):
             return jsonify({"success": False, "errors": [message]}), 409
         flash(message, "danger")
         return redirect(url_for('expenses.list'))
-    db.session.delete(expense)
+    expense.status = 'Voided'
+    expense.voided_at = datetime.utcnow()
+    expense.voided_by = current_user.id
+    expense.void_reason = (request.form.get('reason') or 'Voided by administrator').strip()[:300]
     db.session.commit()
-    message = "Expense record deleted!"
+    message = "Expense voided. The original record remains available for audit."
     if is_ajax_request():
         return jsonify({"success": True, "message": message}), 200
     flash(message, "success")

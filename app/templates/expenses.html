@@ -171,7 +171,7 @@ Ref: {{ exp.payment_ref }}</div>
                                     <i class="bi bi-pencil">
 </i>
                                 </button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Delete this expense record? This action cannot be undone.', function() { var f = document.createElement('form'); f.method = 'POST'; f.action = '{{ url_for('expenses.delete', id=exp.id) }}'; document.body.appendChild(f); f.submit(); })">
+                                <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Void this expense record? The original will remain available for audit.', function() { var f = document.createElement('form'); f.method = 'POST'; f.action = '{{ url_for('expenses.delete', id=exp.id) }}'; var r = document.createElement('input'); r.type = 'hidden'; r.name = 'reason'; r.value = 'Voided from expense history'; f.appendChild(r); document.body.appendChild(f); f.submit(); })" title="Void expense">
                                     <i class="bi bi-trash">
 </i>
                                 </button>

@@ -47,9 +47,14 @@ class Expense(db.Model):
     attachment_data = db.Column(db.LargeBinary)
     attachment_mime = db.Column(db.String(50))
     attachment_name = db.Column(db.String(255))
+    status = db.Column(db.String(20), nullable=False, default='Active')
+    voided_at = db.Column(db.DateTime)
+    voided_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'))
+    void_reason = db.Column(db.String(300))
 
     category = db.relationship('ExpenseCategory', backref='expenses', lazy=True)
-    creator = db.relationship('User', backref='expenses', lazy=True)
+    creator = db.relationship('User', foreign_keys=[created_by], backref='expenses', lazy=True)
+    voider = db.relationship('User', foreign_keys=[voided_by], backref='voided_expenses', lazy=True)
     student = db.relationship('Student', backref=db.backref('refunds', lazy='dynamic'))
     company = db.relationship('Company', backref='expenses', lazy=True)
 

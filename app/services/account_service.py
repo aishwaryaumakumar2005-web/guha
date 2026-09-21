@@ -232,7 +232,7 @@ def _raw_balances():
     ).filter(FeeRecord.status != 'Voided').group_by(FeeRecord.payment_method).all()
     exp = db.session.query(
         Expense.payment_method, db.func.sum(Expense.amount), db.func.count(Expense.id)
-    ).group_by(Expense.payment_method).all()
+    ).filter(Expense.status != 'Voided').group_by(Expense.payment_method).all()
     fund = db.session.query(
         OwnerFunding.method, db.func.sum(OwnerFunding.amount), db.func.count(OwnerFunding.id)
     ).group_by(OwnerFunding.method).all()
@@ -424,7 +424,7 @@ def account_breakdown(account_name, limit=200):
                 'limit': limit, 'totals': {'income': 0, 'expenses': 0, 'funding': 0}}
 
     fee_q = FeeRecord.query.filter(FeeRecord.status != 'Voided')
-    exp_q = Expense.query
+    exp_q = Expense.query.filter(Expense.status != 'Voided')
     fund_q = OwnerFunding.query
     ors_fee = db.or_(*(db.func.lower(db.func.coalesce(FeeRecord.payment_method, '')) == m for m in methods))
     ors_exp = db.or_(*(db.func.lower(db.func.coalesce(Expense.payment_method, '')) == m for m in methods))

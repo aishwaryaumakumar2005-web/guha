@@ -517,12 +517,17 @@ def migrate_expense_enhancements():
     """
     if _table_exists('expense'):
         blob = 'BYTEA' if db.engine.dialect.name == 'postgresql' else 'BLOB'
+        timestamp_type = 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'
         for col, ctype in [
             ('company_id', 'INTEGER'),
             ('payment_ref', 'VARCHAR(100)'),
             ('attachment_data', blob),
             ('attachment_mime', 'VARCHAR(50)'),
             ('attachment_name', 'VARCHAR(255)'),
+            ('status', "VARCHAR(20) DEFAULT 'Active'"),
+            ('voided_at', timestamp_type),
+            ('voided_by', 'INTEGER'),
+            ('void_reason', 'VARCHAR(300)'),
         ]:
             if not _has_column('expense', col):
                 try:
@@ -532,6 +537,12 @@ def migrate_expense_enhancements():
                     db.session.rollback()
                     print(f"Migration migrate_expense_enhancements: ADD expense.{col} FAILED: {e}", flush=True)
         _ensure_column_index('expense', 'company_id')
+        try:
+            db.session.execute(text('UPDATE "expense" SET "status" = \'Active\' WHERE "status" IS NULL'))
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            print(f"Migration migrate_expense_enhancements: status backfill FAILED: {e}", flush=True)
     if _table_exists('expense_category'):
         if not _has_column('expense_category', 'budget_limit'):
             try:
