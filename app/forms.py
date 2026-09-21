@@ -159,8 +159,10 @@ class RegistrationForm(Form):
         base_valid = super().validate()
         pw = self.data.get('password', '')
         cpw = self.data.get('confirm_password', '')
-        if pw and len(pw) < 6:
-            self._error('password', 'Password must be at least 6 characters')
+        if pw and len(pw) < 8:
+            self._error('password', 'Password must be at least 8 characters')
+        if pw and (not re.search(r'[A-Z]', pw) or not re.search(r'[a-z]', pw) or not re.search(r'\d', pw)):
+            self._error('password', 'Password must include uppercase, lowercase, and a number')
         if pw != cpw:
             self._error('confirm_password', 'Passwords do not match')
         return len(self.errors) == 0
@@ -178,8 +180,10 @@ class ForgotPasswordForm(Form):
         base_valid = super().validate()
         npw = self.data.get('new_password', '')
         cpw = self.data.get('confirm_password', '')
-        if npw and len(npw) < 6:
-            self._error('new_password', 'Password must be at least 6 characters')
+        if npw and len(npw) < 8:
+            self._error('new_password', 'Password must be at least 8 characters')
+        if npw and (not re.search(r'[A-Z]', npw) or not re.search(r'[a-z]', npw) or not re.search(r'\d', npw)):
+            self._error('new_password', 'Password must include uppercase, lowercase, and a number')
         if cpw and npw != cpw:
             self._error('confirm_password', 'Passwords do not match')
         return len(self.errors) == 0

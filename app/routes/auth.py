@@ -5,6 +5,7 @@ from app.extensions import db
 from app.models import User, Tutor, PasswordResetToken, AuditLog
 import hashlib
 import json
+import re
 import secrets
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
@@ -150,7 +151,8 @@ def login():
                     if tutor is not None and (tutor.status or 'Active') != 'Active':
                         flash("Your staff account has been deactivated. Please contact the administrator.", 'danger')
                         return render_template('login.html')
-                login_user(user)
+                remember = request.form.get('remember_me') == 'on'
+                login_user(user, remember=remember, duration=timedelta(days=30) if remember else None)
                 flash(f"Welcome back, {user.name}!", "success")
                 next_page = _safe_next(request.args.get('next'))
                 return redirect(next_page or url_for('dashboard.dashboard'))
@@ -257,8 +259,8 @@ def change_password():
         confirm = request.form.get('confirm_password', '')
         if not check_password_hash(current_user.password_hash, current):
             flash('Current password is incorrect.', 'danger')
-        elif len(new_password) < 8:
-            flash('New password must be at least 8 characters.', 'danger')
+        elif len(new_password) < 8 or not re.search(r'[A-Z]', new_password) or not re.search(r'[a-z]', new_password) or not re.search(r'\d', new_password):
+            flash('New password must be at least 8 characters and include uppercase, lowercase, and a number.', 'danger')
         elif new_password != confirm:
             flash('Passwords do not match.', 'danger')
         else:
