@@ -32,7 +32,10 @@ class Task(db.Model):
     version = db.Column(db.Integer, default=1, nullable=False)
 
     tutor = db.relationship('Tutor', backref='tasks')
-    assigner = db.relationship('User', backref='assigned_tasks')
+    # Task has two User foreign keys (assigned_by and archived_by); make the
+    # original assignment relationship explicit so SQLAlchemy can configure
+    # the mapper on Render and existing databases.
+    assigner = db.relationship('User', foreign_keys=[assigned_by], backref='assigned_tasks')
     archiver = db.relationship('User', foreign_keys=[archived_by], backref='archived_tasks')
 
     def __repr__(self):
