@@ -112,6 +112,13 @@ def _parse_company_id(raw):
     return cid
 
 
+def _parse_company_reference(raw):
+    if raw in (None, ''):
+        return None, None
+    cid = _parse_company_id(raw)
+    return (cid, None) if cid else (None, 'The selected company does not exist.')
+
+
 def _payment_ref(raw):
     ref = (raw or '').strip()
     return ref[:100]
@@ -167,12 +174,18 @@ def list():
         category_id, refund_error = _canonicalize_refund(category_id, student_id)
         if refund_error:
             return _reject(refund_error)
+        if student_id:
+            outstanding = student_outstanding_bulk([student_id]).get(student_id, 0)
+            if amount > outstanding and request.form.get('confirm_over_refund') != '1':
+                return _reject(f'Refund exceeds the student outstanding balance (₹{outstanding:,.2f}). Confirm an over-refund to continue.', 409)
         final_cat = ExpenseCategory.query.get(category_id)
         if final_cat is not None and not final_cat.is_active and not refund_error:
             return _reject("This expense category is archived — reactive it or pick another.")
         # Enhancements: explicit company attribution, payment reference, receipt.
         company_id = _default_company_id(payment_method, student_id)
-        explicit_company = _parse_company_id(request.form.get('company_id'))
+        explicit_company, company_error = _parse_company_reference(request.form.get('company_id'))
+        if company_error:
+            return _reject(company_error)
         if explicit_company:
             company_id = explicit_company
         payment_ref = _payment_ref(request.form.get('payment_ref'))
@@ -217,8 +230,10 @@ def list():
     query = query.filter(db.extract('year', Expense.expense_date) == year)
     if month:
         query = query.filter(db.extract('month', Expense.expense_date) == month)
-    all_expenses = query.order_by(Expense.expense_date.desc()).limit(FINANCE_LIST_LIMIT).all()
     expenses_total = query.order_by(None).count()
+    page = max(request.args.get('page', 1, type=int) or 1, 1)
+    all_expenses = query.order_by(Expense.expense_date.desc(), Expense.id.desc()).offset(
+        (page - 1) * FINANCE_LIST_LIMIT).limit(FINANCE_LIST_LIMIT).all()
     categories = ExpenseCategory.query.order_by(ExpenseCategory.name).all()
     active_categories = [c for c in categories if c.is_active]
     totals_query = db.session.query(
@@ -229,8 +244,9 @@ def list():
     totals_map = {cat_id: float(total) for cat_id, total in totals_query.group_by(Expense.category_id).all()}
     category_totals = [{
         "name": cat.name, "total": totals_map.get(cat.id, 0.0),
-        "budget": cat.budget_limit,
-        "over": bool(cat.budget_limit and totals_map.get(cat.id, 0.0) > cat.budget_limit),
+        "budget": (cat.budget_limit * (1 if month else 12)) if cat.budget_limit else None,
+        "monthly_budget": cat.budget_limit,
+        "over": bool(cat.budget_limit and totals_map.get(cat.id, 0.0) > cat.budget_limit * (1 if month else 12)),
     } for cat in categories]
     grand_total = sum(ct["total"] for ct in category_totals)
     period_label = f"{MONTH_NAMES[month-1]} {year}" if month else f"All months, {year}"
@@ -243,6 +259,7 @@ def list():
         filter_year=year, period_label=period_label,
         account_balances=compute_account_summary(),
         expenses_total=expenses_total, list_limit=FINANCE_LIST_LIMIT,
+        page=page, pages=max((expenses_total + FINANCE_LIST_LIMIT - 1) // FINANCE_LIST_LIMIT, 1),
         students=students, student_outstanding=student_outstanding,
         companies=Company.query.order_by(Company.name).all())
 
@@ -264,8 +281,8 @@ def edit(id):
     if ExpenseCategory.query.get(category_id) is None:
         return _reject("Selected category does not exist")
     expense.student_id, student_error = _parse_student_reference(request.form.get('student_id'))
-    if student_error:
-        return _reject(student_error)
+        if student_error:
+            return _reject(student_error)
     category_id, refund_error = _canonicalize_refund(category_id, expense.student_id)
     if refund_error:
         return _reject(refund_error)
@@ -274,12 +291,20 @@ def edit(id):
     if final_cat and not final_cat.is_active:
         return _reject('Archived categories cannot be used for new expense postings.')
     expense.amount = form.cleaned_data.get('amount', 0)
+    if expense.student_id:
+        outstanding = student_outstanding_bulk([expense.student_id]).get(expense.student_id, 0)
+        if expense.amount > outstanding and request.form.get('confirm_over_refund') != '1':
+            return _reject(f'Refund exceeds the student outstanding balance (₹{outstanding:,.2f}). Confirm an over-refund to continue.', 409)
     expense.description = request.form.get('description', '').strip()
     expense.payment_method = request.form.get('payment_method', 'Cash').strip()
     expense.expense_date = form.cleaned_data.get('expense_date', expense.expense_date)
     expense.payment_ref = _payment_ref(request.form.get('payment_ref'))
+    if expense.payment_method != 'Cash' and not expense.payment_ref:
+        return _reject('A payment reference is required for non-cash expenses.')
     # Company: empty = re-infer default; explicit id = honor it.
-    explicit_company = _parse_company_id(request.form.get('company_id'))
+    explicit_company, company_error = _parse_company_reference(request.form.get('company_id'))
+    if company_error:
+        return _reject(company_error)
     if explicit_company:
         expense.company_id = explicit_company
     elif request.form.get('company_id') == '':
@@ -535,7 +560,10 @@ def api_expenses_chart():
     monthly = db.session.query(
         db.extract('month', Expense.expense_date).label('m'),
         db.func.sum(Expense.amount).label('total')
-    ).filter(db.extract('year', Expense.expense_date) == year).group_by(db.extract('month', Expense.expense_date)).all()
+    ).filter(
+        Expense.status != 'Voided',
+        db.extract('year', Expense.expense_date) == year,
+    ).group_by(db.extract('month', Expense.expense_date)).all()
     month_map = {int(r.m): float(r.total) for r in monthly}
     months_data = [month_map.get(m, 0.0) for m in range(1, 13)]
     return jsonify({"months": ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"], "totals": months_data, "year": year})
