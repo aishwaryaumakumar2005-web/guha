@@ -28,7 +28,12 @@ class FeeRecord(db.Model):
     voided_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
     void_reason = db.Column(db.String(300), nullable=True)
 
-    creator = db.relationship('User', backref='fee_records', lazy=True)
+    # FeeRecord now has two user foreign keys (creator and voider). Explicit
+    # foreign_keys are required so SQLAlchemy does not guess the wrong join.
+    creator = db.relationship(
+        'User', foreign_keys=[created_by], backref='fee_records', lazy=True)
+    voider = db.relationship(
+        'User', foreign_keys=[voided_by], backref='voided_fee_records', lazy=True)
 
     def __repr__(self):
         return f"<FeeRecord Student:{self.student_id} Amount:{self.amount_paid}>"
