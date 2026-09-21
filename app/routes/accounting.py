@@ -11,7 +11,10 @@ accounting_bp = Blueprint('accounting', __name__)
 @accounting_bp.route('/fees/invoice/<int:fee_id>')
 @login_required
 def download_invoice(fee_id):
-    fee_record = FeeRecord.query.filter(FeeRecord.status != 'Voided').get_or_404(fee_id)
+    fee_record = FeeRecord.query.filter(
+        FeeRecord.id == fee_id,
+        FeeRecord.status != 'Voided',
+    ).first_or_404()
     if current_user.role == 'Staff':
         tutor = Tutor.query.filter_by(email=current_user.email).first()
         allowed = set()
