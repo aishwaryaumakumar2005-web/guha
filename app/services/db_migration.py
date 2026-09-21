@@ -669,7 +669,10 @@ def migrate_funding_batch2_columns():
     """
     if not _table_exists('owner_funding'):
         return
-    adds = [('reference', 'VARCHAR(100)'), ('investment_type', 'VARCHAR(20)')]
+    ts_type = 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'
+    adds = [('reference', 'VARCHAR(100)'), ('investment_type', 'VARCHAR(20)'),
+            ('status', "VARCHAR(20) DEFAULT 'Active'"), ('voided_at', ts_type),
+            ('voided_by', 'INTEGER'), ('void_reason', 'VARCHAR(300)')]
     for column, col_type in adds:
         if not _has_column('owner_funding', column):
             try:
@@ -679,6 +682,12 @@ def migrate_funding_batch2_columns():
             except Exception as e:
                 db.session.rollback()
                 print(f"Migration migrate_funding_batch2_columns: FAILED to add owner_funding.{column}: {e}", flush=True)
+    try:
+        db.session.execute(text("UPDATE owner_funding SET status = 'Active' WHERE status IS NULL"))
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"Migration migrate_funding_batch2_columns: FAILED to backfill status: {e}", flush=True)
 
 
 def migrate_task_priority_and_category():

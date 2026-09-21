@@ -111,7 +111,7 @@
                         <td class="small text-secondary">{{ f.creator.name if f.creator else 'System' }}</td>
                         <td class="text-end text-nowrap">
                             <button type="button" class="btn btn-sm btn-outline-light" title="Edit this contribution" data-id="{{ f.id }}" data-amount="{{ f.amount }}" data-date="{{ f.funding_date.strftime('%Y-%m-%d') }}" data-method="{{ f.method or 'Cash' }}" data-purpose="{{ f.purpose or '' }}" data-reference="{{ f.reference or '' }}" data-type="{{ f.investment_type or 'Capital' }}" onclick="openEditFunding(this)"><i class="bi bi-pencil-square"></i></button>
-                            <button type="button" class="btn btn-sm btn-outline-danger" title="Reverse and delete" data-id="{{ f.id }}" data-amount="{{ f.amount }}" data-date="{{ f.funding_date.strftime('%d %b %Y') }}" data-method="{{ f.method or 'Cash' }}" data-purpose="{{ f.purpose or '' }}" data-type="{{ f.investment_type or 'Capital' }}" onclick="openDeleteFunding(this)"><i class="bi bi-x-square-fill"></i></button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" title="Void funding" data-id="{{ f.id }}" data-amount="{{ f.amount }}" data-date="{{ f.funding_date.strftime('%d %b %Y') }}" data-method="{{ f.method or 'Cash' }}" data-purpose="{{ f.purpose or '' }}" data-type="{{ f.investment_type or 'Capital' }}" onclick="openDeleteFunding(this)"><i class="bi bi-x-square-fill"></i></button>
                         </td>
                     </tr>{% endfor %}{% else %}<tr>
                         {{ empty_state('No capital contributions found', "Record the first investment made by the owner to fund institute expenses", 'fees', '#', 'Record Investment', 'bi-cash-coin', 8, 'data-bs-toggle="modal" data-bs-target="#addFundingModal"') }}
@@ -119,6 +119,17 @@
                 </tbody>
             </table>
         </div>
+        {% if pages > 1 %}
+        <nav class="mt-3" aria-label="Funding pages">
+            <div class="d-flex justify-content-between align-items-center small text-secondary">
+                <span>Page {{ page }} of {{ pages }}</span>
+                <div class="btn-group">
+                    {% if page > 1 %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('funding.list', page=page-1, method=filter_method, month=filter_month, year=filter_year, q=filter_q) }}">Previous</a>{% endif %}
+                    {% if page < pages %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('funding.list', page=page+1, method=filter_method, month=filter_month, year=filter_year, q=filter_q) }}">Next</a>{% endif %}
+                </div>
+            </div>
+        </nav>
+        {% endif %}
     </div>
 </div>
 <!-- ADD MODAL -->

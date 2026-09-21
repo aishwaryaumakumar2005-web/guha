@@ -20,8 +20,13 @@ class OwnerFunding(db.Model):
     investment_type = db.Column(db.String(20), default='Capital', nullable=False)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(20), nullable=False, default='Active')
+    voided_at = db.Column(db.DateTime)
+    voided_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'))
+    void_reason = db.Column(db.String(300))
 
-    creator = db.relationship('User', backref='owner_fundings', lazy=True)
+    creator = db.relationship('User', foreign_keys=[created_by], backref='owner_fundings', lazy=True)
+    voider = db.relationship('User', foreign_keys=[voided_by], backref='voided_owner_fundings', lazy=True)
 
     def __repr__(self):
         return f"<OwnerFunding ₹{self.amount} on {self.funding_date}>"

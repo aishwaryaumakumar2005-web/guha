@@ -1,6 +1,6 @@
 import csv
 import io
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, Response
 from flask_login import login_required, current_user
 from app.extensions import db
@@ -14,6 +14,13 @@ funding_bp = Blueprint('funding', __name__)
 
 MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 INVESTMENT_TYPES = ['Capital', 'Director Loan']
+
+
+def _reject_funding(message, status=400):
+    if is_ajax_request():
+        return jsonify({'success': False, 'errors': [message]}), status
+    flash(message, 'danger')
+    return redirect(url_for('funding.list'))
 
 
 def _trend_months(end_year, end_month, count=24):
@@ -31,6 +38,7 @@ def _trend_months(end_year, end_month, count=24):
 
 def _monthly_total(year, month):
     return db.session.query(db.func.sum(OwnerFunding.amount)).filter(
+        OwnerFunding.status != 'Voided',
         db.extract('year', OwnerFunding.funding_date) == year,
         db.extract('month', OwnerFunding.funding_date) == month
     ).scalar() or 0.0
@@ -38,6 +46,7 @@ def _monthly_total(year, month):
 
 def _type_total(investment_type):
     return db.session.query(db.func.sum(OwnerFunding.amount)).filter(
+        OwnerFunding.status != 'Voided',
         OwnerFunding.investment_type == investment_type
     ).scalar() or 0.0
 
@@ -45,8 +54,8 @@ def _type_total(investment_type):
 def _funding_context(form_data=None, error_fields=None, autopen=False,
                      f_method='', f_month=0, f_year=0, f_q=''):
     """Template vars shared by the GET page and a failed-POST re-render."""
-    fundings_total = OwnerFunding.query.order_by(None).count()
-    query = OwnerFunding.query
+    fundings_total = OwnerFunding.query.filter(OwnerFunding.status != 'Voided').order_by(None).count()
+    query = OwnerFunding.query.filter(OwnerFunding.status != 'Voided')
     if f_method:
         query = query.filter(db.func.lower(OwnerFunding.method) == f_method.lower())
     if f_year:
@@ -63,14 +72,12 @@ def _funding_context(form_data=None, error_fields=None, autopen=False,
     # F1: the 200-row cap only applies to the unfiltered "latest" view. Any
     # active filter searches the ENTIRE history, so filters never hide rows.
     order = (OwnerFunding.funding_date.desc(), OwnerFunding.id.desc())
-    if filtered:
-        all_fundings = query.order_by(*order).all()
-    else:
-        all_fundings = query.order_by(*order).limit(FINANCE_LIST_LIMIT).all()
     filtered_total = query.order_by(None).count()
+    page = max(request.args.get('page', 1, type=int) or 1, 1)
+    all_fundings = query.order_by(*order).offset((page - 1) * FINANCE_LIST_LIMIT).limit(FINANCE_LIST_LIMIT).all()
 
     today = date.today()
-    total_invested = db.session.query(db.func.sum(OwnerFunding.amount)).scalar() or 0.0
+    total_invested = db.session.query(db.func.sum(OwnerFunding.amount)).filter(OwnerFunding.status != 'Voided').scalar() or 0.0
     month_total = _monthly_total(today.year, today.month)
     prev_month_first = date(today.year, today.month, 1) - timedelta(days=1)
     prev_month_total = _monthly_total(prev_month_first.year, prev_month_first.month)
@@ -86,7 +93,7 @@ def _funding_context(form_data=None, error_fields=None, autopen=False,
         db.extract('year', OwnerFunding.funding_date).label('y'),
         db.extract('month', OwnerFunding.funding_date).label('m'),
         db.func.sum(OwnerFunding.amount).label('total')
-    ).filter(
+    ).filter(OwnerFunding.status != 'Voided',
         db.or_(
             db.extract('year', OwnerFunding.funding_date) > start_y,
             db.and_(db.extract('year', OwnerFunding.funding_date) == start_y,
@@ -101,7 +108,7 @@ def _funding_context(form_data=None, error_fields=None, autopen=False,
              for (y, m) in months]
     split_rows = db.session.query(
         OwnerFunding.method, db.func.sum(OwnerFunding.amount)
-    ).group_by(OwnerFunding.method).all()
+    ).filter(OwnerFunding.status != 'Voided').group_by(OwnerFunding.method).all()
     method_split = [{'method': m or 'Cash', 'total': float(t or 0)} for m, t in split_rows]
 
     years = [int(y) for (y,) in db.session.query(
@@ -115,6 +122,7 @@ def _funding_context(form_data=None, error_fields=None, autopen=False,
         'capital_total': capital_total, 'loan_total': loan_total,
         'account_balances': compute_account_summary(),
         'fundings_total': fundings_total, 'filtered_total': filtered_total,
+        'page': page, 'pages': max((filtered_total + FINANCE_LIST_LIMIT - 1) // FINANCE_LIST_LIMIT, 1),
         'list_limit': FINANCE_LIST_LIMIT, 'filtered': filtered,
         'filter_method': f_method, 'filter_month': f_month,
         'filter_year': f_year, 'filter_q': f_q_clean,
@@ -161,6 +169,14 @@ def list():
         funding_date = form.cleaned_data.get('funding_date', date.today())
         reference = request.form.get('reference', '').strip()[:100] or None
         investment_type = request.form.get('investment_type', 'Capital').strip() or 'Capital'
+        if method != 'Cash' and not reference:
+            return _reject_funding('A payment reference is required for non-cash funding.')
+        duplicate = OwnerFunding.query.filter(
+            OwnerFunding.status != 'Voided', OwnerFunding.amount == amount,
+            OwnerFunding.funding_date == funding_date, OwnerFunding.method == method,
+            OwnerFunding.reference == reference).first()
+        if duplicate and request.form.get('confirm_duplicate') != '1':
+            return _reject_funding('A matching active funding record already exists. Confirm it is not a duplicate.', 409)
         new_funding = OwnerFunding(
             amount=amount, method=method, purpose=purpose,
             funding_date=funding_date, created_by=current_user.id,
@@ -187,6 +203,8 @@ def edit(id):
     # F2: fixing a mis-entered contribution. INSERT/DELETE rows were already
     # audited; UPDATEs are captured by the global audit hook the same way.
     funding = OwnerFunding.query.get_or_404(id)
+    if funding.status == 'Voided':
+        return _reject_funding('Voided funding records cannot be edited.', 400)
     form = OwnerFundingForm(request.form)
     if not form.validate():
         if is_ajax_request():
@@ -199,6 +217,8 @@ def edit(id):
     funding.method = request.form.get('method', 'Cash').strip()
     funding.purpose = request.form.get('purpose', '').strip()
     funding.reference = request.form.get('reference', '').strip()[:100] or None
+    if funding.method != 'Cash' and not funding.reference:
+        return _reject_funding('A payment reference is required for non-cash funding.')
     funding.investment_type = request.form.get('investment_type', 'Capital').strip() or 'Capital'
     db.session.commit()
     message = "Capital contribution updated successfully!"
@@ -219,9 +239,14 @@ def delete(id):
         flash("Deletion not confirmed - the contribution was kept.", "danger")
         return redirect(url_for('funding.list'))
     funding = OwnerFunding.query.get_or_404(id)
-    db.session.delete(funding)
+    if funding.status == 'Voided':
+        return _reject_funding('This funding record is already voided.', 400)
+    funding.status = 'Voided'
+    funding.voided_at = datetime.utcnow()
+    funding.voided_by = current_user.id
+    funding.void_reason = (request.form.get('reason') or 'Voided by administrator').strip()[:300]
     db.session.commit()
-    message = "Capital contribution record deleted!"
+    message = "Funding record voided. The original remains available for audit."
     if is_ajax_request():
         return jsonify({"success": True, "message": message}), 200
     flash(message, "success")
