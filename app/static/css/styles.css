@@ -2607,3 +2607,55 @@ body.theme-transitioning ::after {
 }
 /* Gap tuning: reduce main-content horizontal padding to 10px (temp, revertible) */
 .main-content { padding-left: 10px !important; padding-right: 10px !important; }
+/* Dashboard visual system: compact, consistent operations workspace. */
+:root {
+    --dashboard-surface: rgba(15, 31, 52, 0.86);
+    --dashboard-surface-raised: rgba(21, 43, 70, 0.94);
+    --dashboard-border: rgba(148, 184, 220, 0.16);
+    --dashboard-muted: rgba(224, 236, 248, 0.62);
+    --dashboard-radius: 16px;
+}
+
+.dashboard-panel,
+.bento-grid .glass-card {
+    border: 1px solid var(--dashboard-border);
+    border-radius: var(--dashboard-radius);
+    background: linear-gradient(145deg, var(--dashboard-surface-raised), var(--dashboard-surface));
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+    transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease;
+}
+
+.bento-grid .glass-card:hover {
+    border-color: rgba(104, 192, 255, 0.28);
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.18);
+}
+
+.bento-grid .summary-card {
+    min-height: 142px;
+    border: 1px solid var(--dashboard-border);
+    border-radius: var(--dashboard-radius);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, .12);
+    transition: transform .2s ease, border-color .2s ease;
+}
+
+.bento-grid .summary-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(104, 192, 255, 0.35);
+}
+
+.bento-grid .stat-number { font-size: clamp(1.75rem, 3vw, 2.35rem); letter-spacing: -0.04em; }
+.bento-grid .stat-label { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; }
+.bento-grid .stat-sub { color: var(--dashboard-muted); font-size: .75rem; }
+
+.dashboard-action-center { scroll-margin-top: 1rem; }
+.dashboard-action-center h5 { letter-spacing: -.01em; }
+
+.dashboard-action-center .btn,
+.dashboard-panel .btn { border-radius: 9px; }
+
+@media (max-width: 767.98px) {
+    .bento-grid { gap: .85rem; }
+    .bento-grid .summary-card { min-height: 116px; padding: 1rem !important; }
+    .bento-grid .glass-card { padding: 1rem !important; }
+    .dashboard-action-center { order: -1; }
+}
