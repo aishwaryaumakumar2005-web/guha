@@ -125,10 +125,11 @@
     <!-- Status summary chips -->
     <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
         <span class="text-white-50 small me-1">Records:</span>
-        <a href="{{ url_for('payroll.payroll_list', month=filter_month, year=filter_year) }}" class="badge text-decoration-none {{ 'badge-inactive' if not filter_status else 'badge-inactive' }}" style="{{ 'outline:2px solid #fff;' if not filter_status }}">All {{ status_counts.Draft + status_counts.Paid + status_counts.Cancelled }}</a>
+        <a href="{{ url_for('payroll.payroll_list', month=filter_month, year=filter_year) }}" class="badge text-decoration-none {{ 'badge-inactive' if not filter_status else 'badge-inactive' }}" style="{{ 'outline:2px solid #fff;' if not filter_status }}">All {{ status_counts.Draft + status_counts.Paid + status_counts.Cancelled + status_counts.Reversed }}</a>
         <a href="{{ url_for('payroll.payroll_list', month=filter_month, year=filter_year, status='Draft') }}" class="badge text-decoration-none badge-cyan" style="{{ 'outline:2px solid #fff;' if filter_status == 'Draft' }}">Draft {{ status_counts.Draft }}</a>
         <a href="{{ url_for('payroll.payroll_list', month=filter_month, year=filter_year, status='Paid') }}" class="badge text-decoration-none badge-active" style="{{ 'outline:2px solid #fff;' if filter_status == 'Paid' }}">Paid {{ status_counts.Paid }}</a>
         <a href="{{ url_for('payroll.payroll_list', month=filter_month, year=filter_year, status='Cancelled') }}" class="badge text-decoration-none badge-danger" style="{{ 'outline:2px solid #fff;' if filter_status == 'Cancelled' }}">Cancelled {{ status_counts.Cancelled }}</a>
+        <a href="{{ url_for('payroll.payroll_list', month=filter_month, year=filter_year, status='Reversed') }}" class="badge text-decoration-none badge-danger" style="{{ 'outline:2px solid #fff;' if filter_status == 'Reversed' }}">Reversed {{ status_counts.Reversed }}</a>
     </div>
 
     {% if missing_tutors %}
@@ -347,6 +348,8 @@
                     <div class="mb-3">
                         <label class="form-label text-white small">Paid Date</label>
                         <input type="date" class="form-control" name="paid_date" id="confirm-paid-date" value="{{ today.isoformat() }}" max="{{ today.isoformat() }}">
+                        <label class="form-label text-white small mt-2">Payment Reference <span class="text-white-50">(required for non-cash)</span></label>
+                        <input type="text" class="form-control" name="payment_ref" maxlength="100" placeholder="UTR / cheque / transfer reference">
                     </div>
                 </div>
                 <div class="modal-footer">

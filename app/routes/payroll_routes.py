@@ -77,7 +77,7 @@ def _sufficient_balance(payment_method, amount):
     return float(available) >= amount, float(available)
 
 
-def _finalize_payroll(record, payment_method, paid_date):
+def _finalize_payroll(record, payment_method, paid_date, payment_ref=None):
     """Confirm a single draft into Paid + salary expense (P2/P5/E7).
 
     Returns (ok, message). Refuses negative-nets and insufficient account
@@ -92,6 +92,9 @@ def _finalize_payroll(record, payment_method, paid_date):
         return False, (f"Cannot confirm {record.tutor.name}'s payroll for "
                        f"{record.month}/{record.year}: the {payment_method} account has "
                        f"only Rs.{available:,.2f} available, below the Rs.{record.net_amount:,.2f} payout.")
+    payment_ref = (payment_ref or '').strip()[:100]
+    if payment_method != 'Cash' and not payment_ref:
+        return False, 'A payment reference is required for non-cash payroll payments.'
     salary_cat = ExpenseCategory.query.filter_by(name="Salary").first()
     if not salary_cat:
         salary_cat = ExpenseCategory(name="Salary", description="Staff salary payments")
@@ -101,7 +104,7 @@ def _finalize_payroll(record, payment_method, paid_date):
     expense_date = min(_period_end(record.month, record.year), date.today())
     expense = Expense(category_id=salary_cat.id, amount=record.net_amount, description=desc,
         expense_date=expense_date, created_by=current_user.id,
-        payment_method=payment_method)
+        payment_method=payment_method, payment_ref=payment_ref or None)
     db.session.add(expense)
     db.session.flush()
     record.status = 'Paid'
@@ -182,7 +185,7 @@ def payroll_list():
         records = records.filter_by(status=filter_status)
     records = records.order_by(PayrollRecord.created_at.desc()).all()
     tutors = Tutor.query.order_by(Tutor.name).all()
-    active_records = [r for r in records if r.status != 'Cancelled']
+    active_records = [r for r in records if r.status not in ('Cancelled', 'Reversed')]
     breakdowns = {r.id: _parse_breakdown(r.commission_breakdown) for r in records}
     # Lightweight per-record meta for the shared confirm/notes/breakdown modals.
     record_meta = {
@@ -208,12 +211,12 @@ def payroll_list():
     # UI/UX: post-'All' status counts (period-wide, pre-filter), per-tutor YTD
     # net for the filtered year, per-period existing-record counts, and the
     # 24-month net-payable trend for the summary chart.
-    status_counts = {s: 0 for s in ('Draft', 'Paid', 'Cancelled')}
+    status_counts = {s: 0 for s in ('Draft', 'Paid', 'Cancelled', 'Reversed')}
     for r in PayrollRecord.query.filter_by(month=filter_month, year=filter_year).all():
         if r.status in status_counts:
             status_counts[r.status] += 1
     ytd_records = PayrollRecord.query.filter(PayrollRecord.year == filter_year,
-        PayrollRecord.status != 'Cancelled').all()
+        PayrollRecord.status.notin_(['Cancelled', 'Reversed'])).all()
     ytd_nets = {}
     for r in ytd_records:
         ytd_nets[r.tutor_id] = ytd_nets.get(r.tutor_id, 0.0) + r.net_amount
@@ -230,7 +233,7 @@ def payroll_list():
         trend_month += 1
         aggregated = db.session.query(db.func.coalesce(db.func.sum(PayrollRecord.net_amount), 0.0)) \
             .filter(PayrollRecord.month == trend_month, PayrollRecord.year == trend_year,
-                    PayrollRecord.status != 'Cancelled').scalar()
+                    PayrollRecord.status.notin_(['Cancelled', 'Reversed'])).scalar()
         trend.append({'label': f"{['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][trend_month-1]} {str(trend_year)[2:]}",
                       'value': round(aggregated or 0.0, 2)})
     settings_js = {
@@ -345,7 +348,7 @@ def process_all_payroll():
 @login_required
 @admin_required
 def confirm_payroll(id):
-    record = PayrollRecord.query.get_or_404(id)
+    record = PayrollRecord.query.with_for_update().filter_by(id=id).first_or_404()
     if record.status != 'Draft':
         flash("Payroll record is already finalized.", "warning")
         return redirect(url_for('payroll.payroll_list', month=record.month, year=record.year))
@@ -354,7 +357,7 @@ def confirm_payroll(id):
     if paid_date is None:
         flash("Paid date cannot be empty or in the future.", "danger")
         return redirect(url_for('payroll.payroll_list', month=record.month, year=record.year))
-    ok, message = _finalize_payroll(record, payment_method, paid_date)
+    ok, message = _finalize_payroll(record, payment_method, paid_date, request.form.get('payment_ref'))
     if not ok:
         flash(message, "danger")
     else:
@@ -376,6 +379,7 @@ def confirm_all_payroll():
         flash('Month must be 1-12 and year must be 2000+.', 'danger')
         return redirect(url_for('payroll.payroll_list'))
     payment_method = (request.form.get('payment_method') or 'Cash').strip()
+    payment_ref = (request.form.get('payment_ref') or '').strip()
     paid_date = _parse_paid_date(request.form.get('paid_date'), date.today())
     if paid_date is None:
         flash("Paid date cannot be empty or in the future.", "danger")
@@ -384,7 +388,7 @@ def confirm_all_payroll():
     confirmed = 0
     problems = {'negative': 0, 'balance': 0}
     for rec in records:
-        ok, message = _finalize_payroll(rec, payment_method, paid_date)
+        ok, message = _finalize_payroll(rec, payment_method, paid_date, payment_ref)
         if not ok:
             if 'negative' in message:
                 problems['negative'] += 1
@@ -518,12 +522,18 @@ def delete_payroll(id):
         flash(f"Salary deletion not confirmed for {tutor_name}. Paid records affect past accounting; please retry with explicit confirmation.", "danger")
         return redirect(url_for('payroll.payroll_list', month=month, year=year))
     expense = Expense.query.get(record.expense_id) if record.expense_id else None
-    db.session.delete(record)
-    if expense:
-        db.session.delete(expense)
+    if was_paid:
+        record.status = 'Reversed'
+        if expense:
+            expense.status = 'Voided'
+            expense.voided_at = datetime.utcnow()
+            expense.voided_by = current_user.id
+            expense.void_reason = f'Payroll reversal for {tutor_name}'
+    else:
+        record.status = 'Cancelled'
     db.session.commit()
     if was_paid and expense:
-        flash(f"Salary deleted for {tutor_name}. The recorded salary expense (Rs.{expense.amount:,.2f}) was also removed.", "success")
+        flash(f"Salary reversed for {tutor_name}; the linked expense was voided for audit.", "success")
     else:
         flash(f"Salary deleted for {tutor_name}.", "success")
     return redirect(url_for('payroll.payroll_list', month=month, year=year))
