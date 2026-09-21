@@ -1370,6 +1370,22 @@ body.htmx-request #main-content {
 .student-profile-page dd,
 .student-profile-page .text-muted { color: rgba(234, 244, 255, .72) !important; }
 .student-profile-page a:not(.btn) { color: #7dd3fc; }
+.student-profile-page .student-back-link {
+    color: #1769aa !important;
+    text-decoration: none;
+}
+.student-profile-page .student-back-link:hover,
+.student-profile-page .student-back-link:focus {
+    color: #0d47a1 !important;
+    text-decoration: underline;
+}
+body.dark-mode .student-profile-page .student-back-link {
+    color: #7dd3fc !important;
+}
+body.dark-mode .student-profile-page .student-back-link:hover,
+body.dark-mode .student-profile-page .student-back-link:focus {
+    color: #bae6fd !important;
+}
 .student-profile-page .table {
     --student-row-a: rgba(13, 39, 64, .72);
     --student-row-b: rgba(27, 63, 92, .72);
