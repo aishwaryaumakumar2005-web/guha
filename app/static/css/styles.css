@@ -1370,6 +1370,35 @@ body.htmx-request #main-content {
 .student-profile-page dd,
 .student-profile-page .text-muted { color: rgba(234, 244, 255, .72) !important; }
 .student-profile-page a:not(.btn) { color: #7dd3fc; }
+.student-profile-page .table {
+    --student-row-a: rgba(13, 39, 64, .72);
+    --student-row-b: rgba(27, 63, 92, .72);
+    color: #eaf4ff;
+    border-color: transparent;
+}
+.student-profile-page .table thead th {
+    background: rgba(13, 39, 64, .95) !important;
+    color: #ffffff !important;
+    border-color: rgba(255,255,255,.1);
+}
+.student-profile-page .table tbody tr td,
+.student-profile-page .table tbody tr:nth-child(odd) td {
+    background: var(--student-row-a) !important;
+    color: #eaf4ff !important;
+    border-color: rgba(255,255,255,.06);
+}
+.student-profile-page .table tbody tr:nth-child(even) td {
+    background: var(--student-row-b) !important;
+}
+.student-profile-page .table tbody tr:hover td {
+    background: rgba(27, 110, 243, .22) !important;
+}
+.student-profile-page .table a,
+.student-profile-page .table a:hover,
+.student-profile-page .table a:focus {
+    background: transparent !important;
+    color: #7dd3fc !important;
+}
 
 .table-custom.sortable thead th {
     cursor: pointer;
