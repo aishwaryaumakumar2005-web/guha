@@ -176,6 +176,17 @@
                     {% endif %}
                     {% endfor %}
                 </div>
+                {% if pending_pages > 1 %}
+                <nav aria-label="Pending leave pages" class="mt-3">
+                    <div class="d-flex justify-content-between align-items-center small text-secondary">
+                        <span>Page {{ pending_page }} of {{ pending_pages }}</span>
+                        <div class="btn-group">
+                            {% if pending_page > 1 %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('leaves.leaves', pending_page=pending_page-1, history_page=history_page, **filter_args) }}">Previous</a>{% endif %}
+                            {% if pending_page < pending_pages %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('leaves.leaves', pending_page=pending_page+1, history_page=history_page, **filter_args) }}">Next</a>{% endif %}
+                        </div>
+                    </div>
+                </nav>
+                {% endif %}
             </div>
             {% endif %}
         </div>
@@ -228,7 +239,7 @@
                                             {% endif %}
                                             {% if current_user.role != 'Admin' %}
                                             <form method="POST" action="{{ url_for('leaves.withdraw_leave', leave_id=leave.id) }}" class="d-inline-block mt-1"
-                                                  onsubmit="return confirm('Cancel this leave request? This cannot be undone.');">
+                                                  onsubmit="return confirm('Withdraw this leave request?');">
                                                 <button type="submit" class="btn btn-sm btn-outline-danger px-2" title="Cancel this request">
                                                     <i class="bi bi-x-lg"></i> Cancel
                                                 </button>
@@ -322,11 +333,20 @@
                                                 <span class="badge badge-custom badge-active">Approved</span>
                                             {% elif leave.status == 'Rejected' %}
                                                 <span class="badge badge-custom badge-inactive">Rejected</span>
+                                            {% elif leave.status == 'Withdrawn' %}
+                                                <span class="badge badge-custom badge-inactive">Withdrawn</span>
+                                            {% elif leave.status == 'Cancelled' %}
+                                                <span class="badge badge-custom badge-inactive">Cancelled</span>
                                             {% endif %}
                                             {% if leave.status in ('Approved', 'Rejected') and leave.actioned_at %}
                                             <div class="small text-muted mt-1">
                                                 {% if leave.approver %}by {{ leave.approver.name }}{% else %}by Admin{% endif %} &middot; {{ leave.actioned_at.strftime("%d %b %Y, %I:%M %p") }}
                                             </div>
+                                            {% endif %}
+                                            {% if current_user.role != 'Admin' and leave.status == 'Approved' and leave.start_date > today %}
+                                            <form method="POST" action="{{ url_for('leaves.withdraw_leave', leave_id=leave.id) }}" class="mt-2" onsubmit="return confirm('Withdraw this approved future leave?');">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Withdraw</button>
+                                            </form>
                                             {% endif %}
                                         </td>
                                     </tr>
@@ -340,6 +360,17 @@
                         </tbody>
                     </table>
                 </div>
+                {% if history_pages > 1 %}
+                <nav aria-label="Leave history pages" class="mt-3">
+                    <div class="d-flex justify-content-between align-items-center small text-secondary">
+                        <span>Page {{ history_page }} of {{ history_pages }}</span>
+                        <div class="btn-group">
+                            {% if history_page > 1 %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('leaves.leaves', history_page=history_page-1, pending_page=pending_page, **filter_args) }}">Previous</a>{% endif %}
+                            {% if history_page < history_pages %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('leaves.leaves', history_page=history_page+1, pending_page=pending_page, **filter_args) }}">Next</a>{% endif %}
+                        </div>
+                    </div>
+                </nav>
+                {% endif %}
             </div>
         </div>
     </div>

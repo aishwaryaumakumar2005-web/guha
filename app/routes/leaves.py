@@ -14,10 +14,11 @@ leaves_bp = Blueprint('leaves', __name__)
 
 # Server-side cap so the page never loads unbounded history/pending rows.
 LEAVE_LIST_LIMIT = 50
+LEAVE_PAGE_SIZE = 25
 
 DEFAULT_LEAVE_TYPE = 'Casual'
 
-FILTER_STATUSES = ('All', 'Pending', 'Approved', 'Rejected')
+FILTER_STATUSES = ('All', 'Pending', 'Approved', 'Rejected', 'Withdrawn', 'Cancelled')
 
 
 def _month_range(value):
@@ -58,13 +59,15 @@ def _leave_balance(user):
     approved = LeaveRequest.query.filter(
         LeaveRequest.user_id == user.id,
         LeaveRequest.status == 'Approved',
-        LeaveRequest.start_date >= date(year, 1, 1),
         LeaveRequest.start_date <= date(year, 12, 31),
+        LeaveRequest.end_date >= date(year, 1, 1),
     ).all()
     used = {}
     for req in approved:
         leave_type = req.leave_type or DEFAULT_LEAVE_TYPE
-        used[leave_type] = used.get(leave_type, 0) + (req.end_date - req.start_date).days + 1
+        lo = max(req.start_date, date(year, 1, 1))
+        hi = min(req.end_date, date(year, 12, 31))
+        used[leave_type] = used.get(leave_type, 0) + max((hi - lo).days + 1, 0)
     return {
         leave_type: {
             'entitlement': ent,
@@ -116,9 +119,43 @@ def _sync_leave_attendance(leave):
             continue
         db.session.add(Attendance(
             person_type='tutor', person_id=tutor.id, date=d,
-            status='Leave', marked_by='auto_leave'))
+            status='Leave', marked_by=f'auto_leave:{leave.id}'))
         written += 1
     return written
+
+
+def _reconcile_leave_attendance(leave):
+    """Remove only attendance rows created by this leave request."""
+    if not leave.staff or not leave.staff.email:
+        return 0
+    tutor = Tutor.query.filter_by(email=leave.staff.email).first()
+    if not tutor:
+        return 0
+    rows = Attendance.query.filter(
+        Attendance.person_type == 'tutor', Attendance.person_id == tutor.id,
+        Attendance.marked_by == f'auto_leave:{leave.id}').all()
+    for row in rows:
+        db.session.delete(row)
+    return len(rows)
+
+
+def _balance_error(user, leave_type, start_date, end_date, exclude_id=None):
+    """Return an entitlement error for the request's calendar year, if any."""
+    balance = _leave_balance(user).get(leave_type)
+    if not balance:
+        return None
+    requested = (end_date - start_date).days + 1
+    used = balance['used']
+    if exclude_id:
+        old = LeaveRequest.query.get(exclude_id)
+        if old and old.status == 'Approved' and old.leave_type == leave_type:
+            year = date.today().year
+            lo = max(old.start_date, date(year, 1, 1))
+            hi = min(old.end_date, date(year, 12, 31))
+            used -= max((hi - lo).days + 1, 0)
+    if used + requested > balance['entitlement']:
+        return f'{leave_type} leave exceeds the available balance ({max(balance["entitlement"] - used, 0)} days remaining).'
+    return None
 
 
 def _send_status_notification(leave):
@@ -281,6 +318,13 @@ def leaves():
         leave_type = (request.form.get('leave_type') or DEFAULT_LEAVE_TYPE).strip() or DEFAULT_LEAVE_TYPE
         if leave_type not in LEAVE_TYPES:
             leave_type = DEFAULT_LEAVE_TYPE
+        leave_type = leave_type if leave_type in LEAVE_TYPES else DEFAULT_LEAVE_TYPE
+        balance_error = _balance_error(current_user, leave_type, start_date, end_date)
+        if balance_error:
+            if is_ajax_request():
+                return jsonify({"success": False, "errors": [balance_error]}), 400
+            flash(balance_error, 'danger')
+            return redirect(url_for('leaves.leaves'))
         new_leave = LeaveRequest(
             user_id=current_user.id, start_date=start_date, end_date=end_date,
             reason=reason, leave_type=leave_type, status='Pending'
@@ -304,7 +348,7 @@ def leaves():
         base_q = base_q.filter_by(user_id=user_scope)
     if month:
         ms, me = month
-        base_q = base_q.filter(LeaveRequest.start_date >= ms, LeaveRequest.start_date < me)
+        base_q = base_q.filter(LeaveRequest.start_date < me, LeaveRequest.end_date >= ms)
     if q:
         base_q = _apply_q(base_q, q)
     pending_q = base_q.filter(LeaveRequest.status == 'Pending')
@@ -313,8 +357,13 @@ def leaves():
         history_q = history_q.filter(LeaveRequest.status == status)
     pending_total = pending_q.count()
     history_total = history_q.count()
-    pending_leaves = pending_q.order_by(LeaveRequest.created_at.asc()).limit(LEAVE_LIST_LIMIT).all()
-    history_leaves = history_q.order_by(LeaveRequest.created_at.desc()).limit(LEAVE_LIST_LIMIT).all()
+    try:
+        pending_page = max(int(request.args.get('pending_page', 1)), 1)
+        history_page = max(int(request.args.get('history_page', 1)), 1)
+    except (TypeError, ValueError):
+        pending_page, history_page = 1, 1
+    pending_leaves = pending_q.order_by(LeaveRequest.created_at.asc()).offset((pending_page - 1) * LEAVE_PAGE_SIZE).limit(LEAVE_PAGE_SIZE).all()
+    history_leaves = history_q.order_by(LeaveRequest.created_at.desc()).offset((history_page - 1) * LEAVE_PAGE_SIZE).limit(LEAVE_PAGE_SIZE).all()
 
     # U5 calendar: default view follows the month filter when present.
     cal = (request.args.get('cal') or (month[0].strftime('%Y-%m') if month else today.strftime('%Y-%m')))
@@ -353,7 +402,11 @@ def leaves():
         history_leaves=history_leaves,
         pending_total=pending_total,
         history_total=history_total,
-        list_limit=LEAVE_LIST_LIMIT,
+        list_limit=LEAVE_PAGE_SIZE,
+        pending_page=pending_page,
+        history_page=history_page,
+        pending_pages=max((pending_total + LEAVE_PAGE_SIZE - 1) // LEAVE_PAGE_SIZE, 1),
+        history_pages=max((history_total + LEAVE_PAGE_SIZE - 1) // LEAVE_PAGE_SIZE, 1),
         leave_balance=_leave_balance(current_user) if not is_admin else None,
         leave_types=LEAVE_TYPES,
         aging_days=current_app.config.get('LEAVE_AGING_DAYS', 7),
@@ -377,7 +430,9 @@ def leaves():
 @login_required
 @admin_required
 def leave_action(leave_id, action):
-    leave = LeaveRequest.query.get_or_404(leave_id)
+    # Lock the request for the duration of the decision so two admins cannot
+    # approve/reject the same pending row concurrently on transactional DBs.
+    leave = LeaveRequest.query.with_for_update().filter_by(id=leave_id).first_or_404()
     if action in ('approve', 'reject') and leave.status != 'Pending':
         message = (f"Leave request for {leave.staff.name} was already actioned "
                    f"(current status: {leave.status}).")
@@ -386,6 +441,13 @@ def leave_action(leave_id, action):
         flash(message, "danger")
         return redirect(url_for('leaves.leaves'))
     if action == 'approve':
+        leave_type = leave.leave_type or DEFAULT_LEAVE_TYPE
+        balance_error = _balance_error(leave.staff, leave_type, leave.start_date, leave.end_date)
+        if balance_error:
+            if is_ajax_request():
+                return jsonify({"success": False, "message": balance_error}), 400
+            flash(balance_error, 'danger')
+            return redirect(url_for('leaves.leaves'))
         leave.status = 'Approved'
         message = f"Leave request for {leave.staff.name} approved."
         _sync_leave_attendance(leave)
@@ -419,15 +481,26 @@ def withdraw_leave(leave_id):
             return jsonify({"success": False, "message": message}), 403
         flash(message, "danger")
         return redirect(url_for('leaves.leaves'))
-    if leave.status != 'Pending':
-        message = f"Only pending requests can be cancelled (current status: {leave.status})."
+    if leave.status not in ('Pending', 'Approved'):
+        message = f"Only pending or future approved requests can be cancelled (current status: {leave.status})."
         if is_ajax_request():
             return jsonify({"success": False, "message": message}), 400
         flash(message, "danger")
         return redirect(url_for('leaves.leaves'))
-    db.session.delete(leave)
+    if leave.status == 'Approved' and leave.start_date <= date.today():
+        message = 'Leave that has already started cannot be cancelled.'
+        if is_ajax_request():
+            return jsonify({"success": False, "message": message}), 400
+        flash(message, 'danger')
+        return redirect(url_for('leaves.leaves'))
+    if leave.status == 'Approved':
+        _reconcile_leave_attendance(leave)
+    leave.status = 'Withdrawn'
+    leave.actioned_at = datetime.utcnow()
+    leave.approved_by = current_user.id
+    leave.remarks = (request.form.get('remarks') or '').strip() or leave.remarks
     db.session.commit()
-    message = "Leave request cancelled. The audit log records the removal."
+    message = "Leave request withdrawn successfully."
     if is_ajax_request():
         return jsonify({"success": True, "message": message}), 200
     flash(message, "success")
@@ -449,7 +522,7 @@ def export_leaves():
     month = _month_range(request.args.get('month'))
     if month:
         ms, me = month
-        query = query.filter(LeaveRequest.start_date >= ms, LeaveRequest.start_date < me)
+        query = query.filter(LeaveRequest.start_date < me, LeaveRequest.end_date >= ms)
     q = (request.args.get('q') or '').strip()[:100]
     if q:
         query = _apply_q(query, q)
@@ -484,3 +557,28 @@ def export_leaves():
     output = buf.getvalue().encode('utf-8-sig')
     return send_file(BytesIO(output), mimetype='text/csv', as_attachment=True,
                      download_name=f'leave_history_{date.today().strftime("%Y%m%d")}.csv')
+
+
+@leaves_bp.route('/leaves/report')
+@login_required
+@admin_required
+def leave_report():
+    """Compact JSON report for analytics and scheduled reporting consumers."""
+    year = request.args.get('year', type=int) or date.today().year
+    year = min(max(year, 1900), 2100)
+    start, end = date(year, 1, 1), date(year + 1, 1, 1)
+    rows = LeaveRequest.query.filter(
+        LeaveRequest.start_date < end, LeaveRequest.end_date >= start).all()
+    report = {'year': year, 'total_requests': len(rows), 'by_status': {},
+              'by_type': {}, 'approved_days': 0, 'pending_days': 0}
+    for row in rows:
+        report['by_status'][row.status] = report['by_status'].get(row.status, 0) + 1
+        leave_type = row.leave_type or DEFAULT_LEAVE_TYPE
+        report['by_type'][leave_type] = report['by_type'].get(leave_type, 0) + 1
+        lo, hi = max(row.start_date, start), min(row.end_date, end - timedelta(days=1))
+        days = max((hi - lo).days + 1, 0)
+        if row.status == 'Approved':
+            report['approved_days'] += days
+        elif row.status == 'Pending':
+            report['pending_days'] += days
+    return jsonify(report)
