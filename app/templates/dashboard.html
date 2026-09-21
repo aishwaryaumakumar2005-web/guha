@@ -55,7 +55,7 @@
         </div>
     </div>
 
-    <div class="bento-grid">
+    <div class="bento-grid{% if current_user.role != 'Admin' %} staff-dashboard-kpi{% endif %}">
         <!-- Stat Cards -->
         <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll">
             <a href="{{ url_for('students.list') }}" class="text-decoration-none d-block h-100">
@@ -114,7 +114,7 @@
             </a>
         </div>
         {% endif %}
-        <div class="bento-card bento-xl-{{ 4 if current_user.role != 'Admin' else 3 }} bento-md-6 animate-on-scroll stagger-4">
+        <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll stagger-4">
             <a href="{{ url_for('attendance.attendance') }}" class="text-decoration-none d-block h-100">
             <div class="summary-card staff">
                 <div><div class="stat-number">{{ ('%d%%' % stats.avg_student_attendance) if stats.avg_student_attendance is not none else '—' }}</div><div class="stat-label">Attendance</div></div>

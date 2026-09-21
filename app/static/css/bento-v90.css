@@ -16,6 +16,17 @@
     grid-column: span 12;
 }
 
+/* Staff dashboard uses a uniform KPI row. Keeping each card on the same
+   three-column span prevents the fifth card from creating an uneven 16-column
+   row when the role-specific cards are rendered. */
+.staff-dashboard-kpi .summary-card {
+    min-height: 132px;
+}
+
+.staff-dashboard-panel {
+    min-height: 100%;
+}
+
 /* Tablet Layout (768px - 991px) */
 @media (min-width: 768px) {
     .bento-md-6 { grid-column: span 6 !important; }
@@ -58,5 +69,9 @@
     .bento-span-8,
     .bento-span-12 {
         grid-column: span 12 !important;
+    }
+
+    .staff-dashboard-kpi .summary-card {
+        min-height: 112px;
     }
 }
