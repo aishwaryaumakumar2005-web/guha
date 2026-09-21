@@ -10,6 +10,16 @@ import re
 import tempfile
 import io
 
+MAX_STUDENT_IMPORT_BYTES = 5 * 1024 * 1024
+MAX_STUDENT_IMPORT_ROWS = 5000
+
+
+def _excel_safe(value):
+    """Prevent spreadsheet formula injection from user-controlled fields."""
+    if isinstance(value, str) and value[:1] in ('=', '+', '-', '@'):
+        return "'" + value
+    return value
+
 
 def _parse_date(raw):
     """Parse 'YYYY-MM-DD' form input into a date, or None when blank/invalid."""
@@ -193,6 +203,8 @@ def export_excel():
     from openpyxl.utils import get_column_letter
 
     course_filter = request.args.get('course_id', type=int)
+    status_filter = request.args.get('status', '').strip()
+    search = request.args.get('q', '').strip()
     if current_user.role == 'Staff':
         tutor = Tutor.query.filter_by(email=current_user.email).first()
         if tutor:
@@ -201,7 +213,8 @@ def export_excel():
                 student_courses.c.course_id.in_(course_ids),
                 db.or_(student_courses.c.status.is_(None), student_courses.c.status == 'Enrolled')
             ).distinct()
-            students = Student.query.filter(Student.id.in_(student_subquery)).order_by(Student.id).all()
+            query = Student.query.filter(Student.id.in_(student_subquery))
+            students = query.order_by(Student.id).all()
         else:
             students = []
     else:
@@ -213,6 +226,13 @@ def export_excel():
             students = Student.query.filter(Student.id.in_(student_subquery)).order_by(Student.id).all()
         else:
             students = Student.query.order_by(Student.id).all()
+
+    if search:
+        like = f'%{search}%'
+        students = [s for s in students if any(like.strip('%').lower() in str(v or '').lower()
+                                               for v in (s.name, s.email, s.phone, s.roll_no))]
+    if status_filter in STUDENT_STATUSES:
+        students = [s for s in students if (s.status or 'Active') == status_filter]
 
     wb = Workbook()
     ws = wb.active
@@ -235,17 +255,17 @@ def export_excel():
         course_names = ', '.join([c.name for c in s.courses]) if s.courses else ''
         status = s.status or 'Active'
         ws.cell(row=r, column=1, value=s.roll_no or s.id).number_format = '@'
-        ws.cell(row=r, column=2, value=s.name)
-        ws.cell(row=r, column=3, value=s.email or '')
-        phone = ws.cell(row=r, column=4, value=(s.phone or ''))
+        ws.cell(row=r, column=2, value=_excel_safe(s.name))
+        ws.cell(row=r, column=3, value=_excel_safe(s.email or ''))
+        phone = ws.cell(row=r, column=4, value=_excel_safe(s.phone or ''))
         phone.number_format = '@'
-        ws.cell(row=r, column=5, value=course_names)
+        ws.cell(row=r, column=5, value=_excel_safe(course_names))
         if s.enrollment_date:
             dc = ws.cell(row=r, column=6, value=s.enrollment_date)
             dc.number_format = 'DD MMM YYYY'
         else:
             ws.cell(row=r, column=6, value='')
-        ws.cell(row=r, column=7, value=status)
+        ws.cell(row=r, column=7, value=_excel_safe(status))
         if r % 2 == 0:
             for col in range(1, len(headers) + 1):
                 ws.cell(row=r, column=col).fill = banded_fill
@@ -429,6 +449,11 @@ def import_excel():
     # so reject it up front with an actionable message.
     if not file.filename.lower().endswith('.xlsx'):
         return jsonify({"success": False, "errors": ["Invalid file format. Please upload an .xlsx file (legacy .xls is not supported)"]}), 400
+    file.stream.seek(0, 2)
+    file_size = file.stream.tell()
+    file.stream.seek(0)
+    if file_size > MAX_STUDENT_IMPORT_BYTES:
+        return jsonify({"success": False, "errors": ["File is too large. Maximum size is 5 MB."]}), 413
     ai_validation = request.form.get('ai_validation', 'true').lower() == 'true'
     auto_course_mapping = request.form.get('auto_course_mapping', 'false').lower() == 'true'
     tmp_file_path = None
@@ -436,7 +461,7 @@ def import_excel():
         with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
             file.save(tmp_file.name)
             tmp_file_path = tmp_file.name
-        workbook = load_workbook(tmp_file_path)
+        workbook = load_workbook(tmp_file_path, read_only=True, data_only=True)
         sheet = workbook.active
         headers = []
         for cell in sheet[1]:
@@ -463,7 +488,9 @@ def import_excel():
                 "suggestions": ["Ensure your Excel file has columns: Name, Email, Phone"]
             }), 400
         students_data = []
-        for row in sheet.iter_rows(min_row=2, values_only=True):
+        for row_number, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+            if row_number > MAX_STUDENT_IMPORT_ROWS + 1:
+                return jsonify({"success": False, "errors": [f"Import is limited to {MAX_STUDENT_IMPORT_ROWS} rows."]}), 413
             if not any(row):
                 continue
             raw_status = _cell_text(row[column_map['status']]) if 'status' in column_map and column_map['status'] < len(row) else ''

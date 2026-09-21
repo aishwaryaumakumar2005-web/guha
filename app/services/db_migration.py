@@ -114,13 +114,18 @@ def _ensure_column_index(table, column):
 
 
 def migrate_indexes():
-    """Add indexes for frequently-filtered columns used by finance/account pages."""
+    """Add indexes for frequently-filtered directory and finance columns."""
     for table, col, extra in [
         ('fee_record', 'payment_method', 'idx_fee_payment_method'),
         ('fee_record', 'company_id', 'idx_fee_company'),
         ('expense', 'payment_method', 'idx_expense_payment_method'),
         ('owner_funding', 'method', 'idx_funding_method'),
         ('payroll_record', 'payment_method', 'idx_payroll_payment_method'),
+        ('student', 'status', 'idx_student_status'),
+        ('student', 'name', 'idx_student_name'),
+        ('student', 'phone', 'idx_student_phone'),
+        ('student_courses', 'status', 'idx_student_courses_status'),
+        ('student_courses', 'course_id', 'idx_student_courses_course'),
     ]:
         if _table_exists(table) and _has_column(table, col):
             try:
