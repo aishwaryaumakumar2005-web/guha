@@ -281,8 +281,8 @@ def edit(id):
     if ExpenseCategory.query.get(category_id) is None:
         return _reject("Selected category does not exist")
     expense.student_id, student_error = _parse_student_reference(request.form.get('student_id'))
-        if student_error:
-            return _reject(student_error)
+    if student_error:
+        return _reject(student_error)
     category_id, refund_error = _canonicalize_refund(category_id, expense.student_id)
     if refund_error:
         return _reject(refund_error)
