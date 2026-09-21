@@ -704,6 +704,21 @@ def create_app(config_object=None):
             except Exception as e:
                 print('Failed to ensure task workflow columns:', e, file=sys.stderr)
 
+        # Phase 2 account activation column must be ensured even when the
+        # broader production auto-migration switch is disabled. This is an
+        # additive, idempotent compatibility migration for existing deploys.
+        if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+            try:
+                from sqlalchemy import inspect
+                inspector = inspect(db.engine)
+                user_columns = {col['name'] for col in inspector.get_columns('user')}
+                if 'is_active' not in user_columns:
+                    db.session.execute(db.text('ALTER TABLE "user" ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE'))
+                    db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                print('Failed to ensure user.is_active:', e, file=sys.stderr)
+
         from app.audit import register_audit_events
         register_audit_events()
         from app.services.account_service import ensure_default_accounts, register_cache_invalidation
