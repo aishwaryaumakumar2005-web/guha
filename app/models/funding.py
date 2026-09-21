@@ -7,6 +7,7 @@ class OwnerFunding(db.Model):
     __table_args__ = (
         db.Index('idx_funding_method', 'method'),
         db.Index('idx_funding_date', 'funding_date'),
+        db.Index('idx_funding_status_date', 'status', 'funding_date'),
     )
 
     id = db.Column(db.Integer, primary_key=True)

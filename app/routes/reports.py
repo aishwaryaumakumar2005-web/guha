@@ -21,6 +21,13 @@ def filter_by_company_methods(query, model_attr, company_id):
     distinct-payment-method lookups are cached on flask.g for the current
     request, since this helper is called many times per page load.
     """
+    # All financial report paths pass through this helper. Keep the validity
+    # rule here so HTML, PDF, Excel, and course/payment-method summaries never
+    # accidentally include voided transactions.
+    model = getattr(model_attr, 'class_', None)
+    status = getattr(model, 'status', None)
+    if status is not None:
+        query = query.filter(status.notin_(['Voided', 'Cancelled', 'Reversed']))
     if not company_id:
         return query
     if has_request_context():
@@ -282,12 +289,14 @@ def reports():
         # so every metric on the card sheet shares one scope.
         fee_records = FeeRecord.query.filter(
             FeeRecord.student_id.in_([s.id for s in students]),
-            FeeRecord.payment_date >= thirty_days_ago
+            FeeRecord.payment_date >= thirty_days_ago,
+            FeeRecord.status != 'Voided'
         ).order_by(FeeRecord.payment_date.desc()).limit(50).all()
 
         total_collected = db.session.query(db.func.sum(FeeRecord.amount_paid)).filter(
             FeeRecord.student_id.in_([s.id for s in students]),
-            FeeRecord.payment_date >= thirty_days_ago
+            FeeRecord.payment_date >= thirty_days_ago,
+            FeeRecord.status != 'Voided'
         ).scalar() or 0.0
         
         return render_template('reports.html', 
@@ -592,12 +601,14 @@ def reports():
     # ---- Per-company income & tax breakdown (Income and Overall tabs) ----
     if tab in ('income', 'overall'):
         company_pl = []
-        comp_inc_rows = db.session.query(
+        comp_inc_query = db.session.query(
             FeeRecord.company_id,
             db.func.sum(FeeRecord.amount_paid).label('inc'),
             db.func.sum(FeeRecord.taxable_amount).label('tax'),
             db.func.sum(FeeRecord.gst_amount).label('gst')
-        ).filter(FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date).group_by(FeeRecord.company_id).all()
+        ).filter(FeeRecord.payment_date >= start_date, FeeRecord.payment_date <= end_date)
+        comp_inc_query = filter_by_company_methods(comp_inc_query, FeeRecord.payment_method, selected_company_id)
+        comp_inc_rows = comp_inc_query.group_by(FeeRecord.company_id).all()
         comp_inc_map = {r.company_id: {'inc': float(r.inc or 0), 'tax': float(r.tax or 0), 'gst': float(r.gst or 0)} for r in comp_inc_rows}
         for c in companies:
             if selected_company_id and c.id != selected_company_id:

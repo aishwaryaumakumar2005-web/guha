@@ -842,6 +842,19 @@ Total Collected</div>
 </div>
 {% endblock %}{% block scripts %}{% if tab != 'staff' %}
 <script>
+document.querySelectorAll('a[href*="/reports/pdf"], a[href*="/reports/excel"]').forEach(function (link) {
+    link.addEventListener('click', function () {
+        link.setAttribute('aria-busy', 'true');
+        link.classList.add('disabled');
+        var original = link.innerHTML;
+        link.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Preparing…';
+        window.setTimeout(function () {
+            link.removeAttribute('aria-busy');
+            link.classList.remove('disabled');
+            link.innerHTML = original;
+        }, 2500);
+    });
+});
 function toggleDateRange(val) {    var hideMonth = (val === 'custom' || val === 'yearly');    document.getElementById('monthPicker').style.display = hideMonth ? 'none' : 'block';    document.getElementById('dateRangePicker').style.display = (val === 'custom') ? 'block' : 'none';    }toggleDateRange('{{ filter_mode }}');var _charts = {};var _created = {};function makeChart(id, config) {    var el = document.getElementById(id);    if (!el || _created[id]) return;    _charts[id] = new Chart(el, config);    _created[id] = true;}function initTabCharts(tabId) {    var tabChartMap = {        'income':  ['incomeChart'],        'fees':    ['feesMonthlyChart'],        'expense': ['expenseMonthlyChart'],        'overall': ['plChart'],        'payment_methods': ['paymentChart']    };    var ids = tabChartMap[tabId] || [];    ids.forEach(function(id) {        var cfg = chartConfigs[id];        if (cfg) makeChart(id, cfg);    });    Object.keys(_charts).forEach(function(k) {        if (_charts[k] && _charts[k].resize) _charts[k].resize();    });}var chartConfigs = {};chartConfigs['incomeChart'] = {    type: 'bar',    data: {        labels: {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]|tojson }},        datasets: [            { label: 'Taxable (₹)', data: {{ tax_monthly|tojson }}, backgroundColor: 'rgba(107, 142, 35, 0.6)', borderColor: 'rgba(107, 142, 35, 1)', borderWidth: 2, borderRadius: 6 },            { label: 'GST (₹)', data: {{ gst_monthly|tojson }}, backgroundColor: 'rgba(0, 51, 204, 0.55)', borderColor: 'rgba(0, 51, 204, 1)', borderWidth: 2, borderRadius: 6 }        ]    },    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#ffffff', boxWidth: 12, font: { size: 11 } } } },
                 scales: {
                     x: { stacked: true, grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#ffffff' } },
@@ -905,6 +918,5 @@ function drillIntoMonth(evt, items) {
     if (cfg) cfg.options.onClick = drillIntoMonth;
 });</script>
 {% endif %}{% endblock %}
-
 
 

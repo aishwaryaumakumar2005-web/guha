@@ -8,6 +8,7 @@ class FeeRecord(db.Model):
         db.Index('idx_fee_student', 'student_id'),
         db.Index('idx_fee_company', 'company_id'),
         db.Index('idx_fee_payment_method', 'payment_method'),
+        db.Index('idx_fee_status_date', 'status', 'payment_date'),
     )
     id = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey('student.id', ondelete='CASCADE'), nullable=False)

@@ -25,6 +25,7 @@ class Expense(db.Model):
         db.Index('idx_expense_student', 'student_id'),
         # Enhancement: explicit billing-entity attribution for reports.
         db.Index('idx_expense_company', 'company_id'),
+        db.Index('idx_expense_status_date', 'status', 'expense_date'),
     )
     id = db.Column(db.Integer, primary_key=True)
     category_id = db.Column(db.Integer, db.ForeignKey('expense_category.id', ondelete='CASCADE'), nullable=False)
