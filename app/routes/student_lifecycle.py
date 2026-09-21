@@ -299,7 +299,10 @@ def lifecycle():
     q = (request.args.get('q') or '').strip()
     selected_course_id = request.args.get('course_id', type=int)
     selected_year = request.args.get('year', type=int)
-    ds = _lifecycle_dataset(filter_key, q, selected_course_id, selected_year)
+    risk_filter = request.args.get('risk', 'all')
+    review_filter = request.args.get('review', 'all')
+    ds = _lifecycle_dataset(filter_key, q, selected_course_id, selected_year,
+                            risk_filter, review_filter)
     ack_map = {a.student_id: a for a in LifecycleAck.query.all()}
     for d in ds['data']:
         d['suggest_archive'] = _suggest_archive(d, ds['thresholds'])
@@ -308,7 +311,8 @@ def lifecycle():
         filter_key=filter_key, today=date.today(),
         thresholds=ds['thresholds'], courses=Course.query.order_by(Course.name).all(),
         selected_course_id=selected_course_id, q=q,
-        selected_year=selected_year,
+        selected_year=selected_year, risk_filter=risk_filter,
+        review_filter=review_filter,
         years=_available_years(),
         kpis=_course_kpis(ds['data']),
         is_admin=is_admin, ack_map=ack_map,
@@ -317,7 +321,7 @@ def lifecycle():
 
 
 def _lifecycle_dataset(filter_key='all', q='', selected_course_id=None,
-                       selected_year=None):
+                       selected_year=None, risk_filter='all', review_filter='all'):
     """Build the (unfiltered) lifecycle rows plus bucket counts.
 
     Shared by the page view and the CSV export so both honor exactly the same
@@ -379,6 +383,18 @@ def _lifecycle_dataset(filter_key='all', q='', selected_course_id=None,
         else:
             target = filter_key.replace('_', ' ')
             data = [d for d in data if d['bucket'].lower() == target]
+
+    if risk_filter == 'at_risk':
+        data = [d for d in data if d['bucket'] == 'Long Absent']
+    elif risk_filter == 'watch':
+        data = [d for d in data if d['metrics'].get('att_rate') is not None
+                and d['metrics']['att_rate'] < thresholds['rate']]
+    if review_filter in ('reviewed', 'pending'):
+        acknowledged = {a.student_id for a in LifecycleAck.query.all()}
+        if review_filter == 'reviewed':
+            data = [d for d in data if d['student'].id in acknowledged]
+        else:
+            data = [d for d in data if d['student'].id not in acknowledged]
 
     # Default view: surface students who need attention first.
     data.sort(key=lambda d: (_BUCKET_ORDER.get(d['bucket'], 99),
@@ -910,11 +926,14 @@ def export():
     q = (request.args.get('q') or '').strip()
     selected_course_id = request.args.get('course_id', type=int)
     selected_year = request.args.get('year', type=int)
-    ds = _lifecycle_dataset(filter_key, q, selected_course_id, selected_year)
+    risk_filter = request.args.get('risk', 'all')
+    review_filter = request.args.get('review', 'all')
+    ds = _lifecycle_dataset(filter_key, q, selected_course_id, selected_year,
+                            risk_filter, review_filter)
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(['Name', 'Roll No', 'Phone', 'Email', 'Status', 'Bucket',
-                     'Courses', 'Attendance %', 'Attendance (window)', 'Last Activity'])
+                     'Risk reason', 'Courses', 'Attendance %', 'Attendance (window)', 'Last Activity'])
     for d in ds['data']:
         s = d['student']
         m = d['metrics']
@@ -928,6 +947,7 @@ def export():
             s.email or '',
             s.status or '',
             d['bucket'],
+            d.get('risk_reason') or '',
             courses,
             '' if m['att_rate'] is None else f"{m['att_rate']:.1f}",
             m['total_marks'],
@@ -939,3 +959,25 @@ def export():
     return send_file(
         io.BytesIO(out.encode('utf-8', errors='replace')),
         mimetype='text/csv', as_attachment=True, download_name=filename)
+
+
+@student_lifecycle_bp.route('/students/lifecycle/report')
+@login_required
+def report():
+    """Compact reporting payload for dashboards and scheduled monitors."""
+    ds = _lifecycle_dataset('all')
+    rows = ds['data']
+    total = len(rows)
+    reviewed = {a.student_id for a in LifecycleAck.query.all()}
+    return jsonify({
+        'generated_on': date.today().isoformat(),
+        'total_students': total,
+        'enrolled': sum(d['bucket'] == 'Enrolled' for d in rows),
+        'long_absent': sum(d['bucket'] == 'Long Absent' for d in rows),
+        'completed': sum(d['bucket'] == 'Completed' for d in rows),
+        'dropped': sum(d['bucket'] == 'Dropped' for d in rows),
+        'not_enrolled': sum(d['bucket'] == 'Not Enrolled' for d in rows),
+        'pending_review': sum(d['bucket'] == 'Long Absent' and
+                              d['student'].id not in reviewed for d in rows),
+        'thresholds': ds['thresholds'],
+    })

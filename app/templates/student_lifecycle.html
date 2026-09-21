@@ -19,6 +19,7 @@
             <h2 class="text-white fw-bold">Student Lifecycle</h2>
             <p class="text-white mb-0">Track course completion, dropouts and long-absent students. <span class="text-info">{% if is_admin %}Admin only{% else %}Read-only for staff{% endif %}</span></p>
         </div>
+        <a href="{{ url_for('student_lifecycle.report') }}" class="btn btn-outline-info btn-sm" target="_blank" rel="noopener" title="Open lifecycle report"><i class="bi bi-graph-up-arrow me-1" aria-hidden="true"></i>Report</a>
     </div>
 
     <!-- Summary tiles -->
@@ -70,6 +71,22 @@
                 <select id="lcYear" name="year" class="form-select form-select-sm" aria-label="Filter by cohort year">
                     <option value="">Any year</option>
                     {% for y in years %}<option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>{{ y }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="lcRisk" class="form-label small text-white mb-1">Risk</label>
+                <select id="lcRisk" name="risk" class="form-select form-select-sm" aria-label="Filter by attendance risk">
+                    <option value="all" {% if risk_filter == 'all' %}selected{% endif %}>All risk</option>
+                    <option value="at_risk" {% if risk_filter == 'at_risk' %}selected{% endif %}>At risk</option>
+                    <option value="watch" {% if risk_filter == 'watch' %}selected{% endif %}>Below threshold</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="lcReview" class="form-label small text-white mb-1">Review</label>
+                <select id="lcReview" name="review" class="form-select form-select-sm" aria-label="Filter by review state">
+                    <option value="all" {% if review_filter == 'all' %}selected{% endif %}>All reviews</option>
+                    <option value="pending" {% if review_filter == 'pending' %}selected{% endif %}>Pending review</option>
+                    <option value="reviewed" {% if review_filter == 'reviewed' %}selected{% endif %}>Reviewed</option>
                 </select>
             </div>
             <div class="col-md-3 d-flex gap-2">
@@ -138,7 +155,7 @@
             <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                 <div class="d-flex align-items-center gap-2">
                     <h4 class="mb-0 text-dark fw-bold"><i class="bi bi-diagram-3 me-2 text-dark" aria-hidden="true"></i>Student Records</h4>
-                    <a href="{{ url_for('student_lifecycle.export', filter=filter_key, q=q, course_id=selected_course_id, year=selected_year) }}" class="btn btn-sm btn-outline-premium" title="Download the current roster as CSV"><i class="bi bi-download me-1" aria-hidden="true"></i>CSV</a>
+            <a href="{{ url_for('student_lifecycle.export', filter=filter_key, q=q, course_id=selected_course_id, year=selected_year, risk=risk_filter, review=review_filter) }}" class="btn btn-sm btn-outline-premium" title="Download the current roster as CSV"><i class="bi bi-download me-1" aria-hidden="true"></i>CSV</a>
                 </div>
                 {% if is_admin %}
                 <div class="lc-bulk-bar" id="bulkBar" role="region" aria-label="Bulk actions">
