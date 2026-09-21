@@ -65,7 +65,8 @@ Bulk import student records from Excel files with AI-powered data validation, du
     </div>
     {% endif %}
     <!-- Student Table Grid -->
-    <div class="glass-card p-4" data-aos="fade-up">
+    <div class="glass-card p-4 students-directory" data-aos="fade-up">
+        <h4 class="mb-4 text-white fw-bold"><i class="bi bi-people me-2 text-white" aria-hidden="true"></i>Students Ledger</h4>
         <div class="table-container">
             <table id="studentsTable" class="table table-custom sortable" data-page-size="20" data-server-search="true" data-export-url="{{ url_for('students.export_excel') }}{% if selected_course_id %}?course_id={{ selected_course_id }}{% endif %}">
                 <thead>
@@ -98,7 +99,7 @@ Actions</th>
                                             <span class="student-initials me-2" aria-hidden="true">{{ student.name|first|upper }}</span>
                                         {% endif %}
                                         <span class="fw-medium text-white">
-<a class="fw-medium text-white" href="{{ url_for('students.profile', id=student.id) }}">{{ student.name }}</a>
+<a class="fw-medium student-name-link" href="{{ url_for('students.profile', id=student.id) }}">{{ student.name }}</a>
                                     </div>
                                     <div class="small text-white-50 text-truncate" style="max-width:220px;opacity:0.7;">{{ student.email }}</div>
                                 </td>

@@ -1328,6 +1328,49 @@ body.htmx-request #main-content {
 }
 .table-custom tr:last-child td { border-bottom: none; }
 
+/* Students and enquiry ledgers share the same dark action treatment. */
+.students-directory .student-name-link {
+    color: #ffffff !important;
+    text-decoration: none;
+    transition: color .15s ease;
+}
+.students-directory .student-name-link:hover,
+.students-directory .student-name-link:focus {
+    color: #7dd3fc !important;
+    text-decoration: underline;
+}
+.students-directory .dropdown-menu,
+.students-directory .dropdown-menu.show {
+    background: #102d49 !important;
+    border: 1px solid rgba(125, 211, 252, .28) !important;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .38);
+}
+.students-directory .dropdown-item {
+    color: #eaf4ff !important;
+    background: transparent !important;
+}
+.students-directory .dropdown-item:hover,
+.students-directory .dropdown-item:focus {
+    color: #ffffff !important;
+    background: rgba(27, 110, 243, .28) !important;
+}
+.students-directory .dropdown-divider {
+    border-color: rgba(255,255,255,.12) !important;
+}
+.student-profile-page .card {
+    background: rgba(13, 39, 64, .72) !important;
+    color: #eaf4ff;
+    border: 1px solid rgba(125, 211, 252, .14) !important;
+}
+.student-profile-page h1,
+.student-profile-page h5,
+.student-profile-page dt,
+.student-profile-page td,
+.student-profile-page th { color: #ffffff; }
+.student-profile-page dd,
+.student-profile-page .text-muted { color: rgba(234, 244, 255, .72) !important; }
+.student-profile-page a:not(.btn) { color: #7dd3fc; }
+
 .table-custom.sortable thead th {
     cursor: pointer;
     user-select: none;

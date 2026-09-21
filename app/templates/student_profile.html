@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}{{ student.name }} · Student Profile{% endblock %}
 {% block content %}
-<div class="container-fluid py-4">
+<div class="container-fluid py-4 student-profile-page">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div><a href="{{ url_for('students.list') }}" class="text-muted small">← Back to students</a><h1 class="h3 mb-0 mt-2">{{ student.name }}</h1><span class="badge bg-secondary">{{ student.status or 'Active' }}</span></div>
     {% if current_user.role == 'Admin' %}<a class="btn btn-primary" href="{{ url_for('students.list') }}?edit={{ student.id }}">Edit student</a>{% endif %}
