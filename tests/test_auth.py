@@ -1,5 +1,5 @@
 from app.extensions import db
-from app.models import User
+from app.models import User, PasswordResetToken
 
 
 def test_login_page_renders(client):
@@ -57,8 +57,8 @@ def test_register_creates_user(app, client):
         'name': 'New Person',
         'email': 'new@guha.test',
         'username': 'newuser',
-        'password': 'secret1',
-        'confirm_password': 'secret1',
+        'password': 'Secret123',
+        'confirm_password': 'Secret123',
     })
     assert resp.status_code == 302
     with app.app_context():
@@ -68,9 +68,19 @@ def test_register_creates_user(app, client):
 
 
 def test_forgot_password_resets(app, client):
+    client.post('/forgot-password', data={'username': 'admin', 'email': 'admin@guha.test'})
+    with app.app_context():
+        reset = PasswordResetToken.query.filter_by(user_id=1).first()
+        assert reset is not None
+        import hashlib
+        # The raw token is intentionally never persisted; verify the invalid
+        # token path and cover reset lifecycle through a generated test token.
+        raw = 'test-reset-token'
+        reset.token_hash = hashlib.sha256(raw.encode()).hexdigest()
+        db.session.commit()
     client.post('/forgot-password', data={
-        'username': 'admin', 'email': 'admin@guha.test',
-        'new_password': 'newpass1', 'confirm_password': 'newpass1',
+        'reset_token': 'test-reset-token',
+        'new_password': 'Newpass123', 'confirm_password': 'Newpass123',
     })
     with app.app_context():
         user = User.query.filter_by(username='admin').first()
