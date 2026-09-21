@@ -327,6 +327,12 @@ def create_app(config_object=None):
                 print("Migration migrate_course_lifecycle_columns FAILED:", e, flush=True)
                 db.session.rollback()
             try:
+                from app.services.db_migration import migrate_attendance_provenance_column
+                migrate_attendance_provenance_column()
+            except Exception as e:
+                print("Migration migrate_attendance_provenance_column FAILED:", e, flush=True)
+                db.session.rollback()
+            try:
                 from app.services.db_migration import migrate_expense_student_id, migrate_expense_enhancements
                 migrate_expense_student_id()
                 print("Migration migrate_expense_student_id completed OK", flush=True)
@@ -576,6 +582,11 @@ def create_app(config_object=None):
                 migrate_course_lifecycle_columns()
             except Exception as e:
                 print('Failed to ensure course lifecycle columns:', e, file=sys.stderr)
+            try:
+                from app.services.db_migration import migrate_attendance_provenance_column
+                migrate_attendance_provenance_column()
+            except Exception as e:
+                print('Failed to ensure attendance provenance column:', e, file=sys.stderr)
 
         # Same self-heal for the leave-review action columns (approved_by /
         # actioned_at / remarks). The ORM selects them, so a legacy database

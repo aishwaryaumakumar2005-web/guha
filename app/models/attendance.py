@@ -17,7 +17,7 @@ class Attendance(db.Model):
     # everything that counts sessions within a window.
     date = db.Column(db.Date, default=datetime.now().date, nullable=False)
     status = db.Column(db.String(20), default='Present')
-    marked_by = db.Column(db.String(10), default='manual')
+    marked_by = db.Column(db.String(50), default='manual')
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):

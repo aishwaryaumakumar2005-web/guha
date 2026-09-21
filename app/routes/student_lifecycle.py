@@ -80,7 +80,8 @@ def _enrollment_map():
 
 # Attendance score per mark: a Half Day counts as half a session. Unknown
 # statuses fail open as attended, matching historical behavior.
-ATTENDANCE_SCORES = {'Present': 1.0, 'Late': 1.0, 'Half Day': 0.5, 'Absent': 0.0}
+ATTENDANCE_SCORES = {'Present': 1.0, 'Late': 1.0, 'Half Day': 0.5, 'Absent': 0.0,
+                     'Leave': None}
 
 # SystemSetting keys overriding the defaults below (editable on the admin
 # console). Absent/invalid values fall back to the constants.
@@ -116,7 +117,7 @@ def _get_thresholds():
 
 
 def _score_status(status):
-    return ATTENDANCE_SCORES.get(status, 1.0)
+    return ATTENDANCE_SCORES.get(status, None)
 
 
 def _normalize_marks(records):
@@ -129,7 +130,9 @@ def _normalize_marks(records):
     by_date = {}
     for r in records:
         existing = by_date.get(r.date)
-        if existing is None or _score_status(r.status) < _score_status(existing):
+        score = _score_status(r.status)
+        existing_score = _score_status(existing) if existing is not None else None
+        if existing is None or (score is not None and (existing_score is None or score < existing_score)):
             by_date[r.date] = r.status
     return by_date
 
@@ -156,8 +159,9 @@ def _metrics_from_marks(by_date, window_start):
         else:
             break
     recent = [d for d in dates if d >= window_start]
-    total = len(recent)
-    scored = sum(_score_status(by_date[d]) for d in recent)
+    scored_marks = [d for d in recent if _score_status(by_date[d]) is not None]
+    total = len(scored_marks)
+    scored = sum(_score_status(by_date[d]) for d in scored_marks)
     rate = (scored / total * 100) if total else None
     return {
         'max_run': max_run,

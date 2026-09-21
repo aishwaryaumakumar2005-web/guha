@@ -153,6 +153,23 @@ def migrate_course_lifecycle_columns():
                 db.session.rollback()
 
 
+def migrate_attendance_provenance_column():
+    """Widen attendance.marked_by for tutor IDs and audit sources."""
+    if not _table_exists('attendance'):
+        return
+    try:
+        if db.engine.dialect.name == 'postgresql':
+            db.session.execute(text('ALTER TABLE "attendance" ALTER COLUMN "marked_by" TYPE VARCHAR(50)'))
+        elif db.engine.dialect.name == 'mysql':
+            db.session.execute(text('ALTER TABLE attendance MODIFY marked_by VARCHAR(50)'))
+        else:
+            # SQLite does not enforce VARCHAR lengths; no rebuild is needed.
+            return
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
 def migrate_renames():
     """Rename old account names to their new canonical names in all persisted data.
 

@@ -2,7 +2,7 @@ from datetime import datetime, date, timedelta
 from flask import Blueprint, render_template, request, jsonify, flash, url_for
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import Attendance, Student, Tutor, student_courses
+from app.models import Attendance, Student, Tutor, AuditLog, student_courses
 
 attendance_bp = Blueprint('attendance', __name__)
 
@@ -36,6 +36,33 @@ def _int_person_id(data):
     return person_id if person_id > 0 else None
 
 
+def _active_student_ids_for_tutor(tutor):
+    course_ids = [c.id for c in tutor.courses if (c.status or 'Active') != 'Archived']
+    if not course_ids:
+        return set()
+    rows = db.session.query(student_courses.c.student_id).filter(
+        student_courses.c.course_id.in_(course_ids),
+        db.or_(student_courses.c.status == 'Enrolled', student_courses.c.status.is_(None))
+    ).distinct().all()
+    return {row[0] for row in rows}
+
+
+def _audit_change(record, previous, source):
+    if previous == record.status:
+        return
+    import json
+    db.session.add(AuditLog(
+        user_id=current_user.id if current_user.is_authenticated else None,
+        username=current_user.username if current_user.is_authenticated else 'system',
+        action='UPDATE', entity_type='Attendance', entity_id=record.id,
+        changes=json.dumps({'person_type': record.person_type,
+                            'person_id': record.person_id,
+                            'date': record.date.isoformat(),
+                            'from': previous, 'to': record.status,
+                            'source': source})
+    ))
+
+
 @attendance_bp.route('/attendance')
 @login_required
 def attendance():
@@ -49,9 +76,10 @@ def attendance():
 
     if tutor_id:
         tutor = Tutor.query.get_or_404(tutor_id)
-        course_ids = [c.id for c in tutor.courses]
+        course_ids = [c.id for c in tutor.courses if (c.status or 'Active') != 'Archived']
         student_subquery = db.session.query(student_courses.c.student_id).filter(
-            student_courses.c.course_id.in_(course_ids)
+            student_courses.c.course_id.in_(course_ids),
+            db.or_(student_courses.c.status == 'Enrolled', student_courses.c.status.is_(None))
         ).distinct()
         students = Student.query.filter(Student.id.in_(student_subquery), Student.status == 'Active').all()
     else:
@@ -118,7 +146,7 @@ def api_tutor_attendance_mark(tutor_id):
     status = data.get('status', DEFAULT_STATUS)
     if status not in ATTENDANCE_STATUSES:
         return jsonify({"error": "Invalid attendance status."}), 400
-    course_ids = [c.id for c in tutor.courses]
+    course_ids = [c.id for c in tutor.courses if (c.status or 'Active') != 'Archived']
     allowed_student_ids = db.session.query(student_courses.c.student_id).filter(
         student_courses.c.course_id.in_(course_ids)
     ).distinct().all()
@@ -137,6 +165,8 @@ def api_tutor_attendance_mark(tutor_id):
     else:
         record = Attendance(person_type='student', person_id=person_id, date=today, status=status, marked_by=f'tutor_{tutor_id}')
         db.session.add(record)
+    db.session.flush()
+    _audit_change(record, previous, 'tutor')
     db.session.commit()
     resp = {"success": True, "message": f"Attendance for student {person_id} marked as {status} by tutor {tutor_id}."}
     if previous and previous != status:
@@ -172,9 +202,10 @@ def api_attendance_mark():
         if person_type == 'tutor' and person_id != tutor.id:
             return jsonify({"error": "Staff can only mark their own attendance."}), 403
         if person_type == 'student':
-            course_ids = [c.id for c in tutor.courses]
+            course_ids = [c.id for c in tutor.courses if (c.status or 'Active') != 'Archived']
             allowed = db.session.query(student_courses.c.student_id).filter(
-                student_courses.c.course_id.in_(course_ids)
+                student_courses.c.course_id.in_(course_ids),
+                db.or_(student_courses.c.status == 'Enrolled', student_courses.c.status.is_(None))
             ).distinct().all()
             if person_id not in {sid[0] for sid in allowed}:
                 return jsonify({"error": "Student not assigned to your courses."}), 403
@@ -198,6 +229,8 @@ def api_attendance_mark():
     else:
         record = Attendance(person_type=person_type, person_id=person_id, date=day, status=status, marked_by=marked_by)
         db.session.add(record)
+    db.session.flush()
+    _audit_change(record, previous, marked_by)
     db.session.commit()
     resp = {"success": True, "message": f"{person_type.capitalize()} attendance logged as {status}."}
     # Same-day marks are upserts (one row per person+date): an overwrite that
@@ -230,6 +263,12 @@ def api_attendance_scan():
         return jsonify({"success": False, "message": "Invalid QR code signature or record not found."}), 404
     if person.status != 'Active':
         return jsonify({"success": False, "message": f"{person.name} is registered but inactive."}), 400
+    if current_user.role == 'Staff':
+        own = Tutor.query.filter_by(email=current_user.email).first()
+        if person_type == 'tutor' and (not own or own.id != person.id):
+            return jsonify({"success": False, "message": "Staff can only scan their own attendance."}), 403
+        if person_type == 'student' and (not own or person.id not in _active_student_ids_for_tutor(own)):
+            return jsonify({"success": False, "message": "Student is not assigned to your active courses."}), 403
     today = date.today()
     record = Attendance.query.filter_by(person_type=person_type, person_id=person.id, date=today).first()
     # Admin manual marks are authoritative: scanning must not silently override them.
@@ -253,6 +292,8 @@ def api_attendance_scan():
         record = Attendance(person_type=person_type, person_id=person.id, date=today, status='Present', marked_by='qr')
         db.session.add(record)
         is_new = True
+    db.session.flush()
+    _audit_change(record, previous, 'qr')
     db.session.commit()
     resp = {"success": True, "name": person.name, "role": person_type,
             "person_id": person.id, "message": f"Successfully marked Present via QR Code for {person.name}.",
