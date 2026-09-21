@@ -571,6 +571,12 @@ def create_app(config_object=None):
             except Exception as e:
                 print('Failed to ensure exam.window columns:', e, file=sys.stderr)
 
+            try:
+                from app.services.db_migration import migrate_course_lifecycle_columns
+                migrate_course_lifecycle_columns()
+            except Exception as e:
+                print('Failed to ensure course lifecycle columns:', e, file=sys.stderr)
+
         # Same self-heal for the leave-review action columns (approved_by /
         # actioned_at / remarks). The ORM selects them, so a legacy database
         # restored from a pre-feature backup would otherwise 500 on /leaves.
