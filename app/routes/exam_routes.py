@@ -8,7 +8,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from fpdf import FPDF
 from app.extensions import db
-from app.models import Course, Student, Exam, ExamScore, McqQuestion, McqAttempt, McqAnswer, ExamAssignment, Tutor
+from app.models import Course, Student, Exam, ExamScore, McqQuestion, McqAttempt, McqAnswer, ExamAssignment, Tutor, AuditLog, student_courses
 from app.models.user import User
 from app.helpers import admin_required
 from app.forms import ExamForm
@@ -18,7 +18,7 @@ exams_bp = Blueprint('exams', __name__, url_prefix='/exams')
 
 def _staff_course_ids():
     tutor = Tutor.query.filter_by(email=current_user.email).first()
-    return {c.id for c in tutor.courses} if tutor else set()
+    return {c.id for c in tutor.courses if (c.status or 'Active') != 'Archived'} if tutor else set()
 
 
 def _staff_may_manage(exam):
@@ -62,13 +62,14 @@ def exam_list():
             return render_template('exams.html', exams=[], courses=[],
                 filter_course=None, filter_month=None, filter_year=None, filter_status=None, filter_q=None,
                 today=date.today(), section='list', is_staff=True)
-        course_ids = [c.id for c in tutor.courses]
+        course_ids = [c.id for c in tutor.courses if (c.status or 'Active') != 'Archived']
         filter_course = request.args.get('course_id', type=int)
         filter_month = request.args.get('month', type=int)
         filter_year = request.args.get('year', type=int)
         filter_status = request.args.get('status', '')
         filter_q = request.args.get('q', '').strip()
-        query = Exam.query.filter(Exam.course_id.in_(course_ids))
+        query = Exam.query.filter(Exam.course_id.in_(course_ids),
+                                  db.or_(Exam.status.is_(None), Exam.status != 'Archived'))
         if filter_course and filter_course in course_ids:
             query = query.filter_by(course_id=filter_course)
         if filter_month and filter_year:
@@ -108,7 +109,7 @@ def exam_list():
     filter_year = request.args.get('year', type=int)
     filter_status = request.args.get('status', '')
     filter_q = request.args.get('q', '').strip()
-    query = Exam.query
+    query = Exam.query.filter(db.or_(Exam.status.is_(None), Exam.status != 'Archived'))
     if filter_course:
         query = query.filter_by(course_id=filter_course)
     if filter_month and filter_year:
@@ -180,9 +181,9 @@ def edit_exam(id):
 def delete_exam(id):
     exam = Exam.query.get_or_404(id)
     title = exam.title
-    db.session.delete(exam)
+    exam.status = 'Archived'
     db.session.commit()
-    flash(f"Exam '{title}' deleted.", "info")
+    flash(f"Exam '{title}' archived. Scores and attempts were preserved.", "info")
     return redirect(url_for('exams.exam_list'))
 
 @exams_bp.route('/<int:id>/scores')
@@ -192,7 +193,10 @@ def exam_scores(id):
     if not _staff_may_manage(exam):
         flash('You do not have access to this exam.', 'danger')
         return redirect(url_for('exams.exam_list'))
-    students = Student.query.join(Student.courses).filter(Course.id == exam.course_id).order_by(Student.name).all()
+    students = Student.query.join(student_courses, student_courses.c.student_id == Student.id).filter(
+        student_courses.c.course_id == exam.course_id,
+        db.or_(student_courses.c.status == 'Enrolled', student_courses.c.status.is_(None)),
+        Student.status == 'Active').order_by(Student.name).all()
     score_map = {}
     for s in exam.scores:
         score_map[s.student_id] = s
@@ -240,11 +244,19 @@ def save_scores(id):
         rem = (rem.strip() or '')[:200]
         existing = ExamScore.query.filter_by(exam_id=exam.id, student_id=sid_int).first()
         if existing:
+            previous_marks = existing.marks_obtained
             existing.marks_obtained = marks_val
             existing.remarks = rem
         else:
+            previous_marks = None
             score = ExamScore(exam_id=exam.id, student_id=sid_int, marks_obtained=marks_val, remarks=rem)
             db.session.add(score)
+        db.session.flush()
+        db.session.add(AuditLog(
+            user_id=current_user.id, username=current_user.username,
+            action='UPDATE', entity_type='ExamScore', entity_id=existing.id if existing else None,
+            changes=json.dumps({'exam_id': exam.id, 'student_id': sid_int,
+                                'from': previous_marks, 'to': marks_val})))
         saved += 1
     try:
         db.session.commit()
@@ -569,6 +581,11 @@ def mcq_regenerate(id):
 @admin_required
 def mcq_publish(id):
     exam = Exam.query.get_or_404(id)
+    questions = list(exam.mcq_questions)
+    if not questions or any(q.correct_option not in ('A', 'B', 'C', 'D') for q in questions):
+        flash('Cannot publish: add valid questions and correct answers first.', 'danger')
+        return redirect(url_for('exams.mcq_preview', id=exam.id))
+    exam.num_questions = len(questions)
     exam.is_published = True
     db.session.commit()
     flash(f'"{exam.title}" is now published. Students can take the exam.', 'success')
@@ -584,7 +601,11 @@ def mcq_edit_question(id):
     q.option_b = request.form.get('option_b', q.option_b)
     q.option_c = request.form.get('option_c', q.option_c)
     q.option_d = request.form.get('option_d', q.option_d)
-    q.correct_option = request.form.get('correct_option', q.correct_option).upper()
+    correct = request.form.get('correct_option', q.correct_option).upper()
+    if correct not in ('A', 'B', 'C', 'D'):
+        flash('Correct answer must be A, B, C, or D.', 'danger')
+        return redirect(request.referrer or url_for('exams.mcq_preview', id=q.exam_id))
+    q.correct_option = correct
     db.session.commit()
     flash('Question updated!', 'success')
     return redirect(request.referrer or url_for('exams.mcq_preview', id=q.exam_id))
@@ -593,6 +614,10 @@ def mcq_edit_question(id):
 @login_required
 def mcq_take(id):
     exam = Exam.query.get_or_404(id)
+    _finalize_expired(exam)
+    if (exam.status or 'Active') == 'Archived':
+        flash('This exam is archived.', 'warning')
+        return redirect(url_for('dashboard.dashboard'))
     if not exam.is_published:
         flash('This exam has not been published yet.', 'warning')
         return redirect(url_for('dashboard.dashboard'))
@@ -636,6 +661,8 @@ def mcq_take(id):
 @login_required
 def mcq_submit(id):
     exam = Exam.query.get_or_404(id)
+    if (exam.status or 'Active') == 'Archived' or not exam.is_published:
+        return jsonify({'error': 'This exam is not accepting submissions.'}), 403
     student = Student.query.filter_by(email=current_user.email).first()
     if not student:
         return jsonify({'error': 'Not a student'}), 403
@@ -647,10 +674,21 @@ def mcq_submit(id):
     if datetime.utcnow().replace(tzinfo=timezone.utc) > deadline + timedelta(seconds=60):
         return jsonify({'error': 'Time expired. Your attempt has been closed.'}), 400
     data = request.get_json()
+    today = date.today()
+    if exam.available_from and today < exam.available_from:
+        return jsonify({'error': 'This exam is not open yet.'}), 403
+    if exam.available_until and today > exam.available_until:
+        return jsonify({'error': 'This exam is closed.'}), 403
+    assignment = ExamAssignment.query.filter_by(exam_id=exam.id, student_id=student.id).first()
+    if not assignment or (assignment.due_date and today > assignment.due_date):
+        return jsonify({'error': 'This exam assignment is no longer valid.'}), 403
     answers = data.get('answers', {}) if data else {}
     score = 0
-    marks_per_q = exam.max_marks / exam.num_questions if exam.num_questions else 1
-    for q in exam.mcq_questions:
+    actual_questions = list(exam.mcq_questions)
+    if not actual_questions:
+        return jsonify({'error': 'This exam has no questions.'}), 409
+    marks_per_q = exam.max_marks / len(actual_questions)
+    for q in actual_questions:
         selected = answers.get(str(q.id))
         is_correct = selected and selected.upper() == q.correct_option
         if is_correct:

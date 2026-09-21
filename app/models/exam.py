@@ -17,6 +17,7 @@ class Exam(db.Model):
     available_from = db.Column(db.Date, nullable=True)
     available_until = db.Column(db.Date, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(20), nullable=False, default='Active')
 
     course = db.relationship('Course', backref=db.backref('exams', lazy=True, cascade='all, delete-orphan'))
     scores = db.relationship('ExamScore', backref='exam', lazy=True, cascade='all, delete-orphan')

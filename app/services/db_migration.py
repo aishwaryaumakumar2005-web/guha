@@ -170,6 +170,17 @@ def migrate_attendance_provenance_column():
         db.session.rollback()
 
 
+def migrate_exam_status_column():
+    """Add the non-destructive exam lifecycle status."""
+    if not _table_exists('exam') or _has_column('exam', 'status'):
+        return
+    try:
+        db.session.execute(text("ALTER TABLE \"exam\" ADD COLUMN \"status\" VARCHAR(20) DEFAULT 'Active'"))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
 def migrate_renames():
     """Rename old account names to their new canonical names in all persisted data.
 
