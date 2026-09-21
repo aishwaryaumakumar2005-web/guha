@@ -250,6 +250,7 @@
                                 {% else %}
                                 <span class="small text-secondary">Never marked</span>
                                 {% endif %}
+                                {% if d.risk_reason %}<div class="small text-warning mt-1" title="Why this student is flagged"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>{{ d.risk_reason }}</div>{% endif %}
                             </td>
                             <td data-label="Last Activity" class="text-end small text-secondary">
                                 {% if d.metrics.last_attendance_date %}

@@ -8,7 +8,7 @@ from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import (Student, Course, Attendance, AuditLog, Enquiry,
                         LifecycleAck, student_courses)
-from app.helpers import admin_required
+from app.helpers import admin_required, staff_can_view_student
 
 student_lifecycle_bp = Blueprint('student_lifecycle', __name__)
 
@@ -200,6 +200,19 @@ def _is_long_absent(att, thresholds=None):
     )
 
 
+def _risk_reason(bucket, metrics, thresholds):
+    if bucket != 'Long Absent':
+        return None
+    if metrics.get('last_streak', 0) >= thresholds['streak']:
+        return f"{metrics['last_streak']} consecutive absences"
+    rate = metrics.get('att_rate')
+    if rate is not None and rate < thresholds['rate']:
+        return f"Attendance {rate:.0f}% in the last {thresholds['window']} days"
+    if metrics.get('last_attendance_date'):
+        return f"No attendance recorded in the last {thresholds['window']} days"
+    return f"No attendance recorded after {thresholds['window']} days of enrollment"
+
+
 def _attendance_stale(att, window_days=ATT_WINDOW_DAYS):
     """True when the student's most recent mark predates the window.
 
@@ -315,20 +328,24 @@ def _lifecycle_dataset(filter_key='all', q='', selected_course_id=None,
     thresholds = _get_thresholds()
     att_metrics = _attendance_metrics(thresholds['window'])
     data = []
-    for s in Student.query.order_by(Student.id).all():
+    students = Student.query.order_by(Student.id).all()
+    for s in students:
         enrolls = enroll_map.get(s.id, [])
         att = att_metrics.get(s.id, {
             'max_run': 0, 'last_streak': 0, 'att_rate': None,
             'total_marks': 0, 'last_attendance_date': None,
         })
+        bucket = _derive_bucket(s, enrolls, att, thresholds)
         data.append({
             'student': s,
             'enrollments': enrolls,
             'metrics': att,
-            'bucket': _derive_bucket(s, enrolls, att, thresholds),
+            'bucket': bucket,
+            'risk_reason': _risk_reason(bucket, att, thresholds),
         })
-    # Counts stay global (unaffected by search/course filters) so the filter
-    # pills don't move while the admin types.
+    if current_user.role == 'Staff':
+        data = [d for d in data if staff_can_view_student(d['student'].id)]
+    # Counts stay global within the viewer's authorized scope.
     counts = defaultdict(int)
     for d in data:
         counts[d['bucket']] += 1
@@ -446,6 +463,8 @@ def detail(sid):
     Loaded lazily rather than rendered into every table row so the list
     view stays cheap regardless of how much attendance history exists.
     """
+    if not staff_can_view_student(sid):
+        return jsonify({'error': 'You do not have access to this student'}), 403
     student = Student.query.get_or_404(sid)
     thresholds = _get_thresholds()
     window_start = date.today() - timedelta(days=thresholds['window'])
@@ -828,6 +847,54 @@ def set_status(sid):
     db.session.commit()
     flash(f"{student.name} marked as {target}.", "success")
     return redirect(url_for('student_lifecycle.lifecycle', filter=_target_filter()))
+
+
+@student_lifecycle_bp.route('/students/enrollment/transfer', methods=['POST'])
+@login_required
+@admin_required
+def transfer():
+    """Move an active enrollment while preserving its previous history."""
+    sid = request.form.get('student_id', type=int)
+    from_cid = request.form.get('from_course_id', type=int)
+    to_cid = request.form.get('to_course_id', type=int)
+    reason = (request.form.get('reason') or '').strip()[:MAX_DROP_REASON]
+    if not sid or not from_cid or not to_cid or from_cid == to_cid:
+        flash('Choose a student and two different courses.', 'danger')
+        return redirect(url_for('student_lifecycle.lifecycle'))
+    source = _guard_transition(sid, from_cid, 'drop')
+    student = Student.query.get_or_404(sid)
+    target = Course.query.get_or_404(to_cid)
+    if source is None:
+        return redirect(url_for('student_lifecycle.lifecycle'))
+    existing = db.session.execute(student_courses.select().where(
+        student_courses.c.student_id == sid,
+        student_courses.c.course_id == to_cid)).first()
+    if existing and (existing.status or 'Enrolled') == 'Enrolled':
+        flash(f'{student.name} is already enrolled in {target.name}.', 'warning')
+        return redirect(url_for('student_lifecycle.lifecycle'))
+    db.session.execute(student_courses.update().where(
+        student_courses.c.student_id == sid,
+        student_courses.c.course_id == from_cid
+    ).values(status='Dropped', drop_reason=reason or f'Transferred to {target.name}'))
+    if existing:
+        db.session.execute(student_courses.update().where(
+            student_courses.c.student_id == sid,
+            student_courses.c.course_id == to_cid
+        ).values(status='Enrolled', enrolled_on=date.today(), completed_on=None,
+                 drop_reason=None))
+    else:
+        db.session.execute(student_courses.insert().values(
+            student_id=sid, course_id=to_cid, status='Enrolled',
+            enrolled_on=date.today()))
+    db.session.add(AuditLog(
+        user_id=current_user.id, username=current_user.username, action='UPDATE',
+        entity_type='Student', entity_id=sid,
+        changes=json.dumps({'enrollment_transfer': {
+            'from_course_id': from_cid, 'to_course_id': to_cid,
+            'reason': reason or None}})))
+    db.session.commit()
+    flash(f'{student.name} transferred to {target.name}.', 'success')
+    return redirect(url_for('student_lifecycle.lifecycle'))
 
 
 @student_lifecycle_bp.route('/students/lifecycle/export')
