@@ -319,6 +319,7 @@ def tutor_overlapping_fees(tutor_id, start_date, end_date):
             FeeRecord.student_id.in_(list(intervals_by_student)),
             FeeRecord.payment_date >= start_date,
             FeeRecord.payment_date <= end_date,
+            FeeRecord.status != 'Voided',
         )
         .order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc())
         .all()

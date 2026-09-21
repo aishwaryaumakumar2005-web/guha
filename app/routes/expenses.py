@@ -464,6 +464,10 @@ def salary_calculator():
                     filter_error = 'The From date cannot be after the To date.'
                     start_date = None
                     end_date = None
+                elif end_date > today:
+                    filter_error = 'The custom range cannot end in the future.'
+                    start_date = None
+                    end_date = None
     if filter_error is None and not (start_date and end_date):
         start_date = date(filter_year, filter_month, 1)
         if filter_month == 12:
@@ -481,8 +485,9 @@ def salary_calculator():
     percentage = request.values.get('percentage', type=float)
     breakdown = []
     projection = None
+    existing_payroll = None
     if selected_tutor_id and filter_error is None:
-        selected_tutor = Tutor.query.get(selected_tutor_id)
+        selected_tutor = Tutor.query.filter_by(id=selected_tutor_id, status='Active').first()
         if selected_tutor:
             if percentage is None:
                 # B2/F5: single source of truth with compute_tutor_payroll() —
@@ -494,52 +499,25 @@ def salary_calculator():
             # negative ones). Settings form caps at 100 going forward; this
             # also covers legacy out-of-range rows.
             percentage = max(0.0, min(100.0, percentage))
-            # B1/B5/F1: only active enrollments under this tutor, split over
-            # ACTIVE tutors only, and fees attributed only when the enrollment
-            # overlapped the payment date — all shared with payroll.
-            from app.helpers import tutor_students, active_tutor_count_for_student, tutor_overlapping_fees
-            students = tutor_students(selected_tutor.id)
-            if students:
-                fee_records = tutor_overlapping_fees(selected_tutor.id, start_date, end_date)
-                fees_by_student = {}
-                for record in fee_records:
-                    fees_by_student[record.student_id] = fees_by_student.get(record.student_id, 0.0) + record.amount_paid
-                total_collected = sum(fees_by_student.values())
-                calculated_salary = total_collected * (percentage / 100.0)
-                for student in students:
-                    fees = fees_by_student.get(student.id, 0.0)
-                    tutor_count = active_tutor_count_for_student(student.id)
-                    if tutor_count == 0:
-                        continue
-                    if tutor_count > 1:
-                        shared_students.append({'student': student, 'tutor_count': tutor_count})
-                    split_collected += fees / tutor_count
-                    if fees > 0:
-                        # F3: per-student contribution breakdown (payroll E1 parity).
-                        breakdown.append({
-                            'student': student,
-                            'roll_no': getattr(student, 'roll_no', None) or '',
-                            'fees': fees,
-                            'tutor_count': tutor_count,
-                            'effective': fees / tutor_count,
-                            'commission': fees / tutor_count * (percentage / 100.0),
-                        })
-                breakdown.sort(key=lambda b: (-b['commission'], b['student'].name.lower()))
-                split_salary = split_collected * (percentage / 100.0)
-            # F2: projected net pay using the tutor's payroll settings —
-            # mirrors compute_tutor_payroll()'s clamping so the draft that the
-            # 'Generate' action creates matches what is shown here.
-            settings_row = TutorPayrollSettings.query.filter_by(tutor_id=selected_tutor.id).first()
-            base = (settings_row.base_salary or 0.0) if settings_row else 0.0
-            bonus = (settings_row.bonus or 0.0) if settings_row else 0.0
-            tds_pct = (settings_row.tds_percentage or 0.0) if settings_row else 0.0
-            other_ded = (settings_row.other_deductions or 0.0) if settings_row else 0.0
-            gross = base + split_salary + bonus
-            tds = gross * (tds_pct / 100.0) if tds_pct > 0 else 0.0
-            other = min(other_ded, max(0.0, gross - tds)) if gross > 0 else 0.0
-            projection = {'base': base, 'commission': split_salary, 'bonus': bonus,
-                          'tds': tds, 'other': other, 'net': max(0.0, gross - tds - other),
-                          'gross': gross, 'tds_pct': tds_pct, 'configured': settings_row is not None}
+            from app.services.salary_calculator import calculate_tutor_salary
+            result = calculate_tutor_salary(selected_tutor, start_date, end_date, percentage)
+            students = result['students']
+            fee_records = result['fee_records']
+            total_collected = result['total_collected']
+            split_collected = result['split_collected']
+            split_salary = result['commission']
+            calculated_salary = total_collected * (percentage / 100.0)
+            breakdown = sorted(result['breakdown'], key=lambda b: (-b['commission'], b['student'].name.lower()))
+            shared_students = result['shared_students']
+            projection = {'base': result['base'], 'commission': result['commission'], 'bonus': result['bonus'],
+                          'tds': result['tds'], 'other': result['other_ded'], 'net': result['net'],
+                          'gross': result['gross'], 'tds_pct': result['tds_pct'], 'configured': result['configured']}
+            if filter_type == 'month':
+                from app.models import PayrollRecord
+                existing_payroll = PayrollRecord.query.filter_by(
+                    tutor_id=selected_tutor.id, month=filter_month, year=filter_year).first()
+        elif selected_tutor_id:
+            filter_error = 'The selected tutor is not active or no longer exists.'
     if percentage is None:
         percentage = 0.0
     percentage = max(0.0, min(100.0, percentage))
@@ -550,7 +528,7 @@ def salary_calculator():
         students=students, fee_records=fee_records, total_collected=total_collected,
         split_collected=split_collected, calculated_salary=calculated_salary,
         split_salary=split_salary, shared_students=shared_students, breakdown=breakdown,
-        projection=projection, today=today)
+        projection=projection, existing_payroll=existing_payroll, today=today)
 
 @expenses_bp.route('/api/expenses/chart-data')
 @login_required

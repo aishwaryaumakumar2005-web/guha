@@ -115,62 +115,17 @@ def _finalize_payroll(record, payment_method, paid_date, payment_ref=None):
 
 
 def compute_tutor_payroll(tutor, month, year, percentage=None):
+    start_date = date(year, month, 1)
+    end_date = _period_end(month, year)
     settings = TutorPayrollSettings.query.filter_by(tutor_id=tutor.id).first()
     if not settings:
         settings = TutorPayrollSettings(tutor_id=tutor.id)
         db.session.add(settings)
-    base = settings.base_salary or 0.0
-    # F5: single source of truth with the salary calculator — when no override
-    # is given, the tutor's stored commission % applies (0.0 when unset).
-    from app.helpers import tutor_commission_percentage
-    comm_pct = percentage if percentage is not None else tutor_commission_percentage(tutor.id)
-    bonus = settings.bonus or 0.0
-    other_ded = settings.other_deductions or 0.0
-    tds_pct = settings.tds_percentage or 0.0
-    start_date = date(year, month, 1)
-    end_date = _period_end(month, year)
-    commission = 0.0
-    breakdown = []
-    # F1: attribute fees by enrollment-period overlap — shared with the
-    # salary calculator (see app/helpers.tutor_overlapping_fees).
-    from app.helpers import tutor_students, active_tutor_count_for_student, tutor_overlapping_fees
-    students = tutor_students(tutor.id)
-    fees_by_student = {}
-    for rec in tutor_overlapping_fees(tutor.id, start_date, end_date):
-        fees_by_student[rec.student_id] = fees_by_student.get(rec.student_id, 0.0) + rec.amount_paid
-    if students:
-        for student in students:
-            student_fees = fees_by_student.get(student.id, 0.0)
-            tutor_count = active_tutor_count_for_student(student.id)
-            if tutor_count == 0:
-                continue
-            # E1: per-student contribution. Fees are attributed to the
-            # month they were paid in (no pro-rating), only when the
-            # enrollment overlapped the payment date, and split evenly
-            # across every ACTIVE tutor teaching the student.
-            # Concessions/waivers are not cash and never drive commission.
-            contrib = (student_fees / tutor_count) * (comm_pct / 100.0)
-            commission += contrib
-            breakdown.append({
-                'student_id': student.id,
-                'student': student.name,
-                'roll_no': getattr(student, 'roll_no', None) or '',
-                'fees': round(student_fees, 2),
-                'tutor_count': tutor_count,
-                'commission': round(contrib, 2),
-            })
-    gross = base + commission + bonus
-    tds = gross * (tds_pct / 100.0) if tds_pct > 0 else 0.0
-    # P1: deductions must never push the net negative - that would later
-    # materialise as a negative salary expense on confirmation. Settings
-    # forms reject this up front, but legacy data still flows through here,
-    # so clamp and floor defensively.
-    if gross > 0:
-        other_ded = min(other_ded, max(0.0, gross - tds))
-    net = max(0.0, gross - tds - other_ded)
-    return {'base': base, 'commission': commission, 'commission_pct': comm_pct,
-        'bonus': bonus, 'tds': tds, 'tds_pct': tds_pct, 'other_ded': other_ded, 'net': net, 'gross': gross,
-        'breakdown': breakdown}
+    from app.services.salary_calculator import calculate_tutor_salary
+    result = calculate_tutor_salary(tutor, start_date, end_date, percentage)
+    return {key: result[key] for key in
+            ('base', 'commission', 'commission_pct', 'bonus', 'tds', 'tds_pct',
+             'other_ded', 'net', 'gross', 'breakdown')}
 
 @payroll_bp.route('/payroll')
 @login_required

@@ -85,7 +85,7 @@ To</label>
             </div>
             <!-- Submit Button -->
             <div class="col-md-2">
-                <button type="submit" class="btn btn-premium w-100">
+                <button type="submit" class="btn btn-premium w-100" id="calculateBtn">
 <i class="bi bi-funnel-fill me-1">
 </i>
 Calculate</button>
@@ -98,7 +98,10 @@ Calculate</button>
         {{ filter_error }}
     </div>
     {% endif %}
-    {% if selected_tutor %}    <!-- U3 live-preview data (client-side commission/net preview) -->
+    {% if selected_tutor %}
+    {% if existing_payroll %}<div class="alert {% if existing_payroll.status in ['Cancelled', 'Reversed'] %}alert-warning{% else %}alert-info{% endif %} mb-4" role="status"><i class="bi bi-info-circle me-1"></i>A {{ existing_payroll.status|lower }} payroll record already exists for {{ selected_tutor.name }} for {{ filter_month }}/{{ filter_year }}. {% if existing_payroll.status not in ['Cancelled', 'Reversed'] %}Generate from the payroll workflow after reviewing the existing record.{% endif %}</div>{% endif %}
+    <div class="glass-card p-3 mb-4 small text-secondary" role="note"><i class="bi bi-calculator me-1"></i><strong>Calculation basis:</strong> non-voided payments in the selected period, attributed to active enrolments and split equally between active tutors. Custom ranges are preview-only.</div>
+    <!-- U3 live-preview data (client-side commission/net preview) -->
     <script>
         window.__salaryPreview = {
             splitCollected: {{ split_collected }},
@@ -177,7 +180,7 @@ Commission (this period)</div>
                 <p class="small mt-2 mb-0" style="color: #ffd76e;"><i class="bi bi-info-circle me-1"></i>No payroll settings configured for this tutor yet — base, TDS and bonus are treated as ₹0 and the draft will use the commission % shown.</p>
                 {% endif %}
             </div>
-            {% if filter_type == 'month' %}
+            {% if filter_type == 'month' and not existing_payroll %}
             <form method="POST" action="{{ url_for('payroll.process_payroll') }}" class="d-inline-block" id="draftForm">
                 <input type="hidden" name="tutor_id" value="{{ selected_tutor.id }}">
                 <input type="hidden" name="month" value="{{ filter_month }}">
@@ -185,6 +188,7 @@ Commission (this period)</div>
                 <input type="hidden" name="percentage" value="{{ percentage }}">
                 <button type="submit" class="btn btn-premium"><i class="bi bi-file-earmark-plus me-1"></i>Generate payroll draft for {{ ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][filter_month-1] }} {{ filter_year }}</button>
             </form>
+            {% elif filter_type == 'range' %}<span class="badge badge-custom badge-cyan py-2 px-3"><i class="bi bi-eye me-1"></i>Preview only</span>
             {% endif %}
         </div>
         <div class="row g-3 mt-1">
