@@ -706,6 +706,36 @@ def migrate_task_priority_and_category():
                 print(f"Migration migrate_task_priority_and_category: FAILED to add task.{column}: {e}", flush=True)
 
 
+def migrate_task_workflow_columns():
+    """Add additive workflow/history columns to legacy task tables."""
+    if not _table_exists('task'):
+        return
+    try:
+        from app.models.task import TaskHistory
+        TaskHistory.__table__.create(bind=db.engine, checkfirst=True)
+    except Exception as e:
+        print(f"Migration migrate_task_workflow_columns: history table check failed: {e}", flush=True)
+    ts_type = 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'
+    adds = [('start_date', 'DATE'), ('acknowledged_at', ts_type), ('verified_at', ts_type),
+            ('archived_at', ts_type), ('archived_by', 'INTEGER'), ('blocked_reason', 'TEXT'),
+            ('version', 'INTEGER DEFAULT 1')]
+    for column, col_type in adds:
+        if not _has_column('task', column):
+            try:
+                db.session.execute(text('ALTER TABLE "task" ADD COLUMN "%s" %s' % (column, col_type)))
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                print(f"Migration migrate_task_workflow_columns: FAILED to add task.{column}: {e}", flush=True)
+    try:
+        db.session.execute(text("UPDATE task SET version = 1 WHERE version IS NULL"))
+        db.session.execute(text('CREATE INDEX IF NOT EXISTS idx_task_due_status ON task(due_date, status)'))
+        db.session.execute(text('CREATE INDEX IF NOT EXISTS idx_task_tutor_status ON task(tutor_id, status)'))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
 def migrate_photos_to_db():
     """Copy any file-based photos (photo filename set, photo_data empty) into the DB.
 

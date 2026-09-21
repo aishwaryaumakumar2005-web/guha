@@ -437,11 +437,10 @@
                                         title="Edit Task">
                                     <i class="bi bi-pencil-square"></i>
                                 </button>
-                                <a href="javascript:void(0)" class="btn btn-sm btn-outline-danger ms-1" 
-                                   onclick="confirmAction('Delete task: {{ t.title|replace('\'', '\\\'') }}?', function() { window.location.href = '{{ url_for('tasks.delete_task', id=t.id) }}'; })" 
-                                   title="Delete Task">
-                                    <i class="bi bi-trash"></i>
-                                </a>
+                                <form method="POST" action="{{ url_for('tasks.delete_task', id=t.id) }}" class="d-inline" onsubmit="return confirm('Archive task: {{ t.title|replace('\'', '\\\'') }}?');">
+                                    <input type="hidden" name="task_csrf_token" value="{{ task_csrf_token }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger ms-1" title="Archive Task"><i class="bi bi-archive"></i></button>
+                                </form>
                                 {% elif tutor and t.tutor_id == tutor.id %}
                                 <button type="button" class="btn btn-sm btn-outline-info update-task-btn"
                                         data-id="{{ t.id }}"
@@ -493,6 +492,7 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form method="POST" action="{{ url_for('tasks.list_tasks') }}" hx-boost="false" data-no-ajax>
+                <input type="hidden" name="task_csrf_token" value="{{ task_csrf_token }}">
                 <div class="modal-body">
                     <div class="row g-2 mb-3">
                         <div class="col-12 col-md-6">
@@ -552,6 +552,7 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="dynamicEditTaskForm" method="POST" action="" hx-boost="false" data-no-ajax>
+                <input type="hidden" name="task_csrf_token" value="{{ task_csrf_token }}">
                 <div class="modal-body">
                     <div class="row g-2 mb-3">
                         <div class="col-12 col-md-6">
@@ -625,6 +626,7 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="dynamicUpdateStatusForm" method="POST" action="" hx-boost="false" data-no-ajax>
+                <input type="hidden" name="task_csrf_token" value="{{ task_csrf_token }}">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label text-white small fw-semibold">Status</label>
@@ -727,7 +729,7 @@ document.addEventListener('DOMContentLoaded', function() {
             fetch('/tasks/update-status/' + taskId, {
                 method: 'POST',
                 body: formData,
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': '{{ task_csrf_token }}' }
             })
             .then(function(r) { return r.json(); })
             .then(function(data) {

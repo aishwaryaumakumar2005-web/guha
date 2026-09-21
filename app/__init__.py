@@ -692,6 +692,11 @@ def create_app(config_object=None):
                 migrate_task_priority_and_category()
             except Exception as e:
                 print('Failed to ensure task.priority / category:', e, file=sys.stderr)
+            try:
+                from app.services.db_migration import migrate_task_workflow_columns
+                migrate_task_workflow_columns()
+            except Exception as e:
+                print('Failed to ensure task workflow columns:', e, file=sys.stderr)
 
         from app.audit import register_audit_events
         register_audit_events()
