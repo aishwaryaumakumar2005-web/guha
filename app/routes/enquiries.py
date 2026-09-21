@@ -5,6 +5,7 @@ from flask_login import login_required
 from datetime import datetime, date as date_cls
 from app.extensions import db
 from app.models import Enquiry, Course, Student, AuditLog, ensure_enrolled_on, stamp_agreed_dues
+from app.models.course import course_has_capacity
 from app.helpers import admin_required, commit_with_retry, is_ajax_request
 from sqlalchemy.exc import IntegrityError
 from app.forms import (EnquiryForm, ENQUIRY_SOURCES, ENQUIRY_STATUSES,
@@ -221,6 +222,8 @@ def convert(id):
         fresh = Student(name=lead.student_name, email=email, phone=phone, status='Active')
         course = Course.query.get(lead.course_id) if lead.course_id else None
         if course:
+            if not course_has_capacity(course):
+                raise ValueError(f'No seats available in {course.name}')
             fresh.courses.append(course)
         db.session.add(fresh)
         db.session.flush()
@@ -233,6 +236,13 @@ def convert(id):
         return fresh
     try:
         new_student = commit_with_retry(_convert)
+    except ValueError as exc:
+        db.session.rollback()
+        message = str(exc)
+        if is_ajax_request():
+            return jsonify({"success": False, "message": message}), 409
+        flash(message, "warning")
+        return redirect(url_for('enquiries.list'))
     except IntegrityError:
         message = "Conversion conflicted with another write. Please retry."
         if is_ajax_request():

@@ -135,6 +135,24 @@ def migrate_indexes():
                 db.session.rollback()
 
 
+def migrate_course_lifecycle_columns():
+    """Add additive course lifecycle fields for legacy databases."""
+    if not _table_exists('course'):
+        return
+    for column, sql_type, default in [
+        ('status', 'VARCHAR(20)', "'Active'"),
+        ('start_date', 'DATE', None),
+        ('end_date', 'DATE', None),
+    ]:
+        if not _has_column('course', column):
+            try:
+                suffix = f' DEFAULT {default}' if default else ''
+                db.session.execute(text(f'ALTER TABLE "course" ADD COLUMN "{column}" {sql_type}{suffix}'))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
+
 def migrate_renames():
     """Rename old account names to their new canonical names in all persisted data.
 

@@ -320,6 +320,13 @@ def create_app(config_object=None):
                 print("Migration migrate_agreed_dues_columns FAILED:", e, flush=True)
 
             try:
+                from app.services.db_migration import migrate_course_lifecycle_columns
+                migrate_course_lifecycle_columns()
+                print("Migration migrate_course_lifecycle_columns completed OK", flush=True)
+            except Exception as e:
+                print("Migration migrate_course_lifecycle_columns FAILED:", e, flush=True)
+                db.session.rollback()
+            try:
                 from app.services.db_migration import migrate_expense_student_id, migrate_expense_enhancements
                 migrate_expense_student_id()
                 print("Migration migrate_expense_student_id completed OK", flush=True)
@@ -699,4 +706,3 @@ def create_app(config_object=None):
         _scheduler.start()
 
     return app
-

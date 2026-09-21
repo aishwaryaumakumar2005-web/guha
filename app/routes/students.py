@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import Student, Course, Tutor, Attendance, student_courses, ensure_enrolled_on, stamp_agreed_dues
+from app.models.course import course_has_capacity
 from app.helpers import admin_required, cell_text, commit_with_retry, is_ajax_request, save_photo_data, staff_can_view_student
 from sqlalchemy.exc import IntegrityError
 from app.forms import StudentForm
@@ -89,6 +90,17 @@ def list():
         phone = _normalize_phone(form.data.get('phone'))
         status = form.data.get('status', 'Active')
         selected_courses = [c for c in request.form.getlist('courses') if c]
+        full_courses = []
+        for raw_cid in selected_courses:
+            course = Course.query.get(int(raw_cid)) if str(raw_cid).isdigit() else None
+            if course and not course_has_capacity(course):
+                full_courses.append(course.name)
+        if full_courses:
+            msg = 'No seats available in: ' + ', '.join(full_courses)
+            if is_ajax_request():
+                return jsonify({'success': False, 'errors': [msg]}), 409
+            flash(msg, 'danger')
+            return redirect(url_for('students.list'))
         exists = Student.query.filter(
             db.func.lower(Student.email) == email.lower()).first()
         if exists:

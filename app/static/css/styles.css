@@ -1415,6 +1415,9 @@ body.dark-mode .student-profile-page .student-back-link:focus {
     background: transparent !important;
     color: #7dd3fc !important;
 }
+.course-title-link { color: inherit; text-decoration: none; }
+.course-title-link:hover, .course-title-link:focus { color: #1769aa; text-decoration: underline; }
+.course-syllabus { white-space: pre-wrap; font: inherit; color: inherit; background: rgba(0,0,0,.12); border-radius: 8px; padding: 12px; }
 
 .table-custom.sortable thead th {
     cursor: pointer;

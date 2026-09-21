@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block title %}{{ course.name }} · Course{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+  <a href="{{ url_for('courses.list') }}" class="small">← Back to courses</a>
+  <div class="d-flex justify-content-between align-items-start mt-3 mb-4"><div><span class="badge badge-custom badge-cyan">{{ course.code }}</span><h1 class="h3 mt-2">{{ course.name }}</h1><span class="badge bg-secondary">{{ course.status or 'Active' }}</span></div><div class="text-end"><div class="h4">₹{{ '{:,.2f}'.format(course.fees) }}</div><small class="text-muted">{{ course.duration_weeks }} {{ course.duration_unit or 'weeks' }}</small></div></div>
+  <div class="row g-3 mb-4"><div class="col-md-4"><div class="glass-card p-3"><small>Active students</small><div class="h3">{{ active_count }}</div></div></div><div class="col-md-4"><div class="glass-card p-3"><small>Enquiries</small><div class="h3">{{ enquiries_count }}</div></div></div><div class="col-md-4"><div class="glass-card p-3"><small>Seats remaining</small><div class="h3">{{ capacity_left if capacity_left is not none else 'Unlimited' }}</div></div></div></div>
+  <div class="row g-4"><div class="col-lg-7"><div class="glass-card p-4 h-100"><h5>Overview</h5><p>{{ course.description or 'No description configured.' }}</p><h5 class="mt-4">Syllabus</h5><pre class="course-syllabus">{{ course.syllabus or 'No syllabus configured.' }}</pre></div></div><div class="col-lg-5"><div class="glass-card p-4"><h5>Commercial details</h5><dl class="row mb-0"><dt class="col-6">Capacity</dt><dd class="col-6">{{ course.capacity or 'Unlimited' }}</dd><dt class="col-6">GST</dt><dd class="col-6">{{ 'Applicable' if course.gst_applicable else 'Not applicable' }}</dd><dt class="col-6">Company</dt><dd class="col-6">{{ course.company.name if course.company else '—' }}</dd></dl></div></div></div>
+</div>
+{% endblock %}

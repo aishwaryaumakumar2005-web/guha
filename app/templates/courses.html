@@ -22,6 +22,7 @@ select.form-select[name="duration_unit"] {
 Create Course        </button>
         {% endif %}
     </div>
+    <div class="glass-card p-3 mb-3"><form method="GET" class="row g-2 align-items-end"><div class="col-md-6"><label for="course-search" class="form-label small text-white">Search courses</label><input id="course-search" name="q" value="{{ q|default('') }}" class="form-control form-control-sm" placeholder="Course name or code"></div><div class="col-md-3"><label for="course-status" class="form-label small text-white">Status</label><select id="course-status" name="status" class="form-select form-select-sm"><option value="">All statuses</option>{% for s in course_statuses|default([]) %}<option value="{{ s }}" {% if status_filter|default('') == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div><div class="col-md-2"><button class="btn btn-sm btn-premium w-100" type="submit">Filter</button></div></form></div>
     <div class="mb-3 d-flex flex-wrap gap-2">
         <span class="badge badge-custom badge-cyan">
 Total Programs: {{ total_courses }}</span>
@@ -52,8 +53,8 @@ Total Enrollments: {{ total_enrollments }}</span>
                                         <span class="badge badge-custom {% if enrolled_count == 0 %}badge-inactive{% elif enrolled_count <= 5 %}badge-amber{% else %}badge-active{% endif %}">
                                             {% if enrolled_count == 0 %}No Enrollments{% elif enrolled_count <= 5 %}Open Seats{% else %}High Demand{% endif %}                                        </span>
                                     </div>
-                                    <h4 class="text-dark fw-bold mb-1">
-{{ course.name }}</h4>
+                                    <h4 class="text-dark fw-bold mb-1"><a href="{{ url_for('courses.detail', id=course.id) }}" class="course-title-link">{{ course.name }}</a></h4>
+                                    {% if course.status and course.status != 'Active' %}<span class="badge badge-custom badge-inactive">{{ course.status }}</span>{% endif %}
                                 </div>
                                 <div class="text-end">
                                     <div class="text-dark fw-bold fs-5">
@@ -89,10 +90,10 @@ AI Optimize                                </button>
                                     <i class="bi bi-pencil-square me-1" aria-hidden="true">
 </i>
 Edit                                </button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="confirmAction('Deleting this course will drop it from all enrolled students, and permanently delete its exams and scores! Proceed?', function() { var f = document.createElement('form'); f.method = 'POST'; f.action = '{{ url_for('courses.delete', id=course.id) }}'; document.body.appendChild(f); f.submit(); })">
+                                <button class="btn btn-sm btn-outline-warning" onclick="confirmAction('Archive this course? Enrollments, exams and scores will be preserved.', function() { var f = document.createElement('form'); f.method = 'POST'; f.action = '{{ url_for('courses.delete', id=course.id) }}'; document.body.appendChild(f); f.submit(); })">
                                     <i class="bi bi-trash3-fill me-1" aria-hidden="true">
 </i>
-Remove                                </button>
+Archive                                </button>
                                 {% endif %}
                             </div>
                         </div>
@@ -495,4 +496,3 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
-

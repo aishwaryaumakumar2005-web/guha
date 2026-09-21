@@ -9,6 +9,7 @@ from app.models import (
 from app.helpers import admin_required, get_gst_rates, is_ajax_request
 from app.forms import CourseForm
 from sqlalchemy.orm import joinedload
+from datetime import date
 
 courses_bp = Blueprint('courses', __name__)
 
@@ -89,6 +90,8 @@ def list():
     
     # GET request - filter courses based on user role
     companies = Company.query.filter_by(is_active=True).all()
+    search = (request.args.get('q') or '').strip()
+    status_filter = request.args.get('status', '').strip()
     if current_user.role == 'Staff':
         # Find the tutor record for this staff user
         tutor = Tutor.query.filter_by(email=current_user.email).first()
@@ -99,6 +102,11 @@ def list():
                        .filter(Course.id.in_(course_ids)).all()) if course_ids else []
     else:
         all_courses = Course.query.options(joinedload(Course.company)).all()
+    if search:
+        needle = search.casefold()
+        all_courses = [c for c in all_courses if needle in (c.name or '').casefold() or needle in (c.code or '').casefold()]
+    if status_filter in ('Active', 'Archived', 'Draft', 'Paused'):
+        all_courses = [c for c in all_courses if (c.status or 'Active') == status_filter]
     
     total_courses = len(all_courses)
     # Active enrollments only: Dropped/Completed rows must not inflate
@@ -122,7 +130,8 @@ def list():
         total_enrollments=total_enrollments, enroll_map=enroll_map,
         gst_rates={'cgst': cgst_pct, 'sgst': sgst_pct},
         is_staff=(current_user.role == 'Staff'),
-        companies=companies
+        companies=companies, q=search, status_filter=status_filter,
+        course_statuses=('Active', 'Archived', 'Draft', 'Paused')
     )
 
 @courses_bp.route('/courses/edit/<int:id>', methods=['POST'])
@@ -176,6 +185,47 @@ def edit(id):
 @login_required
 @admin_required
 def delete(id):
+    course = Course.query.get_or_404(id)
+    course.status = 'Archived'
+    db.session.commit()
+    message = "Course archived successfully. Enrollments, exams and scores were preserved."
+    if is_ajax_request():
+        return jsonify({"success": True, "message": message}), 200
+    flash(message, "success")
+    return redirect(url_for('courses.list'))
+
+
+@courses_bp.route('/courses/<int:id>')
+@login_required
+def detail(id):
+    course = Course.query.get_or_404(id)
+    if current_user.role == 'Staff':
+        tutor = Tutor.query.filter_by(email=current_user.email).first()
+        if not tutor or course.id not in {c.id for c in tutor.courses}:
+            return '', 403
+    active_count = db.session.query(db.func.count(student_courses.c.student_id)).filter(
+        student_courses.c.course_id == id,
+        db.or_(student_courses.c.status == 'Enrolled', student_courses.c.status.is_(None))).scalar() or 0
+    enquiries_count = Enquiry.query.filter_by(course_id=id).count()
+    return render_template('course_detail.html', course=course,
+                           active_count=active_count,
+                           enquiries_count=enquiries_count,
+                           capacity_left=(course.capacity - active_count) if course.capacity else None)
+
+
+@courses_bp.route('/courses/archive/<int:id>', methods=['POST'])
+@login_required
+@admin_required
+def archive(id):
+    course = Course.query.get_or_404(id)
+    course.status = 'Archived'
+    db.session.commit()
+    flash('Course archived. Historical records were preserved.', 'success')
+    return redirect(url_for('courses.list'))
+
+
+def _legacy_delete_disabled(id):
+    """Retained below only for source compatibility; archive is the public action."""
     course = Course.query.get_or_404(id)
     try:
         # Remove association rows explicitly for compatibility with older Render schemas
