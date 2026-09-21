@@ -115,10 +115,30 @@ def list():
             return jsonify({"success": True, "message": message}), 201
         flash(message, "success")
         return redirect(url_for('enquiries.list'))
-    all_enquiries = Enquiry.query.order_by(Enquiry.created_at.desc(), Enquiry.id.desc()).all()
+    q = (request.args.get('q') or '').strip()
+    status_filter = request.args.get('status', '').strip()
+    course_filter = request.args.get('course_id', type=int)
+    page = max(request.args.get('page', 1, type=int) or 1, 1)
+    query = Enquiry.query.filter(Enquiry.status != 'Archived')
+    if q:
+        like = f'%{q}%'
+        query = query.filter(db.or_(Enquiry.student_name.ilike(like),
+                                    Enquiry.email.ilike(like),
+                                    Enquiry.phone.ilike(like)))
+    if status_filter == 'Archived':
+        query = Enquiry.query.filter(Enquiry.status == 'Archived')
+    elif status_filter in ENQUIRY_STATUSES:
+        query = query.filter(Enquiry.status == status_filter)
+    if course_filter:
+        query = query.filter(Enquiry.course_id == course_filter)
+    pagination = query.order_by(Enquiry.created_at.desc(), Enquiry.id.desc()).paginate(
+        page=page, per_page=25, error_out=False)
+    all_enquiries = pagination.items
     all_courses = Course.query.order_by(Course.code).all()
     return render_template('enquiries.html', enquiries=all_enquiries, courses=all_courses,
-                           sources=ENQUIRY_SOURCES, today=date_cls.today())
+                           sources=ENQUIRY_SOURCES, statuses=ENQUIRY_STATUSES,
+                           today=date_cls.today(), pagination=pagination, q=q,
+                           status_filter=status_filter, course_filter=course_filter)
 
 @enquiries_bp.route('/enquiries/edit/<int:id>', methods=['POST'])
 @login_required
@@ -136,6 +156,7 @@ def edit(id):
     email = form.data.get('email', '').strip()
     phone = form.data.get('phone', '').strip()
     submitted_status = request.form.get('status', 'New')
+    previous_status = enquiry.status
     if enquiry.status == 'Converted':
         # A converted lead is permanently attached to its student.
         submitted_status = 'Converted'
@@ -153,8 +174,8 @@ def edit(id):
     enquiry.status = submitted_status
     enquiry.notes = request.form.get('notes', '').strip()
     enquiry.follow_up_date = _parse_follow_up(request.form.get('follow_up_date'))
-    # An advisor editing the lead counts as contact, so it stops being "stale".
-    enquiry.last_contacted_at = datetime.utcnow()
+    if submitted_status in _CONTACT_STAGES and submitted_status != previous_status:
+        enquiry.last_contacted_at = datetime.utcnow()
     db.session.commit()
     message = "Enquiry details updated!"
     if is_ajax_request():
@@ -167,7 +188,7 @@ def edit(id):
 @admin_required
 def convert(id):
     enquiry = Enquiry.query.get_or_404(id)
-    email = (enquiry.email or '').strip()
+    email = (enquiry.email or '').strip().casefold()
     phone = (enquiry.phone or '').strip()
     if enquiry.status == 'Converted':
         message = "This lead has already been converted to a student."
@@ -230,11 +251,11 @@ def convert(id):
             return jsonify({"success": True, "message": message, "warning": note.strip()}), 201
         flash(message, "success")
         flash(note.strip(), "warning")
-        return redirect(url_for('students.list'))
+        return redirect(url_for('students.profile', id=new_student.id))
     if is_ajax_request():
         return jsonify({"success": True, "message": message}), 201
     flash(message, "success")
-    return redirect(url_for('students.list'))
+    return redirect(url_for('students.profile', id=new_student.id))
 
 ENQUIRY_STAGES = ENQUIRY_STATUSES
 
@@ -327,9 +348,9 @@ def update_status(id):
 @admin_required
 def delete(id):
     enquiry = Enquiry.query.get_or_404(id)
-    db.session.delete(enquiry)
+    enquiry.status = 'Archived'
     db.session.commit()
-    message = "Enquiry record deleted!"
+    message = "Enquiry archived successfully."
     if is_ajax_request():
         return jsonify({"success": True, "message": message}), 200
     flash(message, "success")

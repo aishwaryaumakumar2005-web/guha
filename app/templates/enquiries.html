@@ -14,6 +14,14 @@ Track student leads, manage advisor outreach, and use AI to write responses.</p>
           </button>
         </div>
     </div>
+    <div class="glass-card p-3 mb-4">
+      <form method="GET" action="{{ url_for('enquiries.list') }}" class="row g-2 align-items-end">
+        <div class="col-md-5"><label class="form-label small text-white mb-1" for="enquiry-search">Search leads</label><input id="enquiry-search" name="q" value="{{ q|default('') }}" class="form-control form-control-sm" placeholder="Name, email or phone"></div>
+        <div class="col-md-3"><label class="form-label small text-white mb-1" for="enquiry-status">Status</label><select id="enquiry-status" name="status" class="form-select form-select-sm"><option value="">All statuses</option>{% for s in statuses|default([]) %}<option value="{{ s }}" {% if status_filter|default('') == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+        <div class="col-md-3"><label class="form-label small text-white mb-1" for="enquiry-course">Course</label><select id="enquiry-course" name="course_id" class="form-select form-select-sm"><option value="">All courses</option>{% for c in courses %}<option value="{{ c.id }}" {% if course_filter|default(None) == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div>
+        <div class="col-md-1"><button class="btn btn-sm btn-premium w-100" type="submit" aria-label="Apply enquiry filters"><i class="bi bi-search" aria-hidden="true"></i></button></div>
+      </form>
+    </div>
     <!-- Summary tiles (lifecycle pattern: one tile row, no duplicate badge strip) -->
     <div class="row g-3 mb-4">
         <div class="col-6 col-md-4 col-xl-3">
@@ -123,7 +131,7 @@ Course removed</span>
                                         <!-- Convert / view converted student -->
                                         {% if enq.status == 'Converted' %}
                                             {% if enq.converted_student_id %}
-                                            <a href="{{ url_for('students.list') }}" class="btn btn-sm btn-outline-success" title="View enrolled student" aria-label="View enrolled student {{ enq.converted_student.name if enq.converted_student else enq.student_name }}">
+                                            <a href="{{ url_for('students.profile', id=enq.converted_student_id) }}" class="btn btn-sm btn-outline-success" title="View enrolled student" aria-label="View enrolled student {{ enq.converted_student.name if enq.converted_student else enq.student_name }}">
                                                 <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
                                             </a>
                                             {% endif %}
@@ -148,9 +156,9 @@ Course removed</span>
                                             <i class="bi bi-pencil-square" aria-hidden="true">
 </i>
                                         </button>
-                                        <!-- Delete button -->
-                                        <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteEnquiryModal" data-enquiry-id="{{ enq.id }}" data-enquiry-name="{{ enq.student_name }}" title="Remove Lead" aria-label="Delete lead {{ enq.student_name }}">
-                                            <i class="bi bi-trash3-fill" aria-hidden="true">
+                                        <!-- Archive button -->
+                                        <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#deleteEnquiryModal" data-enquiry-id="{{ enq.id }}" data-enquiry-name="{{ enq.student_name }}" title="Archive lead" aria-label="Archive lead {{ enq.student_name }}">
+                                            <i class="bi bi-archive-fill" aria-hidden="true">
 </i>
                                         </button>
                                     </div>
