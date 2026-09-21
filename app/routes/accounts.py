@@ -94,6 +94,8 @@ def edit(account_id):
         opening = float(request.form.get('opening_balance', 0) or 0)
     except (TypeError, ValueError):
         return _fail("Opening balance must be a number.")
+    if opening < 0:
+        return _fail("Opening balance cannot be negative. Record an adjustment instead.")
     acc.name = name
     acc.account_type = account_type
     acc.company_id = company_id

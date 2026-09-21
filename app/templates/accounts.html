@@ -79,6 +79,27 @@
             <span class="badge badge-custom badge-active">Net: ₹{{ "{:,.2f}".format(total_in + (active_acc.opening_balance if active_acc else 0) - total_out) }}</span>
         </div>
 
+        <div class="table-container mb-3">
+            <table class="table table-custom sortable" data-page-size="15">
+                <thead><tr><th>Date</th><th>Type</th><th>Detail</th><th>Inflow</th><th>Outflow</th><th>Running balance</th><th>Reference</th></tr></thead>
+                <tbody>
+                {% for row in breakdown.entries %}
+                    <tr>
+                        <td class="text-secondary small">{{ row.date.strftime('%d %b %Y') }}</td>
+                        <td><span class="badge badge-custom {% if row.kind == 'Expense' %}badge-danger{% elif row.kind == 'Capital' %}badge-active{% else %}badge-cyan{% endif %}">{{ row.kind }}</span></td>
+                        <td class="text-dark">{{ row.detail }}</td>
+                        <td class="text-success">{% if row.inflow %}+₹{{ '{:,.2f}'.format(row.inflow) }}{% else %}-{% endif %}</td>
+                        <td class="text-danger">{% if row.outflow %}-₹{{ '{:,.2f}'.format(row.outflow) }}{% else %}-{% endif %}</td>
+                        <td class="fw-semibold {% if row.running_balance < 0 %}text-danger{% else %}text-dark{% endif %}">₹{{ '{:,.2f}'.format(row.running_balance) }}</td>
+                        <td class="text-secondary small">{{ row.reference }}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="7" class="text-center text-secondary py-3">No ledger activity for this account.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
         <div class="table-container">
             <table class="table table-custom sortable" data-page-size="15">
                 <thead>

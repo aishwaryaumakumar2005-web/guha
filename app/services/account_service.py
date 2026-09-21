@@ -420,7 +420,7 @@ def account_breakdown(account_name, limit=200):
         return entry['data']
     methods = matching_methods(account_name)
     if not methods:
-        return {'income': [], 'expenses': [], 'funding': [],
+        return {'income': [], 'expenses': [], 'funding': [], 'entries': [],
                 'limit': limit, 'totals': {'income': 0, 'expenses': 0, 'funding': 0}}
 
     fee_q = FeeRecord.query.filter(FeeRecord.status != 'Voided')
@@ -437,10 +437,28 @@ def account_breakdown(account_name, limit=200):
     fees = fee_base.options(joinedload(FeeRecord.student)).order_by(FeeRecord.payment_date.desc()).limit(limit).all()
     exp = exp_base.options(joinedload(Expense.category), joinedload(Expense.student)).order_by(Expense.expense_date.desc()).limit(limit).all()
     fund = fund_base.order_by(OwnerFunding.funding_date.desc()).limit(limit).all()
+    entries = []
+    for row in fees:
+        entries.append({'date': row.payment_date, 'kind': 'Fee', 'detail': row.student.name if row.student else 'Student',
+                        'inflow': float(row.amount_paid or 0), 'outflow': 0.0, 'reference': row.receipt_number or f'Fee #{row.id}'})
+    for row in exp:
+        entries.append({'date': row.expense_date, 'kind': 'Expense', 'detail': row.description,
+                        'inflow': 0.0, 'outflow': float(row.amount or 0), 'reference': f'Expense #{row.id}'})
+    for row in fund:
+        entries.append({'date': row.funding_date, 'kind': 'Capital', 'detail': row.purpose or 'Capital contribution',
+                        'inflow': float(row.amount or 0), 'outflow': 0.0, 'reference': f'Funding #{row.id}'})
+    entries.sort(key=lambda row: (row['date'], row['reference']))
+    opening = next((a['opening_balance'] for a in compute_account_summary() if a['name'] == account_name), 0.0)
+    running = float(opening or 0)
+    for row in entries:
+        running += row['inflow'] - row['outflow']
+        row['running_balance'] = round(running, 2)
+    entries.reverse()
     data = {
         'income': fees,
         'expenses': exp,
         'funding': fund,
+        'entries': entries,
         'limit': limit,
         'totals': {
             'income': fee_base.order_by(None).count(),
