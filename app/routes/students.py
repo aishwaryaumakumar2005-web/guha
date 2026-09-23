@@ -13,6 +13,7 @@ import io
 
 MAX_STUDENT_IMPORT_BYTES = 5 * 1024 * 1024
 MAX_STUDENT_IMPORT_ROWS = 5000
+DISPLAY_STATUSES = ['Active', 'Dropped', 'Completed', 'Inactive', 'Archived', 'No active enrollment']
 
 def _derived_enrollment_statuses(students):
     """Calculate display status without mutating historical Student.status."""
@@ -261,8 +262,14 @@ def list():
         base = base.filter(db.or_(
             Student.name.ilike(like), Student.email.ilike(like),
             Student.phone.ilike(like), Student.roll_no.ilike(like)))
-    if status_filter in STUDENT_STATUSES:
-        base = base.filter(Student.status == status_filter)
+    if status_filter in DISPLAY_STATUSES:
+        # Derived enrollment statuses cannot be expressed using only the
+        # Student.status column, so resolve them against the filtered base
+        # set before applying pagination.
+        candidates = base.all()
+        derived = _derived_enrollment_statuses(candidates)
+        matching_ids = [sid for sid, value in derived.items() if value == status_filter]
+        base = base.filter(Student.id.in_(matching_ids)) if matching_ids else base.filter(db.false())
     pagination = base.order_by(
         Student.enrollment_date.is_(None),
         Student.enrollment_date.desc(),
@@ -283,7 +290,7 @@ def list():
     return render_template('students.html', students=pagination.items, courses=all_courses,
         is_staff=(current_user.role == 'Staff'), selected_course_id=course_filter,
         pagination=pagination, q=q, status_filter=status_filter,
-        statuses=STUDENT_STATUSES, scope_courses=scope_courses,
+        statuses=DISPLAY_STATUSES, scope_courses=scope_courses,
         enrollment_statuses=enrollment_statuses)
 
 
