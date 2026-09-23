@@ -192,7 +192,7 @@ def list():
         if payment_method != 'Cash' and not payment_ref:
             return _reject('A payment reference is required for non-cash expenses.')
         duplicate = Expense.query.filter(
-            Expense.status != 'Voided', Expense.amount == amount,
+            db.or_(Expense.status != 'Voided', Expense.status.is_(None)), Expense.amount == amount,
             Expense.expense_date == expense_date,
             Expense.payment_method == payment_method,
             Expense.description == description,
@@ -219,7 +219,7 @@ def list():
     filter_category = request.args.get('category_id', type=int)
     filter_month = request.args.get('month', type=int)
     filter_year = request.args.get('year', type=int)
-    query = Expense.query.filter(Expense.status != 'Voided').options(
+    query = Expense.query.filter(db.or_(Expense.status != 'Voided', Expense.status.is_(None))).options(
         joinedload(Expense.category), joinedload(Expense.creator),
         joinedload(Expense.student), joinedload(Expense.company))
     if filter_category:
@@ -240,7 +240,7 @@ def list():
     active_categories = [c for c in categories if c.is_active]
     totals_query = db.session.query(
         Expense.category_id, db.func.sum(Expense.amount).label('total')
-    ).filter(Expense.status != 'Voided')
+    ).filter(db.or_(Expense.status != 'Voided', Expense.status.is_(None)))
     if year:
         totals_query = totals_query.filter(db.extract('year', Expense.expense_date) == year)
     if month:
@@ -550,7 +550,7 @@ def api_expenses_chart():
         db.extract('month', Expense.expense_date).label('m'),
         db.func.sum(Expense.amount).label('total')
     ).filter(
-        Expense.status != 'Voided',
+        db.or_(Expense.status != 'Voided', Expense.status.is_(None)),
         db.extract('year', Expense.expense_date) == year,
     ).group_by(db.extract('month', Expense.expense_date)).all()
     month_map = {int(r.m): float(r.total) for r in monthly}
