@@ -153,7 +153,7 @@ Actions</th>
         </div>
         {% if pagination.pages > 1 %}
         <nav aria-label="Students pages" class="mt-3">
-            <ul class="pagination pagination-sm justify-content-center mb-0">
+            <ul class="pagination pagination-sm justify-content-center mb-0 student-ledger-pagination">
                 <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
                     <a class="page-link" {% if pagination.has_prev %}href="{{ url_for('students.list', page=pagination.prev_num, course_id=selected_course_id, q=q) }}"{% endif %} aria-label="Previous page" {% if not pagination.has_prev %}tabindex="-1" aria-disabled="true"{% endif %}>&laquo; Prev</a>
                 </li>

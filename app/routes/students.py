@@ -236,7 +236,11 @@ def list():
             Student.phone.ilike(like), Student.roll_no.ilike(like)))
     if status_filter in STUDENT_STATUSES:
         base = base.filter(Student.status == status_filter)
-    pagination = base.order_by(Student.id).paginate(
+    pagination = base.order_by(
+        Student.enrollment_date.is_(None),
+        Student.enrollment_date.desc(),
+        Student.id.desc(),
+    ).paginate(
         page=page, per_page=STUDENTS_PER_PAGE, error_out=False)
 
     # Staff see the union of their courses with no course picker — show which

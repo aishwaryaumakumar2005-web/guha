@@ -2761,3 +2761,6 @@ body.theme-transitioning ::after {
     .bento-grid .glass-card { padding: 1rem !important; }
     .dashboard-action-center { order: -1; }
 }
+.student-ledger-pagination .page-link{background:#0d2740;color:#e8f1ff;border-color:rgba(105,161,255,.35)}
+.student-ledger-pagination .page-link:hover{background:#1b6ef3;color:#fff;border-color:#69a1ff}
+.student-ledger-pagination .page-item.disabled .page-link{background:rgba(13,39,64,.65);color:rgba(232,241,255,.45);border-color:rgba(255,255,255,.12)}
