@@ -334,7 +334,8 @@ class AccountingService:
         pdf.rect(0, 258, 210, 31, 'F')
         pdf.set_draw_color(30, 60, 114)
         pdf.set_line_width(1.0)
-        pdf.line(10, 264, 200, 264)
+        # Separator sits on the footer band's top edge, above the academy name.
+        pdf.line(10, 258, 200, 258)
         pdf.set_line_width(0.2)
         set_font('B', 10)
         text_color(30, 60, 114)
