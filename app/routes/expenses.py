@@ -232,10 +232,12 @@ def list():
         query = query.filter(db.extract('year', Expense.expense_date) == year)
     if month:
         query = query.filter(db.extract('month', Expense.expense_date) == month)
+    # Expense history is intentionally rendered as one continuous list. The
+    # previous 200-row pagination split a small history (for example 273
+    # records) across two pages, making older months appear disconnected.
     expenses_total = query.order_by(None).count()
-    page = max(request.args.get('page', 1, type=int) or 1, 1)
-    all_expenses = query.order_by(Expense.expense_date.desc(), Expense.id.desc()).offset(
-        (page - 1) * FINANCE_LIST_LIMIT).limit(FINANCE_LIST_LIMIT).all()
+    page = 1
+    all_expenses = query.order_by(Expense.expense_date.desc(), Expense.id.desc()).all()
     categories = ExpenseCategory.query.order_by(ExpenseCategory.name).all()
     active_categories = [c for c in categories if c.is_active]
     totals_query = db.session.query(
@@ -269,8 +271,8 @@ def list():
         filter_category=filter_category, filter_month=filter_month,
         filter_year=year, period_label=period_label,
         account_balances=compute_account_summary(),
-        expenses_total=expenses_total, list_limit=FINANCE_LIST_LIMIT,
-        page=page, pages=max((expenses_total + FINANCE_LIST_LIMIT - 1) // FINANCE_LIST_LIMIT, 1),
+        expenses_total=expenses_total, list_limit=expenses_total,
+        page=page, pages=1,
         students=students, student_outstanding=student_outstanding,
         companies=Company.query.order_by(Company.name).all())
 
