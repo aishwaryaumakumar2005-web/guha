@@ -40,9 +40,12 @@
             <div style="border:1px solid #cfd6df; border-left:4px solid #1e3c72; background:#ffffff; border-radius:6px; padding:8px 12px; max-width:580px;">
               <div style="font-size:.92rem; color:#222; line-height:1.45; word-break:break-word;"><i class="fas fa-map-marker-alt mr-1" style="color:#1e3c72;"></i> {{ company.address if company and company.address else org_address }}</div>
               {% if company and company.is_gst_registered %}
-                <div style="font-size:.82rem; color:#555; margin-top:3px;">GSTIN: <strong>{{ company.gstin or org_gstin }}</strong> &nbsp;|&nbsp; Mobile: {{ (company.phone if company else None) or org_phone }} &nbsp;|&nbsp; Email: {{ (company.email if company else None) or org_email }}</div>
+                <div style="font-size:.82rem; color:#555; margin-top:3px; line-height:1.5;">
+                  <div>GSTIN: <strong>{{ company.gstin or org_gstin }}</strong></div>
+                  <div class="receipt-contact-line"><span>Mobile: {{ (company.phone if company else None) or org_phone }}</span><span class="receipt-email">Email: {{ (company.email if company else None) or org_email }}</span></div>
+                </div>
               {% else %}
-                <div style="font-size:.82rem; color:#555; margin-top:3px;">Mobile: {{ (company.phone if company else None) or org_phone }} &nbsp;|&nbsp; Email: {{ (company.email if company else None) or org_email }}</div>
+                <div class="receipt-contact-line" style="font-size:.82rem; color:#555; margin-top:3px; line-height:1.5;"><span>Mobile: {{ (company.phone if company else None) or org_phone }}</span><span class="receipt-email">Email: {{ (company.email if company else None) or org_email }}</span></div>
               {% endif %}
             </div>
         </div>
