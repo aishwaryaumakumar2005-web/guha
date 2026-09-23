@@ -225,9 +225,11 @@ def list():
     if filter_category:
         query = query.filter_by(category_id=filter_category)
     today = date.today()
-    year = filter_year or today.year
+    # No filter means all years; do not silently hide historical records.
+    year = filter_year
     month = filter_month if filter_month not in (None, 0) else None
-    query = query.filter(db.extract('year', Expense.expense_date) == year)
+    if year:
+        query = query.filter(db.extract('year', Expense.expense_date) == year)
     if month:
         query = query.filter(db.extract('month', Expense.expense_date) == month)
     expenses_total = query.order_by(None).count()
@@ -238,7 +240,9 @@ def list():
     active_categories = [c for c in categories if c.is_active]
     totals_query = db.session.query(
         Expense.category_id, db.func.sum(Expense.amount).label('total')
-    ).filter(Expense.status != 'Voided', db.extract('year', Expense.expense_date) == year)
+    ).filter(Expense.status != 'Voided')
+    if year:
+        totals_query = totals_query.filter(db.extract('year', Expense.expense_date) == year)
     if month:
         totals_query = totals_query.filter(db.extract('month', Expense.expense_date) == month)
     totals_map = {cat_id: float(total) for cat_id, total in totals_query.group_by(Expense.category_id).all()}
@@ -249,7 +253,14 @@ def list():
         "over": bool(cat.budget_limit and totals_map.get(cat.id, 0.0) > cat.budget_limit * (1 if month else 12)),
     } for cat in categories]
     grand_total = sum(ct["total"] for ct in category_totals)
-    period_label = f"{MONTH_NAMES[month-1]} {year}" if month else f"All months, {year}"
+    if month and year:
+        period_label = f"{MONTH_NAMES[month-1]} {year}"
+    elif year:
+        period_label = f"All months, {year}"
+    elif month:
+        period_label = f"{MONTH_NAMES[month-1]}, all years"
+    else:
+        period_label = "All expense records"
     students = Student.query.order_by(Student.name).all()
     student_outstanding = student_outstanding_bulk([s.id for s in students])
     return render_template('expenses.html', expenses=all_expenses,

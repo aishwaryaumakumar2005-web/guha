@@ -87,6 +87,7 @@ All Months</option>
                 <label class="form-label small text-dark mb-1">
 Year</label>
                 <select name="year" class="form-select form-select-sm">
+                    <option value="" {% if not filter_year %}selected{% endif %}>All Years</option>
                     {% for y in range(today.year - 2, today.year + 2) %}                        <option value="{{ y }}" {% if filter_year == y %}selected{% endif %}>
 {{ y }}</option>
                     {% endfor %}                </select>
