@@ -164,8 +164,10 @@ class AccountingService:
         pdf.set_fill_color(241, 243, 246)
         pdf.rect(0, 0, 210, 58, 'F')
         pdf.set_draw_color(30, 60, 114)
-        pdf.set_line_width(1.2)
-        pdf.line(8, 58, 202, 58)
+        pdf.set_line_width(1.0)
+        # Keep the accent rule inside the inner page frame so it never
+        # intersects either border in the downloaded PDF.
+        pdf.line(12, 58, 198, 58)
         pdf.set_line_width(0.2)
 
         # Logo top-left
@@ -183,26 +185,27 @@ class AccountingService:
         set_font('', 10)
         text_color(45, 45, 45)
         pdf.set_xy(54, 29)
-        pdf.multi_cell(78, 5, bill_address, new_x="LMARGIN", new_y="NEXT")
+        pdf.multi_cell(64, 5, bill_address, new_x="LMARGIN", new_y="NEXT")
         contact_y = pdf.get_y() + 1
-        contact = (f"GSTIN: {bill_gstin}  Mobile: {bill_phone}  Email: {bill_email}"
-                   if has_gst else f"Mobile: {bill_phone}  Email: {bill_email}")
         pdf.set_xy(54, contact_y)
-        pdf.multi_cell(78, 5, contact, new_x="LMARGIN", new_y="NEXT")
+        if has_gst:
+            pdf.multi_cell(64, 5, f"GSTIN: {bill_gstin}\nMobile: {bill_phone}\nEmail: {bill_email}", new_x="LMARGIN", new_y="NEXT")
+        else:
+            pdf.multi_cell(64, 5, f"Mobile: {bill_phone}\nEmail: {bill_email}", new_x="LMARGIN", new_y="NEXT")
 
         # Right side: title + meta
         set_font('B', 18)
         text_color(30, 60, 114)
-        pdf.set_xy(120, 12)
-        pdf.cell(78, 10, 'TAX INVOICE' if has_gst else 'FEE RECEIPT', align='R')
+        pdf.set_xy(132, 12)
+        pdf.cell(66, 10, 'TAX INVOICE' if has_gst else 'FEE RECEIPT', align='R')
         set_font('B', 9.5)
         text_color(40, 40, 40)
-        pdf.set_xy(120, 27)
-        pdf.cell(78, 6, f"Invoice No: {inv_no}", align='R')
-        pdf.set_xy(120, 34)
-        pdf.cell(78, 6, f"Date: {fee_record.payment_date.strftime('%d %b %Y')}", align='R')
-        pdf.set_xy(120, 41)
-        pdf.cell(78, 6, "Place of Supply: Tamil Nadu (33)", align='R')
+        pdf.set_xy(132, 27)
+        pdf.cell(66, 6, f"Invoice No: {inv_no}", align='R')
+        pdf.set_xy(132, 34)
+        pdf.cell(66, 6, f"Date: {fee_record.payment_date.strftime('%d %b %Y')}", align='R')
+        pdf.set_xy(132, 41)
+        pdf.cell(66, 6, "Place of Supply: Tamil Nadu (33)", align='R')
 
         pdf.set_y(66)
 
@@ -331,7 +334,7 @@ class AccountingService:
         pdf.rect(0, 266, 210, 31, 'F')
         pdf.set_draw_color(30, 60, 114)
         pdf.set_line_width(1.0)
-        pdf.line(8, 266, 202, 266)
+        pdf.line(12, 266, 198, 266)
         pdf.set_line_width(0.2)
         set_font('B', 10)
         text_color(30, 60, 114)
@@ -342,7 +345,10 @@ class AccountingService:
         pdf.set_xy(10, 277)
         pdf.cell(190, 5, bill_address, align='C')
         pdf.set_xy(10, 283)
-        pdf.cell(190, 5, f"GSTIN: {bill_gstin}  Mobile: {bill_phone}  Email: {bill_email}   |   Generated: {datetime.now().strftime('%d %b %Y %I:%M %p')}", align='C')
+        pdf.cell(190, 5, f"GSTIN: {bill_gstin}  |  Mobile: {bill_phone}  |  Email: {bill_email}", align='C')
+        pdf.set_xy(10, 288)
+        pdf.set_font(pdf_font, '', 7.5)
+        pdf.cell(190, 4, f"Generated: {datetime.now().strftime('%d %b %Y %I:%M %p')}", align='C')
 
         # Page border (drawn last so it frames header/footer bands)
         pdf.set_draw_color(30, 60, 114)
