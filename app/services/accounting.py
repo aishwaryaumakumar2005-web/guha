@@ -87,8 +87,17 @@ class AccountingService:
         """
         courses = list(fee_record.student.courses) if fee_record.student else []
         names = ', '.join(c.name for c in courses)
-        desc = f"Course fee installment ({names})" if names else "Course fee installment"
-        return desc[:max_len]
+        if not names:
+            return "Course fee installment"
+
+        # Keep the closing bracket visible when long course names are shortened.
+        prefix = "Course fee installment ("
+        suffix = ")"
+        full_desc = f"{prefix}{names}{suffix}"
+        if len(full_desc) <= max_len:
+            return full_desc
+        available = max(1, max_len - len(prefix) - len(suffix) - 3)
+        return f"{prefix}{names[:available].rstrip()}...{suffix}"
 
     def generate_invoice_pdf(self, fee_record):
         cfg = self._get_settings()
