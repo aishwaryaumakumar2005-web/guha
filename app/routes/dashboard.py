@@ -228,7 +228,14 @@ def _fee_due_rows(student_ids=None):
         student_ids = list(student_ids)
         if not student_ids:
             return []
-    query = Student.query.filter_by(status='Active')
+    # A student can remain globally Active while all course enrollments are Dropped or Completed. Only students with a live enrollment belong in the dashboard's active outstanding-fees widget.
+    active_enrollment = db.or_(
+        student_courses.c.status == 'Enrolled',
+        student_courses.c.status.is_(None),
+    )
+    query = Student.query.filter_by(status='Active').filter(
+        Student.courses.any(active_enrollment)
+    )
     if student_ids is not None:
         query = query.filter(Student.id.in_(student_ids))
     students = query.all()
