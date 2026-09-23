@@ -81,8 +81,8 @@ class AccountingService:
     def invoice_item_description(fee_record, max_len=40):
         """One-line description for the invoice items table.
 
-        Names the installment (not full course fees — see W1) and truncates
-        to fit the fixed-width PDF description cell, which cannot wrap.
+        Names the installment (not full course fees — see W1). The complete
+        course text is retained so receipt descriptions are never shortened.
         Pure function so the reconciling logic is directly unit-testable.
         """
         courses = list(fee_record.student.courses) if fee_record.student else []
@@ -90,14 +90,9 @@ class AccountingService:
         if not names:
             return "Course fee installment"
 
-        # Keep the closing bracket visible when long course names are shortened.
         prefix = "Course fee installment ("
         suffix = ")"
-        full_desc = f"{prefix}{names}{suffix}"
-        if len(full_desc) <= max_len:
-            return full_desc
-        available = max(1, max_len - len(prefix) - len(suffix) - 3)
-        return f"{prefix}{names[:available].rstrip()}...{suffix}"
+        return f"{prefix}{names}{suffix}"
 
     def generate_invoice_pdf(self, fee_record):
         cfg = self._get_settings()
@@ -283,7 +278,10 @@ class AccountingService:
             else:
                 pdf.set_fill_color(255, 255, 255)
             text_color(25, 25, 25)
-            set_font('B' if bold else '', 9.5)
+            # Keep the complete course description readable in the fixed
+            # description column without replacing it with an ellipsis.
+            row_size = 7.5 if len(str(cols[0])) > 45 else 9.5
+            set_font('B' if bold else '', row_size)
             pdf.set_x(15)
             for i, c in enumerate(cols):
                 pdf.cell(col_w[i], 8, str(c), border=1, fill=True, align='C' if i > 0 else 'L')
