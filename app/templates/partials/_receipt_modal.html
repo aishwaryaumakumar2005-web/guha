@@ -93,6 +93,22 @@
         </div>
       </div>
 
+      {% if discount_details %}
+      <div class="alert alert-info small mb-4">
+        <strong>Admission discount applied</strong>
+        {% for discount in discount_details %}
+          <div class="d-flex justify-content-between mt-1">
+            <span>{{ discount.course_name }} — {{ discount.discount_type }}{% if discount.discount_type == 'Percentage' %} ({{ discount.discount_value|round(2) }}%){% endif %} discount</span>
+            <span>− ₹ {{ "%.2f"|format(discount.discount_amount) }}</span>
+          </div>
+          <div class="d-flex justify-content-between text-muted">
+            <span>Reduced fee{% if discount.gst_amount %}, GST on reduced fee{% endif %}</span>
+            <span>₹ {{ "%.2f"|format(discount.final_fee) }}</span>
+          </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
       <!-- Item Table: this receipt covers ONE installment. Course totals live
            in the enrollment summary below so part-payments reconcile. -->
       <div class="table-responsive mb-4">

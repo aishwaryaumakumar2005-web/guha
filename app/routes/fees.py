@@ -390,6 +390,24 @@ def receipt(id):
 
     due_total, paid_total, concessions_total, balance_due = _student_fee_summary(record.student, company)
     course_names = ', '.join(f"{c.name} ({c.code})" for c in record.student.courses) if record.student and record.student.courses else ''
+    discount_details = []
+    if record.student:
+        enrollment_rows = db.session.query(student_courses).filter(
+            student_courses.c.student_id == record.student.id
+        ).all()
+        course_map = {c.id: c for c in record.student.courses}
+        for enrollment in enrollment_rows:
+            if enrollment.discount_type and (enrollment.discount_amount or 0) > 0:
+                course = course_map.get(enrollment.course_id)
+                discount_details.append({
+                    'course_name': course.name if course else 'Course fee',
+                    'discount_type': enrollment.discount_type,
+                    'discount_value': enrollment.discount_value or 0,
+                    'discount_amount': enrollment.discount_amount or 0,
+                    'net_fee': enrollment.net_fee or enrollment.agreed_fee or 0,
+                    'gst_amount': enrollment.gst_amount or 0,
+                    'final_fee': enrollment.final_fee or 0,
+                })
 
     # U8: receipt furniture comes from settings/company, never literals.
     accounting = getattr(current_app, 'accounting', None)
@@ -407,7 +425,7 @@ def receipt(id):
         sgst_pct=sgst_pct,
         cgst_val=cgst_val,
         sgst_val=sgst_val,
-        taxable_val=taxable_val,
+        taxable_val=taxable_val, discount_details=discount_details,
         due_total=due_total,
         paid_total=paid_total,
         concessions_total=concessions_total,
