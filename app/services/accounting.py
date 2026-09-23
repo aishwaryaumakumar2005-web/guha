@@ -162,12 +162,12 @@ class AccountingService:
 
         # Header band (light grey)
         pdf.set_fill_color(241, 243, 246)
-        pdf.rect(0, 0, 210, 58, 'F')
+        pdf.rect(0, 0, 210, 62, 'F')
         pdf.set_draw_color(30, 60, 114)
         pdf.set_line_width(1.0)
         # Keep the accent rule inside the inner page frame so it never
         # intersects either border in the downloaded PDF.
-        pdf.line(12, 58, 198, 58)
+        pdf.line(10, 62, 200, 62)
         pdf.set_line_width(0.2)
 
         # Logo top-left
@@ -207,12 +207,12 @@ class AccountingService:
         pdf.set_xy(132, 41)
         pdf.cell(66, 6, "Place of Supply: Tamil Nadu (33)", align='R')
 
-        pdf.set_y(66)
+        pdf.set_y(70)
 
         # Bill To (left) and Payment & Terms (right)
         set_font('B', 12)
         text_color(30, 60, 114)
-        pdf.set_xy(15, 66)
+        pdf.set_xy(15, 70)
         pdf.cell(0, 8, 'Bill To (Student):', new_x="LMARGIN", new_y="NEXT")
         pdf.set_draw_color(140, 150, 165)
         pdf.line(15, pdf.get_y(), 95, pdf.get_y())
@@ -228,7 +228,7 @@ class AccountingService:
 
         set_font('B', 12)
         text_color(30, 60, 114)
-        pdf.set_xy(120, 66)
+        pdf.set_xy(120, 70)
         pdf.cell(0, 8, 'Payment & Terms:', new_x="LMARGIN", new_y="NEXT")
         pdf.line(120, pdf.get_y(), 195, pdf.get_y())
         pdf.ln(2)
@@ -331,22 +331,24 @@ class AccountingService:
 
         # Footer band with company details
         pdf.set_fill_color(241, 243, 246)
-        pdf.rect(0, 266, 210, 31, 'F')
+        pdf.rect(0, 258, 210, 31, 'F')
         pdf.set_draw_color(30, 60, 114)
         pdf.set_line_width(1.0)
-        pdf.line(12, 266, 198, 266)
+        pdf.line(10, 264, 200, 264)
         pdf.set_line_width(0.2)
         set_font('B', 10)
         text_color(30, 60, 114)
-        pdf.set_xy(10, 270)
+        pdf.set_xy(10, 262)
         pdf.cell(190, 6, bill_name, align='C')
         set_font('', 8.5)
         text_color(45, 45, 45)
-        pdf.set_xy(10, 277)
+        pdf.set_xy(10, 268)
         pdf.cell(190, 5, bill_address, align='C')
+        pdf.set_xy(10, 274)
+        pdf.cell(190, 4, f"GSTIN: {bill_gstin}  |  Mobile: {bill_phone}", align='C')
+        pdf.set_xy(10, 278)
+        pdf.cell(190, 4, f"Email: {bill_email}", align='C')
         pdf.set_xy(10, 283)
-        pdf.cell(190, 5, f"GSTIN: {bill_gstin}  |  Mobile: {bill_phone}  |  Email: {bill_email}", align='C')
-        pdf.set_xy(10, 288)
         pdf.set_font(pdf_font, '', 7.5)
         pdf.cell(190, 4, f"Generated: {datetime.now().strftime('%d %b %Y %I:%M %p')}", align='C')
 
