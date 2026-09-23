@@ -14,6 +14,33 @@ import io
 MAX_STUDENT_IMPORT_BYTES = 5 * 1024 * 1024
 MAX_STUDENT_IMPORT_ROWS = 5000
 
+def _derived_enrollment_statuses(students):
+    """Calculate display status without mutating historical Student.status."""
+    ids = [s.id for s in students]
+    if not ids:
+        return {}
+    rows = db.session.query(student_courses.c.student_id, student_courses.c.status).filter(
+        student_courses.c.student_id.in_(ids)
+    ).all()
+    by_student = {}
+    for sid, status in rows:
+        by_student.setdefault(sid, []).append(status)
+    result = {}
+    for student in students:
+        if student.status in ('Inactive', 'Archived'):
+            result[student.id] = student.status
+            continue
+        statuses = by_student.get(student.id, [])
+        if any(status in (None, 'Enrolled') for status in statuses):
+            result[student.id] = 'Active'
+        elif 'Dropped' in statuses:
+            result[student.id] = 'Dropped'
+        elif 'Completed' in statuses:
+            result[student.id] = 'Completed'
+        else:
+            result[student.id] = 'No active enrollment'
+    return result
+
 def _admission_discount(raw_type, raw_value, course):
     """Build a discount snapshot for a new enrollment only."""
     discount_type = (raw_type or 'None').strip().title()
@@ -252,10 +279,12 @@ def list():
             scope_courses = sorted(c.name for c in _tutor.courses)
 
     all_courses = Course.query.all()
+    enrollment_statuses = _derived_enrollment_statuses(pagination.items)
     return render_template('students.html', students=pagination.items, courses=all_courses,
         is_staff=(current_user.role == 'Staff'), selected_course_id=course_filter,
         pagination=pagination, q=q, status_filter=status_filter,
-        statuses=STUDENT_STATUSES, scope_courses=scope_courses)
+        statuses=STUDENT_STATUSES, scope_courses=scope_courses,
+        enrollment_statuses=enrollment_statuses)
 
 
 @students_bp.route('/api/students/export-excel')

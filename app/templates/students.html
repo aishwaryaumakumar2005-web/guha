@@ -114,8 +114,9 @@ Actions</th>
                                 <td data-label="Enrolled" class="text-white" style="opacity: 0.85;">
 {{ student.enrollment_date.strftime("%d %b %Y") if student.enrollment_date else 'Not set' }}{% if student.date_of_birth %}<div class="small text-white-50" style="opacity:0.7;" title="Date of birth"><i class="bi bi-cake me-1" aria-hidden="true"></i>{{ student.date_of_birth.strftime("%d %b %Y") }}</div>{% endif %}</td>
                                 <td data-label="Status">
-                                    <span class="badge badge-custom {% if student.status == 'Active' %}badge-active{% else %}badge-inactive{% endif %}">
-                                        {{ student.status }}                                    </span>
+                                    {% set display_status = enrollment_statuses.get(student.id, student.status) %}
+                                    <span class="badge badge-custom {% if display_status == 'Active' %}badge-active{% else %}badge-inactive{% endif %}">
+                                        {{ display_status }}                                    </span>
                                 </td>
                                 <td data-label="Actions" class="text-end">
                                     <div class="d-flex justify-content-end gap-2">
