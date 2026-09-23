@@ -489,6 +489,25 @@ def migrate_agreed_dues_columns():
         print(f"Migration migrate_agreed_dues_columns: FAILED to backfill: {e}", flush=True)
 
 
+def migrate_admission_discount_columns():
+    """Add nullable enrollment discount snapshots without changing legacy rows."""
+    if not _table_exists('student_courses'):
+        return
+    columns = [
+        ('discount_type', 'VARCHAR(20)'), ('discount_value', 'FLOAT'),
+        ('discount_amount', 'FLOAT'), ('net_fee', 'FLOAT'),
+        ('gst_amount', 'FLOAT'), ('final_fee', 'FLOAT'),
+    ]
+    for column, col_type in columns:
+        if not _has_column('student_courses', column):
+            try:
+                db.session.execute(text(f'ALTER TABLE "student_courses" ADD COLUMN "{column}" {col_type}'))
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                print(f'Migration migrate_admission_discount_columns failed for {column}: {e}', flush=True)
+
+
 def migrate_expense_student_id():
     """Add student_id to expense (W3 refund link).
 

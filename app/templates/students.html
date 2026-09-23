@@ -266,8 +266,17 @@ Active</option>
 Inactive</option>
                             <option value="Archived">
 Archived</option>
-                                    </select>
+                        </select>
                     </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6"><label class="form-label small text-white" for="discountType">Admission Discount</label>
+                            <select class="form-select" id="discountType" name="discount_type">
+                                <option value="None">No discount</option><option value="Percentage">Percentage (%)</option><option value="Fixed">Fixed amount (₹)</option>
+                            </select></div>
+                        <div class="col-6"><label class="form-label small text-white" for="discountValue">Discount value</label>
+                            <input class="form-control" id="discountValue" name="discount_value" type="number" min="0" step="0.01" value="0" placeholder="0"></div>
+                    </div>
+                    <div class="form-text text-white-50 mb-3">The selected discount applies to each newly selected course. GST is recalculated on the reduced fee.</div>
                     <div class="mb-3">
                         <label class="form-label text-white small" for="editCourses">
                         Courses Mapping</label>

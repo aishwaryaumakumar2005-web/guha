@@ -18,6 +18,14 @@ student_courses = db.Table('student_courses',
     db.Column('agreed_fee', db.Float),
     db.Column('agreed_gst', db.Boolean),
     db.Column('agreed_company_id', db.Integer),
+    # Optional admission-level concession snapshot. NULL means legacy
+    # admission/no discount and preserves the historical calculation path.
+    db.Column('discount_type', db.String(20)),
+    db.Column('discount_value', db.Float),
+    db.Column('discount_amount', db.Float),
+    db.Column('net_fee', db.Float),
+    db.Column('gst_amount', db.Float),
+    db.Column('final_fee', db.Float),
 )
 
 

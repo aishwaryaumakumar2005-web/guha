@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import Student, Course, Tutor, Attendance, student_courses, ensure_enrolled_on, stamp_agreed_dues
 from app.models.course import course_has_capacity
-from app.helpers import admin_required, cell_text, commit_with_retry, is_ajax_request, save_photo_data, staff_can_view_student
+from app.helpers import admin_required, cell_text, commit_with_retry, is_ajax_request, save_photo_data, staff_can_view_student, get_gst_rates
 from sqlalchemy.exc import IntegrityError
 from app.forms import StudentForm
 from datetime import date
@@ -13,6 +13,26 @@ import io
 
 MAX_STUDENT_IMPORT_BYTES = 5 * 1024 * 1024
 MAX_STUDENT_IMPORT_ROWS = 5000
+
+def _admission_discount(raw_type, raw_value, course):
+    """Build a discount snapshot for a new enrollment only."""
+    discount_type = (raw_type or 'None').strip().title()
+    try:
+        value = float(raw_value or 0)
+    except (TypeError, ValueError):
+        raise ValueError('Discount must be a valid number.')
+    if discount_type not in ('None', 'Percentage', 'Fixed'):
+        raise ValueError('Discount type must be Percentage or Fixed amount.')
+    if value < 0 or (discount_type == 'Percentage' and value > 100):
+        raise ValueError('Discount value is outside the allowed range.')
+    gross = round(float(course.fees or 0), 2)
+    amount = round(gross * value / 100, 2) if discount_type == 'Percentage' else round(value, 2)
+    if amount > gross:
+        raise ValueError(f'Discount cannot exceed the fee for {course.name}.')
+    net = round(gross - amount, 2)
+    cgst, sgst = get_gst_rates()
+    gst = round(net * (cgst + sgst) / 100, 2) if course.gst_applicable else 0.0
+    return discount_type, value, amount, net, gst, round(net + gst, 2)
 
 
 def _excel_safe(value):
@@ -90,6 +110,19 @@ def list():
         phone = _normalize_phone(form.data.get('phone'))
         status = form.data.get('status', 'Active')
         selected_courses = [c for c in request.form.getlist('courses') if c]
+        discount_type = request.form.get('discount_type', 'None')
+        discount_value = request.form.get('discount_value', '0')
+        discount_snapshots = {}
+        try:
+            for raw_cid in selected_courses:
+                course = Course.query.get(int(raw_cid)) if str(raw_cid).isdigit() else None
+                if course:
+                    discount_snapshots[course.id] = _admission_discount(discount_type, discount_value, course)
+        except ValueError as e:
+            if is_ajax_request():
+                return jsonify({'success': False, 'errors': [str(e)]}), 400
+            flash(str(e), 'danger')
+            return redirect(url_for('students.list'))
         full_courses = []
         for raw_cid in selected_courses:
             course = Course.query.get(int(raw_cid)) if str(raw_cid).isdigit() else None
@@ -136,6 +169,20 @@ def list():
                 db.session.flush()
                 ensure_enrolled_on(fresh.id)
                 stamp_agreed_dues(fresh.id)
+                for course_id, snapshot in discount_snapshots.items():
+                    dtype, dvalue, damount, net, gst, final_fee = snapshot
+                    db.session.execute(student_courses.update().where(
+                        student_courses.c.student_id == fresh.id,
+                        student_courses.c.course_id == course_id,
+                    ).values(
+                        discount_type=None if dtype == 'None' else dtype,
+                        discount_value=None if dtype == 'None' else dvalue,
+                        discount_amount=None if dtype == 'None' else damount,
+                        net_fee=None if dtype == 'None' else net,
+                        gst_amount=None if dtype == 'None' else gst,
+                        final_fee=None if dtype == 'None' else final_fee,
+                        agreed_fee=net,
+                    ))
                 db.session.commit()
                 return fresh
             try:

@@ -326,6 +326,8 @@ def create_app(config_object=None):
             try:
                 from app.services.db_migration import migrate_agreed_dues_columns
                 migrate_agreed_dues_columns()
+                from app.services.db_migration import migrate_admission_discount_columns
+                migrate_admission_discount_columns()
                 print("Migration migrate_agreed_dues_columns completed OK", flush=True)
             except Exception as e:
                 print("Migration migrate_agreed_dues_columns FAILED:", e, flush=True)
@@ -656,6 +658,8 @@ def create_app(config_object=None):
             try:
                 from app.services.db_migration import migrate_agreed_dues_columns
                 migrate_agreed_dues_columns()
+                from app.services.db_migration import migrate_admission_discount_columns
+                migrate_admission_discount_columns()
             except Exception as e:
                 print('Failed to ensure agreed dues columns:', e, file=sys.stderr)
 
