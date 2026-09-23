@@ -235,7 +235,7 @@ def list():
             student_ids = [s.id for s in all_students]
             scoped = query.filter(FeeRecord.student_id.in_(student_ids))
             history_total = scoped.order_by(None).count()
-            all_records = scoped.order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).limit(FINANCE_LIST_LIMIT).all()
+            all_records = scoped.order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).all()
         else:
             all_students = []
             all_records = []
@@ -243,7 +243,7 @@ def list():
             student_ids = []
     else:
         history_total = query.order_by(None).count()
-        all_records = query.options(subqueryload(FeeRecord.student).subqueryload(Student.courses), subqueryload(FeeRecord.company)).order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).limit(FINANCE_LIST_LIMIT).all()
+        all_records = query.options(subqueryload(FeeRecord.student).subqueryload(Student.courses), subqueryload(FeeRecord.company)).order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).all()
         students_q = Student.query.options(subqueryload(Student.courses)).filter_by(status='Active')
         if student_filter_id:
             students_q = students_q.filter(Student.id == student_filter_id)
@@ -342,7 +342,7 @@ def list():
         'fees.html', records=all_records, students=all_students, balances=student_balances,
         companies=companies, selected_company_id=company_id,
         selected_company=selected_company, default_company=default_company,
-        history_total=history_total, list_limit=FINANCE_LIST_LIMIT,
+        history_total=history_total, list_limit=history_total,
         from_date=from_date.isoformat() if from_date else '',
         to_date=to_date.isoformat() if to_date else '',
         kpi=kpi,
