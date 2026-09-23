@@ -15,7 +15,7 @@
 
 <div class="modal-body p-4" id="printableInvoiceArea">
   <div class="card border-0 shadow-sm rounded-lg overflow-hidden" style="max-width:820px;margin:0 auto;">
-    <div class="card-header p-4" style="background:#f1f3f6;border-bottom:4px solid #1e3c72;">
+    <div class="card-header p-4" style="background:#f1f3f6;border-bottom:0;">
       <div class="d-flex align-items-center">
         {% if logo_url %}
         <img src="{{ logo_url }}" alt="Logo"
@@ -47,6 +47,7 @@
             </div>
         </div>
       </div>
+      <div aria-hidden="true" style="height:3px;background:#1e3c72;margin:16px 4px 0;border-radius:2px;"></div>
     </div>
 
     <div class="card-body p-4">
