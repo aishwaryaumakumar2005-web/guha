@@ -59,6 +59,11 @@ def create_app(config_object=None):
     db_url = (os.environ.get('DATABASE_URL') or 'sqlite:///institute.db').strip().strip('"').strip("'")
     if db_url.startswith('postgres://'):
         db_url = 'postgresql' + db_url[len('postgres'):]
+    # Render/Neon may provide a SQLAlchemy URL using the psycopg 3 driver
+    # name. This project installs psycopg2-binary, so use that driver unless
+    # psycopg 3 is explicitly installed.
+    if db_url.startswith('postgresql+psycopg://'):
+        db_url = 'postgresql+psycopg2://' + db_url[len('postgresql+psycopg://'):]
     app.config['SQLALCHEMY_DATABASE_URI'] = db_url
     if db_url.startswith('sqlite'):
         engine_opts = {
