@@ -592,12 +592,19 @@ Print/Download ID Card                    </button>
             document.querySelectorAll('.accord-trigger').forEach(function(tr) {
                 var body = tr.nextElementSibling;
                 if (!body || !body.classList.contains('accord-body')) return;
+                // HTMX can cause this initializer to run more than once. Keep
+                // one click handler per trigger or a single click can toggle
+                // the section open and closed immediately.
+                if (tr.getAttribute('data-accordion-bound') === '1') return;
+                tr.setAttribute('data-accordion-bound', '1');
                 if (body.classList.contains('open')) {
                     body.style.maxHeight = body.scrollHeight + 'px';
                 }
                 tr.addEventListener('click', function() {
                     var b = this.nextElementSibling;
                     if (!b || !b.classList.contains('accord-body')) return;
+                    if (this.getAttribute('data-accordion-busy') === '1') return;
+                    this.setAttribute('data-accordion-busy', '1');
                     var isOpen = b.classList.contains('open');
                     // Close every other open accordion deterministically (no rAF dependency)
                     document.querySelectorAll('.accord-trigger').forEach(function(o) {
@@ -614,6 +621,7 @@ Print/Download ID Card                    </button>
                         this.classList.remove('expanded');
                         b.style.maxHeight = b.scrollHeight + 'px';
                         b.style.maxHeight = '0';
+                        setTimeout(function() { tr.removeAttribute('data-accordion-busy'); }, 380);
                     } else {
                         b.classList.add('open');
                         this.classList.add('expanded');
@@ -626,6 +634,7 @@ Print/Download ID Card                    </button>
                             settled = true;
                             b.removeEventListener('transitionend', fin);
                             if (b.classList.contains('open')) b.style.maxHeight = 'none';
+                            tr.removeAttribute('data-accordion-busy');
                         };
                         b.addEventListener('transitionend', fin);
                         setTimeout(fin, 450);
@@ -659,14 +668,22 @@ Print/Download ID Card                    </button>
                 var shouldExpand = expanded.indexOf(path) !== -1;
                 el.classList.toggle('expanded', shouldExpand);
                 el.nextElementSibling.classList.toggle('open', shouldExpand);
-                if (shouldExpand) el.nextElementSibling.style.maxHeight = 'none';
-                else el.nextElementSibling.style.maxHeight = '0';
+                el.nextElementSibling.style.maxHeight = shouldExpand ? 'none' : '0';
             });
         }
-        document.addEventListener('htmx:afterSettle', updateSidebarActive);
+        document.addEventListener('htmx:afterSettle', function() {
+            initAccordion();
+            updateSidebarActive();
+        });
+        function resetSidebarState() {
+            document.body.classList.remove('sidebar-open');
+            document.querySelectorAll('.accord-trigger').forEach(function(tr) {
+                tr.removeAttribute('data-accordion-busy');
+            });
+        }
         // Clean up modal + sidebar state on HTMX navigation to prevent stuck UI
         document.addEventListener('htmx:beforeSwap', function() {
-            document.body.classList.remove('sidebar-open');
+            resetSidebarState();
             document.querySelectorAll('.modal.show').forEach(function(m) {
                 var modal = bootstrap.Modal.getInstance(m);
                 if (modal) modal.hide();
@@ -678,11 +695,11 @@ Print/Download ID Card                    </button>
         });
         // Never allow the off-canvas sidebar state to persist on desktop
         window.addEventListener('resize', function() {
-            if (window.innerWidth >= 992) document.body.classList.remove('sidebar-open');
+            if (window.innerWidth >= 992) resetSidebarState();
         });
         // Escape key closes the mobile sidebar
         document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') document.body.classList.remove('sidebar-open');
+            if (e.key === 'Escape') resetSidebarState();
         });
         // Guard: if the overlay is stuck but the sidebar class vanished, or vice-versa
         document.addEventListener('click', function(e) {
