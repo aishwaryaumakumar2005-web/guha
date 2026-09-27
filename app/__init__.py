@@ -64,6 +64,11 @@ def create_app(config_object=None):
     # psycopg 3 is explicitly installed.
     if db_url.startswith('postgresql+psycopg://'):
         db_url = 'postgresql+psycopg2://' + db_url[len('postgresql+psycopg://'):]
+    elif db_url.startswith('postgresql://'):
+        # SQLAlchemy 2.1 may select psycopg 3 for the generic PostgreSQL
+        # scheme. Pin the driver explicitly because this app installs
+        # psycopg2-binary, not psycopg 3.
+        db_url = 'postgresql+psycopg2://' + db_url[len('postgresql://'):]
     app.config['SQLALCHEMY_DATABASE_URI'] = db_url
     if db_url.startswith('sqlite'):
         engine_opts = {
