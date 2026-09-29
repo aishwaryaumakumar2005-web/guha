@@ -218,6 +218,7 @@ Full Name</label>
                             <input class="form-control" id="discountValue" name="discount_value" type="number" min="0" step="0.01" value="0" placeholder="0"></div>
                     </div>
                     <div class="form-text text-white-50 mb-3">The selected discount applies to each newly selected course. GST is recalculated on the reduced fee.</div>
+                    <div class="row g-2 mb-3"><div class="col-6"><label class="form-label small text-white">Billing mode</label><select class="form-select" name="billing_mode"><option value="fixed">Fixed course fee</option><option value="monthly">Monthly billing</option></select></div><div class="col-6"><label class="form-label small text-white">Monthly fee (₹)</label><input class="form-control" name="monthly_fee" type="number" min="0" step="0.01"></div></div>
                     <div class="mb-3">
                         <label class="form-label small text-white d-block">Photo (Optional)</label>
                         <input type="file" class="form-control" name="photo" accept="image/png,image/jpeg,image/gif,image/webp">
@@ -288,6 +289,7 @@ Archived</option>
                     <div class="mb-3">
                         <label class="form-label text-white small d-block">Photo</label>
                         <div class="d-flex align-items-center gap-3">
+                            <div class="row g-2 mb-3"><div class="col-6"><label class="form-label text-white small">Billing mode</label><select class="form-select" name="billing_mode"><option value="">Keep existing billing</option><option value="fixed">Fixed course fee</option><option value="monthly">Monthly billing</option></select></div><div class="col-6"><label class="form-label text-white small">Monthly fee (₹)</label><input class="form-control" name="monthly_fee" type="number" min="0" step="0.01"></div></div>
                             <img id="editPhotoPreview" src="" alt="Current student photo" class="rounded-circle object-fit-cover" style="width: 48px; height: 48px; display: none;">
                             <div class="flex-grow-1">
                                 <input type="file" class="form-control" name="photo" accept="image/png,image/jpeg,image/gif,image/webp">
@@ -626,6 +628,8 @@ function openEditStudent(btn) {
     document.getElementById('editPhone').value = d.phone || '';
     document.getElementById('editDob').value = d.dob || '';
     document.getElementById('editStatus').value = d.status || 'Active';
+    document.querySelector('#editStudentForm select[name="billing_mode"]').value = '';
+    document.querySelector('#editStudentForm input[name="monthly_fee"]').value = '';
     var wanted = (d.courseIds || '').split(',').filter(function(v) { return v; });
     var sel = document.getElementById('editCourses');
     if (sel.tomselect) {

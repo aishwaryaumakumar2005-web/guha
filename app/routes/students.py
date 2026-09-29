@@ -140,11 +140,22 @@ def list():
         selected_courses = [c for c in request.form.getlist('courses') if c]
         discount_type = request.form.get('discount_type', 'None')
         discount_value = request.form.get('discount_value', '0')
+        billing_mode = request.form.get('billing_mode', 'fixed')
+        try:
+            monthly_fee = float(request.form.get('monthly_fee') or 0)
+        except (TypeError, ValueError):
+            monthly_fee = 0
+        if billing_mode not in ('fixed', 'monthly') or (billing_mode == 'monthly' and monthly_fee <= 0):
+            msg = 'Select a valid billing mode and monthly fee.'
+            if is_ajax_request(): return jsonify({'success': False, 'errors': [msg]}), 400
+            flash(msg, 'danger'); return redirect(url_for('students.list'))
         discount_snapshots = {}
         try:
             for raw_cid in selected_courses:
                 course = Course.query.get(int(raw_cid)) if str(raw_cid).isdigit() else None
                 if course:
+                    if billing_mode == 'monthly' and course.gst_applicable:
+                        raise ValueError('Monthly billing is available only for non-GST courses.')
                     discount_snapshots[course.id] = _admission_discount(discount_type, discount_value, course)
         except ValueError as e:
             if is_ajax_request():
@@ -210,6 +221,8 @@ def list():
                         gst_amount=None if dtype == 'None' else gst,
                         final_fee=None if dtype == 'None' else final_fee,
                         agreed_fee=net,
+                        billing_mode=billing_mode,
+                        monthly_fee=monthly_fee if billing_mode == 'monthly' else None,
                     ))
                 db.session.commit()
                 return fresh
@@ -453,6 +466,17 @@ def edit(id):
             requested_ids.add(int(raw_cid))
         except (TypeError, ValueError):
             continue
+    billing_mode = request.form.get('billing_mode', '').strip()
+    try:
+        monthly_fee = float(request.form.get('monthly_fee') or 0)
+    except (TypeError, ValueError):
+        monthly_fee = 0
+    if billing_mode and (billing_mode not in ('fixed', 'monthly') or (billing_mode == 'monthly' and monthly_fee <= 0)):
+        flash('Select a valid billing mode and monthly fee.', 'danger')
+        return redirect(url_for('students.list'))
+    if billing_mode == 'monthly' and any(c.gst_applicable for c in Course.query.filter(Course.id.in_(requested_ids)).all()):
+        flash('Monthly billing is available only for non-GST courses.', 'danger')
+        return redirect(url_for('students.list'))
     existing_ids = {c.id for c in student.courses}
     # NB: this module defines a view named `list`, so the builtin list()
     # is shadowed here — collect removals first instead.
@@ -474,6 +498,13 @@ def edit(id):
         # Stamp any row left without a snapshot (covers drop-and-re-add of the
         # same course in one save); re-run-safe because it only fills NULLs.
         stamp_agreed_dues(student.id)
+    if billing_mode:
+        db.session.execute(student_courses.update().where(
+            student_courses.c.student_id == student.id,
+            student_courses.c.course_id.in_(requested_ids),
+            db.or_(student_courses.c.status.is_(None), student_courses.c.status == 'Enrolled')
+        ).values(billing_mode=billing_mode,
+                 monthly_fee=monthly_fee if billing_mode == 'monthly' else None))
     db.session.commit()
     message = "Student details updated!"
     if is_ajax_request():
