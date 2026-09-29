@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import Student, Tutor, Course, Enquiry, FeeRecord, Attendance, Expense, ExpenseCategory
-from app.services.account_service import agreed_enrollment_items, student_refunded_total
+from app.services.account_service import agreed_enrollment_items, student_refunded_total, _item_current_due
 from app.helpers import admin_required, staff_can_view_student
 from sqlalchemy.orm import subqueryload
 
@@ -29,7 +29,7 @@ def api_fee_analysis():
     all_records = FeeRecord.query.all()
     student_balances = []
     for student in Student.query.options(subqueryload(Student.courses), subqueryload(Student.fee_records)).all():
-        total_course_fee = sum(it['fee'] for it in agreed_enrollment_items(student.id))
+        total_course_fee = sum(_item_current_due(it) for it in agreed_enrollment_items(student.id))
         total_paid = sum(r.amount_paid for r in student.fee_records) - student_refunded_total(student.id)
         balance = round(total_course_fee - total_paid, 2)
         student_balances.append({"student": student, "total_fee": total_course_fee, "total_paid": total_paid, "balance": balance})
@@ -61,7 +61,7 @@ def api_student_performance_insights(student_id):
         return jsonify({"error": "Access denied"}), 403
     student = Student.query.get_or_404(student_id)
     attendance_data = Attendance.query.filter_by(person_type='student', person_id=student_id).all()
-    total_course_fee = sum(it['fee'] for it in agreed_enrollment_items(student_id))
+    total_course_fee = sum(_item_current_due(it) for it in agreed_enrollment_items(student_id))
     total_paid = sum(r.amount_paid for r in student.fee_records) - student_refunded_total(student_id)
     student_data = {'name': student.name, 'total_fee': total_course_fee, 'total_paid': total_paid, 'courses': student.courses}
     insights = current_app.ai_engine.generate_student_performance_insights(student_data, attendance_data, None)
@@ -75,7 +75,7 @@ def api_student_details(student_id):
         return jsonify({"error": "Access denied"}), 403
     student = Student.query.get_or_404(student_id)
     items = agreed_enrollment_items(student_id)
-    total_course_fee = sum(it['fee'] for it in items)
+    total_course_fee = sum(_item_current_due(it) for it in items)
     total_paid = sum(r.amount_paid for r in student.fee_records)
     total_refunded = student_refunded_total(student_id)
     attendance_records = Attendance.query.filter_by(person_type='student', person_id=student_id).all()

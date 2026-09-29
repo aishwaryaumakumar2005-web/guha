@@ -1,4 +1,5 @@
 from app.extensions import db
+from datetime import date
 from app.models import Account, FeeRecord, Expense, OwnerFunding, Company
 from .payment_methods import DEFAULT_ACCOUNTS, METHOD_TYPE, classify_method, ACCOUNT_TYPE_ICONS
 import re
@@ -33,6 +34,8 @@ def agreed_enrollment_items_bulk(student_ids):
             fee = course.fees
             gst = course.gst_applicable
             company_id = course.company_id
+            billing_mode = getattr(course, 'billing_mode', None) or 'fixed'
+            monthly_fee = getattr(course, 'monthly_fee', None)
             if snap is not None:
                 if snap.agreed_fee is not None:
                     fee = snap.agreed_fee
@@ -40,12 +43,18 @@ def agreed_enrollment_items_bulk(student_ids):
                     gst = snap.agreed_gst
                 if snap.agreed_company_id is not None:
                     company_id = snap.agreed_company_id
+                billing_mode = getattr(snap, 'billing_mode', None) or 'fixed'
+                if getattr(snap, 'monthly_fee', None) is not None:
+                    monthly_fee = snap.monthly_fee
             items.append({
                 'course_id': course.id,
                 'course': course,
                 'fee': fee,
                 'gst_applicable': bool(gst),
                 'company_id': company_id,
+                'billing_mode': billing_mode if billing_mode in ('fixed', 'monthly') else 'fixed',
+                'monthly_fee': float(monthly_fee if monthly_fee is not None else fee),
+                'enrolled_on': getattr(snap, 'enrolled_on', None),
             })
         out[sid] = items
     return out
@@ -127,9 +136,9 @@ def student_outstanding_bulk(student_ids):
     out = {}
     for sid in student_ids:
         items = items_map.get(sid, [])
-        total_taxable = round(sum(it['fee'] for it in items), 2)
+        total_taxable = round(sum(_item_current_due(it) for it in items), 2)
         gst_amount = round(sum(
-            round(it['fee'] * total_gst_pct / 100, 2) for it in items if it['gst_applicable']
+            round(_item_current_due(it) * total_gst_pct / 100, 2) for it in items if it['gst_applicable']
         ), 2)
         total_fee = round(total_taxable + gst_amount, 2)
         balance = round(
@@ -137,6 +146,21 @@ def student_outstanding_bulk(student_ids):
             + refunded_map.get(sid, 0.0), 2)
         out[sid] = balance
     return out
+
+
+def _billable_months(enrolled_on, as_of=None):
+    if not enrolled_on:
+        return 1
+    as_of = as_of or date.today()
+    if enrolled_on > as_of:
+        return 0
+    return (as_of.year - enrolled_on.year) * 12 + as_of.month - enrolled_on.month + 1
+
+
+def _item_current_due(item, as_of=None):
+    if item.get('billing_mode') != 'monthly':
+        return float(item.get('fee') or 0)
+    return round(float(item.get('monthly_fee') or item.get('fee') or 0) * _billable_months(item.get('enrolled_on'), as_of), 2)
 
 
 def company_bill_name(company):

@@ -6,7 +6,7 @@ from app.extensions import db
 from app.models import FeeRecord, Student, Course, SystemSetting, Tutor, student_courses, Company
 from app.helpers import admin_required, get_gst_rates, is_ajax_request, FINANCE_LIST_LIMIT
 from app.forms import FeeForm
-from app.services.account_service import compute_account_summary, ensure_default_companies, company_bill_name, agreed_enrollment_items, agreed_enrollment_items_bulk, snapshot_company_id, student_refunded_total, student_refunded_totals_bulk
+from app.services.account_service import compute_account_summary, ensure_default_companies, company_bill_name, agreed_enrollment_items, agreed_enrollment_items_bulk, snapshot_company_id, student_refunded_total, student_refunded_totals_bulk, _item_current_due
 from sqlalchemy.orm import subqueryload
 
 fees_bp = Blueprint('fees', __name__)
@@ -61,8 +61,8 @@ def _student_fee_summary(student, company=None):
                  or (not it['company_id'] and bool(it['gst_applicable']) == bool(company.is_gst_registered))]
         records = [r for r in records
                    if _fee_record_in_company(r, company.id, company.is_gst_registered)]
-    taxable = round(sum(it['fee'] for it in items), 2)
-    gst = round(sum(round(it['fee'] * total_pct / 100, 2) for it in items if it['gst_applicable']), 2)
+    taxable = round(sum(_item_current_due(it) for it in items), 2)
+    gst = round(sum(round(_item_current_due(it) * total_pct / 100, 2) for it in items if it['gst_applicable']), 2)
     due = round(taxable + gst, 2)
     paid = round(sum(r.amount_paid for r in records), 2)
     concessions = round(sum(r.concession or 0 for r in records), 2)
@@ -267,9 +267,9 @@ def list():
             # dues billed through the selected entity count here.
             items = [it for it in items
                      if snapshot_company_id(it, gst_company_id, nongst_company_id) == company_id]
-        total_taxable = round(sum(it['fee'] for it in items), 2)
+        total_taxable = round(sum(_item_current_due(it) for it in items), 2)
         gst_amount = round(sum(
-            round(it['fee'] * total_gst_pct / 100, 2)
+            round(_item_current_due(it) * total_gst_pct / 100, 2)
             for it in items if it['gst_applicable']
         ), 2)
         total_fee = round(total_taxable + gst_amount, 2)

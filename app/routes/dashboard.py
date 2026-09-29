@@ -7,7 +7,8 @@ from app.models import User, Student, Tutor, Course, Enquiry, FeeRecord, Attenda
 from app.helpers import admin_required, get_gst_rates, is_ajax_request
 from app.services.account_service import (compute_account_summary,
                                           agreed_enrollment_items_bulk,
-                                          student_refunded_totals_bulk)
+                                          student_refunded_totals_bulk,
+                                          _item_current_due)
 from sqlalchemy import func, case
 from time import time
 
@@ -254,9 +255,9 @@ def _fee_due_rows(student_ids=None):
     rows = []
     for s in students:
         items = items_map.get(s.id, [])
-        total_taxable = round(sum(it['fee'] for it in items), 2)
+        total_taxable = round(sum(_item_current_due(it) for it in items), 2)
         gst_amount = round(sum(
-            round(it['fee'] * total_gst_pct / 100, 2) for it in items if it['gst_applicable']
+            round(_item_current_due(it) * total_gst_pct / 100, 2) for it in items if it['gst_applicable']
         ), 2)
         total_fee = round(total_taxable + gst_amount, 2)
         paid, concession = paid_map.get(s.id, (0.0, 0.0))

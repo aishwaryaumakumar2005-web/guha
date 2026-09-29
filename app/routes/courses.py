@@ -55,6 +55,9 @@ def list():
         duration = form.cleaned_data.get('duration_weeks', 0)
         duration_unit = request.form.get('duration_unit', 'weeks')
         fees = form.cleaned_data.get('fees', 0.0)
+        billing_mode = request.form.get('billing_mode', 'fixed')
+        try: monthly_fee = float(request.form.get('monthly_fee') or 0) if billing_mode == 'monthly' else None
+        except (TypeError, ValueError): monthly_fee = 0
         capacity, capacity_err = _parse_capacity(request.form.get('capacity', ''))
         if capacity_err:
             if is_ajax_request():
@@ -62,6 +65,14 @@ def list():
             flash(capacity_err, 'danger')
             return redirect(url_for('courses.list'))
         gst_applicable = request.form.get('gst_applicable') == 'on'
+        if billing_mode == 'monthly' and gst_applicable:
+            msg = 'Monthly billing is currently supported for non-GST courses only.'
+            if is_ajax_request(): return jsonify({'success': False, 'errors': [msg]}), 400
+            flash(msg, 'danger'); return redirect(url_for('courses.list'))
+        if billing_mode == 'monthly' and (monthly_fee is None or monthly_fee <= 0):
+            msg = 'Monthly fee must be greater than zero.'
+            if is_ajax_request(): return jsonify({'success': False, 'errors': [msg]}), 400
+            flash(msg, 'danger'); return redirect(url_for('courses.list'))
         syllabus = request.form.get('syllabus', '').strip()
         company_id_raw = request.form.get('company_id', '').strip()
         company_id = int(company_id_raw) if company_id_raw.isdigit() else None
@@ -77,6 +88,7 @@ def list():
                 name=name, code=code, description=description,
                 duration_weeks=duration, duration_unit=duration_unit,
                 fees=fees, capacity=capacity,
+                billing_mode=billing_mode, monthly_fee=monthly_fee,
                 gst_applicable=gst_applicable, syllabus=syllabus,
                 company_id=company_id
             )
@@ -156,6 +168,14 @@ def edit(id):
     old_fees = course.fees or 0.0
     new_fees = form.cleaned_data.get('fees', 0.0)
     course.fees = new_fees
+    billing_mode = request.form.get('billing_mode', 'fixed')
+    monthly_fee = None
+    if billing_mode == 'monthly':
+        try: monthly_fee = float(request.form.get('monthly_fee') or 0)
+        except (TypeError, ValueError): monthly_fee = 0
+    if billing_mode not in ('fixed', 'monthly') or (billing_mode == 'monthly' and monthly_fee <= 0):
+        flash('Select a valid billing mode and monthly fee.', 'danger')
+        return redirect(url_for('courses.list'))
     capacity, capacity_err = _parse_capacity(request.form.get('capacity', ''))
     if capacity_err:
         if is_ajax_request():
@@ -164,6 +184,10 @@ def edit(id):
         return redirect(url_for('courses.list'))
     course.capacity = capacity
     course.gst_applicable = request.form.get('gst_applicable') == 'on'
+    if billing_mode == 'monthly' and course.gst_applicable:
+        flash('Monthly billing is currently supported for non-GST courses only.', 'danger')
+        return redirect(url_for('courses.list'))
+    course.billing_mode, course.monthly_fee = billing_mode, monthly_fee
     course.syllabus = request.form.get('syllabus', '').strip()
     company_id_raw = request.form.get('company_id', '').strip()
     course.company_id = int(company_id_raw) if company_id_raw.isdigit() else None

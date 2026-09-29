@@ -9,6 +9,8 @@ class Course(db.Model):
     duration_weeks = db.Column(db.Integer, nullable=False)
     duration_unit = db.Column(db.String(10), nullable=False, default='weeks')
     fees = db.Column(db.Float, nullable=False)
+    billing_mode = db.Column(db.String(20), nullable=False, default='fixed')
+    monthly_fee = db.Column(db.Float, nullable=True)
     capacity = db.Column(db.Integer, nullable=True)
     gst_applicable = db.Column(db.Boolean, default=False)
     company_id = db.Column(db.Integer, db.ForeignKey('company.id', ondelete='SET NULL'), nullable=True)

@@ -26,6 +26,8 @@ student_courses = db.Table('student_courses',
     db.Column('net_fee', db.Float),
     db.Column('gst_amount', db.Float),
     db.Column('final_fee', db.Float),
+    db.Column('billing_mode', db.String(20), default='fixed'),
+    db.Column('monthly_fee', db.Float),
 )
 
 
@@ -75,7 +77,9 @@ def stamp_agreed_dues(student_id, course_ids=None):
                 student_courses.c.agreed_fee.is_(None),
             ).values(agreed_fee=course.fees,
                      agreed_gst=bool(course.gst_applicable),
-                     agreed_company_id=course.company_id)
+                     agreed_company_id=course.company_id,
+                     billing_mode=getattr(course, 'billing_mode', None) or 'fixed',
+                     monthly_fee=getattr(course, 'monthly_fee', None))
         )
         stamped += 1
     return stamped

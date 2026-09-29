@@ -1,6 +1,7 @@
 import json
 import requests
 from datetime import datetime, timedelta, date
+from app.services.account_service import _item_current_due
 
 
 class Messenger:
@@ -232,9 +233,9 @@ class Messenger:
             # Same dues math as the fees matrix / notifier: GST-inclusive due
             # minus payments minus concessions, plus any refunds.
             items = agreed_enrollment_items(s.id)
-            total_taxable = round(sum(it['fee'] for it in items), 2)
+            total_taxable = round(sum(_item_current_due(it) for it in items), 2)
             gst_amount = round(sum(
-                round(it['fee'] * total_pct / 100, 2)
+                round(_item_current_due(it) * total_pct / 100, 2)
                 for it in items if it['gst_applicable']
             ), 2)
             total_fee = round(total_taxable + gst_amount, 2)

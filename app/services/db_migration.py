@@ -153,6 +153,23 @@ def migrate_course_lifecycle_columns():
                 db.session.rollback()
 
 
+def migrate_monthly_billing_columns():
+    """Add monthly billing fields without changing legacy enrollments."""
+    for table, columns in {
+        'course': [('billing_mode', "VARCHAR(20) DEFAULT 'fixed'"), ('monthly_fee', 'FLOAT')],
+        'student_courses': [('billing_mode', "VARCHAR(20) DEFAULT 'fixed'"), ('monthly_fee', 'FLOAT')],
+    }.items():
+        if not _table_exists(table):
+            continue
+        for column, definition in columns:
+            if not _has_column(table, column):
+                try:
+                    db.session.execute(text(f'ALTER TABLE "{table}" ADD COLUMN "{column}" {definition}'))
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+
+
 def migrate_attendance_provenance_column():
     """Widen attendance.marked_by for tutor IDs and audit sources."""
     if not _table_exists('attendance'):

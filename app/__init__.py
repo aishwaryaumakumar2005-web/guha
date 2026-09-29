@@ -345,6 +345,8 @@ def create_app(config_object=None):
             try:
                 from app.services.db_migration import migrate_course_lifecycle_columns
                 migrate_course_lifecycle_columns()
+                from app.services.db_migration import migrate_monthly_billing_columns
+                migrate_monthly_billing_columns()
                 print("Migration migrate_course_lifecycle_columns completed OK", flush=True)
             except Exception as e:
                 print("Migration migrate_course_lifecycle_columns FAILED:", e, flush=True)
@@ -609,6 +611,8 @@ def create_app(config_object=None):
             try:
                 from app.services.db_migration import migrate_course_lifecycle_columns
                 migrate_course_lifecycle_columns()
+                from app.services.db_migration import migrate_monthly_billing_columns
+                migrate_monthly_billing_columns()
             except Exception as e:
                 print('Failed to ensure course lifecycle columns:', e, file=sys.stderr)
             try:
