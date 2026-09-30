@@ -146,6 +146,38 @@ def _matches_fees_rule(app, sid):
         return row['balance'] == student_outstanding_bulk([sid])[sid]
 
 
+def test_dashboard_dues_exclude_dropped_course_and_voided_payment(app):
+    """Delinking a course must remove its dues; voided payments must not reduce balance."""
+    from app.models import FeeRecord, Student, Course, student_courses
+    from app.routes.dashboard import _fee_due_rows
+
+    with app.app_context():
+        active = Course(name='Active dues course', code='ADC', description='',
+                        duration_weeks=4, duration_unit='weeks', fees=1000.0,
+                        gst_applicable=False)
+        dropped = Course(name='Dropped dues course', code='DDC', description='',
+                         duration_weeks=4, duration_unit='weeks', fees=2000.0,
+                         gst_applicable=False)
+        student = Student(name='Delinked dues', email='delinked-dues@guha.test',
+                          phone='9000000011', status='Active')
+        db.session.add_all([active, dropped, student])
+        db.session.flush()
+        student.courses.extend([active, dropped])
+        db.session.flush()
+        db.session.execute(student_courses.update().where(
+            student_courses.c.student_id == student.id,
+            student_courses.c.course_id == dropped.id
+        ).values(status='Dropped'))
+        db.session.add(FeeRecord(student_id=student.id, amount_paid=500.0,
+                                 payment_method='Cash', status='Voided'))
+        db.session.commit()
+
+        row = _fee_due_rows([student.id])[0]
+        assert row['total_fee'] == 1000.0
+        assert row['paid'] == 0.0
+        assert row['balance'] == 1000.0
+
+
 def test_dashboard_dues_include_gst(app, admin_client):
     with app.app_context():
         cid = Course.query.filter_by(code='PY').first().id

@@ -15,8 +15,12 @@ def agreed_enrollment_items_bulk(student_ids):
     student_ids = list(student_ids)
     if not student_ids:
         return {}
+    # Historical enrollment rows remain in the association table for audit
+    # and fee history, but outstanding dues must only use live enrollments.
     rows = db.session.query(student_courses).filter(
-        student_courses.c.student_id.in_(student_ids)).all()
+        student_courses.c.student_id.in_(student_ids),
+        db.or_(student_courses.c.status.is_(None),
+               student_courses.c.status == 'Enrolled')).all()
     if not rows:
         return {}
     assoc = {}

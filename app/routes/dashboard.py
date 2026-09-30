@@ -249,7 +249,8 @@ def _fee_due_rows(student_ids=None):
         FeeRecord.student_id,
         db.func.sum(FeeRecord.amount_paid).label('paid'),
         db.func.sum(db.func.coalesce(FeeRecord.concession, 0)).label('concession')
-    ).filter(FeeRecord.student_id.in_(sids)).group_by(FeeRecord.student_id).all()
+    ).filter(FeeRecord.student_id.in_(sids),
+             FeeRecord.status != 'Voided').group_by(FeeRecord.student_id).all()
     paid_map = {sid: (float(paid or 0), float(concession or 0))
                 for sid, paid, concession in paid_rows}
     rows = []
