@@ -300,11 +300,26 @@ def list():
 
     all_courses = Course.query.all()
     enrollment_statuses = _derived_enrollment_statuses(pagination.items)
+    # Student.courses intentionally includes historical links (Dropped and
+    # Completed) for fees and audit history.  The list/edit UI, however, must
+    # show only currently enrolled courses; otherwise a delinked course still
+    # appears after the success alert.
+    active_course_ids = {}
+    if pagination.items:
+        active_rows = db.session.query(
+            student_courses.c.student_id, student_courses.c.course_id
+        ).filter(
+            student_courses.c.student_id.in_([s.id for s in pagination.items]),
+            db.or_(student_courses.c.status.is_(None),
+                   student_courses.c.status == 'Enrolled')
+        ).all()
+        for sid, cid in active_rows:
+            active_course_ids.setdefault(sid, set()).add(cid)
     return render_template('students.html', students=pagination.items, courses=all_courses,
         is_staff=(current_user.role == 'Staff'), selected_course_id=course_filter,
         pagination=pagination, q=q, status_filter=status_filter,
         statuses=DISPLAY_STATUSES, scope_courses=scope_courses,
-        enrollment_statuses=enrollment_statuses)
+        enrollment_statuses=enrollment_statuses, active_course_ids=active_course_ids)
 
 
 @students_bp.route('/api/students/export-excel')
