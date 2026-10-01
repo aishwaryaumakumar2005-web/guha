@@ -89,7 +89,6 @@
         <div class="col-md-6 mb-3">
           <div class="border rounded p-3 h-100" style="background:#fafbfc;">
             <h6 class="text-uppercase text-muted small font-weight-bold mb-2">Payment &amp; Terms</h6>
-            <div class="small"><strong>Payment Mode:</strong> <span class="badge badge-info">{{ record.payment_method }}</span></div>
             <div class="small"><strong>Terms:</strong> Due on Receipt</div>
             {% if company and company.is_gst_registered %}<div class="small"><strong>Reverse Charge:</strong> No</div>{% endif %}
             {% if record.remarks %}<div class="small"><strong>Remarks:</strong> {{ record.remarks }}</div>{% endif %}
