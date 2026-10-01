@@ -397,9 +397,14 @@
                                         <span id="status-label-{{ t.id }}">{{ t.status }}</span>
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end shadow-sm" style="font-size:0.75rem;">
-                                        <li><a class="dropdown-item quick-status-item {% if t.status == 'Pending' %}active{% endif %}" href="#" data-id="{{ t.id }}" data-status="Pending"><i class="bi bi-clock me-2 text-warning"></i>Pending</a></li>
-                                        <li><a class="dropdown-item quick-status-item {% if t.status == 'In Progress' %}active{% endif %}" href="#" data-id="{{ t.id }}" data-status="In Progress"><i class="bi bi-arrow-repeat me-2 text-info"></i>In Progress</a></li>
-                                        <li><a class="dropdown-item quick-status-item {% if t.status == 'Completed' %}active{% endif %}" href="#" data-id="{{ t.id }}" data-status="Completed"><i class="bi bi-check2-circle me-2 text-success"></i>Completed</a></li>
+                                        {% if current_user.role == 'Admin' %}
+                                        {% if t.status == 'Submitted' %}<li><a class="dropdown-item quick-status-item" href="#" data-id="{{ t.id }}" data-status="Verified"><i class="bi bi-shield-check me-2 text-success"></i>Verify</a></li>{% endif %}
+                                        {% if t.status in ('Pending', 'Accepted', 'In Progress', 'Rejected', 'Blocked', 'Verified') %}<li><a class="dropdown-item quick-status-item" href="#" data-id="{{ t.id }}" data-status="In Progress"><i class="bi bi-arrow-repeat me-2 text-info"></i>In Progress</a></li>{% endif %}
+                                        {% else %}
+                                        {% if t.status == 'Pending' %}<li><a class="dropdown-item quick-status-item" href="#" data-id="{{ t.id }}" data-status="Accepted"><i class="bi bi-check2 me-2 text-success"></i>Accept</a></li>{% endif %}
+                                        {% if t.status == 'Accepted' %}<li><a class="dropdown-item quick-status-item" href="#" data-id="{{ t.id }}" data-status="In Progress"><i class="bi bi-play me-2 text-info"></i>Start</a></li>{% endif %}
+                                        {% if t.status == 'In Progress' %}<li><a class="dropdown-item quick-status-item" href="#" data-id="{{ t.id }}" data-status="Submitted"><i class="bi bi-send me-2 text-warning"></i>Submit for verification</a></li>{% endif %}
+                                        {% endif %}
                                     </ul>
                                 </div>
                             </td>
@@ -424,6 +429,12 @@
                                 {% endif %}
 
                                 {% if current_user.role == 'Admin' %}
+                                {% if t.notification_status != 'Sent' and t.tutor and t.tutor.phone %}
+                                <form method="POST" action="{{ url_for('tasks.resend_notification', id=t.id) }}" class="d-inline" title="Send or retry task WhatsApp notification">
+                                    <input type="hidden" name="task_csrf_token" value="{{ task_csrf_token }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Send task WhatsApp notification"><i class="bi bi-whatsapp"></i></button>
+                                </form>
+                                {% endif %}
                                 <button type="button" class="btn btn-sm btn-outline-info edit-task-btn" 
                                         data-id="{{ t.id }}"
                                         data-tutor-id="{{ t.tutor_id }}"
@@ -631,9 +642,15 @@
                     <div class="mb-3">
                         <label class="form-label text-white small fw-semibold">Status</label>
                         <select class="form-select" id="update_status" name="status" required style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
-                            <option value="Pending">Pending</option>
+                            {% if current_user.role == 'Admin' %}
+                            <option value="Verified">Verified</option>
+                            <option value="Rejected">Rejected / Request changes</option>
+                            {% else %}
+                            <option value="Accepted">Accepted</option>
                             <option value="In Progress">In Progress</option>
-                            <option value="Completed">Completed</option>
+                            <option value="Submitted">Submit for verification</option>
+                            <option value="Rejected">Reject / Decline</option>
+                            {% endif %}
                         </select>
                     </div>
                     <div class="mb-3">

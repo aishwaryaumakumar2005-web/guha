@@ -25,7 +25,16 @@ class Task(db.Model):
     # Workflow and retention fields. Existing rows remain compatible.
     start_date = db.Column(db.Date)
     acknowledged_at = db.Column(db.DateTime)
+    started_at = db.Column(db.DateTime)
+    submitted_at = db.Column(db.DateTime)
+    completion_notes = db.Column(db.Text)
+    rejection_reason = db.Column(db.Text)
     verified_at = db.Column(db.DateTime)
+    verified_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'))
+    verification_notes = db.Column(db.Text)
+    notification_status = db.Column(db.String(20))
+    notification_sent_at = db.Column(db.DateTime)
+    notification_error = db.Column(db.Text)
     archived_at = db.Column(db.DateTime)
     archived_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'))
     blocked_reason = db.Column(db.Text)
@@ -37,6 +46,7 @@ class Task(db.Model):
     # the mapper on Render and existing databases.
     assigner = db.relationship('User', foreign_keys=[assigned_by], backref='assigned_tasks')
     archiver = db.relationship('User', foreign_keys=[archived_by], backref='archived_tasks')
+    verifier = db.relationship('User', foreign_keys=[verified_by], backref='verified_tasks')
 
     def __repr__(self):
         return f"<Task {self.title} for {self.tutor_id}>"

@@ -8,7 +8,21 @@ from app.helpers import admin_required, is_ajax_request
 
 tasks_bp = Blueprint('tasks', __name__)
 
-STATUSES = ('Pending', 'In Progress', 'Blocked', 'Completed', 'Verified', 'Cancelled')
+STATUSES = ('Pending', 'Accepted', 'In Progress', 'Submitted', 'Rejected', 'Blocked', 'Completed', 'Verified', 'Cancelled')
+
+TASK_TRANSITIONS = {
+    'Pending': {'Accepted', 'Rejected', 'Cancelled'},
+    'Accepted': {'In Progress', 'Rejected', 'Cancelled'},
+    'In Progress': {'Submitted', 'Rejected', 'Blocked'},
+    'Submitted': {'Verified', 'Rejected'},
+    'Rejected': {'Accepted', 'Cancelled'},
+    'Blocked': {'In Progress', 'Rejected', 'Cancelled'},
+    # Legacy Completed records remain viewable; only admins may transition
+    # legacy tasks to/from this state during migration.
+    'Completed': {'Verified', 'In Progress'},
+    'Verified': {'In Progress'},
+    'Cancelled': set(),
+}
 
 
 def _task_csrf_ok():
@@ -76,6 +90,16 @@ def list_tasks():
         db.session.flush()
         _history(task, 'CREATED', to_status='Pending', details='Task assigned')
         db.session.commit()
+        try:
+            ok, detail = current_app.messenger.send_task_assignment(task, tutor_obj)
+            task.notification_status = 'Sent' if ok else 'Failed'
+            task.notification_sent_at = datetime.utcnow() if ok else None
+            task.notification_error = None if ok else str(detail)
+            db.session.commit()
+        except Exception as exc:
+            task.notification_status = 'Failed'
+            task.notification_error = str(exc)
+            db.session.commit()
         flash('Task assigned successfully!', 'success')
         return redirect(url_for('tasks.list_tasks'))
 
@@ -201,16 +225,48 @@ def update_status(id):
         flash('Invalid status.', 'danger')
         return redirect(url_for('tasks.list_tasks'))
     old_status = task.status
+    is_admin = current_user.role == 'Admin'
+    if not is_admin and status in ('Verified', 'Cancelled', 'Completed'):
+        error = 'Only administrators can verify, cancel, or close tasks.'
+        if is_ajax_request() or request.is_json:
+            return jsonify({'success': False, 'error': error}), 403
+        flash(error, 'danger')
+        return redirect(url_for('tasks.list_tasks'))
+    if status not in TASK_TRANSITIONS.get(old_status, set()):
+        error = f'Invalid task transition: {old_status} → {status}.'
+        if is_ajax_request() or request.is_json:
+            return jsonify({'success': False, 'error': error}), 409
+        flash(error, 'danger')
+        return redirect(url_for('tasks.list_tasks'))
+    if status in ('Submitted', 'Rejected') and not notes:
+        error = 'Please provide notes when submitting or rejecting a task.'
+        if is_ajax_request() or request.is_json:
+            return jsonify({'success': False, 'error': error}), 400
+        flash(error, 'danger')
+        return redirect(url_for('tasks.list_tasks'))
     task.status = status
     if notes:
         task.notes = notes
-    if status == 'Completed' and old_status != 'Completed':
+    if status == 'Accepted':
+        task.acknowledged_at = task.acknowledged_at or datetime.utcnow()
+        task.rejection_reason = None
+    elif status == 'In Progress':
+        task.started_at = task.started_at or datetime.utcnow()
+    elif status == 'Submitted':
+        task.submitted_at = datetime.utcnow()
+        task.completion_notes = notes
+        task.completed_date = datetime.utcnow()
+    elif status == 'Rejected':
+        task.rejection_reason = notes
+    elif status == 'Completed' and old_status != 'Completed':
         task.completed_date = datetime.utcnow()
     elif status == 'Verified':
         task.verified_at = task.verified_at or datetime.utcnow()
+        task.verified_by = current_user.id
+        task.verification_notes = notes or task.verification_notes
         task.completed_date = task.completed_date or datetime.utcnow()
     else:
-        if status not in ('Completed', 'Verified'):
+        if status not in ('Completed', 'Submitted', 'Verified'):
             task.completed_date = None
         task.verified_at = None
     task.version = (task.version or 1) + 1
@@ -221,6 +277,30 @@ def update_status(id):
         return jsonify({'success': True, 'status': status, 'id': task.id, 'completed_date': task.completed_date.isoformat() if task.completed_date else None})
 
     flash(f'Task status updated to {status}.', 'success')
+    return redirect(url_for('tasks.list_tasks'))
+
+
+@tasks_bp.route('/tasks/resend-notification/<int:id>', methods=['POST'])
+@login_required
+@admin_required
+def resend_notification(id):
+    """Retry a failed task assignment notification without changing the task."""
+    if not _task_csrf_ok():
+        abort(400, description='Invalid task security token.')
+    task = Task.query.get_or_404(id)
+    tutor_obj = Tutor.query.get(task.tutor_id)
+    try:
+        ok, detail = current_app.messenger.send_task_assignment(task, tutor_obj)
+        task.notification_status = 'Sent' if ok else 'Failed'
+        task.notification_sent_at = datetime.utcnow() if ok else None
+        task.notification_error = None if ok else str(detail)
+        db.session.commit()
+        flash('Task WhatsApp notification sent.' if ok else f'Notification failed: {detail}', 'success' if ok else 'warning')
+    except Exception as exc:
+        task.notification_status = 'Failed'
+        task.notification_error = str(exc)
+        db.session.commit()
+        flash(f'Notification failed: {exc}', 'warning')
     return redirect(url_for('tasks.list_tasks'))
 
 

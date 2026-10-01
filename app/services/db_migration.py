@@ -752,7 +752,11 @@ def migrate_task_workflow_columns():
     except Exception as e:
         print(f"Migration migrate_task_workflow_columns: history table check failed: {e}", flush=True)
     ts_type = 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'
-    adds = [('start_date', 'DATE'), ('acknowledged_at', ts_type), ('verified_at', ts_type),
+    adds = [('start_date', 'DATE'), ('acknowledged_at', ts_type), ('started_at', ts_type),
+            ('submitted_at', ts_type), ('completion_notes', 'TEXT'), ('rejection_reason', 'TEXT'),
+            ('verified_at', ts_type), ('verified_by', 'INTEGER'), ('verification_notes', 'TEXT'),
+            ('notification_status', 'VARCHAR(20)'), ('notification_sent_at', ts_type),
+            ('notification_error', 'TEXT'),
             ('archived_at', ts_type), ('archived_by', 'INTEGER'), ('blocked_reason', 'TEXT'),
             ('version', 'INTEGER DEFAULT 1')]
     for column, col_type in adds:
