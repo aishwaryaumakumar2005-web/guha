@@ -177,7 +177,7 @@ class AccountingService:
 
         # Header band (light grey)
         pdf.set_fill_color(241, 243, 246)
-        pdf.rect(0, 0, 210, 72, 'F')
+        pdf.rect(0, 0, 210, 82, 'F')
         pdf.set_draw_color(30, 60, 114)
         pdf.set_line_width(1.0)
         pdf.set_line_width(0.2)
@@ -188,7 +188,7 @@ class AccountingService:
 
         # Keep the company name inside the left header column so it cannot
         # collide with the invoice title on long names.
-        set_font('B', 16 if len(bill_name) > 22 else 18)
+        set_font('B', 14 if len(bill_name) > 22 else 18)
         text_color(30, 60, 114)
         pdf.set_xy(54, 11)
         pdf.cell(72, 9, bill_name, align='L')
@@ -221,19 +221,20 @@ class AccountingService:
         pdf.set_xy(134, 41)
         pdf.cell(62, 6, "Place of Supply: Tamil Nadu (33)", align='R')
 
-        # Place the divider after the tallest header content. This prevents
-        # long industrial-company addresses or email lines from being crossed.
-        header_rule_y = max(pdf.get_y(), 58) + 5
+        # Use a fixed header zone with enough room for long industrial-company
+        # addresses and contact lines. The body starts below this zone.
+        header_rule_y = 78
         pdf.set_draw_color(30, 60, 114)
         pdf.set_line_width(1.0)
         pdf.line(10, header_rule_y, 200, header_rule_y)
         pdf.set_line_width(0.2)
-        pdf.set_y(header_rule_y + 8)
+        section_y = 88
+        pdf.set_y(section_y)
 
         # Bill To (left) and Payment & Terms (right)
         set_font('B', 12)
         text_color(30, 60, 114)
-        pdf.set_xy(15, 70)
+        pdf.set_xy(15, section_y)
         pdf.cell(0, 8, 'Bill To (Student):', new_x="LMARGIN", new_y="NEXT")
         pdf.set_draw_color(140, 150, 165)
         pdf.line(15, pdf.get_y(), 95, pdf.get_y())
@@ -249,7 +250,7 @@ class AccountingService:
 
         set_font('B', 12)
         text_color(30, 60, 114)
-        pdf.set_xy(120, 70)
+        pdf.set_xy(120, section_y)
         pdf.cell(0, 8, 'Payment & Terms:', new_x="LMARGIN", new_y="NEXT")
         pdf.line(120, pdf.get_y(), 195, pdf.get_y())
         pdf.ln(2)
