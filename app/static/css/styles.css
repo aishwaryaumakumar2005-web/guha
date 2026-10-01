@@ -1332,6 +1332,21 @@ body.htmx-request #main-content {
 .students-ledger-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1.15rem; }
 .students-ledger-meta, .students-page-size { color:rgba(232,241,255,.62); font-size:.78rem; }
 .students-page-size { padding:.35rem .65rem; border:1px solid rgba(125,211,252,.2); border-radius:999px; white-space:nowrap; }
+.students-summary-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.65rem; margin-bottom:1rem; }
+.students-summary-grid > div { display:flex; align-items:baseline; justify-content:space-between; gap:.5rem; padding:.7rem .85rem; background:rgba(13,39,64,.42); border:1px solid rgba(125,211,252,.1); border-radius:10px; }
+.students-summary-grid strong { color:#fff; font-size:1.1rem; }
+.students-summary-label { color:rgba(232,241,255,.6); font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; }
+.students-filter-toolbar { padding:.7rem .85rem; background:rgba(13,39,64,.34); border:1px solid rgba(125,211,252,.1); border-radius:10px; }
+.students-filter-toolbar .form-select, .students-filter-toolbar .form-control { min-height:34px; }
+.students-name-meta { display:flex; flex-wrap:wrap; gap:.45rem; max-width:260px; color:rgba(232,241,255,.58); font-size:.74rem; }
+.students-id-meta { color:#7dd3fc; }
+.students-status { display:inline-flex; align-items:center; gap:.4rem; color:#dbeafe; font-size:.8rem; white-space:nowrap; }
+.students-status-dot { width:7px; height:7px; border-radius:50%; background:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.12); }
+.status-active .students-status-dot { background:#34d399; box-shadow:0 0 0 3px rgba(52,211,153,.13); }
+.status-inactive .students-status-dot, .status-archived .students-status-dot { background:#fb7185; box-shadow:0 0 0 3px rgba(251,113,133,.13); }
+.status-completed .students-status-dot { background:#60a5fa; box-shadow:0 0 0 3px rgba(96,165,250,.13); }
+.students-pagination-info { display:flex; align-items:center; margin-right:auto; color:rgba(232,241,255,.62); font-size:.82rem; padding:.35rem .5rem; }
+.students-directory .student-ledger-pagination { align-items:center; }
 .students-directory .table-custom { border-collapse:collapse; border-spacing:0; }
 .students-directory .table-custom th { background:rgba(13,39,64,.72); color:rgba(232,241,255,.68); font-size:.68rem; font-weight:600; letter-spacing:.055em; text-transform:uppercase; border-bottom:1px solid rgba(125,211,252,.16); }
 .students-directory .table-custom td { background:transparent; border-bottom:1px solid rgba(255,255,255,.07); padding-top:14px; padding-bottom:14px; }
@@ -1343,6 +1358,20 @@ body.htmx-request #main-content {
 .students-course-empty { color:rgba(232,241,255,.48); font-size:.82rem; }
 .students-directory > .student-ledger-pagination { justify-content:space-between; margin-top:1.25rem !important; padding-top:1rem; border-top:1px solid rgba(125,211,252,.12); }
 .students-directory .student-ledger-pagination .page-link { min-width:38px; text-align:center; border-radius:8px; margin:0 2px; }
+@media (max-width: 767.98px) {
+    .students-summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .students-ledger-heading { align-items:flex-start; }
+    .students-page-size { font-size:.68rem; }
+    .students-directory .table-custom td[data-label="ID"],
+    .students-directory .table-custom td[data-label="Phone"],
+    .students-directory .table-custom td[data-label="Enrolled"] { display:none; }
+    .students-directory .table-custom td[data-label="Name"] { padding-bottom:4px; border-bottom:0; }
+    .students-directory .table-custom td[data-label="Courses"] { padding-top:4px; }
+    .students-directory .table-custom td[data-label="Actions"] { padding-top:10px; }
+    .students-directory .students-view-action span { display:none; }
+    .students-directory .student-ledger-pagination { flex-wrap:wrap; gap:.35rem; }
+    .students-pagination-info { width:100%; order:-1; }
+}
 
 /* Students and enquiry ledgers share the same dark action treatment. */
 .students-directory .student-name-link {

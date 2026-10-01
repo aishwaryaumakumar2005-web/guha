@@ -275,12 +275,19 @@ def list():
         base = base.filter(db.or_(
             Student.name.ilike(like), Student.email.ilike(like),
             Student.phone.ilike(like), Student.roll_no.ilike(like)))
+    # Build the ledger summary before applying the optional status filter so
+    # the counts describe the current course/search scope.
+    summary_candidates = base.all()
+    summary_statuses = _derived_enrollment_statuses(summary_candidates)
+    status_counts = {status: 0 for status in DISPLAY_STATUSES}
+    for student in summary_candidates:
+        status_counts[summary_statuses.get(student.id, student.status or 'Inactive')] = status_counts.get(summary_statuses.get(student.id, student.status or 'Inactive'), 0) + 1
     if status_filter in DISPLAY_STATUSES:
         # Derived enrollment statuses cannot be expressed using only the
         # Student.status column, so resolve them against the filtered base
         # set before applying pagination.
-        candidates = base.all()
-        derived = _derived_enrollment_statuses(candidates)
+        candidates = summary_candidates
+        derived = summary_statuses
         matching_ids = [sid for sid, value in derived.items() if value == status_filter]
         base = base.filter(Student.id.in_(matching_ids)) if matching_ids else base.filter(db.false())
     pagination = base.order_by(
@@ -319,7 +326,8 @@ def list():
         is_staff=(current_user.role == 'Staff'), selected_course_id=course_filter,
         pagination=pagination, q=q, status_filter=status_filter,
         statuses=DISPLAY_STATUSES, scope_courses=scope_courses,
-        enrollment_statuses=enrollment_statuses, active_course_ids=active_course_ids)
+        enrollment_statuses=enrollment_statuses, active_course_ids=active_course_ids,
+        status_counts=status_counts)
 
 
 @students_bp.route('/api/students/export-excel')
