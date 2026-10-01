@@ -32,6 +32,9 @@ class Task(db.Model):
     verified_at = db.Column(db.DateTime)
     verified_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'))
     verification_notes = db.Column(db.Text)
+    completion_attachment = db.Column(db.LargeBinary)
+    completion_attachment_mime = db.Column(db.String(100))
+    completion_attachment_name = db.Column(db.String(255))
     notification_status = db.Column(db.String(20))
     notification_sent_at = db.Column(db.DateTime)
     notification_error = db.Column(db.Text)
@@ -64,3 +67,17 @@ class TaskHistory(db.Model):
 
     task = db.relationship('Task', backref=db.backref('history', lazy='dynamic'))
     user = db.relationship('User', backref='task_history')
+
+
+class TaskActionToken(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id', ondelete='CASCADE'), nullable=False)
+    tutor_id = db.Column(db.Integer, db.ForeignKey('tutor.id', ondelete='CASCADE'), nullable=False)
+    action = db.Column(db.String(20), nullable=False)
+    token_hash = db.Column(db.String(64), unique=True, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    used_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    task = db.relationship('Task', backref=db.backref('action_tokens', lazy='dynamic'))
+    tutor = db.relationship('Tutor')

@@ -100,7 +100,7 @@ class Messenger:
         )
         return self._send_sms_direct(phone, msg)
 
-    def send_task_assignment(self, task, tutor):
+    def send_task_assignment(self, task, tutor, action_url=None):
         """Send the approved WhatsApp task-assignment template.
 
         Meta requires business-initiated WhatsApp messages to use an approved
@@ -110,13 +110,22 @@ class Messenger:
         if not tutor or not tutor.phone:
             return False, 'Tutor has no WhatsApp phone number'
         due = task.due_date.strftime('%d %b %Y') if task.due_date else 'No due date'
+        params = [tutor.name, task.title, task.priority or 'Medium', due,
+                  task.description or 'No additional details']
+        if action_url:
+            params.append(action_url)
         ok, detail = self._send_whatsapp(
             tutor.phone,
             'task_assigned',
-            [tutor.name, task.title, task.priority or 'Medium', due,
-             task.description or 'No additional details']
+            params
         )
         return ok, detail
+
+    def send_task_event(self, task, tutor, template_name, details=''):
+        if not tutor or not tutor.phone:
+            return False, 'Tutor has no WhatsApp phone number'
+        return self._send_whatsapp(tutor.phone, template_name,
+                                   [tutor.name, task.title, details or task.status])
 
     def birthday_message(self, student_name, age=None):
         age_text = f" Wishing you a very happy {self._ordinal(age)}!" if age else ""

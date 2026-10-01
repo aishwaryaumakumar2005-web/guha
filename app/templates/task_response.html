@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Task Response{% endblock %}
+{% block content %}
+<div class="container-fluid p-0" style="max-width:760px;margin:0 auto;">
+    <div class="glass-card p-4">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+            <div>
+                <div class="text-white-50 small mb-1">Task assignment</div>
+                <h3 class="text-white fw-bold mb-1">{{ task.title }}</h3>
+                <div class="text-white-50 small">Assigned to {{ tutor.name }}</div>
+            </div>
+            <span class="badge bg-warning text-dark">{{ task.priority or 'Medium' }}</span>
+        </div>
+        <div class="row g-3 mb-3">
+            <div class="col-sm-4"><div class="text-white-50 small">Category</div><div class="text-white">{{ task.category or 'General' }}</div></div>
+            <div class="col-sm-4"><div class="text-white-50 small">Due date</div><div class="text-white">{{ task.due_date.strftime('%d %b %Y') if task.due_date else 'No due date' }}</div></div>
+            <div class="col-sm-4"><div class="text-white-50 small">Current status</div><div class="text-white">{{ task.status }}</div></div>
+        </div>
+        <div class="p-3 rounded-3 mb-4" style="background:rgba(255,255,255,.05);">
+            <div class="text-white-50 small mb-1">Details</div>
+            <div class="text-white" style="white-space:pre-wrap;">{{ task.description or 'No additional details provided.' }}</div>
+        </div>
+        <form method="POST" class="d-flex flex-wrap gap-2">
+            <input type="hidden" name="decision" value="accept">
+            <button class="btn btn-premium" type="submit"><i class="bi bi-check2 me-1"></i>Accept task</button>
+            <button class="btn btn-outline-danger" type="button" data-bs-toggle="collapse" data-bs-target="#declineBox">Decline</button>
+        </form>
+        <div class="collapse mt-3" id="declineBox">
+            <form method="POST">
+                <input type="hidden" name="decision" value="decline">
+                <label class="form-label text-white small">Reason for declining</label>
+                <textarea class="form-control mb-2" name="reason" required rows="3"></textarea>
+                <button class="btn btn-danger" type="submit">Confirm decline</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

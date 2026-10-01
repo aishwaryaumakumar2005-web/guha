@@ -1,10 +1,11 @@
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import secrets
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, abort, current_app
+import hashlib
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, abort, current_app, Response
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import Task, TaskHistory, Tutor, User
-from app.helpers import admin_required, is_ajax_request
+from app.models import Task, TaskHistory, TaskActionToken, Tutor, User
+from app.helpers import admin_required, is_ajax_request, save_photo_data
 
 tasks_bp = Blueprint('tasks', __name__)
 
@@ -37,6 +38,25 @@ def _task_csrf_ok():
 def _history(task, action, from_status=None, to_status=None, details=None):
     db.session.add(TaskHistory(task_id=task.id, user_id=current_user.id, action=action,
                                from_status=from_status, to_status=to_status, details=details))
+
+
+def _issue_action_token(task, tutor, action='respond'):
+    raw = secrets.token_urlsafe(32)
+    token = TaskActionToken(task_id=task.id, tutor_id=tutor.id, action=action,
+                            token_hash=hashlib.sha256(raw.encode()).hexdigest(),
+                            expires_at=datetime.utcnow() + timedelta(days=7))
+    db.session.add(token)
+    return raw
+
+
+def _get_action_token(raw):
+    if not raw:
+        return None
+    hashed = hashlib.sha256(raw.encode()).hexdigest()
+    token = TaskActionToken.query.filter_by(token_hash=hashed, action='respond').first()
+    if not token or token.used_at or token.expires_at < datetime.utcnow():
+        return None
+    return token
 
 
 @tasks_bp.route('/tasks', methods=['GET', 'POST'])
@@ -89,9 +109,11 @@ def list_tasks():
         db.session.add(task)
         db.session.flush()
         _history(task, 'CREATED', to_status='Pending', details='Task assigned')
+        action_token = _issue_action_token(task, tutor_obj)
         db.session.commit()
         try:
-            ok, detail = current_app.messenger.send_task_assignment(task, tutor_obj)
+            action_url = url_for('tasks.respond_to_task', token=action_token, _external=True)
+            ok, detail = current_app.messenger.send_task_assignment(task, tutor_obj, action_url)
             task.notification_status = 'Sent' if ok else 'Failed'
             task.notification_sent_at = datetime.utcnow() if ok else None
             task.notification_error = None if ok else str(detail)
@@ -256,6 +278,19 @@ def update_status(id):
         task.submitted_at = datetime.utcnow()
         task.completion_notes = notes
         task.completed_date = datetime.utcnow()
+        upload = request.files.get('completion_attachment') if request.files else None
+        if upload and upload.filename:
+            try:
+                data, mime = save_photo_data(upload, max_mb=8)
+                task.completion_attachment = data
+                task.completion_attachment_mime = mime
+                task.completion_attachment_name = upload.filename[:255]
+            except ValueError as exc:
+                error = str(exc)
+                if is_ajax_request() or request.is_json:
+                    return jsonify({'success': False, 'error': error}), 400
+                flash(error, 'danger')
+                return redirect(url_for('tasks.list_tasks'))
     elif status == 'Rejected':
         task.rejection_reason = notes
     elif status == 'Completed' and old_status != 'Completed':
@@ -272,6 +307,19 @@ def update_status(id):
     task.version = (task.version or 1) + 1
     _history(task, 'STATUS_CHANGED', old_status, status, notes or None)
     db.session.commit()
+
+    if task.tutor:
+        try:
+            template = {
+                'Accepted': 'task_accepted',
+                'Submitted': 'task_submitted',
+                'Verified': 'task_verified',
+                'Rejected': 'task_rejected',
+            }.get(status)
+            if template:
+                current_app.messenger.send_task_event(task, task.tutor, template, notes or status)
+        except Exception:
+            pass
 
     if is_ajax_request() or request.is_json:
         return jsonify({'success': True, 'status': status, 'id': task.id, 'completed_date': task.completed_date.isoformat() if task.completed_date else None})
@@ -290,7 +338,10 @@ def resend_notification(id):
     task = Task.query.get_or_404(id)
     tutor_obj = Tutor.query.get(task.tutor_id)
     try:
-        ok, detail = current_app.messenger.send_task_assignment(task, tutor_obj)
+        action_token = _issue_action_token(task, tutor_obj)
+        db.session.commit()
+        action_url = url_for('tasks.respond_to_task', token=action_token, _external=True)
+        ok, detail = current_app.messenger.send_task_assignment(task, tutor_obj, action_url)
         task.notification_status = 'Sent' if ok else 'Failed'
         task.notification_sent_at = datetime.utcnow() if ok else None
         task.notification_error = None if ok else str(detail)
@@ -302,6 +353,40 @@ def resend_notification(id):
         db.session.commit()
         flash(f'Notification failed: {exc}', 'warning')
     return redirect(url_for('tasks.list_tasks'))
+
+
+@tasks_bp.route('/tasks/respond/<token>', methods=['GET', 'POST'])
+@login_required
+def respond_to_task(token):
+    action_token = _get_action_token(token)
+    if not action_token:
+        abort(410, description='This task response link is expired or has already been used.')
+    tutor = Tutor.query.get_or_404(action_token.tutor_id)
+    if current_user.role != 'Admin' and current_user.email != tutor.email:
+        abort(403)
+    task = Task.query.get_or_404(action_token.task_id)
+    if request.method == 'POST':
+        decision = request.form.get('decision', '').strip()
+        reason = request.form.get('reason', '').strip()
+        if decision not in ('accept', 'decline'):
+            abort(400)
+        if decision == 'decline' and not reason:
+            flash('Please provide a reason for declining the task.', 'danger')
+            return render_template('task_response.html', task=task, tutor=tutor, token=token)
+        old_status = task.status
+        task.status = 'Accepted' if decision == 'accept' else 'Rejected'
+        task.acknowledged_at = datetime.utcnow()
+        task.rejection_reason = reason or None
+        action_token.used_at = datetime.utcnow()
+        _history(task, 'RESPONDED', old_status, task.status, reason or 'Accepted via secure link')
+        db.session.commit()
+        try:
+            current_app.messenger.send_task_event(task, tutor, 'task_accepted' if decision == 'accept' else 'task_rejected', reason or task.status)
+        except Exception:
+            pass
+        flash('Task accepted.' if decision == 'accept' else 'Task declined.', 'success' if decision == 'accept' else 'warning')
+        return redirect(url_for('tasks.list_tasks'))
+    return render_template('task_response.html', task=task, tutor=tutor, token=token)
 
 
 @tasks_bp.route('/tasks/edit/<int:id>', methods=['POST'])
@@ -356,6 +441,20 @@ def edit_task(id):
     db.session.commit()
     flash('Task updated successfully.', 'success')
     return redirect(url_for('tasks.list_tasks'))
+
+
+@tasks_bp.route('/tasks/attachment/<int:id>')
+@login_required
+def task_attachment(id):
+    task = Task.query.get_or_404(id)
+    tutor = Tutor.query.filter_by(email=current_user.email).first()
+    if current_user.role != 'Admin' and (not tutor or task.tutor_id != tutor.id):
+        abort(403)
+    if not task.completion_attachment or not task.completion_attachment_mime:
+        abort(404)
+    safe_name = (task.completion_attachment_name or 'evidence').replace('"', '')
+    return Response(task.completion_attachment, mimetype=task.completion_attachment_mime,
+                    headers={'Content-Disposition': f'inline; filename="{safe_name}"'})
 
 
 @tasks_bp.route('/tasks/delete/<int:id>', methods=['POST'])

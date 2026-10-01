@@ -755,6 +755,8 @@ def migrate_task_workflow_columns():
     adds = [('start_date', 'DATE'), ('acknowledged_at', ts_type), ('started_at', ts_type),
             ('submitted_at', ts_type), ('completion_notes', 'TEXT'), ('rejection_reason', 'TEXT'),
             ('verified_at', ts_type), ('verified_by', 'INTEGER'), ('verification_notes', 'TEXT'),
+            ('completion_attachment', 'BLOB' if db.engine.dialect.name != 'postgresql' else 'BYTEA'),
+            ('completion_attachment_mime', 'VARCHAR(100)'), ('completion_attachment_name', 'VARCHAR(255)'),
             ('notification_status', 'VARCHAR(20)'), ('notification_sent_at', ts_type),
             ('notification_error', 'TEXT'),
             ('archived_at', ts_type), ('archived_by', 'INTEGER'), ('blocked_reason', 'TEXT'),
@@ -771,6 +773,8 @@ def migrate_task_workflow_columns():
         db.session.execute(text("UPDATE task SET version = 1 WHERE version IS NULL"))
         db.session.execute(text('CREATE INDEX IF NOT EXISTS idx_task_due_status ON task(due_date, status)'))
         db.session.execute(text('CREATE INDEX IF NOT EXISTS idx_task_tutor_status ON task(tutor_id, status)'))
+        from app.models.task import TaskActionToken
+        TaskActionToken.__table__.create(bind=db.engine, checkfirst=True)
         db.session.commit()
     except Exception:
         db.session.rollback()

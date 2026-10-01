@@ -417,6 +417,8 @@
                             {% if current_user.role == 'Admin' %}
                             <td class="small text-white-50" style="max-width:180px;font-size:0.72rem;">
                                 {{ t.notes or '&mdash;'|safe }}
+                                {% if t.completion_notes %}<div class="mt-1 text-info">Submission: {{ t.completion_notes }}</div>{% endif %}
+                                {% if t.completion_attachment %}<a class="d-block mt-1 text-info" href="{{ url_for('tasks.task_attachment', id=t.id) }}" target="_blank"><i class="bi bi-paperclip me-1"></i>View evidence</a>{% endif %}
                             </td>
                             {% endif %}
                             <td class="text-end text-nowrap">
@@ -636,7 +638,7 @@
                 <h5 class="modal-title text-white" id="update_modal_title"><i class="bi bi-pencil-square me-2" style="color:hsl(200,100%,55%);"></i>Update Task</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form id="dynamicUpdateStatusForm" method="POST" action="" hx-boost="false" data-no-ajax>
+            <form id="dynamicUpdateStatusForm" method="POST" action="" enctype="multipart/form-data" hx-boost="false" data-no-ajax>
                 <input type="hidden" name="task_csrf_token" value="{{ task_csrf_token }}">
                 <div class="modal-body">
                     <div class="mb-3">
@@ -657,6 +659,13 @@
                         <label class="form-label text-white small fw-semibold">Progress Remarks <span class="text-white-50">(optional)</span></label>
                         <textarea class="form-control" id="update_notes" name="notes" rows="3" placeholder="Add progress notes or completion remarks..." style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);"></textarea>
                     </div>
+                    {% if current_user.role != 'Admin' %}
+                    <div class="mb-3">
+                        <label class="form-label text-white small fw-semibold">Completion evidence <span class="text-white-50">(optional)</span></label>
+                        <input type="file" class="form-control" name="completion_attachment" accept="image/*">
+                        <div class="form-text text-white-50">Upload an image or scan as proof of completion, up to 8 MB.</div>
+                    </div>
+                    {% endif %}
                 </div>
                 <div class="modal-footer border-secondary border-opacity-25">
                     <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">Cancel</button>
