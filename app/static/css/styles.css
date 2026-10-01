@@ -1358,6 +1358,25 @@ body.htmx-request #main-content {
 .students-course-empty { color:rgba(232,241,255,.48); font-size:.82rem; }
 .students-directory > .student-ledger-pagination { justify-content:space-between; margin-top:1.25rem !important; padding-top:1rem; border-top:1px solid rgba(125,211,252,.12); }
 .students-directory .student-ledger-pagination .page-link { min-width:38px; text-align:center; border-radius:8px; margin:0 2px; }
+/* Explicit dark-mode treatment for the ledger additions. These overrides
+   keep contrast stable if the global dark palette changes later. */
+body.dark-mode .students-ledger-meta,
+body.dark-mode .students-page-size,
+body.dark-mode .students-pagination-info { color:var(--text-secondary); }
+body.dark-mode .students-page-size { border-color:rgba(125,211,252,.24); background:rgba(13,39,64,.35); }
+body.dark-mode .students-summary-grid > div,
+body.dark-mode .students-filter-toolbar { background:rgba(13,39,64,.48); border-color:rgba(125,211,252,.16); }
+body.dark-mode .students-summary-grid strong { color:var(--text-primary); }
+body.dark-mode .students-summary-label { color:var(--text-secondary); }
+body.dark-mode .students-name-meta { color:var(--text-secondary); }
+body.dark-mode .students-id-meta,
+body.dark-mode .students-course-more { color:#7dd3fc; }
+body.dark-mode .students-status { color:#e8edf2; }
+body.dark-mode .students-course-primary { color:#dbeafe; }
+body.dark-mode .students-course-empty { color:var(--text-muted); }
+body.dark-mode .students-directory .table-custom th { background:var(--bg-hover); color:var(--text-primary); }
+body.dark-mode .students-directory .table-custom td { color:var(--text-primary); border-bottom-color:rgba(255,255,255,.08); }
+body.dark-mode .students-directory .table-custom tbody tr:hover td { background:rgba(27,110,243,.14); }
 @media (max-width: 767.98px) {
     .students-summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
     .students-ledger-heading { align-items:flex-start; }
