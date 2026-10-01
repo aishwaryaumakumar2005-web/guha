@@ -691,6 +691,9 @@ function initializeTablePagination() {
         const tbody = table.querySelector('tbody');
         if (!tbody) return;
 
+        // This table is paginated by Flask. Avoid a second client-side pager.
+        if (table.dataset.serverPagination === 'true') return;
+
         const rows = Array.from(tbody.querySelectorAll('tr'));
         const pageSize = parseInt(table.dataset.pageSize, 10) || 10;
         if (rows.length <= pageSize) return;
@@ -1285,5 +1288,4 @@ function initGlobalSearch(inputId, dropdownId) {
         if (e.key === 'Enter') { dropdown.classList.add('d-none'); }
     });
 }
-
 

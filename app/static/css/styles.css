@@ -1328,6 +1328,22 @@ body.htmx-request #main-content {
 }
 .table-custom tr:last-child td { border-bottom: none; }
 
+/* Students ledger: quieter rows with clearer hierarchy. Scoped to this table. */
+.students-ledger-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1.15rem; }
+.students-ledger-meta, .students-page-size { color:rgba(232,241,255,.62); font-size:.78rem; }
+.students-page-size { padding:.35rem .65rem; border:1px solid rgba(125,211,252,.2); border-radius:999px; white-space:nowrap; }
+.students-directory .table-custom { border-collapse:collapse; border-spacing:0; }
+.students-directory .table-custom th { background:rgba(13,39,64,.72); color:rgba(232,241,255,.68); font-size:.68rem; font-weight:600; letter-spacing:.055em; text-transform:uppercase; border-bottom:1px solid rgba(125,211,252,.16); }
+.students-directory .table-custom td { background:transparent; border-bottom:1px solid rgba(255,255,255,.07); padding-top:14px; padding-bottom:14px; }
+.students-directory .table-custom tbody tr:hover td { background:rgba(27,110,243,.09); box-shadow:none; }
+.students-directory .table-custom tr td:first-child, .students-directory .table-custom tr td:last-child { border-radius:0; }
+.students-directory .table-custom tbody tr:last-child td { border-bottom:0; }
+.students-course-primary { display:inline-block; max-width:190px; overflow:hidden; text-overflow:ellipsis; vertical-align:middle; white-space:nowrap; color:#dbeafe; font-size:.88rem; }
+.students-course-more { display:inline-block; margin-left:.35rem; color:#7dd3fc; font-size:.75rem; white-space:nowrap; }
+.students-course-empty { color:rgba(232,241,255,.48); font-size:.82rem; }
+.students-directory > .student-ledger-pagination { justify-content:space-between; margin-top:1.25rem !important; padding-top:1rem; border-top:1px solid rgba(125,211,252,.12); }
+.students-directory .student-ledger-pagination .page-link { min-width:38px; text-align:center; border-radius:8px; margin:0 2px; }
+
 /* Students and enquiry ledgers share the same dark action treatment. */
 .students-directory .student-name-link {
     color: #ffffff !important;

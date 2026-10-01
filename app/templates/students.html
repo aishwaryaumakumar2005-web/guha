@@ -66,21 +66,27 @@ Bulk import student records from Excel files with AI-powered data validation, du
     {% endif %}
     <!-- Student Table Grid -->
     <div class="glass-card p-4 students-directory" data-aos="fade-up">
-        <h4 class="mb-4 text-white fw-bold"><i class="bi bi-people me-2 text-white" aria-hidden="true"></i>Students Ledger</h4>
+        <div class="students-ledger-heading">
+            <div>
+                <h4 class="mb-1 text-white fw-bold"><i class="bi bi-people me-2 text-white" aria-hidden="true"></i>Students Ledger</h4>
+                <span class="students-ledger-meta">{{ pagination.total }} student{{ '' if pagination.total == 1 else 's' }}{% if q or selected_course_id or status_filter %} matching the current filters{% endif %}</span>
+            </div>
+            <span class="students-page-size">20 per page</span>
+        </div>
         <div class="table-container">
-            <table id="studentsTable" class="table table-custom sortable" data-page-size="20" data-server-search="true" data-export-url="{{ url_for('students.export_excel') }}{% if selected_course_id %}?course_id={{ selected_course_id }}{% endif %}">
+            <table id="studentsTable" class="table table-custom sortable" data-page-size="20" data-server-search="true" data-server-pagination="true" data-export-url="{{ url_for('students.export_excel') }}{% if selected_course_id %}?course_id={{ selected_course_id }}{% endif %}">
                 <thead>
                     <tr>
                         <th>
 ID</th>
                         <th>
-Full Name</th>
+Full name</th>
                         <th>
 Phone</th>
                         <th>
-Courses Enrolled</th>
+Courses</th>
                         <th>
-Enrollment Date</th>
+Enrolled</th>
                         <th>
 Status</th>
                         <th class="text-end">
@@ -106,11 +112,14 @@ Actions</th>
                                 <td data-label="Phone" class="text-white" style="opacity: 0.85;">
 {{ student.phone }}</td>
                                 <td data-label="Courses">
-                                    {% if active_course_ids.get(student.id) %}                                        {% for c in student.courses if c.id in active_course_ids.get(student.id, []) %}                                            <span class="badge badge-custom badge-cyan mb-1">
-{{ c.name }}</span>
-                                        {% endfor %}                                    {% else %}                                        <span class="text-white small" style="opacity: 0.85;">
--</span>
-                                    {% endif %}                                </td>
+                                    {% set active_courses = student.courses|selectattr('id', 'in', active_course_ids.get(student.id, []))|list %}
+                                    {% if active_courses %}
+                                        <span class="students-course-primary">{{ active_courses[0].name }}</span>
+                                        {% if active_courses|length > 1 %}<span class="students-course-more">+{{ active_courses|length - 1 }} more</span>{% endif %}
+                                    {% else %}
+                                        <span class="students-course-empty">No active course</span>
+                                    {% endif %}
+                                </td>
                                 <td data-label="Enrolled" class="text-white" style="opacity: 0.85;">
 {{ student.enrollment_date.strftime("%d %b %Y") if student.enrollment_date else 'Not set' }}{% if student.date_of_birth %}<div class="small text-white-50" style="opacity:0.7;" title="Date of birth"><i class="bi bi-cake me-1" aria-hidden="true"></i>{{ student.date_of_birth.strftime("%d %b %Y") }}</div>{% endif %}</td>
                                 <td data-label="Status">
