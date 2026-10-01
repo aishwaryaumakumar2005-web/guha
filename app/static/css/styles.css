@@ -1375,8 +1375,35 @@ body.dark-mode .students-status { color:#e8edf2; }
 body.dark-mode .students-course-primary { color:#dbeafe; }
 body.dark-mode .students-course-empty { color:var(--text-muted); }
 body.dark-mode .students-directory .table-custom th { background:var(--bg-hover); color:var(--text-primary); }
-body.dark-mode .students-directory .table-custom td { color:var(--text-primary); border-bottom-color:rgba(255,255,255,.08); }
-body.dark-mode .students-directory .table-custom tbody tr:hover td { background:rgba(27,110,243,.14); }
+body.dark-mode .students-directory .table-container {
+    background:var(--bg-card);
+    border:1px solid var(--border-color);
+    border-radius:12px;
+    overflow:hidden;
+}
+body.dark-mode .students-directory .table-custom { background:transparent; }
+body.dark-mode .students-directory .table-custom th {
+    background:var(--bg-hover);
+    border-bottom:1px solid var(--border-color);
+}
+body.dark-mode .students-directory .table-custom td {
+    background:transparent !important;
+    color:var(--text-primary);
+    border-bottom:1px solid rgba(255,255,255,.08);
+    box-shadow:none !important;
+}
+body.dark-mode .students-directory .table-custom tr:nth-child(even) td,
+body.dark-mode .students-directory .table-custom tr:nth-child(odd) td {
+    background:transparent !important;
+}
+body.dark-mode .students-directory .table-custom tbody tr:hover td {
+    background:rgba(255,255,255,.055) !important;
+    box-shadow:none !important;
+}
+body.dark-mode .students-directory .table-custom tr td:first-child,
+body.dark-mode .students-directory .table-custom tr td:last-child {
+    border-radius:0;
+}
 @media (max-width: 767.98px) {
     .students-summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
     .students-ledger-heading { align-items:flex-start; }
