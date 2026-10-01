@@ -669,6 +669,7 @@ def api_todays_activities():
             for at in assigned_tasks:
                 is_overdue = at.due_date and at.due_date < today
                 tasks.append({
+                    'task_id': at.id,
                     'title': at.title,
                     'detail': (f'Due: {at.due_date.strftime("%d %b")} · ' if at.due_date else '') + (at.description or at.notes or 'Assigned task'),
                     'priority': 'high' if (is_overdue or at.priority == 'High') else ('medium' if at.priority == 'Medium' else 'low'),
@@ -678,7 +679,16 @@ def api_todays_activities():
                     'action_url': url_for('tasks.list_tasks'),
                 })
 
-            return jsonify({'tasks': tasks, 'meta': data})
+            unique_tasks = []
+            seen_task_keys = set()
+            for item in tasks:
+                task_key = ('task', item.get('task_id')) if item.get('task_id') else (
+                    'generated', item.get('title'), item.get('detail'), item.get('action_url'))
+                if task_key in seen_task_keys:
+                    continue
+                seen_task_keys.add(task_key)
+                unique_tasks.append(item)
+            return jsonify({'tasks': unique_tasks, 'meta': data})
         else:
             return jsonify({'tasks': [], 'meta': {}})
     
@@ -752,6 +762,7 @@ def api_todays_activities():
     for at in admin_assigned_tasks:
         is_overdue = at.due_date and at.due_date < today
         tasks.append({
+            'task_id': at.id,
             'title': f'{at.title} ({at.tutor.name if at.tutor else "Staff"})',
             'detail': (f'Due: {at.due_date.strftime("%d %b")} · ' if at.due_date else '') + (at.description or at.notes or 'Assigned task'),
             'priority': 'high' if (is_overdue or at.priority == 'High') else ('medium' if at.priority == 'Medium' else 'low'),
@@ -761,4 +772,17 @@ def api_todays_activities():
             'action_url': url_for('tasks.list_tasks'),
         })
 
-    return jsonify({'tasks': tasks, 'meta': data})
+    # Protect the dashboard from duplicate entries if a task is contributed
+    # by more than one task source during a data refresh. Real task IDs are
+    # used when available; generated reminders remain distinct by content.
+    unique_tasks = []
+    seen_task_keys = set()
+    for item in tasks:
+        task_key = ('task', item.get('task_id')) if item.get('task_id') else (
+            'generated', item.get('title'), item.get('detail'), item.get('action_url'))
+        if task_key in seen_task_keys:
+            continue
+        seen_task_keys.add(task_key)
+        unique_tasks.append(item)
+
+    return jsonify({'tasks': unique_tasks, 'meta': data})
