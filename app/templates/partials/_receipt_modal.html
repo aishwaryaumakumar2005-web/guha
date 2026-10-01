@@ -91,7 +91,7 @@
             <h6 class="text-uppercase text-muted small font-weight-bold mb-2">Payment &amp; Terms</h6>
             <div class="small"><strong>Terms:</strong> Due on Receipt</div>
             {% if company and company.is_gst_registered %}<div class="small"><strong>Reverse Charge:</strong> No</div>{% endif %}
-            {% if record.remarks %}<div class="small"><strong>Remarks:</strong> {{ record.remarks }}</div>{% endif %}
+            {% if record.remarks %}<div class="small"><strong>Remarks:</strong> {{ formatted_remarks or record.remarks }}</div>{% endif %}
           </div>
         </div>
       </div>

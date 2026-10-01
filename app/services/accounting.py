@@ -1,6 +1,7 @@
 from datetime import datetime, date
 from io import BytesIO
 import os
+import re
 from fpdf import FPDF
 from app.extensions import db
 from .payment_methods import TALLY_ACCOUNT_FOR_METHOD, classify_method
@@ -43,6 +44,16 @@ class AccountingService:
 
     def init_app(self, app):
         self.app = app
+
+    @staticmethod
+    def _format_bill_remarks(value):
+        if not value:
+            return value
+        return re.sub(
+            r'(?i)\b(balance|bal)\s*₹?\s*([0-9][0-9,]*(?:\.\d{1,2})?)',
+            lambda m: f'{m.group(1)} ₹ {m.group(2)}',
+            str(value),
+        )
 
     def _get_settings(self):
         from app.models import SystemSetting
@@ -247,7 +258,8 @@ class AccountingService:
         if has_gst:
             pdf.set_x(120); pdf.cell(0, 6, "Reverse Charge: No", new_x="LMARGIN", new_y="NEXT")
         if fee_record.remarks:
-            pdf.set_x(120); pdf.cell(0, 6, f"Remarks: {fee_record.remarks}", new_x="LMARGIN", new_y="NEXT")
+            remarks = self._format_bill_remarks(fee_record.remarks)
+            pdf.set_x(120); pdf.cell(0, 6, f"Remarks: {remarks}", new_x="LMARGIN", new_y="NEXT")
 
         pdf.ln(6)
 

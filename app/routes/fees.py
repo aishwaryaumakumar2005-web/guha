@@ -412,6 +412,7 @@ def receipt(id):
     # U8: receipt furniture comes from settings/company, never literals.
     accounting = getattr(current_app, 'accounting', None)
     org = accounting._get_settings() if accounting else {}
+    formatted_remarks = accounting._format_bill_remarks(record.remarks) if accounting else record.remarks
     place_of_supply = f"{org.get('org_state') or 'Tamil Nadu'} ({org.get('org_state_code') or '33'})"
     logo_file = os.path.join(current_app.static_folder or '', 'uploads', 'yazh_academy_logo.png')
     logo_url = url_for('static', filename='uploads/yazh_academy_logo.png') if os.path.exists(logo_file) else None
@@ -427,6 +428,7 @@ def receipt(id):
         sgst_val=sgst_val,
         taxable_val=taxable_val, discount_details=discount_details,
         due_total=due_total,
+        formatted_remarks=formatted_remarks,
         paid_total=paid_total,
         concessions_total=concessions_total,
         balance_due=balance_due,
