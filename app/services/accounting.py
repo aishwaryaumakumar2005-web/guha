@@ -177,22 +177,21 @@ class AccountingService:
 
         # Header band (light grey)
         pdf.set_fill_color(241, 243, 246)
-        pdf.rect(0, 0, 210, 62, 'F')
+        pdf.rect(0, 0, 210, 72, 'F')
         pdf.set_draw_color(30, 60, 114)
         pdf.set_line_width(1.0)
-        # Keep the accent rule inside the inner page frame so it never
-        # intersects either border in the downloaded PDF.
-        pdf.line(10, 62, 200, 62)
         pdf.set_line_width(0.2)
 
         # Logo top-left
         if os.path.exists(LOGO_PATH):
             pdf.image(LOGO_PATH, 14, 12, 34, 34)
 
-        set_font('B', 18)
+        # Keep the company name inside the left header column so it cannot
+        # collide with the invoice title on long names.
+        set_font('B', 16 if len(bill_name) > 22 else 18)
         text_color(30, 60, 114)
         pdf.set_xy(54, 11)
-        pdf.cell(0, 9, bill_name, align='L')
+        pdf.cell(72, 9, bill_name, align='L')
         set_font('B', 12)
         text_color(42, 82, 152)
         pdf.set_xy(54, 21)
@@ -208,21 +207,28 @@ class AccountingService:
         else:
             pdf.multi_cell(64, 5, f"Mobile: {bill_phone}\nEmail: {bill_email}", new_x="LMARGIN", new_y="NEXT")
 
-        # Right side: title + meta
+        # Right side: title + meta, kept in its own bounded column.
         set_font('B', 18)
         text_color(30, 60, 114)
-        pdf.set_xy(132, 12)
-        pdf.cell(66, 10, 'TAX INVOICE' if has_gst else 'FEE RECEIPT', align='R')
+        pdf.set_xy(134, 12)
+        pdf.cell(62, 10, 'TAX INVOICE' if has_gst else 'FEE RECEIPT', align='R')
         set_font('B', 9.5)
         text_color(40, 40, 40)
-        pdf.set_xy(132, 27)
-        pdf.cell(66, 6, f"Invoice No: {inv_no}", align='R')
-        pdf.set_xy(132, 34)
-        pdf.cell(66, 6, f"Date: {fee_record.payment_date.strftime('%d %b %Y')}", align='R')
-        pdf.set_xy(132, 41)
-        pdf.cell(66, 6, "Place of Supply: Tamil Nadu (33)", align='R')
+        pdf.set_xy(134, 27)
+        pdf.cell(62, 6, f"Invoice No: {inv_no}", align='R')
+        pdf.set_xy(134, 34)
+        pdf.cell(62, 6, f"Date: {fee_record.payment_date.strftime('%d %b %Y')}", align='R')
+        pdf.set_xy(134, 41)
+        pdf.cell(62, 6, "Place of Supply: Tamil Nadu (33)", align='R')
 
-        pdf.set_y(70)
+        # Place the divider after the tallest header content. This prevents
+        # long industrial-company addresses or email lines from being crossed.
+        header_rule_y = max(pdf.get_y(), 58) + 5
+        pdf.set_draw_color(30, 60, 114)
+        pdf.set_line_width(1.0)
+        pdf.line(10, header_rule_y, 200, header_rule_y)
+        pdf.set_line_width(0.2)
+        pdf.set_y(header_rule_y + 8)
 
         # Bill To (left) and Payment & Terms (right)
         set_font('B', 12)
@@ -249,10 +255,6 @@ class AccountingService:
         pdf.ln(2)
         set_font('', 10.5)
         text_color(25, 25, 25)
-        # The Yazh Academy non-GST bill does not display the payment mode.
-        # GST invoices retain the existing mode line for accounting clarity.
-        if has_gst:
-            pdf.set_x(120); pdf.cell(0, 6, f"Mode: {fee_record.payment_method}", new_x="LMARGIN", new_y="NEXT")
         pdf.set_x(120); pdf.cell(0, 6, "Terms: Due on Receipt", new_x="LMARGIN", new_y="NEXT")
         pdf.set_x(120); pdf.cell(0, 6, f"Place of Supply: {cfg['org_state']} ({cfg['org_state_code']})", new_x="LMARGIN", new_y="NEXT")
         if has_gst:
