@@ -238,7 +238,10 @@ class AccountingService:
         pdf.ln(2)
         set_font('', 10.5)
         text_color(25, 25, 25)
-        pdf.set_x(120); pdf.cell(0, 6, f"Mode: {fee_record.payment_method}", new_x="LMARGIN", new_y="NEXT")
+        # The Yazh Academy non-GST bill does not display the payment mode.
+        # GST invoices retain the existing mode line for accounting clarity.
+        if has_gst:
+            pdf.set_x(120); pdf.cell(0, 6, f"Mode: {fee_record.payment_method}", new_x="LMARGIN", new_y="NEXT")
         pdf.set_x(120); pdf.cell(0, 6, "Terms: Due on Receipt", new_x="LMARGIN", new_y="NEXT")
         pdf.set_x(120); pdf.cell(0, 6, f"Place of Supply: {cfg['org_state']} ({cfg['org_state_code']})", new_x="LMARGIN", new_y="NEXT")
         if has_gst:
