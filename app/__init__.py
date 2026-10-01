@@ -1,7 +1,7 @@
 import os, sys
 from datetime import date, datetime, timedelta
 from functools import wraps
-from flask import Flask, redirect, url_for, flash, render_template, g
+from flask import Flask, redirect, url_for, flash, render_template, g, request
 from markupsafe import Markup
 from werkzeug.security import generate_password_hash
 
@@ -748,10 +748,21 @@ def create_app(config_object=None):
     @app.before_request
     def _set_audit_user():
         from flask_login import current_user
+        from time import perf_counter
         g.audit_user = current_user if current_user.is_authenticated else None
+        g.request_started_at = perf_counter()
 
     @app.after_request
     def _prevent_html_cache(resp):
+        from time import perf_counter
+        started = getattr(g, 'request_started_at', None)
+        if started is not None:
+            elapsed_ms = (perf_counter() - started) * 1000
+            app.logger.info(
+                'request method=%s path=%s status=%s elapsed_ms=%.1f htmx=%s',
+                request.method, request.path, resp.status_code, elapsed_ms,
+                request.headers.get('HX-Request', 'false')
+            )
         if resp.content_type and resp.content_type.startswith('text/html'):
             resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, private'
             resp.headers['Pragma'] = 'no-cache'

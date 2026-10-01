@@ -30,6 +30,8 @@
     <script defer src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 </head>
 <body hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="innerHTML">
+    {% set is_htmx_request = request.headers.get('HX-Request') == 'true' %}
+    {% if not is_htmx_request %}
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <script>
         if (localStorage.getItem('darkMode') === 'enabled') {
@@ -430,6 +432,7 @@ My Leaves</span>
         </div>
         {% endif %}
     </div>
+    {% endif %}
     <!-- Main Content Panel -->
     <div id="main-content">
         <div class="main-content">
@@ -1064,4 +1067,3 @@ Print/Download ID Card                    </button>
     </script>
 </body>
 </html>
-
