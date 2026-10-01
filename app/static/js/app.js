@@ -149,6 +149,8 @@ function initScrollAnimations() {
 
 function initAmbientGlows() {
     document.querySelectorAll('.glass-card').forEach(card => {
+        if (card.dataset.ambientGlowBound === '1') return;
+        card.dataset.ambientGlowBound = '1';
         card.addEventListener('mousemove', function(e) {
             const rect = card.getBoundingClientRect();
             const x = e.clientX - rect.left;
@@ -1288,4 +1290,3 @@ function initGlobalSearch(inputId, dropdownId) {
         if (e.key === 'Enter') { dropdown.classList.add('d-none'); }
     });
 }
-

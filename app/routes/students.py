@@ -277,7 +277,9 @@ def list():
             Student.phone.ilike(like), Student.roll_no.ilike(like)))
     # Build the ledger summary before applying the optional status filter so
     # the counts describe the current course/search scope.
-    summary_candidates = base.all()
+    # Only the fields needed for the status summary are loaded. The paged
+    # student records are fetched separately below.
+    summary_candidates = base.with_entities(Student.id, Student.status).all()
     summary_statuses = _derived_enrollment_statuses(summary_candidates)
     status_counts = {status: 0 for status in DISPLAY_STATUSES}
     for student in summary_candidates:

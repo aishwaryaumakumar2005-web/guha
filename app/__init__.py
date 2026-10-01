@@ -169,7 +169,9 @@ def create_app(config_object=None):
     @app.context_processor
     def inject_sidebar_counts():
         from time import time
-        if time() - _sidebar_cache["time"] < 30 and _sidebar_cache["data"]:
+        # Sidebar counts are informational; avoid five COUNT queries on the
+        # first navigation after a short-lived cache expires.
+        if time() - _sidebar_cache["time"] < 300 and _sidebar_cache["data"]:
             return _sidebar_cache["data"]
         from .models import User, Student, Tutor, Course, Enquiry
         try:
