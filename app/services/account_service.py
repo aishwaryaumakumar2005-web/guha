@@ -35,6 +35,10 @@ def agreed_enrollment_items_bulk(student_ids):
             course = by_course.get(cid)
             if course is None:
                 continue
+            # The course card is the authoritative current fee for balances.
+            # Keep the enrollment snapshot only for legacy billing metadata;
+            # otherwise an edited course fee leaves the matrix permanently
+            # showing the historical price.
             fee = course.fees
             gst = course.gst_applicable
             company_id = course.company_id
@@ -57,7 +61,9 @@ def agreed_enrollment_items_bulk(student_ids):
                 # Admission discounts are stored separately from the agreed
                 # catalog fee.  Outstanding dues must use the reduced net
                 # amount when one exists; legacy enrollments have no net_fee.
-                'net_fee': (float(snap.net_fee) if snap is not None and snap.net_fee is not None else None),
+                'net_fee': None,
+                'discount_type': getattr(snap, 'discount_type', None) if snap is not None else None,
+                'discount_value': getattr(snap, 'discount_value', None) if snap is not None else None,
                 'gst_applicable': bool(gst),
                 'company_id': company_id,
                 'billing_mode': billing_mode if billing_mode in ('fixed', 'monthly') else 'fixed',
@@ -167,7 +173,14 @@ def _billable_months(enrolled_on, as_of=None):
 
 def _item_current_due(item, as_of=None):
     if item.get('billing_mode') != 'monthly':
-        return float(item.get('net_fee') if item.get('net_fee') is not None else item.get('fee') or 0)
+        fee = float(item.get('fee') or 0)
+        dtype = item.get('discount_type')
+        value = float(item.get('discount_value') or 0)
+        if dtype == 'Percentage':
+            fee -= fee * value / 100
+        elif dtype == 'Fixed':
+            fee -= value
+        return round(max(fee, 0), 2)
     return round(float(item.get('monthly_fee') or item.get('fee') or 0) * _billable_months(item.get('enrolled_on'), as_of), 2)
 
 
