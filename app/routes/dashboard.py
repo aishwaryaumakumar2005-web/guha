@@ -100,7 +100,12 @@ def _compute_stats():
     today = date.today()
     start_of_month = date(today.year, today.month, 1)
     fourteen_days_ago = today - timedelta(days=14)
-    active_students = Student.query.filter_by(status='Active').count()
+    # "Active students" means active status plus at least one live course
+    # enrollment; an orphaned Active profile must not inflate this headline.
+    active_students = Student.query.filter_by(status='Active').filter(
+        Student.courses.any(db.or_(student_courses.c.status == 'Enrolled',
+                                   student_courses.c.status.is_(None)))
+    ).count()
     tutors = Tutor.query.filter_by(status='Active').count()
     courses = Course.query.count()
     enquiries_new = Enquiry.query.filter_by(status='New').count()
