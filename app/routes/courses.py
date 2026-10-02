@@ -200,9 +200,11 @@ def edit(id):
                 student_courses.c.course_id == course.id,
                 db.or_(student_courses.c.status == 'Enrolled',
                        student_courses.c.status.is_(None)),
-                student_courses.c.agreed_fee == old_fees,
+                # A NULL net_fee means no individualized admission discount.
+                # For discounted rows, only move the snapshot when net_fee
+                # still equals its agreed fee; preserve custom reductions.
                 db.or_(student_courses.c.net_fee.is_(None),
-                       student_courses.c.net_fee == old_fees),
+                       student_courses.c.net_fee == student_courses.c.agreed_fee),
             ).values(agreed_fee=new_fees, net_fee=None))
             db.session.commit()
             # The dashboard keeps a short-lived stats cache; invalidate it so
