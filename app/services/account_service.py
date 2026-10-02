@@ -45,10 +45,9 @@ def agreed_enrollment_items_bulk(student_ids):
             billing_mode = getattr(course, 'billing_mode', None) or 'fixed'
             monthly_fee = getattr(course, 'monthly_fee', None)
             if snap is not None:
-                if snap.agreed_fee is not None:
-                    fee = snap.agreed_fee
-                if snap.agreed_gst is not None:
-                    gst = snap.agreed_gst
+                # Fee balances follow the current course-card fee. Do not
+                # overwrite it with the historical enrollment snapshot.
+                # GST/company snapshots remain historical billing metadata.
                 if snap.agreed_company_id is not None:
                     company_id = snap.agreed_company_id
                 billing_mode = getattr(snap, 'billing_mode', None) or 'fixed'
