@@ -54,6 +54,10 @@ def agreed_enrollment_items_bulk(student_ids):
                 'course_id': course.id,
                 'course': course,
                 'fee': fee,
+                # Admission discounts are stored separately from the agreed
+                # catalog fee.  Outstanding dues must use the reduced net
+                # amount when one exists; legacy enrollments have no net_fee.
+                'net_fee': (float(snap.net_fee) if snap is not None and snap.net_fee is not None else None),
                 'gst_applicable': bool(gst),
                 'company_id': company_id,
                 'billing_mode': billing_mode if billing_mode in ('fixed', 'monthly') else 'fixed',
@@ -163,7 +167,7 @@ def _billable_months(enrolled_on, as_of=None):
 
 def _item_current_due(item, as_of=None):
     if item.get('billing_mode') != 'monthly':
-        return float(item.get('fee') or 0)
+        return float(item.get('net_fee') if item.get('net_fee') is not None else item.get('fee') or 0)
     return round(float(item.get('monthly_fee') or item.get('fee') or 0) * _billable_months(item.get('enrolled_on'), as_of), 2)
 
 

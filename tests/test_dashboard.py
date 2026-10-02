@@ -202,6 +202,20 @@ def test_dashboard_dues_include_gst(app, admin_client):
     assert '₹4,000' not in page
 
 
+def test_dashboard_dues_use_reduced_admission_fee(app):
+    from app.models import student_courses
+    with app.app_context():
+        student = Student.query.filter_by(email='student@guha.test').first()
+        course = Course.query.filter_by(code='PY').first()
+        db.session.execute(student_courses.update().where(
+            student_courses.c.student_id == student.id,
+            student_courses.c.course_id == course.id,
+        ).values(agreed_fee=5000.0, net_fee=3000.0))
+        db.session.commit()
+        row = _fee_due_rows([student.id])[0]
+        assert row['total_fee'] == 3540.0  # reduced taxable fee + 18% GST
+
+
 def test_dashboard_dues_count_concessions(app):
     with app.app_context():
         cid = Course.query.filter_by(code='PY').first().id
