@@ -195,11 +195,25 @@ def edit(id):
     db.session.commit()
     message = "Course details updated!"
     if fee_changed:
-        # W2: dues are snapshotted at enrollment. Editing the catalog price
-        # affects NEW enrollments only — existing students keep their agreed
-        # price, so no balances move on this save.
-        message += (f" Fee changed ₹{old_fees:,.2f} → ₹{new_fees:,.2f}. "
-                    f"Applies to new enrollments; existing students keep their agreed price.")
+        if new_fees < old_fees:
+            db.session.execute(student_courses.update().where(
+                student_courses.c.course_id == course.id,
+                db.or_(student_courses.c.status == 'Enrolled',
+                       student_courses.c.status.is_(None)),
+                student_courses.c.agreed_fee == old_fees,
+                db.or_(student_courses.c.net_fee.is_(None),
+                       student_courses.c.net_fee == old_fees),
+            ).values(agreed_fee=new_fees, net_fee=None))
+            db.session.commit()
+            # The dashboard keeps a short-lived stats cache; invalidate it so
+            # the reduced balance is visible immediately after this save.
+            from app.routes import dashboard as dashboard_route
+            dashboard_route._stats_cache.clear()
+            message += (f" Fee reduced ₹{old_fees:,.2f} → ₹{new_fees:,.2f}; "
+                        "matching active student balances were updated.")
+        else:
+            message += (f" Fee changed ₹{old_fees:,.2f} → ₹{new_fees:,.2f}. "
+                        "The change applies to new enrollments only.")
     if is_ajax_request():
         return jsonify({"success": True, "message": message}), 200
     flash(message, "success")
