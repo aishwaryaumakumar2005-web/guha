@@ -27,6 +27,9 @@ def agreed_enrollment_items_bulk(student_ids):
     for row in rows:
         assoc.setdefault(row.student_id, {})[row.course_id] = row
     courses = Course.query.filter(Course.id.in_([r.course_id for r in rows])).all()
+    from app.models.student import Student
+    enrollment_dates = dict(db.session.query(Student.id, Student.enrollment_date).filter(
+        Student.id.in_(student_ids)).all())
     by_course = {c.id: c for c in courses}
     out = {}
     for sid, by in assoc.items():
@@ -67,8 +70,8 @@ def agreed_enrollment_items_bulk(student_ids):
                 'company_id': company_id,
                 'billing_mode': billing_mode if billing_mode in ('fixed', 'monthly') else 'fixed',
                 'monthly_fee': float(monthly_fee if monthly_fee is not None else fee),
-                'enrolled_on': getattr(snap, 'enrolled_on', None),
-                'billing_started_on': getattr(snap, 'billing_started_on', None),
+                'enrolled_on': getattr(snap, 'enrolled_on', None) or enrollment_dates.get(sid),
+                'billing_started_on': getattr(snap, 'billing_started_on', None) or enrollment_dates.get(sid),
             })
         out[sid] = items
     return out
