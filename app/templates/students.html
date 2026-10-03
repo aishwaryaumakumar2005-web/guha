@@ -642,8 +642,8 @@ function openEditStudent(btn) {
     document.getElementById('editPhone').value = d.phone || '';
     document.getElementById('editDob').value = d.dob || '';
     document.getElementById('editStatus').value = d.status || 'Active';
-    document.querySelector('#editStudentForm select[name="billing_mode"]').value = '';
-    document.querySelector('#editStudentForm input[name="monthly_fee"]').value = '';
+    // Leave billing controls untouched when opening the modal. A blank value
+    // means "keep existing"; the user can explicitly select a new mode.
     var wanted = (d.courseIds || '').split(',').filter(function(v) { return v; });
     var sel = document.getElementById('editCourses');
     if (sel.tomselect) {

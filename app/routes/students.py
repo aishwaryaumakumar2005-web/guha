@@ -315,6 +315,7 @@ def list():
     # show only currently enrolled courses; otherwise a delinked course still
     # appears after the success alert.
     active_course_ids = {}
+    billing_settings = {}
     if pagination.items:
         active_rows = db.session.query(
             student_courses.c.student_id, student_courses.c.course_id
@@ -325,11 +326,21 @@ def list():
         ).all()
         for sid, cid in active_rows:
             active_course_ids.setdefault(sid, set()).add(cid)
+        billing_rows = db.session.query(
+            student_courses.c.student_id, student_courses.c.billing_mode,
+            student_courses.c.monthly_fee
+        ).filter(
+            student_courses.c.student_id.in_([s.id for s in pagination.items]),
+            db.or_(student_courses.c.status.is_(None), student_courses.c.status == 'Enrolled')
+        ).all()
+        for sid, mode, monthly_fee in billing_rows:
+            billing_settings.setdefault(sid, {'mode': mode or 'fixed', 'monthly_fee': monthly_fee})
     return render_template('students.html', students=pagination.items, courses=all_courses,
         is_staff=(current_user.role == 'Staff'), selected_course_id=course_filter,
         pagination=pagination, q=q, status_filter=status_filter,
         statuses=DISPLAY_STATUSES, scope_courses=scope_courses,
         enrollment_statuses=enrollment_statuses, active_course_ids=active_course_ids,
+        billing_settings=billing_settings,
         status_counts=status_counts)
 
 
