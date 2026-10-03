@@ -170,10 +170,12 @@ def migrate_monthly_billing_columns():
                     db.session.rollback()
     if _table_exists('student_courses') and _has_column('student_courses', 'billing_started_on'):
         try:
-            # Rows already converted before this field existed are anchored at
-            # the migration date, avoiding retroactive monthly charges.
+            # Legacy monthly rows have no conversion timestamp. Their original
+            # enrollment date is the only reliable billing start, so use it to
+            # include the monthly periods already covered by historical fees.
+            # New conversions always write an explicit billing_started_on.
             db.session.execute(text(
-                "UPDATE student_courses SET billing_started_on = CURRENT_DATE "
+                "UPDATE student_courses SET billing_started_on = COALESCE(enrolled_on, CURRENT_DATE) "
                 "WHERE billing_mode = 'monthly' AND billing_started_on IS NULL"))
             db.session.commit()
         except Exception:
