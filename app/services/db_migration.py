@@ -175,15 +175,13 @@ def migrate_monthly_billing_columns():
             # include the monthly periods already covered by historical fees.
             # New conversions always write an explicit billing_started_on.
             db.session.execute(text(
-                "UPDATE student_courses SET billing_started_on = COALESCE(enrolled_on, "
-                "(SELECT enrollment_date FROM student WHERE student.id = student_courses.student_id), CURRENT_DATE) "
+                "UPDATE student_courses SET billing_started_on = COALESCE(enrolled_on, CURRENT_DATE) "
                 "WHERE billing_mode = 'monthly' AND billing_started_on IS NULL"))
             # Riya (stu006) was converted before the conversion-date field was
             # deployed. Repair that legacy row so her historical payments are
             # compared with all monthly periods, not just one month.
             db.session.execute(text(
-                "UPDATE student_courses SET billing_started_on = COALESCE(enrolled_on, "
-                "(SELECT enrollment_date FROM student WHERE student.id = student_courses.student_id), CURRENT_DATE) "
+                "UPDATE student_courses SET billing_started_on = COALESCE(enrolled_on, CURRENT_DATE) "
                 "WHERE billing_mode = 'monthly' AND student_id = "
                 "(SELECT id FROM student WHERE roll_no = 'stu006')"))
             db.session.commit()
