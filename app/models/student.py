@@ -28,6 +28,7 @@ student_courses = db.Table('student_courses',
     db.Column('final_fee', db.Float),
     db.Column('billing_mode', db.String(20), default='fixed'),
     db.Column('monthly_fee', db.Float),
+    db.Column('billing_started_on', db.Date),
 )
 
 

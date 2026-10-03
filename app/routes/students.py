@@ -223,6 +223,7 @@ def list():
                         agreed_fee=net,
                         billing_mode=billing_mode,
                         monthly_fee=monthly_fee if billing_mode == 'monthly' else None,
+                        billing_started_on=date.today() if billing_mode == 'monthly' else None,
                     ))
                 db.session.commit()
                 return fresh
@@ -524,12 +525,20 @@ def edit(id):
         # same course in one save); re-run-safe because it only fills NULLs.
         stamp_agreed_dues(student.id)
     if billing_mode:
+        from datetime import date as _billing_date
+        prior_monthly = db.session.query(student_courses.c.billing_mode).filter(
+            student_courses.c.student_id == student.id,
+            student_courses.c.course_id.in_(requested_ids),
+            db.or_(student_courses.c.status.is_(None), student_courses.c.status == 'Enrolled')
+        ).all()
+        was_monthly = any(row[0] == 'monthly' for row in prior_monthly)
         db.session.execute(student_courses.update().where(
             student_courses.c.student_id == student.id,
             student_courses.c.course_id.in_(requested_ids),
             db.or_(student_courses.c.status.is_(None), student_courses.c.status == 'Enrolled')
         ).values(billing_mode=billing_mode,
-                 monthly_fee=monthly_fee if billing_mode == 'monthly' else None))
+                 monthly_fee=monthly_fee if billing_mode == 'monthly' else None,
+                 billing_started_on=_billing_date.today() if billing_mode == 'monthly' and not was_monthly else None))
     db.session.commit()
     message = "Student details updated!"
     if is_ajax_request():

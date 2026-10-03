@@ -68,6 +68,7 @@ def agreed_enrollment_items_bulk(student_ids):
                 'billing_mode': billing_mode if billing_mode in ('fixed', 'monthly') else 'fixed',
                 'monthly_fee': float(monthly_fee if monthly_fee is not None else fee),
                 'enrolled_on': getattr(snap, 'enrolled_on', None),
+                'billing_started_on': getattr(snap, 'billing_started_on', None),
             })
         out[sid] = items
     return out
@@ -180,7 +181,16 @@ def _item_current_due(item, as_of=None):
         elif dtype == 'Fixed':
             fee -= value
         return round(max(fee, 0), 2)
-    return round(float(item.get('monthly_fee') or item.get('fee') or 0) * _billable_months(item.get('enrolled_on'), as_of), 2)
+    as_of = as_of or date.today()
+    start = item.get('billing_started_on') or item.get('enrolled_on')
+    monthly = float(item.get('monthly_fee') or item.get('fee') or 0)
+    # Preserve the original fixed admission due when conversion happens after
+    # enrollment; monthly billing starts at the explicit conversion date.
+    fixed_before_conversion = 0.0
+    enrolled = item.get('enrolled_on')
+    if start and enrolled and enrolled < start:
+        fixed_before_conversion = float(item.get('fee') or 0)
+    return round(fixed_before_conversion + monthly * _billable_months(start, as_of), 2)
 
 
 def company_bill_name(company):

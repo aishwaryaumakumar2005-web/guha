@@ -157,7 +157,7 @@ def migrate_monthly_billing_columns():
     """Add monthly billing fields without changing legacy enrollments."""
     for table, columns in {
         'course': [('billing_mode', "VARCHAR(20) DEFAULT 'fixed'"), ('monthly_fee', 'FLOAT')],
-        'student_courses': [('billing_mode', "VARCHAR(20) DEFAULT 'fixed'"), ('monthly_fee', 'FLOAT')],
+        'student_courses': [('billing_mode', "VARCHAR(20) DEFAULT 'fixed'"), ('monthly_fee', 'FLOAT'), ('billing_started_on', 'DATE')],
     }.items():
         if not _table_exists(table):
             continue
@@ -168,6 +168,16 @@ def migrate_monthly_billing_columns():
                     db.session.commit()
                 except Exception:
                     db.session.rollback()
+    if _table_exists('student_courses') and _has_column('student_courses', 'billing_started_on'):
+        try:
+            # Rows already converted before this field existed are anchored at
+            # the migration date, avoiding retroactive monthly charges.
+            db.session.execute(text(
+                "UPDATE student_courses SET billing_started_on = CURRENT_DATE "
+                "WHERE billing_mode = 'monthly' AND billing_started_on IS NULL"))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
 
 
 def migrate_attendance_provenance_column():
