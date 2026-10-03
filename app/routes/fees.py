@@ -6,7 +6,7 @@ from app.extensions import db
 from app.models import FeeRecord, Student, Course, SystemSetting, Tutor, student_courses, Company
 from app.helpers import admin_required, get_gst_rates, is_ajax_request, FINANCE_LIST_LIMIT
 from app.forms import FeeForm
-from app.services.account_service import compute_account_summary, ensure_default_companies, company_bill_name, agreed_enrollment_items, agreed_enrollment_items_bulk, snapshot_company_id, student_refunded_total, student_refunded_totals_bulk, _item_current_due
+from app.services.account_service import compute_account_summary, ensure_default_companies, company_bill_name, agreed_enrollment_items, agreed_enrollment_items_bulk, snapshot_company_id, student_refunded_total, student_refunded_totals_bulk, _item_current_due, _billable_months
 from sqlalchemy.orm import subqueryload
 
 fees_bp = Blueprint('fees', __name__)
@@ -338,8 +338,16 @@ def list():
         'settled_pct': round(kpi_settled / kpi_due * 100, 1) if kpi_due else 0.0,
         'receipts': history_total,
     }
+    monthly_balances = [b for b in student_balances if any(
+        it.get('billing_mode') == 'monthly' for it in agreed_map.get(b['student'].id, []))]
+    for b in monthly_balances:
+        b['months_due'] = max((_billable_months(it.get('billing_started_on') or it.get('enrolled_on'))
+                               for it in agreed_map.get(b['student'].id, [])
+                               if it.get('billing_mode') == 'monthly'), default=1)
+    fixed_balances = [b for b in student_balances if b not in monthly_balances]
     return render_template(
-        'fees.html', records=all_records, students=all_students, balances=student_balances,
+        'fees.html', records=all_records, students=all_students, balances=fixed_balances,
+        monthly_balances=monthly_balances,
         companies=companies, selected_company_id=company_id,
         selected_company=selected_company, default_company=default_company,
         history_total=history_total, list_limit=history_total,

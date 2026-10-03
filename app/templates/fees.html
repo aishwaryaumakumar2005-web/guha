@@ -52,6 +52,35 @@
         </div>
     </div>
 
+    <!-- Monthly Billing Matrix -->
+    <div class="glass-card p-4 mb-4" data-aos="fade-up">
+        <h4 class="mb-2 text-white fw-bold"><i class="bi bi-calendar3 me-2 text-info"></i>Monthly Billing Matrix</h4>
+        <p class="text-white-50 small mb-4">Recurring dues accrued from each student’s monthly billing start date. Advance payments are shown separately from outstanding dues.</p>
+        <div class="table-container">
+            <table class="table table-custom sortable" data-page-size="10">
+                <thead><tr><th>Student</th><th>Course</th><th>Monthly fee</th><th>Months due</th><th>Accrued due</th><th>Paid</th><th>Advance credit</th><th>Outstanding</th><th>Status</th><th class="text-end">Action</th></tr></thead>
+                <tbody>
+                {% if monthly_balances %}
+                {% for item in monthly_balances %}
+                    <tr>
+                        <td class="fw-medium text-white">{{ item.student.name }}</td>
+                        <td class="text-white">{% for c in item.student.courses %}{{ c.code }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+                        <td class="text-white">₹{{ "{:,.2f}".format(item.total_fee / (item.months_due or 1)) }}</td>
+                        <td class="text-white">{{ item.months_due or 1 }}</td>
+                        <td class="text-white fw-semibold">₹{{ "{:,.2f}".format(item.total_fee) }}</td>
+                        <td class="text-white">₹{{ "{:,.2f}".format(item.total_paid) }}</td>
+                        <td class="text-success">₹{{ "{:,.2f}".format(item.credit if item.credit > 0 else 0) }}</td>
+                        <td class="text-warning fw-semibold">₹{{ "{:,.2f}".format(item.balance if item.balance > 0 else 0) }}</td>
+                        <td>{% if item.balance > 0 %}<span class="badge badge-custom badge-amber">Outstanding</span>{% else %}<span class="badge badge-custom badge-active">Advance credit</span>{% endif %}</td>
+                        <td class="text-end">{% if current_user.role == 'Admin' and item.balance > 0 %}<button class="btn btn-sm btn-outline-premium" data-student-id="{{ item.student.id }}" data-student-name="{{ item.student.name }}" onclick="quickCollect(this)">Collect</button>{% endif %}</td>
+                    </tr>
+                {% endfor %}
+                {% else %}<tr><td colspan="10" class="text-center text-white py-4">No monthly billing students.</td></tr>{% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <!-- AI Fee Analysis Banner -->
     <div class="glass-card p-4 mb-4 border border-info border-opacity-25" style="background: linear-gradient(135deg, rgba(27, 110, 243, 0.15) 0%, rgba(33, 37, 56, 0.45) 100%);">
         <div class="row align-items-center">

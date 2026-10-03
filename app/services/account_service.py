@@ -181,10 +181,8 @@ def _item_current_due(item, as_of=None):
         elif dtype == 'Fixed':
             fee -= value
         return round(max(fee, 0), 2)
-    # Monthly billing represents the current installment only. Historical
-    # payments remain credited against that installment; future installments
-    # are not billed in advance.
-    return round(float(item.get('monthly_fee') or item.get('fee') or 0), 2)
+    start = item.get('billing_started_on') or item.get('enrolled_on')
+    return round(float(item.get('monthly_fee') or item.get('fee') or 0) * _billable_months(start, as_of), 2)
 
 
 def company_bill_name(company):
