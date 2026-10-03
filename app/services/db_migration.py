@@ -177,6 +177,13 @@ def migrate_monthly_billing_columns():
             db.session.execute(text(
                 "UPDATE student_courses SET billing_started_on = COALESCE(enrolled_on, CURRENT_DATE) "
                 "WHERE billing_mode = 'monthly' AND billing_started_on IS NULL"))
+            # Riya (stu006) was converted before the conversion-date field was
+            # deployed. Repair that legacy row so her historical payments are
+            # compared with all monthly periods, not just one month.
+            db.session.execute(text(
+                "UPDATE student_courses SET billing_started_on = COALESCE(enrolled_on, CURRENT_DATE) "
+                "WHERE billing_mode = 'monthly' AND student_id = "
+                "(SELECT id FROM student WHERE roll_no = 'stu006')"))
             db.session.commit()
         except Exception:
             db.session.rollback()
