@@ -352,9 +352,11 @@ def list():
         # A converted student's pre-conversion receipts belong to the legacy
         # fixed-fee period. Only receipts on/after the monthly billing start
         # date settle monthly installments.
+        active_items = agreed_map.get(b['student'].id, [])
+        single_monthly_course = len(active_items) == 1 and active_items[0].get('billing_mode') == 'monthly'
         monthly_receipts = [r for r in b['student'].fee_records
                             if r.status != 'Voided'
-                            and (billing_start is None or r.payment_date >= billing_start)
+                            and (single_monthly_course or billing_start is None or r.payment_date >= billing_start)
                             and _fee_record_in_company(r, company_id, selected_is_gst)]
         b['monthly_paid'] = round(sum(r.amount_paid for r in monthly_receipts), 2)
         b['monthly_concession'] = round(sum(r.concession or 0 for r in monthly_receipts), 2)
