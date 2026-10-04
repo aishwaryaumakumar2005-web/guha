@@ -341,9 +341,25 @@ def list():
     monthly_balances = [b for b in student_balances if any(
         it.get('billing_mode') == 'monthly' for it in agreed_map.get(b['student'].id, []))]
     for b in monthly_balances:
+        monthly_items = [it for it in agreed_map.get(b['student'].id, [])
+                         if it.get('billing_mode') == 'monthly']
+        billing_start = min((it.get('billing_started_on') or it.get('enrolled_on')
+                             for it in monthly_items if it.get('billing_started_on') or it.get('enrolled_on')), default=None)
         b['months_due'] = max((_billable_months(it.get('billing_started_on') or it.get('enrolled_on'))
                                for it in agreed_map.get(b['student'].id, [])
                                if it.get('billing_mode') == 'monthly'), default=1)
+        b['monthly_total_fee'] = round(sum(_item_current_due(it) for it in monthly_items), 2)
+        # A converted student's pre-conversion receipts belong to the legacy
+        # fixed-fee period. Only receipts on/after the monthly billing start
+        # date settle monthly installments.
+        monthly_receipts = [r for r in b['student'].fee_records
+                            if r.status != 'Voided'
+                            and (billing_start is None or r.payment_date >= billing_start)
+                            and _fee_record_in_company(r, company_id, selected_is_gst)]
+        b['monthly_paid'] = round(sum(r.amount_paid for r in monthly_receipts), 2)
+        b['monthly_concession'] = round(sum(r.concession or 0 for r in monthly_receipts), 2)
+        b['monthly_balance'] = round(b['monthly_total_fee'] - b['monthly_paid'] - b['monthly_concession'], 2)
+        b['monthly_credit'] = round(max(-b['monthly_balance'], 0), 2)
     fixed_balances = [b for b in student_balances if b not in monthly_balances]
     return render_template(
         'fees.html', records=all_records, students=all_students, balances=fixed_balances,
