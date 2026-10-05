@@ -186,40 +186,33 @@ class AccountingService:
         if os.path.exists(LOGO_PATH):
             pdf.image(LOGO_PATH, 14, 12, 34, 34)
 
-        # Keep the company name inside the left header column so it cannot
-        # collide with the invoice title on long names.
+        # The academy name is the visual focal point of the header.  Keep it
+        # centered and omit the address/contact block here; those details are
+        # retained in the footer where they have more room and do not compete
+        # with the receipt identity.
         set_font('B', 14 if len(bill_name) > 22 else 18)
         text_color(30, 60, 114)
-        pdf.set_xy(54, 11)
-        pdf.cell(72, 9, bill_name, align='L')
+        pdf.set_xy(15, 12)
+        pdf.cell(180, 10, bill_name, align='C')
         set_font('B', 12)
         text_color(42, 82, 152)
-        pdf.set_xy(54, 21)
-        pdf.cell(0, 6, '(Powered By Guha India)', align='L')
-        set_font('', 10)
-        text_color(45, 45, 45)
-        pdf.set_xy(54, 29)
-        pdf.multi_cell(64, 5, bill_address, new_x="LMARGIN", new_y="NEXT")
-        contact_y = pdf.get_y() + 1
-        pdf.set_xy(54, contact_y)
-        if has_gst:
-            pdf.multi_cell(64, 5, f"GSTIN: {bill_gstin}\nMobile: {bill_phone}\nEmail: {bill_email}", new_x="LMARGIN", new_y="NEXT")
-        else:
-            pdf.multi_cell(64, 5, f"Mobile: {bill_phone}\nEmail: {bill_email}", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_xy(15, 23)
+        pdf.cell(180, 6, '(Powered By Guha India)', align='C')
 
-        # Right side: title + meta, kept in its own bounded column.
+        # Receipt identity and its three metadata lines share the centered
+        # header area, using the space released by the removed address block.
         set_font('B', 18)
         text_color(30, 60, 114)
-        pdf.set_xy(134, 12)
-        pdf.cell(62, 10, 'TAX INVOICE' if has_gst else 'FEE RECEIPT', align='R')
+        pdf.set_xy(15, 34)
+        pdf.cell(180, 10, 'TAX INVOICE' if has_gst else 'FEE RECEIPT', align='C')
         set_font('B', 9.5)
         text_color(40, 40, 40)
-        pdf.set_xy(134, 27)
-        pdf.cell(62, 6, f"Invoice No: {inv_no}", align='R')
-        pdf.set_xy(134, 34)
-        pdf.cell(62, 6, f"Date: {fee_record.payment_date.strftime('%d %b %Y')}", align='R')
-        pdf.set_xy(134, 41)
-        pdf.cell(62, 6, "Place of Supply: Tamil Nadu (33)", align='R')
+        pdf.set_xy(15, 45)
+        pdf.cell(180, 6, f"Invoice No: {inv_no}", align='C')
+        pdf.set_xy(15, 51)
+        pdf.cell(180, 6, f"Date: {fee_record.payment_date.strftime('%d %b %Y')}", align='C')
+        pdf.set_xy(15, 57)
+        pdf.cell(180, 6, "Place of Supply: Tamil Nadu (33)", align='C')
 
         # Use a fixed header zone with enough room for long industrial-company
         # addresses and contact lines. The body starts below this zone.
@@ -231,7 +224,8 @@ class AccountingService:
         section_y = 88
         pdf.set_y(section_y)
 
-        # Bill To (left) and Payment & Terms (right)
+        # Bill To.  Payment & Terms is intentionally omitted from receipts;
+        # the freed width and vertical space keep the student identity clear.
         set_font('B', 12)
         text_color(30, 60, 114)
         pdf.set_xy(15, section_y)
@@ -247,22 +241,6 @@ class AccountingService:
             pdf.set_x(15); pdf.cell(0, 6, f"Email: {student.email}", new_x="LMARGIN", new_y="NEXT")
         if student.phone:
             pdf.set_x(15); pdf.cell(0, 6, f"Phone: {student.phone}", new_x="LMARGIN", new_y="NEXT")
-
-        set_font('B', 12)
-        text_color(30, 60, 114)
-        pdf.set_xy(120, section_y)
-        pdf.cell(0, 8, 'Payment & Terms:', new_x="LMARGIN", new_y="NEXT")
-        pdf.line(120, pdf.get_y(), 195, pdf.get_y())
-        pdf.ln(2)
-        set_font('', 10.5)
-        text_color(25, 25, 25)
-        pdf.set_x(120); pdf.cell(0, 6, "Terms: Due on Receipt", new_x="LMARGIN", new_y="NEXT")
-        pdf.set_x(120); pdf.cell(0, 6, f"Place of Supply: {cfg['org_state']} ({cfg['org_state_code']})", new_x="LMARGIN", new_y="NEXT")
-        if has_gst:
-            pdf.set_x(120); pdf.cell(0, 6, "Reverse Charge: No", new_x="LMARGIN", new_y="NEXT")
-        if fee_record.remarks:
-            remarks = self._format_bill_remarks(fee_record.remarks)
-            pdf.set_x(120); pdf.cell(0, 6, f"Remarks: {remarks}", new_x="LMARGIN", new_y="NEXT")
 
         pdf.ln(6)
 
@@ -296,14 +274,22 @@ class AccountingService:
             else:
                 pdf.set_fill_color(255, 255, 255)
             text_color(25, 25, 25)
-            # Keep the complete course description readable in the fixed
-            # description column without replacing it with an ellipsis.
-            row_size = 7.5 if len(str(cols[0])) > 45 else 9.5
+            # Use a measured multi-cell row so long descriptions wrap instead
+            # of being clipped or silently replaced with an ellipsis.
+            row_size = 8.5
             set_font('B' if bold else '', row_size)
-            pdf.set_x(15)
+            desc_lines = max(1, len(pdf.multi_cell(col_w[0], 5, str(cols[0]), dry_run=True, output='LINES')))
+            row_h = max(8, desc_lines * 5 + 2)
+            x = 15
+            y = pdf.get_y()
             for i, c in enumerate(cols):
-                pdf.cell(col_w[i], 8, str(c), border=1, fill=True, align='C' if i > 0 else 'L')
-            pdf.ln()
+                pdf.set_xy(x, y)
+                if i == 0:
+                    pdf.multi_cell(col_w[i], row_h / desc_lines, str(c), border=1, fill=True, align='L')
+                else:
+                    pdf.cell(col_w[i], row_h, str(c), border=1, fill=True, align='C')
+                x += col_w[i]
+            pdf.set_xy(15, y + row_h)
 
         table_header()
         # W1: one installment line, not full course fees. Line items must sum
