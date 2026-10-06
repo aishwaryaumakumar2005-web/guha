@@ -23,14 +23,14 @@
             <div class="d-flex flex-wrap gap-2 mt-2">
                 <span class="badge badge-custom badge-cyan"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>{{ today.strftime("%d %b %Y") }}</span>
                 <span class="badge badge-custom badge-amber"><i class="bi bi-calendar2-check me-1" aria-hidden="true"></i>{{ today_attendance }} attendance logged today</span>
-                {% if current_user.role == 'Admin' %}
+                {% if current_user.role in ('Admin', 'Operation') %}
                 <span class="badge badge-custom badge-active"><i class="bi bi-currency-rupee me-1" aria-hidden="true"></i>₹{{ "{:,.0f}".format(today_fees) }} collected today <span style="opacity:0.6;">(incl. GST)</span></span>
                 <span class="badge badge-custom badge-active"><i class="bi bi-graph-up-arrow me-1" aria-hidden="true"></i>₹{{ "{:,.0f}".format(stats.monthly_fees_collected) }} this month <span style="opacity:0.6;">(incl. GST)</span></span>
                 <a href="{{ url_for('enquiries.kanban') }}" class="badge badge-custom badge-amber text-decoration-none"><i class="bi bi-funnel me-1" aria-hidden="true"></i>{{ stats.unresolved_enquiries }} unresolved enquiries</a>
                 {% endif %}
             </div>
         </div>
-        {% if current_user.role == 'Admin' %}
+        {% if current_user.role in ('Admin', 'Operation') %}
         <!-- Quick Actions Toolbar -->
         <div class="d-flex flex-wrap gap-2">
             <a href="{{ url_for('dashboard.dashboard_export') }}" class="btn btn-sm btn-outline-premium" style="font-size:0.78rem;padding:5px 12px;"><i class="bi bi-download me-1"></i>Export metrics</a>
@@ -48,14 +48,14 @@
             <div class="d-flex justify-content-between align-items-center mb-2"><strong>Customize dashboard</strong><button type="button" class="btn-close btn-close-white" onclick="toggleDashboardPreferences()" aria-label="Close"></button></div>
             <div class="d-flex flex-wrap gap-3 small">
                 <label><input type="checkbox" data-widget-toggle="dashboard-action-center" checked> Action center</label>
-                {% if current_user.role == 'Admin' %}<label><input type="checkbox" data-widget-toggle="dashboard-fee-chart" checked> Revenue trend</label>{% endif %}
+                {% if current_user.role in ('Admin', 'Operation') %}<label><input type="checkbox" data-widget-toggle="dashboard-fee-chart" checked> Revenue trend</label>{% endif %}
                 <label><input type="checkbox" data-widget-toggle="dashboard-ai-advisor" checked> AI advisor</label>
                 <label><input type="checkbox" data-widget-toggle="dashboard-recent-activity" checked> Recent activity</label>
             </div>
         </div>
     </div>
 
-    <div class="bento-grid{% if current_user.role != 'Admin' %} staff-dashboard-kpi{% endif %}">
+    <div class="bento-grid{% if current_user.role not in ('Admin', 'Operation') %} staff-dashboard-kpi{% endif %}">
         <!-- Stat Cards -->
         <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll">
             <a href="{{ url_for('students.list') }}" class="text-decoration-none d-block h-100">
@@ -66,7 +66,7 @@
             </div>
             </a>
         </div>
-        {% if current_user.role == 'Admin' %}
+        {% if current_user.role in ('Admin', 'Operation') %}
         <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll stagger-1">
             <a href="{{ url_for('courses.list') }}" class="text-decoration-none d-block h-100">
             <div class="summary-card courses">
@@ -114,17 +114,17 @@
             </a>
         </div>
         {% endif %}
-        <div class="bento-card bento-xl-{{ 12 if current_user.role != 'Admin' else 3 }} bento-md-6 animate-on-scroll stagger-4{% if current_user.role != 'Admin' %} staff-attendance-kpi{% endif %}">
+        <div class="bento-card bento-xl-{{ 12 if current_user.role not in ('Admin', 'Operation') else 3 }} bento-md-6 animate-on-scroll stagger-4{% if current_user.role not in ('Admin', 'Operation') %} staff-attendance-kpi{% endif %}">
             <a href="{{ url_for('attendance.attendance') }}" class="text-decoration-none d-block h-100">
             <div class="summary-card staff">
                 <div><div class="stat-number">{{ ('%d%%' % stats.avg_student_attendance) if stats.avg_student_attendance is not none else '—' }}</div><div class="stat-label">Attendance</div></div>
-                <div class="stat-sub">{% if current_user.role == 'Admin' %}Last 14 days{% else %}My students &middot; last 14 days{% endif %}</div>
+                <div class="stat-sub">{% if current_user.role in ('Admin', 'Operation') %}Last 14 days{% else %}My students &middot; last 14 days{% endif %}</div>
                 <i class="bi bi-calendar-check stat-icon" aria-hidden="true"></i>
             </div>
             </a>
         </div>
 
-        {% if current_user.role == 'Admin' %}
+        {% if current_user.role in ('Admin', 'Operation') %}
         <!-- Outstanding / Pending Fees -->
         <div class="bento-card bento-xl-4 bento-md-12 animate-on-scroll">
             <div class="glass-card p-4 h-100">
@@ -265,7 +265,7 @@
             </div>
         </div>
 
-        {% if current_user.role == 'Admin' %}
+        {% if current_user.role in ('Admin', 'Operation') %}
         <!-- Fee Collection Trend Chart (Item 16) -->
         <div id="dashboard-fee-chart" class="bento-card bento-xl-12 bento-md-12 animate-on-scroll">
             <div class="glass-card p-4">
@@ -536,7 +536,7 @@ function toggleAiAdvisor() {
         });
     })();
 </script>
-{% if current_user.role == 'Admin' %}
+{% if current_user.role in ('Admin', 'Operation') %}
 <script>
 (function() {
     // WhatsApp Birthday Wishes

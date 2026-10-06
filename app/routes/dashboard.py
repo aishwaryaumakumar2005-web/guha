@@ -494,7 +494,7 @@ def dashboard():
         staff_today_exams=staff_today_exams, staff_attendance_done=staff_attendance_done,
         account_balances=_safe(
             'account_balances',
-            lambda: (compute_account_summary() if current_user.role == 'Admin' else []),
+            lambda: (compute_account_summary() if current_user.role in ('Admin', 'Operation') else []),
             []))
 
 @dashboard_bp.route('/api/dashboard/fee-chart')
