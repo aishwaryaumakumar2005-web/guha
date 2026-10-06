@@ -59,3 +59,11 @@ def mark_read(id):
     notification.read_at = notification.read_at or datetime.utcnow()
     db.session.commit()
     return redirect(url_for('tasks.list_tasks'))
+
+@notifications_bp.route('/notifications/read-all', methods=['POST'])
+@login_required
+def mark_all_read():
+    Notification.query.filter_by(user_id=current_user.id, read_at=None).update(
+        {'read_at': datetime.utcnow()}, synchronize_session=False)
+    db.session.commit()
+    return redirect(request.referrer or url_for('dashboard.dashboard'))
