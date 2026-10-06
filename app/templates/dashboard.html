@@ -1,4 +1,4 @@
-{% extends 'base.html' %}{% block title %}Dashboard{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item active" aria-current="page">Dashboard</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+{% extends 'base.html' %}{% block title %}Dashboard{% endblock %}{% block head_extra %}<style>.dashboard-skeleton{height:12px;border-radius:6px;background:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.14) 50%,rgba(255,255,255,.06) 75%);background-size:200% 100%;animation:dashboardShimmer 1.4s infinite}@keyframes dashboardShimmer{to{background-position:-200% 0}}</style>{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item active" aria-current="page">Dashboard</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
     {% if today_attendance == 0 %}
     <!-- Attendance Alert Banner -->
     <div id="attendance-alert-banner" class="alert alert-dismissible fade show p-3 mb-4 rounded-3 d-flex flex-wrap align-items-center justify-content-between gap-2" style="background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.35); color: #ffc107;" role="alert">
@@ -282,7 +282,7 @@
                     </div>
                 </div>
                 <div id="fee-chart-container" class="pt-2">
-                    <div class="d-flex align-items-center justify-content-center text-secondary small py-4">
+                    <div class="d-flex align-items-center justify-content-center text-secondary small py-4 dashboard-skeleton">
                         <span class="spinner-border spinner-border-sm me-2" style="color:hsl(150,100%,40%);" role="status"></span>
                         Loading collection trends...
                     </div>
@@ -300,7 +300,7 @@
                     <span class="badge badge-custom ms-1" id="tasks-count-badge" style="background:rgba(255,193,7,0.2);color:#ffc107;border:1px solid rgba(255,193,7,0.3);font-size:0.6rem;">...</span>
                 </div>
                 <div id="todays-tasks-container">
-                    <div class="d-flex align-items-center text-secondary small">
+                    <div class="d-flex align-items-center text-secondary small dashboard-skeleton">
                         <span class="spinner-border spinner-border-sm me-2" style="color:hsl(40,100%,55%);" role="status"></span>
                         Loading tasks...
                     </div>
