@@ -157,7 +157,7 @@ def list_tasks():
     if current_user.role == 'Admin':
         pass
     else:
-        tutor = Tutor.query.filter_by(email=current_user.email).first()
+        tutor = Tutor.query.filter(db.func.lower(Tutor.email) == (current_user.email or '').strip().lower()).first()
         if not tutor:
             query = query.filter(db.false())
         else:
@@ -253,7 +253,7 @@ def update_status(id):
     if not _task_csrf_ok():
         return jsonify({'success': False, 'error': 'Invalid security token'}), 400
     task = Task.query.get_or_404(id)
-    tutor = Tutor.query.filter_by(email=current_user.email).first()
+    tutor = Tutor.query.filter(db.func.lower(Tutor.email) == (current_user.email or '').strip().lower()).first()
     if current_user.role != 'Admin' and (not tutor or task.tutor_id != tutor.id):
         if is_ajax_request() or request.is_json:
             return jsonify({'success': False, 'error': 'Unauthorized'}), 403
@@ -483,7 +483,7 @@ def edit_task(id):
 @login_required
 def task_attachment(id):
     task = Task.query.get_or_404(id)
-    tutor = Tutor.query.filter_by(email=current_user.email).first()
+    tutor = Tutor.query.filter(db.func.lower(Tutor.email) == (current_user.email or '').strip().lower()).first()
     if current_user.role != 'Admin' and (not tutor or task.tutor_id != tutor.id):
         abort(403)
     if not task.completion_attachment or not task.completion_attachment_mime:
