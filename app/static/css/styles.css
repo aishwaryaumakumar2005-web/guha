@@ -1417,6 +1417,24 @@ body.dark-mode .students-directory .table-custom tr td:last-child {
     border-radius:0;
 }
 @media (max-width: 767.98px) {
+    /* Keep primary actions easy to tap on phones. */
+    .btn, .nav-item-link, .dropdown-item, .form-check-input { min-height: 44px; }
+    .btn-sm { min-height: 38px; }
+    .table-custom .btn { min-width: 40px; }
+    .table-container { margin-bottom: .75rem; }
+    .table-custom th, .table-custom td { padding: 10px 12px; }
+    .modal-dialog { margin: .5rem; }
+    .modal-content { max-height: calc(100vh - 1rem); overflow-y: auto; }
+    .modal-footer { position: sticky; bottom: 0; background: inherit; z-index: 2; }
+    .table-toolbar, .students-ledger-heading { flex-wrap: wrap; }
+    /* Tables become readable cards instead of forcing horizontal scrolling. */
+    .table-card-mobile thead { display: none; }
+    .table-card-mobile, .table-card-mobile tbody, .table-card-mobile tr,
+    .table-card-mobile td { display: block; width: 100%; }
+    .table-card-mobile tr { margin-bottom: .75rem; padding: .65rem; border: 1px solid rgba(255,255,255,.1); border-radius: 10px; }
+    .table-card-mobile td { display: flex; justify-content: space-between; gap: .75rem; padding: .45rem .25rem; border: 0; text-align: right; }
+    .table-card-mobile td::before { content: attr(data-label); color: rgba(255,255,255,.58); font-size: .72rem; font-weight: 600; text-align: left; }
+    .table-card-mobile td.text-end { text-align: right !important; }
     .students-summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
     .students-ledger-heading { align-items:flex-start; }
     .students-page-size { font-size:.68rem; }
