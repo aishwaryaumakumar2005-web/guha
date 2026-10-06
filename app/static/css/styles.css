@@ -1908,6 +1908,21 @@ body.dark-mode .modal .ts-dropdown .option.active {
 .badge-danger { background: #ff3366 !important; color: #ffffff !important; border: 1px solid #ff3366 !important; font-weight: 700 !important; }
 .badge-amber { background: #FFB347 !important; color: #000000 !important; border: 1px solid #FFB347 !important; font-weight: 700 !important; }
 .badge-pill-count { background: #ffffff !important; color: #0d2740 !important; border: 1px solid rgba(13, 39, 64, 0.25); }
+
+/* ===== SHARED VISUAL SYSTEM ===== */
+:root {
+    --ui-radius-sm: 8px;
+    --ui-radius-md: 12px;
+    --ui-space: 1rem;
+}
+.btn { border-radius: var(--ui-radius-sm); font-weight: 600; }
+.btn-outline-secondary { border-color: rgba(255,255,255,.3); color: rgba(255,255,255,.85); }
+.btn-outline-secondary:hover, .btn-outline-secondary:focus-visible { border-color: #7dd3fc; color: #fff; background: rgba(125,211,252,.12); }
+.badge-custom { border-radius: var(--ui-radius-sm); line-height: 1.25; }
+.glass-card, .summary-card { border-radius: var(--ui-radius-md); }
+.modal-content { border-radius: var(--ui-radius-md); }
+.form-control, .form-select { border-radius: var(--ui-radius-sm); }
+.table-custom th { letter-spacing: .045em; }
 body.dark-mode .badge-pill-count { background: rgba(255,255,255,0.15) !important; color: #ffffff !important; border: 1px solid rgba(255,255,255,0.25); }
 .btn-action-success { background: #00BFA6 !important; color: #041b17 !important; border: 2px solid #7dffe8 !important; font-weight: 700 !important; box-shadow: 0 0 8px rgba(0, 191, 166, 0.5) !important; }
 .btn-action-success:hover { background: #00d4b8 !important; color: #000000 !important; box-shadow: 0 0 12px rgba(0, 191, 166, 0.8) !important; }
