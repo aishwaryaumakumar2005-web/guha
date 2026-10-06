@@ -422,7 +422,7 @@ My Leaves</span>
                     <div class="user-role text-truncate">{{ current_user.role }}</div>
                 </div>
                 <div class="footer-actions">
-                    {% if current_user.role in ('Staff', 'Operation') %}<a href="{{ url_for('tasks.list_tasks') }}" title="Tasks" class="theme-toggle-btn position-relative">
+                    {% if current_user.is_authenticated %}<a href="{{ url_for('tasks.list_tasks') }}" title="Task notifications" class="theme-toggle-btn position-relative" aria-label="Task notifications">
                         <i class="bi bi-bell-fill"></i>{% if unread_notification_count %}<span class="badge bg-danger position-absolute top-0 start-100 translate-middle">{{ unread_notification_count }}</span>{% endif %}
                     </a>{% endif %}
                     <a href="#" id="darkModeToggle" title="Toggle Theme" class="theme-toggle-btn">
@@ -595,6 +595,16 @@ Print/Download ID Card                    </button>
                 }
             });
         }
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+                e.preventDefault();
+                var search = document.getElementById(window.innerWidth < 992 ? 'globalSearchMobile' : 'globalSearch');
+                if (search) {
+                    if (search.id === 'globalSearchMobile' && mobileSearchBar) mobileSearchBar.style.display = 'block';
+                    search.focus();
+                }
+            }
+        });
         function initAccordion() {
             document.querySelectorAll('.accord-trigger').forEach(function(tr) {
                 var body = tr.nextElementSibling;
