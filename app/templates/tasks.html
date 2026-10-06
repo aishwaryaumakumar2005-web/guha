@@ -437,16 +437,17 @@
                                     <button type="submit" class="btn btn-sm btn-outline-success" title="Send task WhatsApp notification"><i class="bi bi-whatsapp"></i></button>
                                 </form>
                                 {% endif %}
-                                <button type="button" class="btn btn-sm btn-outline-info edit-task-btn" 
+                                <button type="button" class="btn btn-sm btn-outline-info edit-task-btn"
+                                        data-bs-toggle="modal" data-bs-target="#dynamicEditTaskModal"
                                         data-id="{{ t.id }}"
                                         data-tutor-id="{{ t.tutor_id }}"
-                                        data-title="{{ t.title }}"
-                                        data-description="{{ t.description or '' }}"
+                                        data-title="{{ t.title|e }}"
+                                        data-description="{{ (t.description or '')|e }}"
                                         data-due-date="{{ t.due_date.strftime('%Y-%m-%d') if t.due_date else '' }}"
                                         data-status="{{ t.status }}"
                                         data-priority="{{ t.priority or 'Medium' }}"
                                         data-category="{{ t.category or 'General' }}"
-                                        data-notes="{{ t.notes or '' }}"
+                                        data-notes="{{ (t.notes or '')|e }}"
                                         title="Edit Task">
                                     <i class="bi bi-pencil-square"></i>
                                 </button>
