@@ -100,7 +100,7 @@ Menu</span>
                 <span>
 Dashboard</span>
             </a>
-            {% if current_user.role == 'Admin' %}            <!-- Accordion: Academic -->
+            {% if current_user.role in ('Admin', 'Operation') %}            <!-- Accordion: Academic -->
             <div class="accord-section">
                     <div class="accord-trigger {% if request.path in ['/students','/courses','/tutors','/attendance','/leaves','/exams','/students/lifecycle','/enquiries'] %}expanded{% endif %}">
                     <span class="nav-icon">
@@ -228,7 +228,7 @@ Expenses</span>
                         <span class="nav-icon"><i class="bi bi-piggy-bank-fill"></i></span>
                         <span>Capital Injection</span>
                     </a>
-                    {% if current_user.role == 'Admin' %}                    <a href="{{ url_for('expenses.salary_calculator') }}" class="nav-item-link {% if request.path == '/salary-calculator' %}active{% endif %}">
+                    {% if current_user.role in ('Admin', 'Operation') %}                    <a href="{{ url_for('expenses.salary_calculator') }}" class="nav-item-link {% if request.path == '/salary-calculator' %}active{% endif %}">
                         <span class="nav-icon">
 <i class="bi bi-calculator-fill">
 </i>
@@ -261,7 +261,7 @@ Reports</span>
                     </a>
                 </div>
             </div>
-            <!-- Accordion: Extra Features -->
+            {% if current_user.role == 'Admin' %}<!-- Accordion: Extra Features -->
             <div class="accord-section">
                 <div class="accord-trigger {% if request.path in ['/tasks', '/extras'] %}expanded{% endif %}">
                     <span class="nav-icon"><i class="bi bi-tools"></i></span>
@@ -298,7 +298,8 @@ Reports</span>
                     </a>
                 </div>
             </div>
-            {% elif current_user.role in ('Staff', 'Operation') %}
+            {% endif %}
+            {% elif current_user.role == 'Staff' %}
             <!-- Staff: Academic Section -->
             <div class="accord-section">
                 <div class="accord-trigger {% if request.path in ['/students','/courses','/attendance','/exams'] %}expanded{% endif %}">
