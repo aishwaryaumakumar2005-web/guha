@@ -665,6 +665,7 @@
                                                 {% if u.id != current_user.id %}
                                                 <select class="form-select form-select-sm" aria-label="Role for {{ u.username }}" onchange="setRole({{ u.id }}, this)">
                                                     <option value="Staff" {% if u.role == 'Staff' %}selected{% endif %}>Staff</option>
+                                                    <option value="Operation" {% if u.role == 'Operation' %}selected{% endif %}>Operation</option>
                                                     <option value="Admin" {% if u.role == 'Admin' %}selected{% endif %}>Admin</option>
                                                 </select>
                                                 <form action="{{ url_for('admin.admin_console') }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete user account: {{ u.username }}?')">

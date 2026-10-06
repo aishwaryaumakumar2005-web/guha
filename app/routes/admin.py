@@ -228,13 +228,13 @@ def admin_console():
                     cat = 'danger'
                 else:
                     requested_role = request.form.get('role')
-                    if requested_role and requested_role not in ('Admin', 'Staff'):
+                    if requested_role and requested_role not in ('Admin', 'Staff', 'Operation'):
                         msg, cat = 'Unsupported role.', 'danger'
-                    elif requested_role == 'Staff' and user_to_change.role == 'Admin' and User.query.filter_by(role='Admin').count() <= 1:
+                    elif requested_role in ('Staff', 'Operation') and user_to_change.role == 'Admin' and User.query.filter_by(role='Admin').count() <= 1:
                         msg, cat = 'The last administrator cannot be demoted.', 'danger'
                     else:
-                        user_to_change.role = requested_role or ('Admin' if user_to_change.role == 'Staff' else 'Staff')
-                        if user_to_change.role == 'Staff':
+                        user_to_change.role = requested_role or ('Admin' if user_to_change.role != 'Admin' else 'Staff')
+                        if user_to_change.role in ('Staff', 'Operation'):
                             tutor = Tutor.query.filter_by(email=user_to_change.email).first()
                             if not tutor:
                                 tutor = Tutor(name=user_to_change.name, email=user_to_change.email, phone='', specialization='', status='Active')

@@ -298,7 +298,7 @@ Reports</span>
                     </a>
                 </div>
             </div>
-            {% elif current_user.role == 'Staff' %}
+            {% elif current_user.role in ('Staff', 'Operation') %}
             <!-- Staff: Academic Section -->
             <div class="accord-section">
                 <div class="accord-trigger {% if request.path in ['/students','/courses','/attendance','/exams'] %}expanded{% endif %}">
@@ -401,10 +401,10 @@ Class Reports</span>
                 <span>
 My Leaves</span>
             </a>
-            <a href="{{ url_for('tasks.list_tasks') }}" class="nav-item-link sidebar-heading {% if request.path == '/tasks' %}active{% endif %}">
+            {% if current_user.role == 'Staff' %}<a href="{{ url_for('tasks.list_tasks') }}" class="nav-item-link sidebar-heading {% if request.path == '/tasks' %}active{% endif %}">
                 <span class="nav-icon"><i class="bi bi-check2-square"></i></span>
                 <span>Tasks</span>
-            </a>
+            </a>{% endif %}
             {% endif %}
             <div class="nav-spacer"></div>
         </nav>

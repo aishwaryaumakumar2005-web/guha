@@ -84,7 +84,7 @@ def _ensure_tutor(user):
     # Ensure we don't attempt to query or create Tutor rows when the Tutor table
     # doesn't exist yet (migrations not applied). This prevents a 500 error on
     # staff login for fresh/partial DBs — admin users don't hit this path.
-    if user.role == 'Staff':
+    if user.role in ('Staff', 'Operation'):
         try:
             from sqlalchemy import inspect
             if not inspect(db.engine).has_table('tutor'):
@@ -139,7 +139,7 @@ def login():
                         db.session.rollback()
                     except Exception:
                         pass
-                if user.role == 'Staff':
+                if user.role in ('Staff', 'Operation'):
                     # "Inactive" used to be display-only: deactivated staff
                     # kept full access. Gate login on the tutor record.
                     from sqlalchemy import inspect
