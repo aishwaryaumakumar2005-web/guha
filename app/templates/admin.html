@@ -663,7 +663,7 @@
                                         <td class="text-end">
                                             <div class="d-flex gap-2 justify-content-end">
                                                 {% if u.id != current_user.id %}
-                                                <select class="form-select form-select-sm" aria-label="Role for {{ u.username }}" onchange="setRole({{ u.id }}, this)">
+                                                <select class="form-select form-select-sm" aria-label="Role for {{ u.username }}" data-previous="{{ u.role }}" onchange="setRole({{ u.id }}, this)">
                                                     <option value="Staff" {% if u.role == 'Staff' %}selected{% endif %}>Staff</option>
                                                     <option value="Operation" {% if u.role == 'Operation' %}selected{% endif %}>Operation</option>
                                                     <option value="Admin" {% if u.role == 'Admin' %}selected{% endif %}>Admin</option>
@@ -840,7 +840,21 @@ function setRole(userId, select) {
     var fd = new FormData(); fd.append('action', 'toggle_role'); fd.append('user_id', userId); fd.append('role', select.value);
     fetch('{{ url_for("admin.admin_console") }}', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'fetch' } })
         .then(function(r) { return r.json(); })
-        .then(function(res) { if (!res.success) { select.value = previous; showToast(res.message, 'danger'); } else { select.setAttribute('data-previous', res.role); showToast(res.message, 'success'); } })
+        .then(function(res) {
+            if (!res.success) {
+                select.value = previous;
+                showToast(res.message, 'danger');
+            } else {
+                select.value = res.role;
+                select.setAttribute('data-previous', res.role);
+                var badge = select.closest('tr').querySelector('.badge');
+                if (badge) {
+                    badge.textContent = res.role;
+                    badge.className = 'badge badge-custom ' + (res.role === 'Admin' ? 'badge-cyan' : 'badge-active');
+                }
+                showToast(res.message, 'success');
+            }
+        })
         .catch(function() { select.value = previous; showToast('Failed to update role.', 'danger'); })
         .finally(function() { select.disabled = false; });
 }
