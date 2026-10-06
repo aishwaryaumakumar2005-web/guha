@@ -22,6 +22,7 @@
             <p class="text-white mb-0" style="opacity: 0.7;">{{ stats.active_students }} active students &middot; {{ stats.courses }} courses</p>
             <div class="d-flex flex-wrap gap-2 mt-2">
                 <span class="badge badge-custom badge-cyan"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>{{ today.strftime("%d %b %Y") }}</span>
+                <span class="badge badge-custom" title="Data loaded at {{ dashboard_updated_at.strftime('%d %b %Y, %I:%M %p') }}"><i class="bi bi-clock-history me-1" aria-hidden="true"></i>Updated {{ dashboard_updated_at.strftime('%I:%M %p') }}</span>
                 <span class="badge badge-custom badge-amber"><i class="bi bi-calendar2-check me-1" aria-hidden="true"></i>{{ today_attendance }} attendance logged today</span>
                 {% if current_user.role in ('Admin', 'Operation') %}
                 <span class="badge badge-custom badge-active"><i class="bi bi-currency-rupee me-1" aria-hidden="true"></i>₹{{ "{:,.0f}".format(today_fees) }} collected today <span style="opacity:0.6;">(incl. GST)</span></span>

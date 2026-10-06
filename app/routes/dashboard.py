@@ -491,6 +491,7 @@ def dashboard():
         capacity_courses=capacity_courses, overflow_capacity=overflow_capacity,
         birthdays_today=birthdays_today, anniversaries_today=anniversaries_today,
         today=today, today_fees=float(today_fees), today_attendance=int(today_attendance),
+        dashboard_updated_at=datetime.now(),
         staff_today_exams=staff_today_exams, staff_attendance_done=staff_attendance_done,
         account_balances=_safe(
             'account_balances',
