@@ -16,3 +16,4 @@ from .account import Account
 from .company import Company
 from .lifecycle_ack import LifecycleAck
 from .google_sync import GoogleSyncRow, GoogleSyncConnection
+from .notification import Notification

@@ -4,7 +4,7 @@ import hashlib
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, abort, current_app, Response
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import Task, TaskHistory, TaskActionToken, Tutor, User
+from app.models import Task, TaskHistory, TaskActionToken, Tutor, User, Notification
 from app.helpers import admin_required, is_ajax_request, save_photo_data
 
 tasks_bp = Blueprint('tasks', __name__)
@@ -67,6 +67,10 @@ def list_tasks():
     statuses = list(STATUSES)
     if 'task_csrf_token' not in session:
         session['task_csrf_token'] = secrets.token_urlsafe(32)
+    if request.method == 'GET' and current_user.role == 'Operation':
+        Notification.query.filter_by(user_id=current_user.id, read_at=None).update(
+            {'read_at': datetime.utcnow()}, synchronize_session=False)
+        db.session.commit()
 
     if request.method == 'POST':
         if not _task_csrf_ok():
@@ -108,6 +112,15 @@ def list_tasks():
                     priority=priority, category=category)
         db.session.add(task)
         db.session.flush()
+        operator = User.query.filter(
+            db.func.lower(User.email) == (tutor_obj.email or '').lower(),
+            User.role == 'Operation', User.is_active.is_(True)
+        ).first()
+        if operator:
+            db.session.add(Notification(
+                user_id=operator.id, task_id=task.id,
+                message=f'New task assigned: {task.title}'
+            ))
         _history(task, 'CREATED', to_status='Pending', details='Task assigned')
         action_token = _issue_action_token(task, tutor_obj)
         db.session.commit()

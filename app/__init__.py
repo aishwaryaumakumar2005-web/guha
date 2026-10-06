@@ -146,6 +146,7 @@ def create_app(config_object=None):
     from .routes.exam_routes import exams_bp
     from .routes.chat import chat_bp
     from .routes.extras import extras_bp
+    from .routes.notifications import notifications_bp
     from .routes.tasks import tasks_bp
     from .routes.funding import funding_bp
     from .routes.student_lifecycle import student_lifecycle_bp
@@ -187,6 +188,17 @@ def create_app(config_object=None):
         _sidebar_cache["data"] = data
         _sidebar_cache["time"] = time()
         return data
+
+    @app.context_processor
+    def inject_notifications():
+        from .models import Notification
+        if not current_user.is_authenticated:
+            return {'unread_notification_count': 0}
+        try:
+            return {'unread_notification_count': Notification.query.filter_by(
+                user_id=current_user.id, read_at=None).count()}
+        except Exception:
+            return {'unread_notification_count': 0}
 
     @app.context_processor
     def inject_globals():
