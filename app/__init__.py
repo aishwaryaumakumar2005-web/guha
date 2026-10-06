@@ -2,6 +2,7 @@ import os, sys
 from datetime import date, datetime, timedelta
 from functools import wraps
 from flask import Flask, redirect, url_for, flash, render_template, g, request
+from flask_login import current_user
 from markupsafe import Markup
 from werkzeug.security import generate_password_hash
 
