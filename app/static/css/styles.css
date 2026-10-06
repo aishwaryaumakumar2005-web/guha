@@ -1340,6 +1340,13 @@ body.htmx-request #main-content {
 .table-container { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.25) transparent; }
 .table-container:focus-within { outline: 2px solid rgba(13,202,240,.55); outline-offset: 2px; }
 
+/* Accessibility: make keyboard focus and motion preferences consistent. */
+:focus-visible { outline: 3px solid #7dd3fc !important; outline-offset: 3px; }
+button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
 /* Students ledger: quieter rows with clearer hierarchy. Scoped to this table. */
 .students-ledger-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1.15rem; }
 .students-ledger-meta, .students-page-size { color:rgba(232,241,255,.62); font-size:.78rem; }
