@@ -319,7 +319,16 @@ def update_status(id):
         task.verified_at = None
     task.version = (task.version or 1) + 1
     _history(task, 'STATUS_CHANGED', old_status, status, notes or None)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('Task status update failed for task %s', task.id)
+        error = 'The task could not be updated. Please try again or contact an administrator.'
+        if is_ajax_request() or request.is_json:
+            return jsonify({'success': False, 'error': error}), 500
+        flash(error, 'danger')
+        return redirect(url_for('tasks.list_tasks'))
 
     if task.tutor:
         try:
