@@ -701,7 +701,17 @@ document.addEventListener('DOMContentLoaded', function() {
             if (dueInput) dueInput.value = btn.getAttribute('data-due-date') || '';
 
             var statusSelect = document.getElementById('edit_status');
-            if (statusSelect) statusSelect.value = btn.getAttribute('data-status') || 'Pending';
+            if (statusSelect) {
+                var currentStatus = btn.getAttribute('data-status') || 'Pending';
+                var nextStatus = {
+                    'Pending': 'Accepted',
+                    'Accepted': 'In Progress',
+                    'In Progress': 'Submitted',
+                    'Rejected': 'Accepted',
+                    'Blocked': 'In Progress'
+                }[currentStatus] || 'Submitted';
+                statusSelect.value = nextStatus;
+            }
 
             var prioritySelect = document.getElementById('edit_priority');
             if (prioritySelect) prioritySelect.value = btn.getAttribute('data-priority') || 'Medium';
