@@ -448,7 +448,7 @@ My Leaves</span>
                         <span class="input-group-text gs-input-prepend border-end-0">
                             <i class="bi bi-search"></i>
                         </span>
-                        <input type="text" class="form-control border-start-0 gs-input" id="globalSearch" placeholder="Search students, tutors, courses, enquiries..." autocomplete="off">
+                        <input type="text" class="form-control border-start-0 gs-input" id="globalSearch" aria-label="Global search" placeholder="Search students, tutors, courses, enquiries..." autocomplete="off">
                     </div>
                     <div id="globalSearchDropdown" class="global-search-dropdown d-none"></div>
                 </div>
@@ -995,11 +995,11 @@ Print/Download ID Card                    </button>
         window.showError = function(message, title) {
             title = title || 'Error';
             var toastHtml = `
-                <div class="toast show toast-error" role="alert" style="border-radius: 12px; margin-bottom: 1rem;">
+                <div class="toast show toast-error" role="alert" aria-live="assertive" aria-atomic="true" style="border-radius: 12px; margin-bottom: 1rem;">
                     <div class="toast-header" style="background: transparent; border-bottom: 1px solid rgba(255,255,255,0.1);">
                         <i class="bi bi-exclamation-triangle-fill me-2"></i>
                         <strong class="me-auto">${title}</strong>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close notification"></button>
                     </div>
                     <div class="toast-body">${message}</div>
                 </div>
