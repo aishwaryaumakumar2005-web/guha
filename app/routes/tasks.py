@@ -68,9 +68,15 @@ def list_tasks():
     if 'task_csrf_token' not in session:
         session['task_csrf_token'] = secrets.token_urlsafe(32)
     if request.method == 'GET' and current_user.role == 'Operation':
-        Notification.query.filter_by(user_id=current_user.id, read_at=None).update(
-            {'read_at': datetime.utcnow()}, synchronize_session=False)
-        db.session.commit()
+        try:
+            Notification.query.filter_by(user_id=current_user.id, read_at=None).update(
+                {'read_at': datetime.utcnow()}, synchronize_session=False)
+            db.session.commit()
+        except Exception:
+            # Notifications are auxiliary; never block the task workspace if
+            # their table is unavailable during a rolling deployment.
+            db.session.rollback()
+            current_app.logger.exception('Unable to mark Operation notifications read')
 
     if request.method == 'POST':
         if not _task_csrf_ok():
