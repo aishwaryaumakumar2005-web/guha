@@ -620,6 +620,10 @@
                         <label class="form-label text-white small fw-semibold">Remarks / Notes</label>
                         <textarea class="form-control" id="edit_notes" name="notes" rows="2" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);"></textarea>
                     </div>
+                    <div class="border-top border-secondary border-opacity-25 pt-3">
+                        <label class="form-label text-white small fw-semibold"><i class="bi bi-clock-history me-1"></i>Activity history</label>
+                        <div id="edit_task_history" class="small text-white-50" aria-live="polite">Select a task to load history.</div>
+                    </div>
                 </div>
                 <div class="modal-footer border-secondary border-opacity-25">
                     <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">Cancel</button>
@@ -722,6 +726,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
             var notesInput = document.getElementById('edit_notes');
             if (notesInput) notesInput.value = btn.getAttribute('data-notes') || '';
+
+            var historyEl = document.getElementById('edit_task_history');
+            if (historyEl) {
+                historyEl.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Loading history...';
+                fetch('/tasks/history/' + taskId)
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        var rows = data.history || [];
+                        historyEl.innerHTML = rows.length ? rows.map(function(row) {
+                            var transition = row.from_status ? row.from_status + ' → ' + row.to_status : (row.to_status || '');
+                            return '<div class="d-flex justify-content-between gap-2 mb-2"><span><strong class="text-white">' +
+                                esc(row.action) + '</strong>' + (transition ? ' <span class="text-info">' + esc(transition) + '</span>' : '') +
+                                (row.details ? '<div>' + esc(row.details) + '</div>' : '') + '</span><span class="text-nowrap">' + esc(row.created_at) + '</span></div>';
+                        }).join('') : 'No activity recorded yet.';
+                    })
+                    .catch(function() { historyEl.textContent = 'Activity history is unavailable.'; });
+            }
 
             if (editModal) editModal.show();
         });

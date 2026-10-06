@@ -479,6 +479,19 @@ def edit_task(id):
     return redirect(url_for('tasks.list_tasks'))
 
 
+@tasks_bp.route('/tasks/history/<int:id>')
+@login_required
+@admin_required
+def task_history(id):
+    task = Task.query.get_or_404(id)
+    rows = TaskHistory.query.filter_by(task_id=task.id).order_by(TaskHistory.created_at.desc()).limit(20).all()
+    return jsonify({'history': [
+        {'action': row.action, 'from_status': row.from_status, 'to_status': row.to_status,
+         'details': row.details, 'created_at': row.created_at.strftime('%d %b %Y, %I:%M %p') if row.created_at else ''}
+        for row in rows
+    ]})
+
+
 @tasks_bp.route('/tasks/attachment/<int:id>')
 @login_required
 def task_attachment(id):
