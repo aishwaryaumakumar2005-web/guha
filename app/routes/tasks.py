@@ -491,6 +491,19 @@ def task_history(id):
         for row in rows
     ]})
 
+@tasks_bp.route('/tasks/details/<int:id>')
+@login_required
+def task_details(id):
+    task = Task.query.get_or_404(id)
+    tutor = Tutor.query.filter(db.func.lower(Tutor.email) == (current_user.email or '').strip().lower()).first()
+    if current_user.role != 'Admin' and (not tutor or task.tutor_id != tutor.id):
+        return jsonify({'error': 'Unauthorized'}), 403
+    return jsonify({'id': task.id, 'title': task.title, 'description': task.description or '',
+                    'status': task.status, 'priority': task.priority or 'Medium',
+                    'category': task.category or 'General', 'assignee': task.tutor.name if task.tutor else 'Unassigned',
+                    'due_date': task.due_date.strftime('%d %b %Y') if task.due_date else 'No due date',
+                    'notes': task.notes or '', 'attachment': bool(task.completion_attachment)})
+
 
 @tasks_bp.route('/tasks/attachment/<int:id>')
 @login_required

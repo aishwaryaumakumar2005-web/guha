@@ -360,7 +360,7 @@
                         <tr id="task-row-{{ t.id }}" class="align-middle" style="{% if is_overdue %}border-left: 3px solid #dc3545; background: rgba(220, 53, 69, 0.04);{% elif t.status == 'Completed' %}border-left: 3px solid #00BFA6;{% elif t.status == 'In Progress' %}border-left: 3px solid #0dcaf0;{% else %}border-left: 3px solid #ffc107;{% endif %}">
                             <td>
                                 <div class="d-flex align-items-center gap-2">
-                                    <div class="fw-semibold text-white">{{ t.title }}</div>
+                                    <button type="button" class="btn btn-link p-0 text-start fw-semibold text-white task-details-btn" data-id="{{ t.id }}" data-bs-toggle="modal" data-bs-target="#taskDetailsModal">{{ t.title }}</button>
                                     <span class="badge" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7);font-size:0.6rem;">{{ t.category or 'General' }}</span>
                                 </div>
                                 {% if t.description %}
@@ -494,6 +494,11 @@
         </div>
     </div>
     {% endif %}
+</div>
+
+<div class="modal fade" id="taskDetailsModal" tabindex="-1" aria-labelledby="taskDetailsTitle" aria-hidden="true">
+ <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 id="taskDetailsTitle" class="modal-title">Task details</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button></div>
+ <div class="modal-body"><div id="taskDetailsBody" class="small text-white-50">Loading...</div></div></div></div>
 </div>
 
 <!-- Assign Task Modal (Admin only) -->
@@ -683,6 +688,13 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.task-details-btn').forEach(function(btn) { btn.addEventListener('click', function() {
+        var body = document.getElementById('taskDetailsBody'); body.textContent = 'Loading...';
+        fetch('/tasks/details/' + btn.dataset.id).then(function(r){return r.json();}).then(function(t){
+            document.getElementById('taskDetailsTitle').textContent = t.title;
+            body.innerHTML = '<div class="row g-2"><div class="col-6"><strong>Status</strong><br>'+esc(t.status)+'</div><div class="col-6"><strong>Priority</strong><br>'+esc(t.priority)+'</div><div class="col-6"><strong>Assigned to</strong><br>'+esc(t.assignee)+'</div><div class="col-6"><strong>Due date</strong><br>'+esc(t.due_date)+'</div><div class="col-12 mt-3"><strong>Description</strong><br>'+esc(t.description||'No description')+'</div><div class="col-12 mt-3"><strong>Notes</strong><br>'+esc(t.notes||'No notes')+'</div></div>';
+        }).catch(function(){ body.textContent = 'Task details are unavailable.'; });
+    }); });
     // 1. Dynamic Edit Modal Population (Admin)
     var editModalEl = document.getElementById('dynamicEditTaskModal');
     var editModal = editModalEl ? new bootstrap.Modal(editModalEl) : null;
