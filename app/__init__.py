@@ -199,6 +199,10 @@ def create_app(config_object=None):
             return {'unread_notification_count': Notification.query.filter_by(
                 user_id=current_user.id, read_at=None).count()}
         except Exception:
+            # PostgreSQL marks the transaction failed after a missing-table or
+            # transient query error; clear it before the page performs other
+            # lazy-loaded queries.
+            db.session.rollback()
             return {'unread_notification_count': 0}
 
     @app.context_processor
