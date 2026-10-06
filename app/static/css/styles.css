@@ -1341,6 +1341,7 @@ body.htmx-request #main-content {
 .form-select.is-valid { border-color: #20c997 !important; box-shadow: 0 0 0 0.18rem rgba(32,201,151,.12); }
 .table-container { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.25) transparent; }
 .table-container:focus-within { outline: 2px solid rgba(13,202,240,.55); outline-offset: 2px; }
+.table-columns-menu { background:#0d2740; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.35); min-width:180px; }
 
 /* Accessibility: make keyboard focus and motion preferences consistent. */
 :focus-visible { outline: 3px solid #7dd3fc !important; outline-offset: 3px; }

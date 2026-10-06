@@ -758,9 +758,30 @@ function initializeTablePagination() {
             exportTableToExcel(table, filename);
         });
 
+        var columnsBtn = document.createElement('button');
+        columnsBtn.type = 'button';
+        columnsBtn.className = 'btn btn-sm btn-outline-premium ms-2';
+        columnsBtn.innerHTML = '<i class="bi bi-layout-three-columns me-1"></i>Columns';
+        columnsBtn.title = 'Choose visible columns';
+        columnsBtn.addEventListener('click', function() {
+            var headers = Array.from(table.querySelectorAll('thead th'));
+            var menu = document.createElement('div');
+            menu.className = 'table-columns-menu p-2';
+            headers.forEach(function(th, index) {
+                var label = document.createElement('label');
+                label.className = 'd-block small mb-1';
+                var input = document.createElement('input'); input.type = 'checkbox'; input.checked = th.style.display !== 'none'; input.className = 'me-2';
+                input.addEventListener('change', function() { table.querySelectorAll('tr').forEach(function(row){ if(row.children[index]) row.children[index].style.display = input.checked ? '' : 'none'; }); });
+                label.appendChild(input); label.appendChild(document.createTextNode(th.textContent.trim() || ('Column ' + (index + 1)))); menu.appendChild(label);
+            });
+            document.body.appendChild(menu); var rect = columnsBtn.getBoundingClientRect(); menu.style.position='fixed'; menu.style.left=rect.left+'px'; menu.style.top=(rect.bottom+4)+'px'; menu.style.zIndex='1100';
+            function close(){menu.remove();document.removeEventListener('click', close);} setTimeout(function(){document.addEventListener('click', close);},0);
+        });
+
         right.appendChild(info);
         right.appendChild(rpp);
         if (!serverSearch) right.appendChild(exportBtn);
+        right.appendChild(columnsBtn);
         if (!serverSearch) wrapper.appendChild(searchWrap);
         wrapper.appendChild(right);
         table.parentNode.insertBefore(wrapper, table);
