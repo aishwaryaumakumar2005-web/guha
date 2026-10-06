@@ -1328,6 +1328,18 @@ body.htmx-request #main-content {
 }
 .table-custom tr:last-child td { border-bottom: none; }
 
+/* Consistent form feedback and dense-table usability. */
+.was-validated .form-control:invalid,
+.was-validated .form-select:invalid,
+.form-control.is-invalid,
+.form-select.is-invalid { border-color: #ff6b6b !important; box-shadow: 0 0 0 0.18rem rgba(255,107,107,.16); }
+.was-validated .form-control:valid,
+.was-validated .form-select:valid,
+.form-control.is-valid,
+.form-select.is-valid { border-color: #20c997 !important; box-shadow: 0 0 0 0.18rem rgba(32,201,151,.12); }
+.table-container { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.25) transparent; }
+.table-container:focus-within { outline: 2px solid rgba(13,202,240,.55); outline-offset: 2px; }
+
 /* Students ledger: quieter rows with clearer hierarchy. Scoped to this table. */
 .students-ledger-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1.15rem; }
 .students-ledger-meta, .students-page-size { color:rgba(232,241,255,.62); font-size:.78rem; }

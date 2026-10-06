@@ -74,6 +74,14 @@ function showToast(message, type = 'success', duration = 5000) {
     }
 }
 
+// Show native/Bootstrap validation only after a user submits a form, avoiding
+// red fields on first render while still giving consistent feedback.
+document.addEventListener('submit', function(event) {
+    var form = event.target;
+    if (!(form instanceof HTMLFormElement) || form.hasAttribute('data-no-validation')) return;
+    form.classList.add('was-validated');
+}, true);
+
 function initTomSelect() {
     document.querySelectorAll('.ts-select').forEach(function(el) {
         if (el.tomselect) return;
