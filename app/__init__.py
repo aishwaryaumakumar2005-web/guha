@@ -267,6 +267,15 @@ def create_app(config_object=None):
                 cursor.execute('PRAGMA temp_store=MEMORY')
                 cursor.close()
     with app.app_context():
+        # Notifications were added after the original production schema.
+        # Create only this additive table on every startup so deployments do
+        # not depend on the broader optional migration switch.
+        try:
+            from .models import Notification
+            Notification.__table__.create(bind=db.engine, checkfirst=True)
+        except Exception as e:
+            db.session.rollback()
+            print(f"Notification table setup skipped: {e}", flush=True)
         # Run schema creation and migrations only for local sqlite or when explicitly enabled
         auto_migrate = app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite') or os.environ.get('AUTO_MIGRATE', '').lower() in ('1', 'true', 'yes')
         if auto_migrate:

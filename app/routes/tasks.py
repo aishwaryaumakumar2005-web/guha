@@ -123,10 +123,18 @@ def list_tasks():
             User.role == 'Operation', User.is_active.is_(True)
         ).first()
         if operator:
-            db.session.add(Notification(
-                user_id=operator.id, task_id=task.id,
-                message=f'New task assigned: {task.title}'
-            ))
+            # Notifications are auxiliary. Use a savepoint so an older
+            # production database without the notification table cannot
+            # abort the task-assignment transaction.
+            try:
+                with db.session.begin_nested():
+                    db.session.add(Notification(
+                        user_id=operator.id, task_id=task.id,
+                        message=f'New task assigned: {task.title}'
+                    ))
+                    db.session.flush()
+            except Exception:
+                current_app.logger.exception('Notification table unavailable; task assignment will continue')
         _history(task, 'CREATED', to_status='Pending', details='Task assigned')
         action_token = _issue_action_token(task, tutor_obj)
         db.session.commit()
