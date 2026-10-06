@@ -67,7 +67,7 @@ def list_tasks():
     statuses = list(STATUSES)
     if 'task_csrf_token' not in session:
         session['task_csrf_token'] = secrets.token_urlsafe(32)
-    if request.method == 'GET' and current_user.role == 'Operation':
+    if request.method == 'GET' and current_user.role in ('Staff', 'Operation'):
         try:
             Notification.query.filter_by(user_id=current_user.id, read_at=None).update(
                 {'read_at': datetime.utcnow()}, synchronize_session=False)
@@ -120,7 +120,7 @@ def list_tasks():
         db.session.flush()
         operator = User.query.filter(
             db.func.lower(User.email) == (tutor_obj.email or '').lower(),
-            User.role == 'Operation', User.is_active.is_(True)
+            User.role.in_(('Staff', 'Operation')), User.is_active.is_(True)
         ).first()
         if operator:
             # Notifications are auxiliary. Use a savepoint so an older
