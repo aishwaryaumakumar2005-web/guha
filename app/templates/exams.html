@@ -264,7 +264,7 @@
                         {% endif %}
                     </div>
                     <div class="dropdown">
-                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" aria-label="Actions for {{ e.title }}"><i class="bi bi-three-dots-vertical"></i></button>
+                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-display="static" aria-label="Actions for {{ e.title }}"><i class="bi bi-three-dots-vertical"></i></button>
                         <ul class="dropdown-menu dropdown-menu-end">
                             {% if current_user.role|lower == 'admin' %}
                                 {% if e.exam_type == 'mcq' %}
