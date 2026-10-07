@@ -24,7 +24,6 @@
       <div class="kanban-cards px-2 py-2 flex-grow-1" data-stage="{{ stage }}" style="overflow-y:auto;min-height:100px;">
         {% for enquiry in columns[stage] %}
           {% include '_enquiry_card.html' %}
-          {% set enq = enquiry %}{% include '_enquiry_edit_modal.html' %}
         {% else %}
           <div class="kanban-empty text-center text-white-50 small py-4" style="opacity:0.4;"><i class="bi bi-inbox fs-4 d-block mb-1" aria-hidden="true"></i>No leads</div>
         {% endfor %}
@@ -33,6 +32,14 @@
     {% endfor %}
   </div>
 </div>
+
+<!-- Keep edit modals outside the scrollable kanban columns. Bootstrap modals
+     nested inside an overflow container can be clipped and appear unusable. -->
+{% for stage in stages %}
+  {% for enquiry in columns[stage] %}
+    {% set enq = enquiry %}{% include '_enquiry_edit_modal.html' %}
+  {% endfor %}
+{% endfor %}
 
 <div class="modal fade" id="addEnquiryModal" tabindex="-1" aria-labelledby="addEnquiryModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
