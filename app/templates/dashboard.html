@@ -493,6 +493,12 @@ function fetchWithTimeout(url, opts) {
     return fetch(url, Object.assign({}, opts, ctrl ? { signal: ctrl.signal } : {}))
         .then(function(res) { clearTimeout(timer); return res; });
 }
+var _dashboardRequests = {};
+function fetchDashboardOnce(url) {
+    if (_dashboardRequests[url]) return _dashboardRequests[url];
+    _dashboardRequests[url] = fetchWithTimeout(url).finally(function(){ delete _dashboardRequests[url]; });
+    return _dashboardRequests[url];
+}
 
 // AI Advisor collapse toggle — lazy-loads AI content on first open.
 // aiLoaded flag ensures we only fire the fetch once per page load.
@@ -660,7 +666,7 @@ function toggleAiAdvisor() {
         if (feeChartCache[months]) { feeChartContainer.innerHTML = feeChartCache[months]; return; }
         feeChartContainer.innerHTML = '<div class="d-flex align-items-center justify-content-center text-secondary small py-4"><span class="spinner-border spinner-border-sm me-2" style="color:hsl(150,100%,40%);" role="status"></span>Loading ' + months + 'M trend...</div>';
         
-        fetchWithTimeout('/api/dashboard/fee-chart?months=' + months)
+        fetchDashboardOnce('/api/dashboard/fee-chart?months=' + months)
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 var monthsLabels = data.months || [];
@@ -730,7 +736,7 @@ function toggleAiAdvisor() {
 
         if (summaryEl) {
             summaryEl.innerHTML = '<div class="d-flex align-items-center text-secondary small"><span class="spinner-border spinner-border-sm me-2" style="color:hsl(200,100%,50%);" role="status"></span>Analyzing institute data...</div>';
-            fetchWithTimeout('/api/dashboard/ai-insights')
+            fetchDashboardOnce('/api/dashboard/ai-insights')
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     data = data || {};
@@ -753,7 +759,7 @@ function toggleAiAdvisor() {
 
         if (paContainer) {
             paContainer.innerHTML = '<div class="d-flex align-items-center text-secondary small"><span class="spinner-border spinner-border-sm me-2" style="color:hsl(150,100%,40%);" role="status"></span>Loading predictive trends...</div>';
-            fetchWithTimeout('/api/dashboard/predictive-analytics')
+            fetchDashboardOnce('/api/dashboard/predictive-analytics')
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     data = data || {};
@@ -809,7 +815,7 @@ function toggleAiAdvisor() {
             } catch(e) {}
         }
 
-        fetchWithTimeout('/api/dashboard/todays-activities')
+        fetchDashboardOnce('/api/dashboard/todays-activities')
             .then(function(r) { return r.json(); })
             .then(function(resp) {
                 var tasks = resp.tasks || [];

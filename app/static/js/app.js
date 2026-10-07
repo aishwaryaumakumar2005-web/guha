@@ -863,7 +863,10 @@ function initializeTablePagination() {
     });
 }
 
-function tablePreferenceKey(table) { return 'guha_table_columns_' + (table.id || table.dataset.exportUrl || location.pathname); }
+function tablePreferenceKey(table) {
+    var signature = Array.from(table.querySelectorAll('thead th')).map(function(th){ return th.textContent.trim(); }).join('|');
+    return 'guha_table_columns_' + (table.id || table.dataset.exportUrl || location.pathname) + '_' + signature;
+}
 function saveTableColumns(table) { try { localStorage.setItem(tablePreferenceKey(table), JSON.stringify(Array.from(table.querySelectorAll('thead th')).map(function(th){ return th.style.display !== 'none'; }))); } catch(e) {} }
 function restoreTableColumns(table) { try { var saved=JSON.parse(localStorage.getItem(tablePreferenceKey(table))||'null'); if (!saved) return; table.querySelectorAll('tr').forEach(function(row){ saved.forEach(function(show,i){ if(row.children[i]) row.children[i].style.display=show?'':'none'; }); }); } catch(e) {} }
 
