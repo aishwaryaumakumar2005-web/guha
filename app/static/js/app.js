@@ -100,13 +100,6 @@ function initTomSelect() {
 
 function initApp() {
     console.log('Institute System JavaScript Initialized');
-    var accessibilityToggle = document.getElementById('accessibilityToggle');
-    if (localStorage.getItem('guha_high_contrast') === '1') document.body.classList.add('high-contrast');
-    if (accessibilityToggle) accessibilityToggle.addEventListener('click', function() {
-        var enabled = document.body.classList.toggle('high-contrast');
-        localStorage.setItem('guha_high_contrast', enabled ? '1' : '0');
-        accessibilityToggle.setAttribute('aria-pressed', enabled ? 'true' : 'false');
-    });
     
     // Initialize TomSelect on all .ts-select elements
     initTomSelect();
