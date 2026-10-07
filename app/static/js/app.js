@@ -102,7 +102,7 @@ function initApp() {
     console.log('Institute System JavaScript Initialized');
     initDropdowns();
     if (window.bootstrap && bootstrap.Tooltip) {
-        document.querySelectorAll('[title]:not([data-bs-toggle="tooltip"])').forEach(function(el) {
+        document.querySelectorAll('[title]:not([data-bs-toggle="tooltip"]):not([data-bs-toggle="dropdown"])').forEach(function(el) {
             if (el.getAttribute('aria-label') || el.classList.contains('btn')) {
                 el.setAttribute('data-bs-toggle', 'tooltip');
                 el.setAttribute('data-bs-placement', 'bottom');
