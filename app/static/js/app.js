@@ -100,6 +100,15 @@ function initTomSelect() {
 
 function initApp() {
     console.log('Institute System JavaScript Initialized');
+    if (window.bootstrap && bootstrap.Tooltip) {
+        document.querySelectorAll('[title]:not([data-bs-toggle="tooltip"])').forEach(function(el) {
+            if (el.getAttribute('aria-label') || el.classList.contains('btn')) {
+                el.setAttribute('data-bs-toggle', 'tooltip');
+                el.setAttribute('data-bs-placement', 'bottom');
+                new bootstrap.Tooltip(el);
+            }
+        });
+    }
     document.querySelectorAll('form[data-warn-unsaved]').forEach(function(form) {
         var changed = false;
         form.addEventListener('input', function(){ changed = true; });
