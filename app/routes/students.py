@@ -106,7 +106,7 @@ students_bp = Blueprint('students', __name__)
 def list():
     # Handle POST (add student) - only for admin
     if request.method == 'POST':
-        if current_user.role != 'Admin':
+        if current_user.role not in ('Admin', 'Operation'):
             if is_ajax_request():
                 return jsonify({"success": False, "errors": ["Only admins can add students"]}), 403
             flash("Only admins can add students", 'danger')

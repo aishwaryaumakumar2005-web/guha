@@ -28,7 +28,7 @@ def download_invoice(fee_id):
             # Do not disclose whether an out-of-scope receipt exists.
             from flask import abort
             abort(404)
-    elif current_user.role != 'Admin':
+    elif current_user.role not in ('Admin', 'Operation'):
         from flask import abort
         abort(403)
     try:

@@ -104,7 +104,7 @@ def list():
     
     # Handle POST (add fee) - only for admin
     if request.method == 'POST':
-        if current_user.role != 'Admin':
+        if current_user.role not in ('Admin', 'Operation'):
             if is_ajax_request():
                 return jsonify({"success": False, "errors": ["Only admins can add fee records"]}), 403
             flash("Only admins can add fee records", 'danger')
@@ -372,7 +372,7 @@ def list():
         to_date=to_date.isoformat() if to_date else '',
         kpi=kpi,
         today=today, is_staff=(current_user.role == 'Staff'),
-        account_balances=(compute_account_summary() if current_user.role == 'Admin' else [])
+        account_balances=(compute_account_summary() if current_user.role in ('Admin', 'Operation') else [])
     )
 
 @fees_bp.route('/fees/receipt/<int:id>')

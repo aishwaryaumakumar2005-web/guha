@@ -33,7 +33,7 @@ def _parse_capacity(raw):
 def list():
     # Handle POST (add course) - only for admin
     if request.method == 'POST':
-        if current_user.role != 'Admin':
+        if current_user.role not in ('Admin', 'Operation'):
             if is_ajax_request():
                 return jsonify({"success": False, "errors": ["Only admins can add courses"]}), 403
             flash("Only admins can add courses", 'danger')

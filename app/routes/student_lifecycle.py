@@ -296,7 +296,7 @@ def _derive_bucket(student, enrollments, att, thresholds=None):
 @student_lifecycle_bp.route('/students/lifecycle')
 @login_required
 def lifecycle():
-    is_admin = current_user.role == 'Admin'
+    is_admin = current_user.role in ('Admin', 'Operation')
     filter_key = request.args.get('filter', 'all')
     if filter_key not in FILTERS:
         filter_key = 'all'
@@ -595,7 +595,7 @@ def detail(sid):
         'ack': ack_payload,
         'enquiry': enquiry_payload,
         'activity': activity,
-        'is_admin': current_user.role == 'Admin',
+        'is_admin': current_user.role in ('Admin', 'Operation'),
     })
 
 
