@@ -105,7 +105,9 @@
     </div>
 
     <!-- Filter & Search Toolbar -->
-    <div class="glass-card p-3 mb-4">
+    <div class="glass-card p-3 mb-4 mobile-filter-panel">
+        <button type="button" class="btn btn-sm btn-outline-premium d-md-none w-100 mb-2" id="taskFilterToggle" aria-expanded="true"><i class="bi bi-funnel me-1"></i>Filters</button>
+        <div id="taskFilterBody">
         <form method="GET" action="{{ url_for('tasks.list_tasks') }}" class="row g-2 align-items-center">
             <input type="hidden" name="view" value="{{ view_mode }}">
 
@@ -178,7 +180,7 @@
                     {% endif %}
                 </div>
             </div>
-        </form>
+        </form></div>
     </div>
 
     {% if view_mode == 'kanban' %}

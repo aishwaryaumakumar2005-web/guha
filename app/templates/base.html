@@ -600,6 +600,12 @@ Print/Download ID Card                    </button>
         if (sbToggle) sbToggle.addEventListener('click', openSidebar);
         var mobileBottomMenu = document.getElementById('mobileBottomMenu');
         if (mobileBottomMenu) mobileBottomMenu.addEventListener('click', openSidebar);
+        var taskFilterToggle = document.getElementById('taskFilterToggle');
+        if (taskFilterToggle) taskFilterToggle.addEventListener('click', function() {
+            var body = document.getElementById('taskFilterBody');
+            var collapsed = body.classList.toggle('filter-collapsed');
+            taskFilterToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        });
         if (sbClose) sbClose.addEventListener('click', closeSidebar);
         if (overlay) overlay.addEventListener('click', closeSidebar);
         var mobileSearchToggle = document.getElementById('mobileSearchToggle');

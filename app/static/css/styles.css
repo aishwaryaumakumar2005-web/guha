@@ -1346,6 +1346,8 @@ body.htmx-request #main-content {
 .mobile-bottom-nav a, .mobile-bottom-nav button { flex:1; border:0; background:transparent; color:rgba(255,255,255,.62); text-decoration:none; display:flex; flex-direction:column; align-items:center; gap:2px; font-size:.66rem; min-height:42px; }
 .mobile-bottom-nav i { font-size:1.15rem; line-height:1; }
 .mobile-bottom-nav .active, .mobile-bottom-nav a:focus-visible, .mobile-bottom-nav button:focus-visible { color:#7dd3fc; }
+.mobile-filter-panel input[type="file"] { max-width:100%; }
+@media (max-width:767.98px) { #taskFilterBody { display:block; } #taskFilterBody.filter-collapsed { display:none; } .mobile-filter-panel .form-select, .mobile-filter-panel .form-control { min-height:44px; } }
 .high-contrast { filter: contrast(1.15); }
 .high-contrast .text-white-50, .high-contrast .text-muted { color: rgba(255,255,255,.86) !important; }
 .high-contrast .glass-card, .high-contrast .modal-content { border-color: rgba(255,255,255,.35) !important; }
