@@ -100,6 +100,12 @@ function initTomSelect() {
 
 function initApp() {
     console.log('Institute System JavaScript Initialized');
+    document.querySelectorAll('form[data-warn-unsaved]').forEach(function(form) {
+        var changed = false;
+        form.addEventListener('input', function(){ changed = true; });
+        form.addEventListener('submit', function(){ changed = false; });
+        window.addEventListener('beforeunload', function(e){ if (changed) { e.preventDefault(); e.returnValue = ''; } });
+    });
     
     // Initialize TomSelect on all .ts-select elements
     initTomSelect();
@@ -771,12 +777,13 @@ function initializeTablePagination() {
                 var label = document.createElement('label');
                 label.className = 'd-block small mb-1';
                 var input = document.createElement('input'); input.type = 'checkbox'; input.checked = th.style.display !== 'none'; input.className = 'me-2';
-                input.addEventListener('change', function() { table.querySelectorAll('tr').forEach(function(row){ if(row.children[index]) row.children[index].style.display = input.checked ? '' : 'none'; }); });
+                input.addEventListener('change', function() { table.querySelectorAll('tr').forEach(function(row){ if(row.children[index]) row.children[index].style.display = input.checked ? '' : 'none'; }); saveTableColumns(table); });
                 label.appendChild(input); label.appendChild(document.createTextNode(th.textContent.trim() || ('Column ' + (index + 1)))); menu.appendChild(label);
             });
             document.body.appendChild(menu); var rect = columnsBtn.getBoundingClientRect(); menu.style.position='fixed'; menu.style.left=rect.left+'px'; menu.style.top=(rect.bottom+4)+'px'; menu.style.zIndex='1100';
             function close(){menu.remove();document.removeEventListener('click', close);} setTimeout(function(){document.addEventListener('click', close);},0);
         });
+        restoreTableColumns(table);
 
         right.appendChild(info);
         right.appendChild(rpp);
@@ -824,6 +831,10 @@ function initializeTablePagination() {
         renderTablePage(table);
     });
 }
+
+function tablePreferenceKey(table) { return 'guha_table_columns_' + (table.id || table.dataset.exportUrl || location.pathname); }
+function saveTableColumns(table) { try { localStorage.setItem(tablePreferenceKey(table), JSON.stringify(Array.from(table.querySelectorAll('thead th')).map(function(th){ return th.style.display !== 'none'; }))); } catch(e) {} }
+function restoreTableColumns(table) { try { var saved=JSON.parse(localStorage.getItem(tablePreferenceKey(table))||'null'); if (!saved) return; table.querySelectorAll('tr').forEach(function(row){ saved.forEach(function(show,i){ if(row.children[i]) row.children[i].style.display=show?'':'none'; }); }); } catch(e) {} }
 
 function getActiveRows(pagination) {
     if (!pagination.searchQuery) return pagination.rows;
