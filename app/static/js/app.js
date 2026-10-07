@@ -100,6 +100,7 @@ function initTomSelect() {
 
 function initApp() {
     console.log('Institute System JavaScript Initialized');
+    initDropdowns();
     if (window.bootstrap && bootstrap.Tooltip) {
         document.querySelectorAll('[title]:not([data-bs-toggle="tooltip"])').forEach(function(el) {
             if (el.getAttribute('aria-label') || el.classList.contains('btn')) {
@@ -146,6 +147,27 @@ function initApp() {
     // Initialize cursor-relative ambient light glows
     initAmbientGlows();
 }
+
+function initDropdowns() {
+    if (!window.bootstrap || !bootstrap.Dropdown) return;
+    document.querySelectorAll('[data-bs-toggle="dropdown"]').forEach(function(toggle) {
+        try {
+            bootstrap.Dropdown.getOrCreateInstance(toggle, {
+                boundary: 'viewport',
+                display: 'static',
+                popperConfig: function(defaultConfig) {
+                    defaultConfig.modifiers = (defaultConfig.modifiers || []).concat([{ name: 'preventOverflow', options: { boundary: 'viewport', padding: 8 } }]);
+                    return defaultConfig;
+                }
+            });
+        } catch (e) { console.warn('Dropdown initialization skipped', e); }
+    });
+}
+
+window.addEventListener('error', function(event) {
+    // Keep one page action from blocking unrelated dropdowns and controls.
+    if (event && event.error) console.warn('UI action error:', event.error);
+});
 
 function initScrollAnimations() {
     if (!('IntersectionObserver' in window)) {
