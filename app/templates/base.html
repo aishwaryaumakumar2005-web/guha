@@ -422,6 +422,7 @@ My Leaves</span>
                     <div class="user-role text-truncate">{{ current_user.role }}</div>
                 </div>
                 <div class="footer-actions">
+                    <button type="button" id="accessibilityToggle" class="theme-toggle-btn border-0" title="Toggle high contrast" aria-label="Toggle high contrast"><i class="bi bi-universal-access"></i></button>
                     {% if current_user.is_authenticated %}<div class="dropdown">
                     <button type="button" class="theme-toggle-btn position-relative border-0" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Notifications" title="Notifications">
                         <i class="bi bi-bell-fill"></i>{% if unread_notification_count %}<span class="badge bg-danger position-absolute top-0 start-100 translate-middle">{{ unread_notification_count }}</span>{% endif %}
