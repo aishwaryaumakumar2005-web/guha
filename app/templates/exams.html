@@ -166,7 +166,7 @@
             <h2 class="text-white fw-bold"><i class="bi bi-pencil-square me-2"></i>Exam Management</h2>
             <p class="text-white mb-0">Create tests per course, record scores, and generate performance reports.</p>
         </div>
-        {% if current_user.role|lower == 'admin' %}
+        {% if current_user.role|lower in ('admin', 'operation') %}
         <a href="{{ url_for('exams.mcq_create') }}" class="btn btn-premium">
             <i class="bi bi-stars me-2"></i>Create MCQ Exam with AI
         </a>
@@ -266,7 +266,7 @@
                     <div class="dropdown">
                         <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-display="static" aria-label="Actions for {{ e.title }}"><i class="bi bi-three-dots-vertical"></i></button>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            {% if current_user.role|lower == 'admin' %}
+                            {% if current_user.role|lower in ('admin', 'operation') %}
                                 {% if e.exam_type == 'mcq' %}
                                 <li><a class="dropdown-item" href="{{ url_for('exams.mcq_preview', id=e.id) }}"><i class="bi bi-eye me-2"></i>Preview Questions</a></li>
                                 <li><a class="dropdown-item" href="{{ url_for('exams.mcq_assign', id=e.id) }}"><i class="bi bi-person-plus me-2"></i>Assign to Students</a></li>
@@ -324,7 +324,7 @@
                     <div class="progress-bar bg-info" role="progressbar" style="width:{{ score_pct }}%" aria-valuenow="{{ score_pct }}" aria-valuemin="0" aria-valuemax="100"></div>
                 </div>
                 <div class="mt-3">
-                    {% if current_user.role|lower == 'admin' %}
+                    {% if current_user.role|lower in ('admin', 'operation') %}
                         {% if e.exam_type == 'mcq' %}
                         <a href="{{ url_for('exams.mcq_preview', id=e.id) }}" class="btn btn-sm btn-outline-premium w-100"><i class="bi bi-eye me-1"></i>View MCQ Exam</a>
                         {% else %}
@@ -344,7 +344,7 @@
     </div>
     {% else %}
     <div class="glass-card p-0 border-0" style="background:transparent;">
-        {% if current_user.role|lower == 'admin' %}
+        {% if current_user.role|lower in ('admin', 'operation') %}
         {{ empty_state('No exams found yet', 'Click "Create MCQ Exam with AI" above to get started', 'exams', url_for('exams.mcq_create'), 'Create Exam', 'bi-plus-circle-fill') }}
         {% else %}
         {{ empty_state('No exams found for your courses yet', 'Exams will appear here as they are scheduled', 'exams', none, none, none) }}

@@ -35,7 +35,7 @@
                 </ul>
             </div>
             {% endif %}
-            {% if current_user.role == 'Admin' %}
+            {% if current_user.role in ('Admin', 'Operation') %}
                 <button class="btn btn-premium" data-bs-toggle="modal" data-bs-target="#recordPaymentModal">
                     <i class="bi bi-wallet2 me-2"></i>Record Payment
                 </button>
@@ -262,7 +262,7 @@
                                     <a href="{{ url_for('accounting.download_invoice', fee_id=record.id) }}" target="_blank" class="btn btn-sm btn-outline-light me-1" title="Download GST Invoice">
                                         <i class="bi bi-download"></i>
                                     </a>
-                                    {% if current_user.role == 'Admin' %}
+                                    {% if current_user.role in ('Admin', 'Operation') %}
                                     <button class="btn btn-sm btn-outline-secondary me-1" onclick="openEditFee(this)"
                                         data-edit-url="{{ url_for('fees.edit', id=record.id) }}"
                                         data-student-id="{{ record.student_id }}"
@@ -284,7 +284,7 @@
                         {% endfor %}
                     {% else %}
                         <tr>
-                            {% if current_user.role == 'Admin' %}
+                            {% if current_user.role in ('Admin', 'Operation') %}
                                 {{ empty_state('No payment collections found', "Record a fee payment to track student transactions", 'fees', '#', 'Record Payment', 'bi-cash-coin', 6, 'data-bs-toggle="modal" data-bs-target="#recordPaymentModal"') }}
                             {% else %}
                                 <td colspan="6" class="text-center text-muted py-4">No payment records yet.</td>
@@ -297,7 +297,7 @@
     </div>
 </div>
 
-{% if current_user.role == 'Admin' %}
+{% if current_user.role in ('Admin', 'Operation') %}
 <!-- RECORD PAYMENT MODAL -->
 <div class="modal fade" id="recordPaymentModal" tabindex="-1" aria-labelledby="recordPaymentModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
