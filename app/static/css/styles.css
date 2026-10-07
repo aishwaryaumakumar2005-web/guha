@@ -1925,6 +1925,10 @@ body.dark-mode .modal .ts-dropdown .option.active {
     --ui-radius-sm: 8px;
     --ui-radius-md: 12px;
     --ui-space: 1rem;
+    --status-success: #20c997;
+    --status-warning: #ffc107;
+    --status-danger: #ff6b6b;
+    --status-info: #7dd3fc;
 }
 .btn { border-radius: var(--ui-radius-sm); font-weight: 600; }
 .btn-outline-secondary { border-color: rgba(255,255,255,.3); color: rgba(255,255,255,.85); }
@@ -1934,6 +1938,14 @@ body.dark-mode .modal .ts-dropdown .option.active {
 .modal-content { border-radius: var(--ui-radius-md); }
 .form-control, .form-select { border-radius: var(--ui-radius-sm); }
 .table-custom th { letter-spacing: .045em; }
+.page-section-title { display:flex; align-items:center; gap:.55rem; margin-bottom:1rem; font-weight:700; letter-spacing:.01em; }
+.page-section-title::after { content:""; flex:1; height:1px; background:linear-gradient(90deg,rgba(125,211,252,.28),transparent); }
+.status-success { color:var(--status-success) !important; }
+.status-warning { color:var(--status-warning) !important; }
+.status-danger { color:var(--status-danger) !important; }
+.status-info { color:var(--status-info) !important; }
+.glass-card { box-shadow:0 8px 28px rgba(0,0,0,.16); }
+.glass-card:hover { box-shadow:0 10px 30px rgba(0,0,0,.22); }
 body.dark-mode .badge-pill-count { background: rgba(255,255,255,0.15) !important; color: #ffffff !important; border: 1px solid rgba(255,255,255,0.25); }
 .btn-action-success { background: #00BFA6 !important; color: #041b17 !important; border: 2px solid #7dffe8 !important; font-weight: 700 !important; box-shadow: 0 0 8px rgba(0, 191, 166, 0.5) !important; }
 .btn-action-success:hover { background: #00d4b8 !important; color: #000000 !important; box-shadow: 0 0 12px rgba(0, 191, 166, 0.8) !important; }
