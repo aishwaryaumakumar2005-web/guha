@@ -63,7 +63,7 @@ def admin_required(f):
         # pages (users, backups, integrations, etc.).
         operation_admin_blueprints = {
             'courses', 'students', 'tutors', 'attendance', 'exam_routes',
-            'student_lifecycle', 'fees', 'expenses', 'funding', 'accounting',
+            'student_lifecycle', 'enquiries', 'fees', 'expenses', 'funding', 'accounting',
             'payroll', 'reports', 'dashboard',
         }
         allowed = current_user.role == 'Admin' or (
