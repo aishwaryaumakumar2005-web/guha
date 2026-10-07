@@ -1291,6 +1291,7 @@ function initGlobalSearch(inputId, dropdownId) {
         }
         dropdown.innerHTML = html;
         dropdown.classList.remove('d-none');
+        dropdown.querySelectorAll('.gs-item').forEach(function(item, index) { item.setAttribute('role','option'); item.dataset.searchIndex = index; });
     }
 
     function escapeHtml(t) {
@@ -1328,5 +1329,10 @@ function initGlobalSearch(inputId, dropdownId) {
     input.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') dropdown.classList.add('d-none');
         if (e.key === 'Enter') { dropdown.classList.add('d-none'); }
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault(); var items = Array.from(dropdown.querySelectorAll('.gs-item')); if (!items.length) return;
+            var active = items.indexOf(document.activeElement); var next = e.key === 'ArrowDown' ? active + 1 : active - 1;
+            if (next < 0) next = items.length - 1; if (next >= items.length) next = 0; items[next].focus();
+        }
     });
 }
