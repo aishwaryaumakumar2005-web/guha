@@ -653,9 +653,11 @@ function toggleAiAdvisor() {
 
     // --- Item 16: Fee Collection Trend Chart (Dynamic Range Switcher) ---
     var feeChartContainer = document.getElementById('fee-chart-container');
+    var feeChartCache = {};
     function loadFeeChart(months) {
         if (!feeChartContainer) return;
         months = months || 6;
+        if (feeChartCache[months]) { feeChartContainer.innerHTML = feeChartCache[months]; return; }
         feeChartContainer.innerHTML = '<div class="d-flex align-items-center justify-content-center text-secondary small py-4"><span class="spinner-border spinner-border-sm me-2" style="color:hsl(150,100%,40%);" role="status"></span>Loading ' + months + 'M trend...</div>';
         
         fetchWithTimeout('/api/dashboard/fee-chart?months=' + months)
@@ -686,6 +688,7 @@ function toggleAiAdvisor() {
                     html += '</div>';
                 });
                 html += '</div>';
+                feeChartCache[months] = html;
                 feeChartContainer.innerHTML = html;
             })
             .catch(function() {
