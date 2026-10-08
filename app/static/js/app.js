@@ -1045,8 +1045,8 @@ function normalizeTableRowsAndActions() {
                     var item = document.createElement('li');
                     if (control.matches('form')) {
                         var submit = control.querySelector('button[type="submit"]');
-                        if (submit) submit.classList.add('dropdown-item');
-                    } else control.classList.add('dropdown-item');
+                        if (submit) { submit.classList.add('dropdown-item'); addTableMenuLabel(submit); }
+                    } else { control.classList.add('dropdown-item'); addTableMenuLabel(control); }
                     item.appendChild(control);
                     if (existingList) existingList.insertBefore(item, existingList.firstChild);
                 });
@@ -1061,10 +1061,11 @@ function normalizeTableRowsAndActions() {
                 var item = document.createElement('li');
                 if (control.matches('form')) {
                     var submit = control.querySelector('button[type="submit"]');
-                    if (submit) submit.classList.add('dropdown-item');
+                    if (submit) { submit.classList.add('dropdown-item'); addTableMenuLabel(submit); }
                     item.appendChild(control);
                 } else {
-                    control.classList.add(control.matches('a') ? 'dropdown-item' : 'dropdown-item');
+                    control.classList.add('dropdown-item');
+                    addTableMenuLabel(control);
                     item.appendChild(control);
                 }
                 list.appendChild(item);
@@ -1075,6 +1076,15 @@ function normalizeTableRowsAndActions() {
             actionCell.dataset.actionMenuReady = '1';
         });
     });
+}
+
+function addTableMenuLabel(control) {
+    if (!control || control.querySelector('.table-menu-label') || control.textContent.trim()) return;
+    var label = control.getAttribute('title') || control.getAttribute('aria-label') || '';
+    label = label.replace(/^More actions for\s+/i, '').trim();
+    if (!label) return;
+    var span = document.createElement('span'); span.className = 'table-menu-label ms-2'; span.textContent = label;
+    control.appendChild(span);
 }
 
 function addExpandableRow(table, row) {
