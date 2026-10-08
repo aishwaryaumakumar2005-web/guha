@@ -100,7 +100,7 @@ Menu</span>
                 <span>
 Dashboard</span>
             </a>
-            {% if current_user.role in ('Admin', 'Operation') %}            <!-- Accordion: Academic -->
+            {% if current_user.role in ('Admin', 'Operation', 'Operator') %}            <!-- Accordion: Academic -->
             <div class="accord-section">
                     <div class="accord-trigger {% if request.path in ['/students','/courses','/tutors','/attendance','/leaves','/exams','/students/lifecycle','/enquiries'] %}expanded{% endif %}">
                     <span class="nav-icon">
@@ -228,7 +228,7 @@ Expenses</span>
                         <span class="nav-icon"><i class="bi bi-piggy-bank-fill"></i></span>
                         <span>Capital Injection</span>
                     </a>
-                    {% if current_user.role in ('Admin', 'Operation') %}                    <a href="{{ url_for('expenses.salary_calculator') }}" class="nav-item-link {% if request.path == '/salary-calculator' %}active{% endif %}">
+                    {% if current_user.role in ('Admin', 'Operation', 'Operator') %}                    <a href="{{ url_for('expenses.salary_calculator') }}" class="nav-item-link {% if request.path == '/salary-calculator' %}active{% endif %}">
                         <span class="nav-icon">
 <i class="bi bi-calculator-fill">
 </i>
@@ -402,7 +402,7 @@ Class Reports</span>
                 <span>
 My Leaves</span>
             </a>
-            {% if current_user.role == 'Staff' %}<a href="{{ url_for('tasks.list_tasks') }}" class="nav-item-link sidebar-heading {% if request.path == '/tasks' %}active{% endif %}">
+            {% if current_user.role in ('Admin', 'Operation', 'Operator', 'Staff') %}<a href="{{ url_for('tasks.list_tasks') }}" class="nav-item-link sidebar-heading {% if request.path == '/tasks' %}active{% endif %}">
                 <span class="nav-icon"><i class="bi bi-check2-square"></i></span>
                 <span>Tasks</span>
             </a>{% endif %}

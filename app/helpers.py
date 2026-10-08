@@ -58,17 +58,12 @@ def admin_required(f):
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated:
             return redirect(url_for('auth.login'))
-        # Operations is an administrative role for the academic, finance,
-        # and analytics surfaces, but must not gain access to system-admin
-        # pages (users, backups, integrations, etc.).
-        operation_admin_blueprints = {
-            'courses', 'students', 'tutors', 'attendance', 'exam_routes',
-            'student_lifecycle', 'enquiries', 'fees', 'expenses', 'funding', 'accounting',
-            'payroll', 'reports', 'dashboard',
-        }
+        # Operation is functionally equivalent to Admin everywhere except
+        # the Admin Console and Extra Features, which remain hidden and
+        # inaccessible for that role.
         allowed = current_user.role == 'Admin' or (
-            current_user.role == 'Operation' and
-            request.blueprint in operation_admin_blueprints
+            current_user.role in ('Operation', 'Operator') and
+            request.blueprint not in ('admin', 'extras', 'google_sync')
         )
         if not allowed:
             flash("Access denied: Admin permissions required.", "danger")
@@ -79,7 +74,7 @@ def admin_required(f):
 
 def operation_admin():
     """Whether the signed-in user has admin-level access in business domains."""
-    return current_user.is_authenticated and current_user.role in ('Admin', 'Operation')
+    return current_user.is_authenticated and current_user.role in ('Admin', 'Operation', 'Operator')
 
 
 def is_ajax_request():
@@ -93,7 +88,7 @@ def staff_can_view_student(student_id):
     """
     if not current_user.is_authenticated:
         return False
-    if current_user.role == 'Admin':
+    if current_user.role in ('Admin', 'Operation', 'Operator'):
         return True
     if current_user.role != 'Staff':
         return False

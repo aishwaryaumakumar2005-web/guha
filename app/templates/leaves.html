@@ -32,7 +32,7 @@
         <div>
             <h2 class="mb-1 text-white fw-bold">Leave Management</h2>
             <p class="text-white mb-0">
-                {% if current_user.role == 'Admin' %}
+                {% if current_user.role in ('Admin', 'Operation', 'Operator') %}
                     Review and act on staff leave requests.
                 {% else %}
                     Submit leave requests and monitor your application status.
@@ -67,7 +67,7 @@
                 <label for="f_month" class="form-label text-secondary fw-semibold small">Month</label>
                 <input type="month" class="form-control" id="f_month" name="month" value="{{ filters.month }}">
             </div>
-            {% if current_user.role == 'Admin' %}
+                {% if current_user.role in ('Admin', 'Operation', 'Operator') %}
             <div class="col-lg-2 col-md-4">
                 <label for="f_staff" class="form-label text-secondary fw-semibold small">Staff</label>
                 <select class="form-control" id="f_staff" name="user_id">
@@ -93,7 +93,7 @@
         <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
             <h4 class="mb-0 text-dark fw-bold">
                 <i class="bi bi-calendar3 me-2 text-dark"></i>
-                {% if current_user.role == 'Admin' %}Staff Leave Calendar{% else %}My Leave Calendar{% endif %}
+                {% if current_user.role in ('Admin', 'Operation', 'Operator') %}Staff Leave Calendar{% else %}My Leave Calendar{% endif %}
             </h4>
             <div class="d-flex align-items-center gap-2">
                 <a class="btn btn-sm btn-outline-premium" href="{{ url_for('leaves.leaves', cal=cal_prev, **filter_args) }}"><i class="bi bi-chevron-left"></i></a>
@@ -114,7 +114,7 @@
                         <div class="lc-daynum">{{ cell.day }}</div>
                         {% for e in cell.entries[:3] %}
                             {% set chip = 'lc-approved' if e.status == 'Approved' else 'lc-pending' %}
-                            <div class="lc-chip {{ chip }}" title="{{ e.staff }} &middot; {{ e.leave_type }} &middot; {{ e.status }}">{{ e.staff if current_user.role == 'Admin' else e.leave_type }}</div>
+                            <div class="lc-chip {{ chip }}" title="{{ e.staff }} &middot; {{ e.leave_type }} &middot; {{ e.status }}">{{ e.staff if current_user.role in ('Admin', 'Operation', 'Operator') else e.leave_type }}</div>
                         {% endfor %}
                         {% if cell.entries|length > 3 %}
                             {% set extra = cell.entries[3:]|map(attribute='staff')|join(', ') %}
@@ -202,7 +202,7 @@
             <div class="glass-card p-4 mb-4">
                 <h4 class="mb-4 text-dark fw-bold">
                     <i class="bi bi-hourglass-split me-2 text-dark"></i>
-                    {% if current_user.role == 'Admin' %}Pending Staff Requests{% else %}My Pending Applications{% endif %}
+                    {% if current_user.role in ('Admin', 'Operation', 'Operator') %}Pending Staff Requests{% else %}My Pending Applications{% endif %}
                 </h4>
                 {% if pending_total > list_limit %}
                 <p class="text-white-50 small mb-3">Showing the {{ list_limit }} oldest pending requests ({{ pending_total }} total).</p>
@@ -211,20 +211,20 @@
                     <table class="table table-custom sortable" data-page-size="10">
                         <thead>
                             <tr>
-                                {% if current_user.role == 'Admin' %}<th scope="col">Staff Member</th>{% endif %}
+                                {% if current_user.role in ('Admin', 'Operation', 'Operator') %}<th scope="col">Staff Member</th>{% endif %}
                                 <th scope="col">Dates</th>
                                 <th scope="col">Duration</th>
                                 <th scope="col">Type</th>
                                 <th scope="col">Reason</th>
                                 <th scope="col">Status</th>
-                                {% if current_user.role == 'Admin' %}<th scope="col" class="text-center">Actions</th>{% endif %}
+                                {% if current_user.role in ('Admin', 'Operation', 'Operator') %}<th scope="col" class="text-center">Actions</th>{% endif %}
                             </tr>
                         </thead>
                         <tbody>
                             {% if pending_leaves %}
                                 {% for leave in pending_leaves %}
                                     <tr>
-                                        {% if current_user.role == 'Admin' %}
+                                            {% if current_user.role in ('Admin', 'Operation', 'Operator') %}
                                         <td class="fw-medium text-dark">
                                             {{ leave.staff.name }}<br>
                                             <small class="text-muted">@{{ leave.staff.username }}</small>
@@ -236,13 +236,13 @@
                                         <td class="text-secondary small reason-cell" title="{{ leave.reason }}">{{ leave.reason }}</td>
                                         <td>
                                             <span class="badge badge-custom badge-amber">Pending</span>
-                                            {% if current_user.role == 'Admin' and leave.created_at %}
+                                            {% if current_user.role in ('Admin', 'Operation', 'Operator') and leave.created_at %}
                                                 {% set age_days = (today - leave.created_at.date()).days %}
                                                 {% if age_days > aging_days %}
                                                     <span class="badge badge-custom badge-danger">{{ age_days }}d pending</span>
                                                 {% endif %}
                                             {% endif %}
-                                            {% if current_user.role != 'Admin' %}
+                                            {% if current_user.role not in ('Admin', 'Operation', 'Operator') %}
                                             <form method="POST" action="{{ url_for('leaves.withdraw_leave', leave_id=leave.id) }}" class="d-inline-block mt-1"
                                                   onsubmit="return confirm('Withdraw this leave request?');">
                                                 <button type="submit" class="btn btn-sm btn-outline-danger px-2" title="Cancel this request">
@@ -251,7 +251,7 @@
                                             </form>
                                             {% endif %}
                                         </td>
-                                        {% if current_user.role == 'Admin' %}
+                                        {% if current_user.role in ('Admin', 'Operation', 'Operator') %}
                                         <td class="text-center">
                                             <button type="button" class="btn btn-sm btn-success me-2 px-3"
                                                     data-action="approve"
@@ -272,9 +272,9 @@
                                     </tr>
                                 {% endfor %}
                             {% else %}
-                                {% set leave_colspan = 7 if current_user.role == 'Admin' else 5 %}
+                                {% set leave_colspan = 7 if current_user.role in ('Admin', 'Operation', 'Operator') else 5 %}
                                 <tr>
-                                    {% if current_user.role == 'Admin' %}
+                                    {% if current_user.role in ('Admin', 'Operation', 'Operator') %}
                                         {% set bal_people = staff_balance_names %}
                                         {% if bal_people %}
                                             {{ empty_state('Nothing to review', "No requests are waiting. Staff with balance remaining: " ~ bal_people ~ ".", 'leaves', url_for('tutors.list'), 'View Staff', 'people-fill', leave_colspan) }}
@@ -295,7 +295,7 @@
                 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                     <h4 class="mb-0 text-dark fw-bold">
                         <i class="bi bi-clock-history me-2 text-dark"></i>
-                        {% if current_user.role == 'Admin' %}Request History{% else %}My Leave History{% endif %}
+                        {% if current_user.role in ('Admin', 'Operation', 'Operator') %}Request History{% else %}My Leave History{% endif %}
                     </h4>
                     <a href="{{ url_for('leaves.export_leaves', **export_args) }}" class="btn btn-sm btn-outline-premium" title="Download filtered leave history as CSV">
                         <i class="bi bi-download me-1"></i>Export CSV
@@ -308,7 +308,7 @@
                     <table class="table table-custom sortable" data-page-size="10">
                         <thead>
                             <tr>
-                                {% if current_user.role == 'Admin' %}<th scope="col">Staff Member</th>{% endif %}
+                                {% if current_user.role in ('Admin', 'Operation', 'Operator') %}<th scope="col">Staff Member</th>{% endif %}
                                 <th scope="col">Dates</th>
                                 <th scope="col">Duration</th>
                                 <th scope="col">Type</th>
@@ -320,7 +320,7 @@
                             {% if history_leaves %}
                                 {% for leave in history_leaves %}
                                     <tr>
-                                        {% if current_user.role == 'Admin' %}
+                                        {% if current_user.role in ('Admin', 'Operation', 'Operator') %}
                                         <td class="fw-medium text-dark">
                                             {{ leave.staff.name }}<br>
                                             <small class="text-muted">@{{ leave.staff.username }}</small>
@@ -348,7 +348,7 @@
                                                 {% if leave.approver %}by {{ leave.approver.name }}{% else %}by Admin{% endif %} &middot; {{ leave.actioned_at.strftime("%d %b %Y, %I:%M %p") }}
                                             </div>
                                             {% endif %}
-                                            {% if current_user.role != 'Admin' and leave.status == 'Approved' and leave.start_date > today %}
+                                        {% if current_user.role not in ('Admin', 'Operation', 'Operator') and leave.status == 'Approved' and leave.start_date > today %}
                                             <form method="POST" action="{{ url_for('leaves.withdraw_leave', leave_id=leave.id) }}" class="mt-2" onsubmit="return confirm('Withdraw this approved future leave?');">
                                                 <button type="submit" class="btn btn-sm btn-outline-danger">Withdraw</button>
                                             </form>
@@ -357,7 +357,7 @@
                                     </tr>
                                 {% endfor %}
                             {% else %}
-                                {% set hist_colspan = 6 if current_user.role == 'Admin' else 5 %}
+                                {% set hist_colspan = 6 if current_user.role in ('Admin', 'Operation', 'Operator') else 5 %}
                                 <tr>
                                     {{ empty_state('No matching requests', 'Adjust the filters above or submit a new leave request to see it here.', 'leaves', none, none, none, hist_colspan) }}
                                 </tr>

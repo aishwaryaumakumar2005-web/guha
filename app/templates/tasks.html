@@ -11,7 +11,7 @@
         <div>
             <h2 class="text-white fw-bold mb-1"><i class="bi bi-check2-square me-2" style="color:hsl(200,100%,55%);"></i>Task Manager</h2>
             <p class="text-white mb-0" style="opacity:0.75;">
-                {% if current_user.role == 'Admin' %}
+                {% if current_user.role in ('Admin', 'Operation', 'Operator') %}
                     Assign, schedule, and track operational tasks across the teaching team.
                 {% else %}
                     View, execute, and report progress on your assigned tasks.
@@ -31,7 +31,7 @@
                 </a>
             </div>
 
-            {% if current_user.role == 'Admin' %}
+            {% if current_user.role in ('Admin', 'Operation', 'Operator') %}
             <button class="btn btn-premium btn-sm" data-bs-toggle="modal" data-bs-target="#assignTaskModal" style="padding:6px 14px;font-size:0.8rem;">
                 <i class="bi bi-plus-circle me-1"></i>Assign Task
             </button>
@@ -158,7 +158,7 @@
             </div>
 
             <!-- Tutor Dropdown Filter (Admin only) -->
-            {% if current_user.role == 'Admin' %}
+            {% if current_user.role in ('Admin', 'Operation', 'Operator') %}
             <div class="col-12 col-md-3 col-xl-1">
                 <select name="tutor_id" class="form-select form-select-sm" onchange="this.form.submit()" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);font-size:0.75rem;">
                     <option value="">All Tutors</option>
@@ -170,7 +170,7 @@
             {% endif %}
 
             <!-- Search Field -->
-            <div class="col-12 col-md-{{ '3' if current_user.role == 'Admin' else '6' }} col-xl-{{ '2' if current_user.role == 'Admin' else '3' }}">
+            <div class="col-12 col-md-{{ '3' if current_user.role in ('Admin', 'Operation', 'Operator') else '6' }} col-xl-{{ '2' if current_user.role in ('Admin', 'Operation', 'Operator') else '3' }}">
                 <div class="input-group input-group-sm">
                     {% if selected_status %}<input type="hidden" name="status" value="{{ selected_status }}">{% endif %}
                     <input type="search" name="q" value="{{ search_q or '' }}" class="form-control" placeholder="Search tasks..." style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);font-size:0.75rem;">
@@ -224,7 +224,7 @@
                             <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 quick-status-item" data-id="{{ t.id }}" data-status="In Progress" style="font-size:0.68rem;">
                                 Start &rarr;
                             </button>
-                            {% if current_user.role == 'Admin' and is_overdue and t.tutor and t.tutor.phone %}
+                            {% if current_user.role in ('Admin', 'Operation', 'Operator') and is_overdue and t.tutor and t.tutor.phone %}
                             <a href="https://wa.me/{{ t.tutor.phone|replace('+', '')|replace(' ', '') }}?text=Hello%20{{ t.tutor.name }}%2C%20gentle%20reminder%20regarding%20your%20task%3A%20%22{{ t.title|urlencode }}%22%20which%20was%20due%20on%20{{ t.due_date.strftime('%d %b %Y') }}." 
                                target="_blank" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size:0.68rem;" title="Send WhatsApp reminder to {{ t.tutor.name }}">
                                 <i class="bi bi-whatsapp me-1"></i>Remind
@@ -346,12 +346,12 @@
                 <thead>
                     <tr>
                         <th>Title &amp; Category</th>
-                        {% if current_user.role == 'Admin' %}<th>Assigned To</th>{% endif %}
+                        {% if current_user.role in ('Admin', 'Operation', 'Operator') %}<th>Assigned To</th>{% endif %}
                         <th>Priority</th>
                         <th>Due Date</th>
                         <th>Status</th>
                         <th>Assigned Date</th>
-                        {% if current_user.role == 'Admin' %}<th>Remarks</th>{% endif %}
+                        {% if current_user.role in ('Admin', 'Operation', 'Operator') %}<th>Remarks</th>{% endif %}
                         <th class="text-end">Actions</th>
                     </tr>
                 </thead>
@@ -369,7 +369,7 @@
                                     <div class="small text-white-50 text-truncate mt-1" style="max-width:320px;font-size:0.73rem;">{{ t.description }}</div>
                                 {% endif %}
                             </td>
-                            {% if current_user.role == 'Admin' %}
+                            {% if current_user.role in ('Admin', 'Operation', 'Operator') %}
                             <td>
                                 <span class="badge" style="background:rgba(255,255,255,0.08);color:#fff;font-weight:500;font-size:0.72rem;">
                                     <i class="bi bi-person me-1"></i>{{ t.tutor.name if t.tutor else 'Unassigned' }}
@@ -399,7 +399,7 @@
                                         <span id="status-label-{{ t.id }}">{{ t.status }}</span>
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end shadow-sm" style="font-size:0.75rem;">
-                                        {% if current_user.role == 'Admin' %}
+                                        {% if current_user.role in ('Admin', 'Operation', 'Operator') %}
                                         {% if t.status == 'Submitted' %}<li><a class="dropdown-item quick-status-item" href="#" data-id="{{ t.id }}" data-status="Verified"><i class="bi bi-shield-check me-2 text-success"></i>Verify</a></li>{% endif %}
                                         {% if t.status in ('Pending', 'Accepted', 'In Progress', 'Rejected', 'Blocked', 'Verified') %}<li><a class="dropdown-item quick-status-item" href="#" data-id="{{ t.id }}" data-status="In Progress"><i class="bi bi-arrow-repeat me-2 text-info"></i>In Progress</a></li>{% endif %}
                                         {% else %}
@@ -412,11 +412,11 @@
                             </td>
                             <td class="small text-white-50" style="font-size:0.73rem;">
                                 {{ t.assigned_date.strftime('%d %b %Y') if t.assigned_date else '&mdash;'|safe }}
-                                {% if current_user.role == 'Admin' and t.assigner %}
+                                {% if current_user.role in ('Admin', 'Operation', 'Operator') and t.assigner %}
                                     <div style="font-size:0.65rem;opacity:0.6;">by {{ t.assigner.name }}</div>
                                 {% endif %}
                             </td>
-                            {% if current_user.role == 'Admin' %}
+                            {% if current_user.role in ('Admin', 'Operation', 'Operator') %}
                             <td class="small text-white-50" style="max-width:180px;font-size:0.72rem;">
                                 {{ t.notes or '&mdash;'|safe }}
                                 {% if t.completion_notes %}<div class="mt-1 text-info">Submission: {{ t.completion_notes }}</div>{% endif %}
@@ -425,14 +425,14 @@
                             {% endif %}
                             <td class="text-end text-nowrap">
                                 <!-- WhatsApp Reminder for Admin (Item 15) -->
-                                {% if current_user.role == 'Admin' and t.status != 'Completed' and t.tutor and t.tutor.phone %}
+                                {% if current_user.role in ('Admin', 'Operation', 'Operator') and t.status != 'Completed' and t.tutor and t.tutor.phone %}
                                 <a href="https://wa.me/{{ t.tutor.phone|replace('+', '')|replace(' ', '') }}?text=Hello%20{{ t.tutor.name }}%2C%20reminder%20regarding%20task%3A%20%22{{ t.title|urlencode }}%22{% if t.due_date %}%20due%20on%20{{ t.due_date.strftime('%d %b %Y') }}{% endif %}." 
                                    target="_blank" class="btn btn-sm btn-outline-success me-1" title="Send WhatsApp Reminder">
                                     <i class="bi bi-whatsapp"></i>
                                 </a>
                                 {% endif %}
 
-                                {% if current_user.role == 'Admin' %}
+                                {% if current_user.role in ('Admin', 'Operation', 'Operator') %}
                                 {% if t.notification_status != 'Sent' and t.tutor and t.tutor.phone %}
                                 <form method="POST" action="{{ url_for('tasks.resend_notification', id=t.id) }}" class="d-inline" title="Send or retry task WhatsApp notification">
                                     <input type="hidden" name="task_csrf_token" value="{{ task_csrf_token }}">
@@ -472,7 +472,7 @@
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="{% if current_user.role == 'Admin' %}8{% else %}6{% endif %}">
+                            <td colspan="{% if current_user.role in ('Admin', 'Operation', 'Operator') %}8{% else %}6{% endif %}">
                                 <div class="empty-state py-5 text-center">
                                     <div class="empty-state-content">
                                         <i class="bi bi-clipboard2-check fs-1 text-white-50 d-block mb-2"></i>
@@ -480,7 +480,7 @@
                                         <p class="empty-state-subtitle text-white-50 small">
                                             {% if selected_status or selected_tutor_id or selected_priority or selected_category or search_q %}
                                                 No tasks match your current filter settings. <a href="{{ url_for('tasks.list_tasks', view=view_mode) }}" class="text-info text-decoration-none">Clear filters</a>
-                                            {% elif current_user.role == 'Admin' %}
+                                            {% elif current_user.role in ('Admin', 'Operation', 'Operator') %}
                                                 Assign a new task to your tutors to get started.
                                             {% else %}
                                                 You currently have no tasks assigned to you.
@@ -504,7 +504,7 @@
 </div>
 
 <!-- Assign Task Modal (Admin only) -->
-{% if current_user.role == 'Admin' %}
+                                {% if current_user.role in ('Admin', 'Operation', 'Operator') %}
 <div class="modal fade" id="assignTaskModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content" style="background:#1a1d2e;border:1px solid rgba(255,255,255,0.15);box-shadow:0 10px 30px rgba(0,0,0,0.5);">
@@ -656,7 +656,7 @@
                     <div class="mb-3">
                         <label class="form-label text-white small fw-semibold">Status</label>
                         <select class="form-select" id="update_status" name="status" required style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
-                            {% if current_user.role == 'Admin' %}
+                            {% if current_user.role in ('Admin', 'Operation', 'Operator') %}
                             <option value="Verified">Verified</option>
                             <option value="Rejected">Rejected / Request changes</option>
                             {% else %}
@@ -671,7 +671,7 @@
                         <label class="form-label text-white small fw-semibold">Progress Remarks <span class="text-white-50">(optional)</span></label>
                         <textarea class="form-control" id="update_notes" name="notes" rows="3" placeholder="Add progress notes or completion remarks..." style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);"></textarea>
                     </div>
-                    {% if current_user.role != 'Admin' %}
+                    {% if current_user.role not in ('Admin', 'Operation', 'Operator') %}
                     <div class="mb-3">
                         <label class="form-label text-white small fw-semibold">Completion evidence <span class="text-white-50">(optional)</span></label>
                         <input type="file" class="form-control" name="completion_attachment" accept="image/*">

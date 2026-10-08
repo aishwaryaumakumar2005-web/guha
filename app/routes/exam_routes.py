@@ -22,7 +22,7 @@ def _staff_course_ids():
 
 
 def _staff_may_manage(exam):
-    return current_user.role.lower() == 'admin' or exam.course_id in _staff_course_ids()
+    return current_user.role.lower() in ('admin', 'operation', 'operator') or exam.course_id in _staff_course_ids()
 
 
 def _parse_optional_date(raw):
@@ -89,7 +89,7 @@ def exam_list():
             filter_course=filter_course, filter_month=filter_month, filter_year=filter_year,
             filter_status=filter_status, filter_q=filter_q,
             today=date.today(), section='list', is_staff=True)
-    elif current_user.role.lower() != 'admin':
+    elif current_user.role.lower() not in ('admin', 'operation', 'operator'):
         student = Student.query.filter_by(email=current_user.email).first()
         if not student:
             flash('Student profile not found.', 'warning')

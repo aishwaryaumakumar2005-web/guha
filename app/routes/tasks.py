@@ -81,7 +81,7 @@ def list_tasks():
     if request.method == 'POST':
         if not _task_csrf_ok():
             abort(400, description='Invalid task security token.')
-        if current_user.role != 'Admin':
+        if current_user.role not in ('Admin', 'Operation', 'Operator'):
             flash('Only administrators can assign tasks.', 'danger')
             return redirect(url_for('tasks.list_tasks'))
         tutor_id = request.form.get('tutor_id', type=int)
@@ -154,7 +154,7 @@ def list_tasks():
 
     tutor = None
     query = Task.query.filter(Task.archived_at.is_(None))
-    if current_user.role == 'Admin':
+    if current_user.role in ('Admin', 'Operation', 'Operator'):
         pass
     else:
         tutor = Tutor.query.filter(db.func.lower(Tutor.email) == (current_user.email or '').strip().lower()).first()
@@ -202,7 +202,7 @@ def list_tasks():
     if selected_category and selected_category in categories:
         query = query.filter(Task.category == selected_category)
 
-    if selected_tutor_id and current_user.role == 'Admin':
+    if selected_tutor_id and current_user.role in ('Admin', 'Operation', 'Operator'):
         query = query.filter(Task.tutor_id == selected_tutor_id)
 
     if search_q:
@@ -254,7 +254,7 @@ def update_status(id):
         return jsonify({'success': False, 'error': 'Invalid security token'}), 400
     task = Task.query.get_or_404(id)
     tutor = Tutor.query.filter(db.func.lower(Tutor.email) == (current_user.email or '').strip().lower()).first()
-    if current_user.role != 'Admin' and (not tutor or task.tutor_id != tutor.id):
+    if current_user.role not in ('Admin', 'Operation', 'Operator') and (not tutor or task.tutor_id != tutor.id):
         if is_ajax_request() or request.is_json:
             return jsonify({'success': False, 'error': 'Unauthorized'}), 403
         flash('You can only update your own tasks.', 'danger')
@@ -274,7 +274,7 @@ def update_status(id):
         flash('Invalid status.', 'danger')
         return redirect(url_for('tasks.list_tasks'))
     old_status = task.status
-    is_admin = current_user.role == 'Admin'
+    is_admin = current_user.role in ('Admin', 'Operation', 'Operator')
     if not is_admin and status in ('Verified', 'Cancelled', 'Completed'):
         error = 'Only administrators can verify, cancel, or close tasks.'
         if is_ajax_request() or request.is_json:
@@ -398,7 +398,7 @@ def respond_to_task(token):
     if not action_token:
         abort(410, description='This task response link is expired or has already been used.')
     tutor = Tutor.query.get_or_404(action_token.tutor_id)
-    if current_user.role != 'Admin' and current_user.email != tutor.email:
+    if current_user.role not in ('Admin', 'Operation', 'Operator') and current_user.email != tutor.email:
         abort(403)
     task = Task.query.get_or_404(action_token.task_id)
     if request.method == 'POST':
@@ -496,7 +496,7 @@ def task_history(id):
 def task_details(id):
     task = Task.query.get_or_404(id)
     tutor = Tutor.query.filter(db.func.lower(Tutor.email) == (current_user.email or '').strip().lower()).first()
-    if current_user.role != 'Admin' and (not tutor or task.tutor_id != tutor.id):
+    if current_user.role not in ('Admin', 'Operation', 'Operator') and (not tutor or task.tutor_id != tutor.id):
         return jsonify({'error': 'Unauthorized'}), 403
     return jsonify({'id': task.id, 'title': task.title, 'description': task.description or '',
                     'status': task.status, 'priority': task.priority or 'Medium',
@@ -510,7 +510,7 @@ def task_details(id):
 def task_attachment(id):
     task = Task.query.get_or_404(id)
     tutor = Tutor.query.filter(db.func.lower(Tutor.email) == (current_user.email or '').strip().lower()).first()
-    if current_user.role != 'Admin' and (not tutor or task.tutor_id != tutor.id):
+    if current_user.role not in ('Admin', 'Operation', 'Operator') and (not tutor or task.tutor_id != tutor.id):
         abort(403)
     if not task.completion_attachment or not task.completion_attachment_mime:
         abort(404)

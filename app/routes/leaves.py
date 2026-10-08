@@ -193,7 +193,7 @@ def _parse_filters():
     month = _month_range(request.args.get('month'))
     q = (request.args.get('q') or '').strip()[:100]
     user_scope = None
-    if current_user.role == 'Admin':
+    if current_user.role in ('Admin', 'Operation', 'Operator'):
         raw_uid = (request.args.get('user_id') or '').strip()
         if raw_uid.isdigit():
             uid = int(raw_uid)
@@ -218,7 +218,7 @@ def _build_summary(user):
     """U2 summary card numbers: on-leave-today, pending days, upcoming, balance/year."""
     today = date.today()
     base = LeaveRequest.query
-    if user.role != 'Admin':
+    if user.role not in ('Admin', 'Operation', 'Operator'):
         base = base.filter_by(user_id=user.id)
     on_today = base.filter(
         LeaveRequest.status == 'Approved',
@@ -340,7 +340,7 @@ def leaves():
     today = date.today()
     filters, filter_args, export_args, status, month, q, user_scope = _parse_filters()
 
-    is_admin = current_user.role == 'Admin'
+    is_admin = current_user.role in ('Admin', 'Operation', 'Operator')
     base_q = LeaveRequest.query
     if not is_admin:
         base_q = base_q.filter_by(user_id=current_user.id)
@@ -511,7 +511,7 @@ def withdraw_leave(leave_id):
 @login_required
 def export_leaves():
     query = LeaveRequest.query
-    if current_user.role != 'Admin':
+    if current_user.role not in ('Admin', 'Operation', 'Operator'):
         query = query.filter_by(user_id=current_user.id)
     status = (request.args.get('status') or '').strip()
     leave_type = (request.args.get('leave_type') or '').strip()
@@ -526,7 +526,7 @@ def export_leaves():
     q = (request.args.get('q') or '').strip()[:100]
     if q:
         query = _apply_q(query, q)
-    if current_user.role == 'Admin':
+    if current_user.role in ('Admin', 'Operation', 'Operator'):
         raw_uid = (request.args.get('user_id') or '').strip()
         if raw_uid.isdigit() and User.query.get(int(raw_uid)) is not None:
             # NOTE: explicit entity — filter_by() after _apply_q()'s join would
