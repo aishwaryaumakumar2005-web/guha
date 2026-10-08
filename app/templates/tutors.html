@@ -55,16 +55,17 @@ Actions</th>
                                 <td data-label="ID" class="text-white small" style="opacity: 0.85;">
 {{ tutor.emp_code or ('#' ~ tutor.id) }}</td>
                                 <td data-label="Instructor">
-                                    <div class="d-flex align-items-center">
+                                    <div class="d-flex align-items-center gap-2">
                                         {% if tutor.photo_data %}
-                                            <img src="{{ url_for('tutors.tutor_photo', tutor_id=tutor.id) }}" alt="Photo of {{ tutor.name }}" class="rounded-circle object-fit-cover me-2" style="width: 32px; height: 32px;" loading="lazy">
+                                            <img src="{{ url_for('tutors.tutor_photo', tutor_id=tutor.id) }}" alt="Photo of {{ tutor.name }}" class="rounded-circle object-fit-cover" style="width:32px;height:32px;" loading="lazy">
                                         {% else %}
-                                            <span class="student-initials me-2" aria-hidden="true">{{ tutor.name|first|upper }}</span>
+                                            <span class="student-initials" aria-hidden="true">{{ tutor.name|first|upper }}</span>
                                         {% endif %}
-                                        <span class="fw-medium text-white">
-<a class="fw-medium text-white" href="{{ url_for('tutors.profile', id=tutor.id) }}">{{ tutor.name }}</a>
+                                        <div class="min-w-0">
+                                            <a class="fw-medium text-white text-decoration-none" href="{{ url_for('tutors.profile', id=tutor.id) }}">{{ tutor.name }}</a>
+                                            <div class="small text-white-50 text-truncate" style="max-width:220px;opacity:0.7;">{{ tutor.email }}</div>
+                                        </div>
                                     </div>
-                                    <div class="small text-white-50 text-truncate" style="max-width:220px;opacity:0.7;">{{ tutor.email }}</div>
                                 </td>
                                 <td data-label="Phone" class="text-white" style="opacity: 0.85;">
 {{ tutor.phone }}</td>
