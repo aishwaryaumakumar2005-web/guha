@@ -136,6 +136,7 @@ function initApp() {
     
     // Initialize table pagination for all data tables
     initializeTablePagination();
+    initializeTablePresentation();
 
     // Initialize global search autocomplete (desktop + mobile)
     initGlobalSearch();
@@ -875,6 +876,33 @@ function initializeTablePagination() {
         });
 
         renderTablePage(table);
+    });
+}
+
+function initializeTablePresentation() {
+    document.querySelectorAll('table.table-custom').forEach(function(table) {
+        table.setAttribute('aria-busy', 'false');
+        table.querySelectorAll('tbody tr').forEach(function(row) {
+            var cells = row.children;
+            if (!cells.length) return;
+            var actionCell = Array.from(cells).find(function(cell) { return cell.classList.contains('text-end'); });
+            if (actionCell) actionCell.classList.add('table-action-group');
+            row.querySelectorAll('.badge').forEach(function(badge) {
+                var value = badge.textContent.trim().toLowerCase();
+                if (/completed|verified|active|paid|success|approved|present/.test(value)) badge.classList.add('status-success');
+                else if (/pending|progress|medium|scheduled|review/.test(value)) badge.classList.add('status-warning');
+                else if (/rejected|cancelled|failed|overdue|inactive|unpaid|absent/.test(value)) badge.classList.add('status-danger');
+                else if (/high|blocked|urgent/.test(value)) badge.classList.add('status-info');
+            });
+        });
+    });
+    document.querySelectorAll('table.table-custom tbody tr').forEach(function(row) {
+        var text = row.textContent.trim().toLowerCase();
+        if (row.children.length === 1 && /no (data|records|results|tasks|entries|students|payments)/.test(text)) {
+            row.classList.add('table-empty-state');
+            var cell = row.children[0];
+            if (cell && !cell.querySelector('i')) cell.insertAdjacentHTML('afterbegin', '<i class="bi bi-inbox" aria-hidden="true"></i>');
+        }
     });
 }
 
