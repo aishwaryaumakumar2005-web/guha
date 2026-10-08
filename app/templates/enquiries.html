@@ -152,7 +152,7 @@ Course removed</span>
 </i>
                                         </button>
                                         <!-- Edit button -->
-                                        <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#editEnquiryModal{{ enq.id }}" title="Edit Lead" aria-label="Edit lead {{ enq.student_name }}">
+                                        <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#editEnquiryModal{{ enq.id }}" data-enquiry-edit-id="{{ enq.id }}" title="Edit Lead" aria-label="Edit lead {{ enq.student_name }}">
                                             <i class="bi bi-pencil-square" aria-hidden="true">
 </i>
                                         </button>
@@ -336,6 +336,18 @@ Delete Lead</button>
     });
 })();
 (function () {
+    // Explicitly bind the ledger edit trigger. This keeps edit working after
+    // HTMX table swaps even when Bootstrap's delegated data-api binding was
+    // initialized before the table fragment arrived.
+    document.querySelectorAll('[data-enquiry-edit-id]').forEach(function (button) {
+        if (button.getAttribute('data-edit-bound') === '1') return;
+        button.setAttribute('data-edit-bound', '1');
+        button.addEventListener('click', function (event) {
+            event.preventDefault();
+            var modal = document.getElementById('editEnquiryModal' + button.getAttribute('data-enquiry-edit-id'));
+            if (modal && window.bootstrap) bootstrap.Modal.getOrCreateInstance(modal).show();
+        });
+    });
     document.querySelectorAll('.modal[id^="editEnquiryModal"]').forEach(function (modal) {
         modal.addEventListener('show.bs.modal', function () {
             var box = modal.querySelector('.enq-history');
