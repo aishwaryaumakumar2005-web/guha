@@ -736,9 +736,9 @@ function initializeTablePagination() {
     const tables = document.querySelectorAll('table.table-custom');
     tables.forEach(table => {
         const tbody = table.querySelector('tbody');
-        if (!tbody) return;
+        if (!tbody && !table.querySelector('thead')) return;
 
-        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const rows = tbody ? Array.from(tbody.querySelectorAll('tr')) : [];
         const pageSize = parseInt(table.dataset.pageSize, 10) || 10;
 
         // Column visibility is independent of pagination. Server-paginated
