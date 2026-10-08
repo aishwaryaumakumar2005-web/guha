@@ -153,14 +153,26 @@ function initDropdowns() {
     if (!window.bootstrap || !bootstrap.Dropdown) return;
     document.querySelectorAll('[data-bs-toggle="dropdown"]').forEach(function(toggle) {
         try {
-            bootstrap.Dropdown.getOrCreateInstance(toggle, {
+            var dropdown = bootstrap.Dropdown.getOrCreateInstance(toggle, {
                 boundary: 'viewport',
                 display: 'static',
                 popperConfig: function(defaultConfig) {
+                    defaultConfig.strategy = 'fixed';
                     defaultConfig.modifiers = (defaultConfig.modifiers || []).concat([{ name: 'preventOverflow', options: { boundary: 'viewport', padding: 8 } }]);
                     return defaultConfig;
-                }
+                },
             });
+            if (!toggle.dataset.overflowFixBound) {
+                toggle.dataset.overflowFixBound = '1';
+                toggle.addEventListener('show.bs.dropdown', function() {
+                    var container = toggle.closest('.table-container');
+                    if (container) { container.dataset.previousOverflow = container.style.overflow; container.style.overflow = 'visible'; }
+                });
+                toggle.addEventListener('hidden.bs.dropdown', function() {
+                    var container = toggle.closest('.table-container');
+                    if (container) { container.style.overflow = container.dataset.previousOverflow || ''; delete container.dataset.previousOverflow; }
+                });
+            }
         } catch (e) { console.warn('Dropdown initialization skipped', e); }
     });
 }
@@ -220,6 +232,17 @@ function setupEditModalFormHandlers() {
     const modalForms = document.querySelectorAll('.modal form');
     
     modalForms.forEach(form => {
+        // Dynamic edit forms are more reliable as normal POSTs. The previous
+        // generic AJAX wrapper could swallow redirects/validation flashes and
+        // leave the modal looking unchanged, especially after HTMX swaps.
+        var modalId = form.closest('.modal') ? (form.closest('.modal').id || '') : '';
+        var formId = form.id || '';
+        var formAction = form.getAttribute('action') || '';
+        if (/edit/i.test(modalId + ' ' + formId + ' ' + formAction)) {
+            form.setAttribute('hx-boost', 'false');
+            form.setAttribute('data-no-ajax', '');
+            return;
+        }
         if (form.hasAttribute('data-no-ajax')) {
             return; // allow normal full-page form submission for create flows
         }
