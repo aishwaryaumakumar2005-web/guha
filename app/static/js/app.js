@@ -137,6 +137,7 @@ function initApp() {
     // Initialize table pagination for all data tables
     initializeTablePagination();
     initializeTablePresentation();
+    initializeAdvancedTableFeatures();
 
     // Initialize global search autocomplete (desktop + mobile)
     initGlobalSearch();
@@ -724,7 +725,8 @@ function initializeTableSorting() {
                 });
                 th.classList.add(newDir === 'asc' ? 'sort-asc' : 'sort-desc');
                 th.setAttribute('aria-sort', newDir === 'asc' ? 'ascending' : 'descending');
-                sortTableByColumn(table, index, newDir === 'asc');
+                var currentIndex = Array.from(th.parentNode.children).indexOf(th);
+                sortTableByColumn(table, currentIndex, newDir === 'asc');
             };
             th.addEventListener('click', sortColumn);
             th.addEventListener('keydown', event => {
@@ -916,6 +918,7 @@ function initializeTablePresentation() {
                 else if (/pending|progress|medium|scheduled|review/.test(value)) badge.classList.add('status-warning');
                 else if (/rejected|cancelled|failed|overdue|inactive|unpaid|absent/.test(value)) badge.classList.add('status-danger');
                 else if (/high|blocked|urgent/.test(value)) badge.classList.add('status-info');
+                addStatusProgress(badge, value);
             });
         });
     });
@@ -928,6 +931,74 @@ function initializeTablePresentation() {
         }
     });
 }
+
+function addStatusProgress(badge, value) {
+    if (badge.dataset.progressAdded === '1') return;
+    var cell = badge.closest('td');
+    if (!cell || !/status|progress|attendance|payment|course/i.test(cell.dataset.label || '')) return;
+    var percent = /verified|completed|paid|present|active/.test(value) ? 100 : /submitted|approved|visited/.test(value) ? 75 : /progress|contacted|partial/.test(value) ? 55 : /accepted|scheduled/.test(value) ? 35 : 15;
+    var progress = document.createElement('div');
+    progress.className = 'table-progress';
+    progress.setAttribute('role', 'progressbar');
+    progress.setAttribute('aria-valuenow', String(percent));
+    progress.setAttribute('aria-valuemin', '0'); progress.setAttribute('aria-valuemax', '100');
+    progress.innerHTML = '<span style="width:' + percent + '%"></span>';
+    cell.appendChild(progress); badge.dataset.progressAdded = '1';
+}
+
+function initializeAdvancedTableFeatures() {
+    document.querySelectorAll('table.table-custom').forEach(function(table) {
+        var headers = Array.from(table.querySelectorAll('thead th'));
+        if (!headers.length) return;
+        headers.forEach(function(th) {
+            if (th.querySelector('.table-resize-handle')) return;
+            th.classList.add('table-resizable', 'table-reorderable');
+            var handle = document.createElement('span'); handle.className = 'table-resize-handle'; handle.setAttribute('aria-hidden', 'true');
+            handle.addEventListener('mousedown', function(event) {
+                event.preventDefault(); event.stopPropagation();
+                var startX = event.clientX, startWidth = th.getBoundingClientRect().width;
+                handle.classList.add('is-resizing');
+                function move(e) { th.style.width = Math.max(70, startWidth + e.clientX - startX) + 'px'; }
+                function stop() { handle.classList.remove('is-resizing'); document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', stop); }
+                document.addEventListener('mousemove', move); document.addEventListener('mouseup', stop);
+            });
+            th.appendChild(handle); th.setAttribute('draggable', 'true');
+            th.addEventListener('dragstart', function() { th.classList.add('is-dragging'); });
+            th.addEventListener('dragend', function() { th.classList.remove('is-dragging'); headers.forEach(function(h) { h.classList.remove('table-drop-target'); }); });
+            th.addEventListener('dragover', function(e) { e.preventDefault(); if (!th.classList.contains('is-dragging')) th.classList.add('table-drop-target'); });
+            th.addEventListener('dragleave', function() { th.classList.remove('table-drop-target'); });
+            th.addEventListener('drop', function(e) {
+                e.preventDefault(); var source = table.querySelector('th.is-dragging'); th.classList.remove('table-drop-target');
+                if (!source || source === th) return;
+                var from = Array.from(source.parentNode.children).indexOf(source), to = Array.from(th.parentNode.children).indexOf(th);
+                table.querySelectorAll('tr').forEach(function(row) { var cells = Array.from(row.children), moving = cells[from]; if (moving) row.insertBefore(moving, to > from ? cells[to].nextSibling : cells[to]); });
+            });
+        });
+        table.querySelectorAll('tbody tr').forEach(function(row) { addExpandableRow(table, row); });
+        var renderedRows = table.querySelectorAll('tbody tr:not(.table-detail-row)');
+        if (renderedRows.length > 80 && !table._pagination) table.closest('.table-container')?.classList.add('table-virtual-scroll');
+    });
+}
+
+function addExpandableRow(table, row) {
+    if (row.dataset.expandableBound === '1' || row.classList.contains('table-empty-state') || row.classList.contains('table-detail-row')) return;
+    var cells = Array.from(row.children), first = cells[0];
+    if (!first || cells.length < 3) return;
+    row.dataset.expandableBound = '1';
+    var button = document.createElement('button'); button.type = 'button'; button.className = 'table-expand-btn'; button.setAttribute('aria-label', 'Show row details'); button.setAttribute('aria-expanded', 'false'); button.innerHTML = '<i class="bi bi-plus" aria-hidden="true"></i>';
+    first.insertBefore(button, first.firstChild);
+    var detail = document.createElement('tr'); detail.className = 'table-detail-row'; detail.hidden = true;
+    var detailCell = document.createElement('td'); detailCell.colSpan = cells.length; var grid = document.createElement('div'); grid.className = 'table-detail-grid';
+    cells.forEach(function(cell) { var label = cell.dataset.label || ''; if (!label || label.toLowerCase() === 'actions') return; var item = document.createElement('div'); item.innerHTML = '<small>' + escHtml(label) + '</small><span>' + escHtml(cell.textContent.trim()) + '</span>'; grid.appendChild(item); });
+    detailCell.appendChild(grid); detail.appendChild(detailCell); row.parentNode.insertBefore(detail, row.nextSibling);
+    button.addEventListener('click', function(event) { event.stopPropagation(); var opening = detail.hidden; detail.hidden = !opening; row.classList.toggle('is-expanded', opening); button.setAttribute('aria-expanded', String(opening)); button.innerHTML = '<i class="bi bi-' + (opening ? 'dash' : 'plus') + '" aria-hidden="true"></i>'; });
+}
+
+window.showTableRetryState = function(container, retryFn) {
+    if (!container) return;
+    container.innerHTML = '<div class="table-retry-state"><i class="bi bi-cloud-slash"></i><span>Unable to load this data.</span><button type="button" class="btn btn-sm btn-outline-info">Retry</button></div>';
+    var button = container.querySelector('button'); if (button) button.addEventListener('click', function() { button.disabled = true; button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Retrying'; if (typeof retryFn === 'function') retryFn(); });
+};
 
 function addTableDensityControl(table, toolbarRight, tableKey) {
     if (!toolbarRight || toolbarRight.querySelector('.table-density')) return;
@@ -968,6 +1039,7 @@ function renderTablePage(table) {
     // Show/hide rows and animate
     pagination.rows.forEach(function(row) {
         row.style.display = 'none';
+        if (row.nextElementSibling && row.nextElementSibling.classList.contains('table-detail-row')) row.nextElementSibling.style.display = 'none';
     });
     activeRows.slice(start, end).forEach(function(row, i) {
         row.style.display = '';
@@ -976,6 +1048,7 @@ function renderTablePage(table) {
         // Force reflow then re-add animation
         void row.offsetWidth;
         row.style.animation = '';
+        if (row.nextElementSibling && row.nextElementSibling.classList.contains('table-detail-row')) row.nextElementSibling.style.display = row.nextElementSibling.hidden ? 'none' : 'table-row';
     });
 
     // Update info text
