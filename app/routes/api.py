@@ -2,7 +2,7 @@ from datetime import date
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import Student, Tutor, Course, Enquiry, FeeRecord, Attendance, Expense, ExpenseCategory
+from app.models import Student, Tutor, Course, Enquiry, FeeRecord, Attendance, Expense, ExpenseCategory, student_courses
 from app.services.account_service import agreed_enrollment_items, student_refunded_total, _item_current_due
 from app.helpers import admin_required, staff_can_view_student
 from sqlalchemy.orm import subqueryload
@@ -97,6 +97,10 @@ def api_student_details(student_id):
 @login_required
 def api_tutor_details(tutor_id):
     tutor = Tutor.query.get_or_404(tutor_id)
+    if current_user.role == 'Staff':
+        own_tutor = Tutor.query.filter_by(email=current_user.email).first()
+        if not own_tutor or own_tutor.id != tutor_id:
+            return jsonify({'error': 'Access denied'}), 403
     attendance_records = Attendance.query.filter_by(person_type='tutor', person_id=tutor_id).all()
     total_days = len(attendance_records)
     days_present = sum(1 for r in attendance_records if r.status == 'Present')
@@ -145,22 +149,49 @@ def api_search():
         return jsonify({'results': {'students': [], 'tutors': [], 'courses': [], 'enquiries': []}})
     like = f'%{q}%'
     results = {'students': [], 'tutors': [], 'courses': [], 'enquiries': []}
-    for s in Student.query.filter(
+    staff_tutor = None
+    staff_course_ids = None
+    if current_user.role == 'Staff':
+        staff_tutor = Tutor.query.filter_by(email=current_user.email).first()
+        staff_course_ids = [c.id for c in staff_tutor.courses] if staff_tutor else []
+
+    student_query = Student.query.filter(
         db.or_(Student.name.ilike(like), Student.email.ilike(like), Student.phone.ilike(like),
                Student.roll_no.ilike(like))
-    ).limit(5).all():
+    )
+    if staff_course_ids is not None:
+        student_ids = db.session.query(student_courses.c.student_id).filter(
+            student_courses.c.course_id.in_(staff_course_ids),
+            db.or_(student_courses.c.status.is_(None), student_courses.c.status == 'Enrolled')
+        ).distinct()
+        student_query = student_query.filter(Student.id.in_(student_ids))
+    for s in student_query.limit(5).all():
         results['students'].append({'id': s.id, 'name': s.name, 'subtitle': s.email or s.phone, 'url': url_for('students.list'), 'badge': s.status})
-    for t in Tutor.query.filter(
+
+    tutor_query = Tutor.query.filter(
         db.or_(Tutor.name.ilike(like), Tutor.email.ilike(like), Tutor.phone.ilike(like),
                Tutor.emp_code.ilike(like))
-    ).limit(5).all():
+    )
+    if staff_tutor is not None:
+        tutor_query = tutor_query.filter(Tutor.id == staff_tutor.id)
+    elif current_user.role == 'Staff':
+        tutor_query = tutor_query.filter(db.false())
+    for t in tutor_query.limit(5).all():
         results['tutors'].append({'id': t.id, 'name': t.name, 'subtitle': t.specialization or t.email, 'url': url_for('tutors.list'), 'badge': t.status})
-    for c in Course.query.filter(
+
+    course_query = Course.query.filter(
         db.or_(Course.name.ilike(like), Course.code.ilike(like))
-    ).limit(5).all():
+    )
+    if staff_course_ids is not None:
+        course_query = course_query.filter(Course.id.in_(staff_course_ids))
+    for c in course_query.limit(5).all():
         results['courses'].append({'id': c.id, 'name': f'{c.code}: {c.name}', 'subtitle': f'Rs.{c.fees:,.0f}', 'url': url_for('courses.list'), 'badge': ''})
-    for e in Enquiry.query.filter(
+
+    enquiry_query = Enquiry.query.filter(
         db.or_(Enquiry.student_name.ilike(like), Enquiry.email.ilike(like), Enquiry.phone.ilike(like))
-    ).limit(5).all():
+    )
+    if current_user.role == 'Staff':
+        enquiry_query = enquiry_query.filter(db.false())
+    for e in enquiry_query.limit(5).all():
         results['enquiries'].append({'id': e.id, 'name': e.student_name, 'subtitle': e.course.name if e.course else '', 'url': url_for('enquiries.list'), 'badge': e.status})
     return jsonify({'results': results})

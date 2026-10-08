@@ -25,6 +25,25 @@ def test_search_finds_course(admin_client):
     assert any('Python' in c['name'] for c in data['results']['courses'])
 
 
+def test_staff_search_is_scoped_to_assigned_data(staff_client):
+    resp = staff_client.get('/api/search?q=Python')
+    assert resp.status_code == 200
+    data = resp.get_json()['results']
+    assert any('Python' in c['name'] for c in data['courses'])
+    assert data['enquiries'] == []
+
+
+def test_staff_cannot_read_another_tutor_details(staff_client, app):
+    with app.app_context():
+        tutor = Tutor.query.filter_by(email='staff@guha.test').first()
+        other = Tutor(name='Other Tutor', email='other@guha.test', phone='9123456780')
+        db.session.add(other)
+        db.session.commit()
+        own_id, other_id = tutor.id, other.id
+    assert staff_client.get(f'/api/tutors/{own_id}/details').status_code == 200
+    assert staff_client.get(f'/api/tutors/{other_id}/details').status_code == 403
+
+
 def test_student_details_api(admin_client):
     with admin_client.application.app_context():
         sid = Student.query.filter_by(email='student@guha.test').first().id
