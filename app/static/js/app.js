@@ -156,7 +156,11 @@ function initDropdowns() {
         try {
             var dropdown = bootstrap.Dropdown.getOrCreateInstance(toggle, {
                 boundary: 'viewport',
-                display: 'static',
+                // Dynamic Popper placement is required for menus inside the
+                // horizontally scrolling Tutors/Students table containers.
+                // Static display leaves the menu clipped or detached from
+                // the three-dot trigger.
+                display: 'dynamic',
                 popperConfig: function(defaultConfig) {
                     defaultConfig.strategy = 'fixed';
                     defaultConfig.modifiers = (defaultConfig.modifiers || []).concat([{ name: 'preventOverflow', options: { boundary: 'viewport', padding: 8 } }]);
