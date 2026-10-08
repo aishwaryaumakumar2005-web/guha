@@ -138,6 +138,8 @@ function initApp() {
     initializeTablePagination();
     initializeTablePresentation();
     initializeAdvancedTableFeatures();
+    normalizeTableRowsAndActions();
+    initDropdowns();
 
     // Initialize global search autocomplete (desktop + mobile)
     initGlobalSearch();
@@ -990,6 +992,61 @@ function initializeAdvancedTableFeatures() {
         table.querySelectorAll('tbody tr').forEach(function(row) { addExpandableRow(table, row); });
         var renderedRows = table.querySelectorAll('tbody tr:not(.table-detail-row)');
         if (renderedRows.length > 80 && !table._pagination) table.closest('.table-container')?.classList.add('table-virtual-scroll');
+    });
+}
+
+function normalizeTableRowsAndActions() {
+    document.querySelectorAll('table.table-custom').forEach(function(table) {
+        table.querySelectorAll('tbody tr').forEach(function(row) {
+            if (row.classList.contains('table-detail-row') || row.classList.contains('table-empty-state')) return;
+            var firstCell = row.children[0];
+            if (firstCell) {
+                firstCell.classList.add('table-primary-cell');
+                var primary = firstCell.querySelector('a, strong, .fw-bold, .fw-semibold, .fw-medium');
+                if (primary) primary.classList.add('table-primary-value');
+            }
+            var actionCell = Array.from(row.children).find(function(cell) { return cell.classList.contains('text-end') || (cell.dataset.label || '').toLowerCase() === 'actions'; });
+            if (!actionCell || actionCell.dataset.actionMenuReady === '1') return;
+            var group = actionCell.querySelector(':scope > .d-flex') || actionCell;
+            var existingMenu = actionCell.querySelector(':scope .dropdown');
+            var controls = Array.from(group.children).filter(function(node) {
+                return node.matches('a, button, form') || node.querySelector('button[type="submit"]');
+            });
+            if (existingMenu) {
+                var existingList = existingMenu.querySelector('.dropdown-menu');
+                controls.forEach(function(control) {
+                    var item = document.createElement('li');
+                    if (control.matches('form')) {
+                        var submit = control.querySelector('button[type="submit"]');
+                        if (submit) submit.classList.add('dropdown-item');
+                    } else control.classList.add('dropdown-item');
+                    item.appendChild(control);
+                    if (existingList) existingList.insertBefore(item, existingList.firstChild);
+                });
+                actionCell.dataset.actionMenuReady = '1';
+                return;
+            }
+            if (controls.length < 2) return;
+            var menu = document.createElement('div'); menu.className = 'dropdown table-action-menu';
+            var toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'btn btn-sm btn-outline-secondary'; toggle.setAttribute('data-bs-toggle', 'dropdown'); toggle.setAttribute('aria-expanded', 'false'); toggle.setAttribute('aria-label', 'More actions'); toggle.innerHTML = '<i class="bi bi-three-dots-vertical" aria-hidden="true"></i>';
+            var list = document.createElement('ul'); list.className = 'dropdown-menu dropdown-menu-end';
+            controls.forEach(function(control) {
+                var item = document.createElement('li');
+                if (control.matches('form')) {
+                    var submit = control.querySelector('button[type="submit"]');
+                    if (submit) submit.classList.add('dropdown-item');
+                    item.appendChild(control);
+                } else {
+                    control.classList.add(control.matches('a') ? 'dropdown-item' : 'dropdown-item');
+                    item.appendChild(control);
+                }
+                list.appendChild(item);
+            });
+            menu.appendChild(toggle); menu.appendChild(list);
+            if (group === actionCell) actionCell.replaceChildren(menu);
+            else { group.replaceChildren(menu); }
+            actionCell.dataset.actionMenuReady = '1';
+        });
     });
 }
 

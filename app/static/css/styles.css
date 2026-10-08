@@ -1703,6 +1703,14 @@ body.dark-mode .student-profile-page .student-back-link:focus {
 .table-custom td.table-action-group > form,
 .table-custom td.table-action-group > a,
 .table-custom td.table-action-group > button { display:inline-flex; align-items:center; margin:2px; }
+.table-action-menu { display:inline-block; }
+.table-action-menu > .btn { min-width:36px; padding:.3rem .55rem; border-radius:8px; }
+.table-action-menu .dropdown-menu { min-width:190px; padding:.35rem; }
+.table-action-menu .dropdown-item { border-radius:7px; font-size:.78rem; padding:.45rem .65rem; }
+.table-action-menu form { margin:0; }
+.table-primary-cell { min-width:180px; }
+.table-primary-value { color:#f4f8ff !important; font-weight:700 !important; }
+.table-primary-cell .small, .table-primary-cell .text-white-50 { color:rgba(232,241,255,.62) !important; font-size:.74rem; }
 .table-custom .table-action-group .btn { border-radius:8px; }
 .table-custom .table-action-group .btn-outline-danger:hover { box-shadow:0 0 0 3px rgba(255,107,107,.14); }
 .ui-avatar { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; flex:0 0 30px; border-radius:50%; background:linear-gradient(135deg,rgba(125,211,252,.3),rgba(27,110,243,.3)); color:#eaf4ff; font-size:.72rem; font-weight:700; text-transform:uppercase; }

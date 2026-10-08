@@ -493,7 +493,7 @@ My Leaves</span>
         {% block scripts %}{% endblock %}    </div>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- Core Integrated Client Javascript -->
-    <script src="{{ url_for('static', filename='js/app.js') }}?v=25">
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=26">
 </script>
     {% if current_user.is_authenticated %}<nav class="mobile-bottom-nav d-lg-none" aria-label="Mobile navigation">
         <a href="{{ url_for('dashboard.dashboard') }}" class="{% if request.path == '/' %}active{% endif %}"><i class="bi bi-grid-1x2-fill"></i><span>Home</span></a>
