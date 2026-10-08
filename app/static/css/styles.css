@@ -1328,8 +1328,8 @@ body.htmx-request #main-content {
     background: rgba(13, 39, 64, 0.5);
     border-bottom: 1px solid rgba(255,255,255,0.055);
 }
-.table-custom tbody tr { transition: transform .16s ease, filter .16s ease; }
-.table-custom tbody tr:hover { transform: translateY(-1px); filter: brightness(1.08); }
+.table-custom tbody tr { transition: background-color .16s ease, box-shadow .16s ease; }
+.table-custom tbody tr:hover { transform:none; filter:none; }
 .table-custom th:first-child, .table-custom td:first-child { padding-left: 16px; }
 .table-custom th:last-child, .table-custom td:last-child { padding-right: 16px; }
 .table-custom th.no-sort { cursor: default; }
@@ -1781,15 +1781,12 @@ body.dark-mode .student-profile-page .student-back-link:focus {
 
 /* ===== ROW FADE-IN ===== */
 .table-custom tbody tr {
-    /* No fill-mode: with `both` the final keyframe's transform persists,
-       making every row its own stacking context and painting an open
-       dropdown menu behind the following row. Reverting to base styles
-       after the animation keeps rows clipping-free. */
+    /* Keep rows free of transforms so fixed-position dropdowns stay stable. */
     animation: tableRowFadeIn 0.35s ease;
 }
 @keyframes tableRowFadeIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 /* ===== PAGINATION ===== */
