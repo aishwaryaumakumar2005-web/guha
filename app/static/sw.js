@@ -1,7 +1,7 @@
-const CACHE = 'guha-static-v2';
+const CACHE = 'guha-static-v3';
 const STATIC_ASSETS = [
   '/static/css/styles.css?v=60',
-  '/static/js/app.js?v=12',
+  '/static/js/app.js?v=21',
   '/static/images/logo.png'
 ];
 

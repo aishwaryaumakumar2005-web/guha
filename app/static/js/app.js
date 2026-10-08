@@ -738,12 +738,15 @@ function initializeTablePagination() {
         const tbody = table.querySelector('tbody');
         if (!tbody) return;
 
-        // This table is paginated by Flask. Avoid a second client-side pager.
-        if (table.dataset.serverPagination === 'true') return;
-
         const rows = Array.from(tbody.querySelectorAll('tr'));
         const pageSize = parseInt(table.dataset.pageSize, 10) || 10;
-        if (rows.length <= pageSize) return;
+
+        // Column visibility is independent of pagination. Server-paginated
+        // and short tables still need the Columns control.
+        if (table.dataset.serverPagination === 'true' || rows.length <= pageSize) {
+            initializeStandaloneTableColumns(table);
+            return;
+        }
 
         if (table._pagination) return;
 
@@ -861,6 +864,64 @@ function initializeTablePagination() {
 
         renderTablePage(table);
     });
+}
+
+// Add the shared Columns control to tables that do not use the client-side
+// pagination toolbar (server-paginated tables and short tables).
+function initializeStandaloneTableColumns(table) {
+    if (table._columnsInitialized) return;
+    const headers = Array.from(table.querySelectorAll('thead th'));
+    if (!headers.length) return;
+
+    var wrapper = document.createElement('div');
+    wrapper.className = 'table-toolbar table-columns-toolbar';
+    var right = document.createElement('div');
+    right.className = 'toolbar-right';
+
+    var columnsBtn = document.createElement('button');
+    columnsBtn.type = 'button';
+    columnsBtn.className = 'btn btn-sm btn-outline-premium ms-2';
+    columnsBtn.innerHTML = '<i class="bi bi-layout-three-columns me-1"></i>Columns';
+    columnsBtn.title = 'Choose visible columns';
+    columnsBtn.addEventListener('click', function(event) {
+        event.stopPropagation();
+        var menu = document.createElement('div');
+        menu.className = 'table-columns-menu p-2';
+        headers.forEach(function(th, index) {
+            var label = document.createElement('label');
+            label.className = 'd-block small mb-1';
+            var input = document.createElement('input');
+            input.type = 'checkbox';
+            input.checked = th.style.display !== 'none';
+            input.className = 'me-2';
+            input.addEventListener('change', function() {
+                table.querySelectorAll('tr').forEach(function(row) {
+                    if (row.children[index]) row.children[index].style.display = input.checked ? '' : 'none';
+                });
+                saveTableColumns(table);
+            });
+            label.appendChild(input);
+            label.appendChild(document.createTextNode(th.textContent.trim() || ('Column ' + (index + 1))));
+            menu.appendChild(label);
+        });
+        document.body.appendChild(menu);
+        var rect = columnsBtn.getBoundingClientRect();
+        menu.style.position = 'fixed';
+        menu.style.left = rect.left + 'px';
+        menu.style.top = (rect.bottom + 4) + 'px';
+        menu.style.zIndex = '1100';
+        function close() {
+            if (menu.parentNode) menu.remove();
+            document.removeEventListener('click', close);
+        }
+        setTimeout(function() { document.addEventListener('click', close); }, 0);
+    });
+
+    right.appendChild(columnsBtn);
+    wrapper.appendChild(right);
+    table.parentNode.insertBefore(wrapper, table);
+    restoreTableColumns(table);
+    table._columnsInitialized = true;
 }
 
 function tablePreferenceKey(table) {
