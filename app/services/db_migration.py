@@ -799,6 +799,22 @@ def migrate_task_workflow_columns():
         db.session.rollback()
 
 
+def migrate_task_enhancements():
+    """Add planning fields used by task checklists, recurrence, and capacity metrics."""
+    if not _table_exists('task'):
+        return
+    adds = [('checklist', 'TEXT'), ('recurrence', "VARCHAR(20) DEFAULT 'None'"),
+            ('effort_minutes', 'INTEGER'), ('recurrence_generated', 'BOOLEAN DEFAULT FALSE')]
+    for column, col_type in adds:
+        if not _has_column('task', column):
+            try:
+                db.session.execute(text('ALTER TABLE "task" ADD COLUMN "%s" %s' % (column, col_type)))
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                print(f"Migration migrate_task_enhancements: FAILED to add task.{column}: {e}", flush=True)
+
+
 def migrate_photos_to_db():
     """Copy any file-based photos (photo filename set, photo_data empty) into the DB.
 

@@ -10,6 +10,7 @@ from app.helpers import admin_required, is_ajax_request, save_photo_data
 tasks_bp = Blueprint('tasks', __name__)
 
 STATUSES = ('Pending', 'Accepted', 'In Progress', 'Submitted', 'Rejected', 'Blocked', 'Completed', 'Verified', 'Cancelled')
+CLOSED_STATUSES = ('Completed', 'Verified', 'Cancelled')
 
 TASK_TRANSITIONS = {
     'Pending': {'Accepted', 'Rejected', 'Cancelled'},
@@ -67,17 +68,6 @@ def list_tasks():
     statuses = list(STATUSES)
     if 'task_csrf_token' not in session:
         session['task_csrf_token'] = secrets.token_urlsafe(32)
-    if request.method == 'GET' and current_user.role in ('Staff', 'Operation'):
-        try:
-            Notification.query.filter_by(user_id=current_user.id, read_at=None).update(
-                {'read_at': datetime.utcnow()}, synchronize_session=False)
-            db.session.commit()
-        except Exception:
-            # Notifications are auxiliary; never block the task workspace if
-            # their table is unavailable during a rolling deployment.
-            db.session.rollback()
-            current_app.logger.exception('Unable to mark Operation notifications read')
-
     if request.method == 'POST':
         if not _task_csrf_ok():
             abort(400, description='Invalid task security token.')
@@ -90,11 +80,18 @@ def list_tasks():
         due_date_str = request.form.get('due_date', '').strip()
         priority = request.form.get('priority', 'Medium').strip()
         category = request.form.get('category', 'General').strip()
+        recurrence = request.form.get('recurrence', 'None').strip()
+        checklist = request.form.get('checklist', '').strip()
+        effort_minutes = request.form.get('effort_minutes', type=int)
 
         if priority not in priorities:
             priority = 'Medium'
         if category not in categories:
             category = 'General'
+        if recurrence not in ('None', 'Daily', 'Weekly', 'Monthly'):
+            recurrence = 'None'
+        if effort_minutes is not None and not 1 <= effort_minutes <= 10080:
+            effort_minutes = None
 
         if not tutor_id:
             flash('Please select a tutor to assign the task to.', 'danger')
@@ -115,7 +112,8 @@ def list_tasks():
                 return redirect(url_for('tasks.list_tasks'))
         task = Task(tutor_id=tutor_id, title=title, description=description,
                     assigned_by=current_user.id, due_date=due_date,
-                    priority=priority, category=category)
+                    priority=priority, category=category, recurrence=recurrence,
+                    checklist=checklist, effort_minutes=effort_minutes)
         db.session.add(task)
         db.session.flush()
         operator = User.query.filter(
@@ -171,8 +169,8 @@ def list_tasks():
         'total': len(all_tasks),
         'pending': sum(1 for t in all_tasks if t.status == 'Pending'),
         'in_progress': sum(1 for t in all_tasks if t.status == 'In Progress'),
-        'completed': sum(1 for t in all_tasks if t.status == 'Completed'),
-        'overdue': sum(1 for t in all_tasks if t.due_date and t.due_date < today and t.status != 'Completed')
+        'completed': sum(1 for t in all_tasks if t.status in ('Completed', 'Verified')),
+        'overdue': sum(1 for t in all_tasks if t.due_date and t.due_date < today and t.status not in CLOSED_STATUSES)
     }
 
     # Filters
@@ -194,7 +192,7 @@ def list_tasks():
     elif selected_status == 'Completed':
         query = query.filter(Task.status == 'Completed')
     elif selected_status == 'Overdue':
-        query = query.filter(Task.due_date < today, Task.status != 'Completed')
+        query = query.filter(Task.due_date < today, ~Task.status.in_(CLOSED_STATUSES))
 
     if selected_priority and selected_priority in priorities:
         query = query.filter(Task.priority == selected_priority)
@@ -221,11 +219,7 @@ def list_tasks():
     tutors = Tutor.query.filter_by(status='Active').order_by(Tutor.name).all()
 
     # Prepare kanban board groupings
-    kanban_groups = {
-        'Pending': [t for t in tasks if t.status == 'Pending'],
-        'In Progress': [t for t in tasks if t.status == 'In Progress'],
-        'Completed': [t for t in tasks if t.status == 'Completed']
-    }
+    kanban_groups = {status: [t for t in tasks if t.status == status] for status in STATUSES}
 
     return render_template('tasks.html',
                            tasks=tasks,
@@ -264,9 +258,22 @@ def update_status(id):
         data = request.get_json() or {}
         status = (data.get('status') or '').strip()
         notes = (data.get('notes') or '').strip()
+        expected_version = data.get('version')
     else:
         status = request.form.get('status', '').strip()
         notes = request.form.get('notes', '').strip()
+        expected_version = request.form.get('version')
+
+    # Clients may send the version they rendered. Reject stale writes instead
+    # of silently overwriting a newer status or note.
+    if expected_version not in (None, ''):
+        try:
+            if int(expected_version) != (task.version or 1):
+                error = 'This task was updated elsewhere. Refresh it before saving.'
+                return jsonify({'success': False, 'error': error, 'conflict': True,
+                                'version': task.version}), 409
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'error': 'Invalid task version.'}), 400
 
     if status not in STATUSES:
         if is_ajax_request() or request.is_json:
@@ -333,6 +340,26 @@ def update_status(id):
         task.verified_at = None
     task.version = (task.version or 1) + 1
     _history(task, 'STATUS_CHANGED', old_status, status, notes or None)
+    recurring_task = None
+    if status in ('Completed', 'Verified') and task.recurrence in ('Daily', 'Weekly', 'Monthly') and not task.recurrence_generated:
+        base_date = task.due_date or date.today()
+        if task.recurrence == 'Daily':
+            next_due = base_date + timedelta(days=1)
+        elif task.recurrence == 'Weekly':
+            next_due = base_date + timedelta(days=7)
+        else:
+            month = base_date.month % 12 + 1
+            year = base_date.year + (1 if base_date.month == 12 else 0)
+            next_due = date(year, month, min(base_date.day, 28))
+        recurring_task = Task(tutor_id=task.tutor_id, title=task.title,
+                              description=task.description, assigned_by=task.assigned_by,
+                              due_date=next_due, priority=task.priority,
+                              category=task.category, checklist=task.checklist,
+                              recurrence=task.recurrence, effort_minutes=task.effort_minutes)
+        task.recurrence_generated = True
+        db.session.add(recurring_task)
+        db.session.flush()
+        _history(recurring_task, 'CREATED', to_status='Pending', details=f'Recurrence from task #{task.id}')
     try:
         db.session.commit()
     except Exception:
@@ -358,9 +385,34 @@ def update_status(id):
             pass
 
     if is_ajax_request() or request.is_json:
-        return jsonify({'success': True, 'status': status, 'id': task.id, 'completed_date': task.completed_date.isoformat() if task.completed_date else None})
+        return jsonify({'success': True, 'status': status, 'id': task.id,
+                        'version': task.version,
+                        'completed_date': task.completed_date.isoformat() if task.completed_date else None})
 
     flash(f'Task status updated to {status}.', 'success')
+    return redirect(url_for('tasks.list_tasks'))
+
+
+@tasks_bp.route('/tasks/bulk-assign', methods=['POST'])
+@login_required
+@admin_required
+def bulk_assign_tasks():
+    if not _task_csrf_ok():
+        abort(400, description='Invalid task security token.')
+    tutor_id = request.form.get('tutor_id', type=int)
+    task_ids = [value for value in request.form.getlist('task_ids') if value.isdigit()]
+    tutor = Tutor.query.filter_by(id=tutor_id, status='Active').first() if tutor_id else None
+    if not tutor or not task_ids:
+        flash('Select an active tutor and at least one task.', 'danger')
+        return redirect(url_for('tasks.list_tasks'))
+    tasks = Task.query.filter(Task.id.in_([int(value) for value in task_ids]), Task.archived_at.is_(None)).all()
+    for task in tasks:
+        previous = task.tutor.name if task.tutor else 'Unassigned'
+        task.tutor_id = tutor.id
+        task.version = (task.version or 1) + 1
+        _history(task, 'REASSIGNED', details=f'{previous} → {tutor.name}')
+    db.session.commit()
+    flash(f'{len(tasks)} task(s) assigned to {tutor.name}.', 'success')
     return redirect(url_for('tasks.list_tasks'))
 
 
@@ -440,6 +492,9 @@ def edit_task(id):
     priority = request.form.get('priority', '').strip()
     category = request.form.get('category', '').strip()
     notes = request.form.get('notes', '').strip()
+    checklist = request.form.get('checklist', '').strip()
+    recurrence = request.form.get('recurrence', 'None').strip()
+    effort_minutes = request.form.get('effort_minutes', type=int)
     if not title:
         flash('Task title is required.', 'danger')
         return redirect(url_for('tasks.list_tasks'))
@@ -460,6 +515,12 @@ def edit_task(id):
         task.due_date = None
     if status in STATUSES:
         old_status = task.status
+        if status != old_status and status not in TASK_TRANSITIONS.get(old_status, set()):
+            flash(f'Invalid task transition: {old_status} → {status}.', 'danger')
+            return redirect(url_for('tasks.list_tasks'))
+        if status in ('Submitted', 'Rejected') and not notes:
+            flash('Please provide notes when submitting or rejecting a task.', 'danger')
+            return redirect(url_for('tasks.list_tasks'))
         task.status = status
         if status == 'Completed' and old_status != 'Completed':
             task.completed_date = datetime.utcnow()
@@ -472,6 +533,10 @@ def edit_task(id):
         task.priority = priority
     if category in ('General', 'Syllabus', 'Exam', 'Student Care', 'Admin'):
         task.category = category
+    if recurrence in ('None', 'Daily', 'Weekly', 'Monthly'):
+        task.recurrence = recurrence
+    task.checklist = checklist
+    task.effort_minutes = effort_minutes if effort_minutes and 1 <= effort_minutes <= 10080 else None
     task.notes = notes
     task.version = (task.version or 1) + 1
     db.session.commit()
@@ -498,11 +563,66 @@ def task_details(id):
     tutor = Tutor.query.filter(db.func.lower(Tutor.email) == (current_user.email or '').strip().lower()).first()
     if current_user.role not in ('Admin', 'Operation', 'Operator') and (not tutor or task.tutor_id != tutor.id):
         return jsonify({'error': 'Unauthorized'}), 403
+    history = TaskHistory.query.filter_by(task_id=task.id).order_by(TaskHistory.created_at.desc()).limit(50).all()
     return jsonify({'id': task.id, 'title': task.title, 'description': task.description or '',
                     'status': task.status, 'priority': task.priority or 'Medium',
                     'category': task.category or 'General', 'assignee': task.tutor.name if task.tutor else 'Unassigned',
                     'due_date': task.due_date.strftime('%d %b %Y') if task.due_date else 'No due date',
-                    'notes': task.notes or '', 'attachment': bool(task.completion_attachment)})
+                    'notes': task.notes or '', 'attachment': bool(task.completion_attachment),
+                    'attachment_url': url_for('tasks.task_attachment', id=task.id) if task.completion_attachment else None,
+                    'notification_status': task.notification_status or 'Not sent',
+                    'checklist': [item for item in (task.checklist or '').splitlines() if item.strip()],
+                    'recurrence': task.recurrence or 'None',
+                    'effort_minutes': task.effort_minutes,
+                    'version': task.version or 1,
+                    'history': [{'action': h.action, 'from_status': h.from_status,
+                                 'to_status': h.to_status, 'details': h.details,
+                                 'created_at': h.created_at.strftime('%d %b %Y, %I:%M %p') if h.created_at else ''}
+                                for h in history]})
+
+
+@tasks_bp.route('/tasks/checklist/<int:id>', methods=['POST'])
+@login_required
+def update_checklist(id):
+    if not _task_csrf_ok():
+        return jsonify({'success': False, 'error': 'Invalid security token'}), 400
+    task = Task.query.get_or_404(id)
+    tutor = Tutor.query.filter(db.func.lower(Tutor.email) == (current_user.email or '').strip().lower()).first()
+    if current_user.role not in ('Admin', 'Operation', 'Operator') and (not tutor or task.tutor_id != tutor.id):
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+    index = request.form.get('index', type=int)
+    checked = request.form.get('checked') == 'true'
+    items = [item.strip() for item in (task.checklist or '').splitlines() if item.strip()]
+    if index is None or index < 0 or index >= len(items):
+        return jsonify({'success': False, 'error': 'Invalid checklist item'}), 400
+    text = items[index].removeprefix('[x] ').removeprefix('[ ] ').strip()
+    items[index] = ('[x] ' if checked else '[ ] ') + text
+    task.checklist = '\n'.join(items)
+    task.version = (task.version or 1) + 1
+    _history(task, 'CHECKLIST_UPDATED', details=f'Item {index + 1} marked {"complete" if checked else "open"}')
+    db.session.commit()
+    return jsonify({'success': True, 'checklist': items, 'version': task.version})
+
+
+@tasks_bp.route('/tasks/analytics')
+@login_required
+def task_analytics():
+    """Role-scoped task metrics for dashboards and future charts."""
+    query = Task.query.filter(Task.archived_at.is_(None))
+    if current_user.role not in ('Admin', 'Operation', 'Operator'):
+        tutor = Tutor.query.filter(db.func.lower(Tutor.email) == (current_user.email or '').strip().lower()).first()
+        query = query.filter(Task.tutor_id == tutor.id if tutor else db.false())
+    rows = query.all()
+    today = date.today()
+    by_status = {status: sum(1 for task in rows if task.status == status) for status in STATUSES}
+    by_priority = {priority: sum(1 for task in rows if (task.priority or 'Medium') == priority)
+                   for priority in ('High', 'Medium', 'Low')}
+    overdue = sum(1 for task in rows if task.due_date and task.due_date < today and task.status not in CLOSED_STATUSES)
+    durations = [(task.completed_date - task.created_at).total_seconds() / 86400
+                 for task in rows if task.completed_date and task.created_at]
+    return jsonify({'total': len(rows), 'by_status': by_status, 'by_priority': by_priority,
+                    'overdue': overdue,
+                    'average_completion_days': round(sum(durations) / len(durations), 2) if durations else 0})
 
 
 @tasks_bp.route('/tasks/attachment/<int:id>')

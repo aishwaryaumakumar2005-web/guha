@@ -36,6 +36,9 @@
                 <i class="bi bi-plus-circle me-1"></i>Assign Task
             </button>
             {% endif %}
+            <button class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#taskAnalyticsModal" style="padding:6px 14px;font-size:0.8rem;">
+                <i class="bi bi-bar-chart-line me-1"></i>Analytics
+            </button>
         </div>
     </div>
 
@@ -197,7 +200,7 @@
                 </div>
                 <div class="d-flex flex-column gap-2" style="min-height:200px;">
                     {% for t in kanban_groups['Pending'] %}
-                    {% set is_overdue = t.due_date and t.due_date < today and t.status != 'Completed' %}
+                    {% set is_overdue = t.due_date and t.due_date < today and t.status not in ('Completed', 'Verified', 'Cancelled') %}
                     <div class="p-3 rounded" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);">
                         <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
                             <span class="badge" style="{% if t.priority == 'High' %}background:rgba(220,53,69,0.2);color:#ff6b6b;border:1px solid rgba(220,53,69,0.4);{% elif t.priority == 'Medium' %}background:rgba(255,193,7,0.2);color:#ffc107;border:1px solid rgba(255,193,7,0.4);{% else %}background:rgba(108,117,125,0.2);color:#ced4da;{% endif %}font-size:0.6rem;">
@@ -250,7 +253,7 @@
                 </div>
                 <div class="d-flex flex-column gap-2" style="min-height:200px;">
                     {% for t in kanban_groups['In Progress'] %}
-                    {% set is_overdue = t.due_date and t.due_date < today and t.status != 'Completed' %}
+                    {% set is_overdue = t.due_date and t.due_date < today and t.status not in ('Completed', 'Verified', 'Cancelled') %}
                     <div class="p-3 rounded" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);">
                         <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
                             <span class="badge" style="{% if t.priority == 'High' %}background:rgba(220,53,69,0.2);color:#ff6b6b;border:1px solid rgba(220,53,69,0.4);{% elif t.priority == 'Medium' %}background:rgba(255,193,7,0.2);color:#ffc107;border:1px solid rgba(255,193,7,0.4);{% else %}background:rgba(108,117,125,0.2);color:#ced4da;{% endif %}font-size:0.6rem;">
@@ -332,6 +335,28 @@
         </div>
     </div>
 
+    <!-- Additional workflow states not shown in the primary three-column view. -->
+    <div class="row g-3 mt-1">
+        {% for board_status in ['Accepted', 'Submitted', 'Rejected', 'Blocked', 'Verified', 'Cancelled'] %}
+        <div class="col-12 col-md-6 col-xl-2">
+            <div class="glass-card p-3 h-100" style="border-top:3px solid rgba(125,211,252,.55);">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="fw-bold text-white mb-0 small">{{ board_status }}</h6>
+                    <span class="badge bg-secondary">{{ kanban_groups[board_status]|length }}</span>
+                </div>
+                {% for t in kanban_groups[board_status] %}
+                <div class="p-2 mb-2 rounded" style="background:rgba(255,255,255,.04);">
+                    <div class="small fw-semibold text-white">{{ t.title }}</div>
+                    <div class="small text-white-50 mt-1">{{ t.tutor.name if t.tutor else 'Unassigned' }}</div>
+                    {% if t.due_date %}<div class="small text-white-50 mt-1"><i class="bi bi-calendar-event me-1"></i>{{ t.due_date.strftime('%d %b') }}</div>{% endif %}
+                    <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 mt-2 task-details-btn" data-id="{{ t.id }}" data-bs-toggle="modal" data-bs-target="#taskDetailsModal">Details</button>
+                </div>
+                {% else %}<div class="small text-white-50">No tasks</div>{% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
     {% else %}
     <!-- ==================== TABLE VIEW ==================== -->
     <div class="glass-card p-4">
@@ -342,9 +367,21 @@
             </h5>
         </div>
         <div class="table-container">
+            {% if current_user.role in ('Admin', 'Operation', 'Operator') %}
+            <form method="POST" action="{{ url_for('tasks.bulk_assign_tasks') }}" class="d-flex flex-wrap align-items-center gap-2 mb-3" id="bulkAssignForm">
+                <input type="hidden" name="task_csrf_token" value="{{ task_csrf_token }}">
+                <select class="form-select form-select-sm" name="tutor_id" style="max-width:220px;" aria-label="Assign selected tasks to">
+                    <option value="">Assign selected to…</option>
+                    {% for tu in tutors %}<option value="{{ tu.id }}">{{ tu.name }}</option>{% endfor %}
+                </select>
+                <button type="submit" class="btn btn-sm btn-outline-info"><i class="bi bi-people me-1"></i>Bulk assign</button>
+                <span class="small text-white-50" id="selectedTaskCount">0 selected</span>
+            </form>
+            {% endif %}
             <table class="table table-custom sortable" data-page-size="10">
                 <thead>
                     <tr>
+                        {% if current_user.role in ('Admin', 'Operation', 'Operator') %}<th><input type="checkbox" id="selectAllTasks" aria-label="Select all visible tasks"></th>{% endif %}
                         <th>Title &amp; Category</th>
                         {% if current_user.role in ('Admin', 'Operation', 'Operator') %}<th>Assigned To</th>{% endif %}
                         <th>Priority</th>
@@ -358,8 +395,9 @@
                 <tbody>
                     {% if tasks %}
                         {% for t in tasks %}
-                        {% set is_overdue = t.due_date and t.due_date < today and t.status != 'Completed' %}
+                        {% set is_overdue = t.due_date and t.due_date < today and t.status not in ('Completed', 'Verified', 'Cancelled') %}
                         <tr id="task-row-{{ t.id }}" class="align-middle" style="{% if is_overdue %}border-left: 3px solid #dc3545; background: rgba(220, 53, 69, 0.04);{% elif t.status == 'Completed' %}border-left: 3px solid #00BFA6;{% elif t.status == 'In Progress' %}border-left: 3px solid #0dcaf0;{% else %}border-left: 3px solid #ffc107;{% endif %}">
+                            {% if current_user.role in ('Admin', 'Operation', 'Operator') %}<td><input type="checkbox" name="task_ids" value="{{ t.id }}" form="bulkAssignForm" class="task-select" aria-label="Select {{ t.title }}"></td>{% endif %}
                             <td>
                                 <div class="d-flex align-items-center gap-2">
                                     <button type="button" class="btn btn-link p-0 text-start fw-semibold text-white task-details-btn" data-id="{{ t.id }}" data-bs-toggle="modal" data-bs-target="#taskDetailsModal">{{ t.title }}</button>
@@ -425,7 +463,7 @@
                             {% endif %}
                             <td class="text-end text-nowrap">
                                 <!-- WhatsApp Reminder for Admin (Item 15) -->
-                                {% if current_user.role in ('Admin', 'Operation', 'Operator') and t.status != 'Completed' and t.tutor and t.tutor.phone %}
+                                {% if current_user.role in ('Admin', 'Operation', 'Operator') and t.status not in ('Completed', 'Verified', 'Cancelled') and t.tutor and t.tutor.phone %}
                                 <a href="https://wa.me/{{ t.tutor.phone|replace('+', '')|replace(' ', '') }}?text=Hello%20{{ t.tutor.name }}%2C%20reminder%20regarding%20task%3A%20%22{{ t.title|urlencode }}%22{% if t.due_date %}%20due%20on%20{{ t.due_date.strftime('%d %b %Y') }}{% endif %}." 
                                    target="_blank" class="btn btn-sm btn-outline-success me-1" title="Send WhatsApp Reminder">
                                     <i class="bi bi-whatsapp"></i>
@@ -450,6 +488,9 @@
                                         data-priority="{{ t.priority or 'Medium' }}"
                                         data-category="{{ t.category or 'General' }}"
                                         data-notes="{{ (t.notes or '')|e }}"
+                                        data-recurrence="{{ t.recurrence or 'None' }}"
+                                        data-effort-minutes="{{ t.effort_minutes or '' }}"
+                                        data-checklist="{{ (t.checklist or '')|e }}"
                                         title="Edit Task">
                                     <i class="bi bi-pencil-square"></i>
                                 </button>
@@ -503,6 +544,13 @@
  <div class="modal-body"><div id="taskDetailsBody" class="small text-white-50">Loading...</div></div></div></div>
 </div>
 
+<div class="modal fade" id="taskAnalyticsModal" tabindex="-1" aria-labelledby="taskAnalyticsTitle" aria-hidden="true">
+ <div class="modal-dialog modal-dialog-centered"><div class="modal-content" style="background:#1a1d2e;border:1px solid rgba(255,255,255,.15);">
+  <div class="modal-header border-secondary border-opacity-25"><h5 id="taskAnalyticsTitle" class="modal-title text-white"><i class="bi bi-bar-chart-line me-2"></i>Task analytics</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button></div>
+  <div class="modal-body"><div id="taskAnalyticsBody" class="small text-white-50">Loading...</div></div>
+ </div></div>
+</div>
+
 <!-- Assign Task Modal (Admin only) -->
                                 {% if current_user.role in ('Admin', 'Operation', 'Operator') %}
 <div class="modal fade" id="assignTaskModal" tabindex="-1" aria-hidden="true">
@@ -554,6 +602,11 @@
                         <label class="form-label text-white small fw-semibold">Due Date</label>
                         <input type="date" class="form-control" name="due_date" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
                     </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6"><label class="form-label text-white small fw-semibold">Recurrence</label><select class="form-select" name="recurrence"><option>None</option><option>Daily</option><option>Weekly</option><option>Monthly</option></select></div>
+                        <div class="col-6"><label class="form-label text-white small fw-semibold">Effort (minutes)</label><input type="number" class="form-control" name="effort_minutes" min="1" max="10080"></div>
+                    </div>
+                    <div class="mb-3"><label class="form-label text-white small fw-semibold">Checklist</label><textarea class="form-control" name="checklist" rows="3" placeholder="One checklist item per line"></textarea></div>
                 </div>
                 <div class="modal-footer border-secondary border-opacity-25">
                     <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">Cancel</button>
@@ -617,9 +670,7 @@
                         <div class="col-6">
                             <label class="form-label text-white small fw-semibold">Status</label>
                             <select class="form-select" id="edit_status" name="status" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);">
-                                <option value="Pending">Pending</option>
-                                <option value="In Progress">In Progress</option>
-                                <option value="Completed">Completed</option>
+                                {% for task_status in statuses %}<option value="{{ task_status }}">{{ task_status }}</option>{% endfor %}
                             </select>
                         </div>
                     </div>
@@ -627,6 +678,8 @@
                         <label class="form-label text-white small fw-semibold">Remarks / Notes</label>
                         <textarea class="form-control" id="edit_notes" name="notes" rows="2" style="background:rgba(255,255,255,0.06);color:#fff;border-color:rgba(255,255,255,0.15);"></textarea>
                     </div>
+                    <div class="row g-2 mb-3"><div class="col-6"><label class="form-label text-white small fw-semibold">Recurrence</label><select class="form-select" id="edit_recurrence" name="recurrence"><option>None</option><option>Daily</option><option>Weekly</option><option>Monthly</option></select></div><div class="col-6"><label class="form-label text-white small fw-semibold">Effort (minutes)</label><input type="number" class="form-control" id="edit_effort_minutes" name="effort_minutes" min="1" max="10080"></div></div>
+                    <div class="mb-3"><label class="form-label text-white small fw-semibold">Checklist</label><textarea class="form-control" id="edit_checklist" name="checklist" rows="3" placeholder="One checklist item per line"></textarea></div>
                     <div class="border-top border-secondary border-opacity-25 pt-3">
                         <label class="form-label text-white small fw-semibold"><i class="bi bi-clock-history me-1"></i>Activity history</label>
                         <div id="edit_task_history" class="small text-white-50" aria-live="polite">Select a task to load history.</div>
@@ -690,13 +743,48 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    var selectAll = document.getElementById('selectAllTasks');
+    var taskChecks = Array.prototype.slice.call(document.querySelectorAll('.task-select'));
+    var selectedCount = document.getElementById('selectedTaskCount');
+    function refreshSelectedCount() {
+        if (selectedCount) selectedCount.textContent = taskChecks.filter(function(box) { return box.checked; }).length + ' selected';
+    }
+    if (selectAll) selectAll.addEventListener('change', function() { taskChecks.forEach(function(box) { box.checked = selectAll.checked; }); refreshSelectedCount(); });
+    taskChecks.forEach(function(box) { box.addEventListener('change', refreshSelectedCount); });
+    var analyticsModal = document.getElementById('taskAnalyticsModal');
+    if (analyticsModal) analyticsModal.addEventListener('show.bs.modal', function() {
+        var target = document.getElementById('taskAnalyticsBody');
+        target.textContent = 'Loading...';
+        fetch('/tasks/analytics').then(function(r) { return r.json(); }).then(function(data) {
+            var statuses = Object.keys(data.by_status || {}).map(function(key) {
+                return '<div class="d-flex justify-content-between border-bottom border-secondary border-opacity-25 py-1"><span>' + esc(key) + '</span><strong>' + data.by_status[key] + '</strong></div>';
+            }).join('');
+            target.innerHTML = '<div class="row g-2 mb-3"><div class="col-4"><strong>Total</strong><br>' + data.total + '</div><div class="col-4"><strong>Overdue</strong><br>' + data.overdue + '</div><div class="col-4"><strong>Avg. days</strong><br>' + data.average_completion_days + '</div></div><strong>Status breakdown</strong><div class="mt-1">' + statuses + '</div>';
+        }).catch(function() { target.textContent = 'Analytics are unavailable.'; });
+    });
     document.querySelectorAll('.task-details-btn').forEach(function(btn) { btn.addEventListener('click', function() {
         var body = document.getElementById('taskDetailsBody'); body.textContent = 'Loading...';
         fetch('/tasks/details/' + btn.dataset.id).then(function(r){return r.json();}).then(function(t){
             document.getElementById('taskDetailsTitle').textContent = t.title;
-            body.innerHTML = '<div class="row g-2"><div class="col-6"><strong>Status</strong><br>'+esc(t.status)+'</div><div class="col-6"><strong>Priority</strong><br>'+esc(t.priority)+'</div><div class="col-6"><strong>Assigned to</strong><br>'+esc(t.assignee)+'</div><div class="col-6"><strong>Due date</strong><br>'+esc(t.due_date)+'</div><div class="col-12 mt-3"><strong>Description</strong><br>'+esc(t.description||'No description')+'</div><div class="col-12 mt-3"><strong>Notes</strong><br>'+esc(t.notes||'No notes')+'</div></div>';
+            var history = (t.history || []).map(function(row) {
+                var transition = row.from_status ? row.from_status + ' → ' + row.to_status : (row.to_status || '');
+                return '<div class="border-start border-info ps-2 mb-2"><strong>' + esc(row.action) + '</strong>' +
+                    (transition ? ' <span class="text-info">' + esc(transition) + '</span>' : '') +
+                    '<div class="text-white-50">' + esc(row.details || '') + '</div><small class="text-white-50">' + esc(row.created_at) + '</small></div>';
+            }).join('');
+            var checklist = (t.checklist || []).map(function(item, index) {
+                var done = item.indexOf('[x] ') === 0;
+                var label = item.replace(/^\[x\] |^\[ \] /, '');
+                return '<label class="d-block mb-1"><input type="checkbox" class="me-2" '+(done ? 'checked' : '')+' onchange="toggleTaskChecklist('+t.id+','+index+',this.checked)">'+esc(label)+'</label>';
+            }).join('');
+            body.innerHTML = '<div class="row g-2"><div class="col-6"><strong>Status</strong><br>'+esc(t.status)+'</div><div class="col-6"><strong>Priority</strong><br>'+esc(t.priority)+'</div><div class="col-6"><strong>Assigned to</strong><br>'+esc(t.assignee)+'</div><div class="col-6"><strong>Due date</strong><br>'+esc(t.due_date)+'</div><div class="col-12"><strong>Notification</strong><br>'+esc(t.notification_status || 'Not sent')+'</div><div class="col-12 mt-3"><strong>Checklist</strong><div class="mt-2">'+(checklist || '<span class="text-white-50">No checklist items.</span>')+'</div></div><div class="col-12 mt-3"><strong>Description</strong><br>'+esc(t.description||'No description')+'</div><div class="col-12 mt-3"><strong>Notes</strong><br>'+esc(t.notes||'No notes')+'</div><div class="col-12 mt-3"><strong>Activity timeline</strong><div class="mt-2">'+(history || '<span class="text-white-50">No activity recorded.</span>')+'</div></div>'+(t.attachment_url ? '<div class="col-12 mt-2"><a class="btn btn-sm btn-outline-info" target="_blank" href="'+t.attachment_url+'">View evidence</a></div>' : '')+'</div>';
         }).catch(function(){ body.textContent = 'Task details are unavailable.'; });
     }); });
+    window.toggleTaskChecklist = function(id, index, checked) {
+        var body = new URLSearchParams({index: String(index), checked: String(checked), task_csrf_token: '{{ task_csrf_token }}'});
+        fetch('/tasks/checklist/' + id, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: body})
+            .catch(function() { showToast('Checklist update failed.', 'danger'); });
+    };
     // 1. Dynamic Edit Modal Population (Admin)
     var editModalEl = document.getElementById('dynamicEditTaskModal');
     var editModal = editModalEl ? new bootstrap.Modal(editModalEl) : null;
@@ -740,6 +828,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
             var notesInput = document.getElementById('edit_notes');
             if (notesInput) notesInput.value = btn.getAttribute('data-notes') || '';
+            var recurrenceInput = document.getElementById('edit_recurrence');
+            if (recurrenceInput) recurrenceInput.value = btn.getAttribute('data-recurrence') || 'None';
+            var effortInput = document.getElementById('edit_effort_minutes');
+            if (effortInput) effortInput.value = btn.getAttribute('data-effort-minutes') || '';
+            var checklistInput = document.getElementById('edit_checklist');
+            if (checklistInput) checklistInput.value = btn.getAttribute('data-checklist') || '';
 
             var historyEl = document.getElementById('edit_task_history');
             if (historyEl) {

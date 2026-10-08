@@ -42,6 +42,12 @@ class Task(db.Model):
     archived_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'))
     blocked_reason = db.Column(db.Text)
     version = db.Column(db.Integer, default=1, nullable=False)
+    # Planning enhancements. Stored as newline-delimited checklist items so
+    # legacy databases can adopt the feature without a new join table.
+    checklist = db.Column(db.Text)
+    recurrence = db.Column(db.String(20), default='None')
+    effort_minutes = db.Column(db.Integer)
+    recurrence_generated = db.Column(db.Boolean, default=False, nullable=False)
 
     tutor = db.relationship('Tutor', backref='tasks')
     # Task has two User foreign keys (assigned_by and archived_by); make the

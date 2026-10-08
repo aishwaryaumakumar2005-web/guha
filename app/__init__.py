@@ -748,6 +748,8 @@ def create_app(config_object=None):
             try:
                 from app.services.db_migration import migrate_task_workflow_columns
                 migrate_task_workflow_columns()
+                from app.services.db_migration import migrate_task_enhancements
+                migrate_task_enhancements()
             except Exception as e:
                 print('Failed to ensure task workflow columns:', e, file=sys.stderr)
 
