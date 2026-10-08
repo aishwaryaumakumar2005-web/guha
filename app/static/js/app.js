@@ -679,7 +679,12 @@ function initializeTableSorting() {
     tables.forEach(table => {
         const headers = table.querySelectorAll('thead th');
         headers.forEach((th, index) => {
-            if (th.classList.contains('no-sort')) return;
+            const headerText = th.textContent.trim().toLowerCase();
+            if (th.classList.contains('no-sort') || !headerText || headerText === 'actions' || headerText === 'action') {
+                th.classList.add('no-sort');
+                th.setAttribute('aria-sort', 'none');
+                return;
+            }
             th.style.position = 'relative';
             th.style.cursor = 'pointer';
             if (!th.hasAttribute('aria-sort')) th.setAttribute('aria-sort', 'none');
@@ -735,6 +740,14 @@ function sortTableByColumn(table, columnIndex, asc = true) {
 function initializeTablePagination() {
     const tables = document.querySelectorAll('table.table-custom');
     tables.forEach(table => {
+        // Supply mobile card labels from the header once, so every table gets
+        // the same responsive behavior without duplicating labels in markup.
+        const labels = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+        table.querySelectorAll('tbody tr').forEach(row => {
+            Array.from(row.children).forEach((cell, index) => {
+                if (!cell.hasAttribute('data-label') && labels[index]) cell.setAttribute('data-label', labels[index]);
+            });
+        });
         const tbody = table.querySelector('tbody');
         if (!tbody && !table.querySelector('thead')) return;
 

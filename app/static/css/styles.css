@@ -1298,30 +1298,44 @@ body.htmx-request #main-content {
 .stagger-3 { transition-delay: 240ms; }
 .stagger-4 { transition-delay: 320ms; }
 
-/* ===== TABLE ===== */
-.table-container { width: 100%; overflow-x: auto; }
+/* ===== TABLE SYSTEM ===== */
+.table-container {
+    width: 100%;
+    overflow-x: auto;
+    border-radius: 12px;
+    overscroll-behavior-x: contain;
+}
 .glass-card .table-container { margin: -1.25rem -1.25rem 0; width: calc(100% + 2.5rem); max-width: calc(100% + 2.5rem); }
-.table-custom { margin-bottom: 0; min-width: 100%; width: 100%; border: none; border-collapse: separate; border-spacing: 0 6px; }
+.table-custom { margin-bottom: 0; min-width: 720px; width: 100%; border: none; border-collapse: separate; border-spacing: 0 5px; }
 .table-custom th {
     position: sticky; top: 0;
     z-index: 2;
     background: rgba(13, 39, 64, 0.95);
     color: #ffffff;
     font-family: var(--font-heading);
-    font-weight: 700;
+    font-weight: 650;
     text-transform: uppercase;
-    font-size: 0.75rem;
-    letter-spacing: 0.06em;
-    padding: 14px 16px;
+    font-size: 0.68rem;
+    letter-spacing: 0.075em;
+    white-space: nowrap;
+    padding: 11px 14px;
     border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 .table-custom td {
-    padding: 13px 16px;
+    padding: 11px 14px;
     vertical-align: middle;
     color: #ffffff;
     background: rgba(13, 39, 64, 0.5);
-    border-bottom: 1px solid rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(255,255,255,0.055);
 }
+.table-custom tbody tr { transition: transform .16s ease, filter .16s ease; }
+.table-custom tbody tr:hover { transform: translateY(-1px); filter: brightness(1.08); }
+.table-custom th:first-child, .table-custom td:first-child { padding-left: 16px; }
+.table-custom th:last-child, .table-custom td:last-child { padding-right: 16px; }
+.table-custom th.no-sort { cursor: default; }
+.table-custom td .btn { white-space: nowrap; }
+.table-custom td.text-end { min-width: 110px; }
+.table-custom .badge { font-weight: 600; letter-spacing: .01em; }
 .table-custom tr td:first-child { border-radius: 10px 0 0 10px; padding-left: 18px; }
 .table-custom tr td:last-child { border-radius: 0 10px 10px 0; padding-right: 18px; }
 .table-custom tr:hover td {
@@ -1341,6 +1355,7 @@ body.htmx-request #main-content {
 .form-select.is-valid { border-color: #20c997 !important; box-shadow: 0 0 0 0.18rem rgba(32,201,151,.12); }
 .table-container { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.25) transparent; }
 .table-container:focus-within { outline: 2px solid rgba(13,202,240,.55); outline-offset: 2px; }
+.table-custom caption { caption-side: top; color: rgba(232,241,255,.62); padding: 0 0 .65rem; font-size: .78rem; }
 .mobile-bottom-nav { display:flex; position:fixed; left:0; right:0; bottom:0; z-index:1040; justify-content:space-around; padding:.45rem .25rem calc(.45rem + env(safe-area-inset-bottom)); background:rgba(10,28,46,.97); border-top:1px solid rgba(255,255,255,.14); box-shadow:0 -4px 18px rgba(0,0,0,.25); }
 .mobile-bottom-nav a, .mobile-bottom-nav button { flex:1; border:0; background:transparent; color:rgba(255,255,255,.62); text-decoration:none; display:flex; flex-direction:column; align-items:center; gap:2px; font-size:.66rem; min-height:42px; }
 .mobile-bottom-nav i { font-size:1.15rem; line-height:1; }
@@ -2158,6 +2173,7 @@ body.sidebar-open .sidebar-overlay { display: block; opacity: 1; }
     .badge-custom { font-size: 0.62rem; padding: 4px 8px; }
     .nav-tabs .nav-link { font-size: 0.78rem; padding: 7px 8px; }
 
+    .table-custom { min-width: 0; border-spacing: 0; }
     .table-custom thead { display: none; }
     .table-custom tr {
         display: flex; flex-direction: column;
@@ -2175,6 +2191,7 @@ body.sidebar-open .sidebar-overlay { display: block; opacity: 1; }
         border-bottom: 1px solid rgba(255,255,255,0.04) !important;
         box-shadow: none !important;
     }
+    .table-custom td[data-label=""]::before { display: none; }
     .table-custom td:last-child { border-bottom: none !important; }
     .table-custom td::before {
         content: attr(data-label);
