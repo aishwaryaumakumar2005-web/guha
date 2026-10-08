@@ -151,7 +151,16 @@ function initApp() {
 }
 
 function initDropdowns() {
-    if (!window.bootstrap || !bootstrap.Dropdown) return;
+    if (!window.bootstrap || !bootstrap.Dropdown) {
+        // Bootstrap is loaded with defer in base.html and may not exist yet
+        // when the main app script reaches this function.
+        window._dropdownInitAttempts = (window._dropdownInitAttempts || 0) + 1;
+        if (window._dropdownInitAttempts <= 25) {
+            setTimeout(initDropdowns, 80);
+        }
+        return;
+    }
+    window._dropdownInitAttempts = 0;
     document.querySelectorAll('[data-bs-toggle="dropdown"]').forEach(function(toggle) {
         try {
             var dropdown = bootstrap.Dropdown.getOrCreateInstance(toggle, {
