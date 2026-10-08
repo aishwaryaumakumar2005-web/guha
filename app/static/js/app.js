@@ -140,6 +140,7 @@ function initApp() {
     initializeAdvancedTableFeatures();
     normalizeTableRowsAndActions();
     initDropdowns();
+    initializeTableDropdownFallback();
 
     // Initialize global search autocomplete (desktop + mobile)
     initGlobalSearch();
@@ -191,6 +192,32 @@ function initDropdowns() {
             }
         } catch (e) { console.warn('Dropdown initialization skipped', e); }
     });
+}
+
+function initializeTableDropdownFallback() {
+    if (window._tableDropdownFallbackBound) return;
+    window._tableDropdownFallbackBound = true;
+    document.addEventListener('click', function(event) {
+        var toggle = event.target.closest('.table-container .dropdown > [data-bs-toggle="dropdown"]');
+        if (!toggle) {
+            document.querySelectorAll('.table-container .dropdown-menu[data-manual-open="1"]').forEach(function(menu) {
+                menu.classList.remove('show'); menu.removeAttribute('data-manual-open'); menu.style.position = ''; menu.style.top = ''; menu.style.left = '';
+            });
+            return;
+        }
+        var instance = window.bootstrap && bootstrap.Dropdown ? bootstrap.Dropdown.getInstance(toggle) : null;
+        if (instance) return;
+        event.preventDefault(); event.stopPropagation();
+        var menu = toggle.parentElement.querySelector('.dropdown-menu');
+        if (!menu) return;
+        document.querySelectorAll('.table-container .dropdown-menu[data-manual-open="1"]').forEach(function(openMenu) {
+            openMenu.classList.remove('show'); openMenu.removeAttribute('data-manual-open');
+        });
+        var rect = toggle.getBoundingClientRect();
+        menu.style.position = 'fixed'; menu.style.top = Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - 8) + 'px';
+        menu.style.left = Math.max(8, rect.right - menu.offsetWidth) + 'px';
+        menu.style.zIndex = '1080'; menu.classList.add('show'); menu.setAttribute('data-manual-open', '1');
+    }, true);
 }
 
 window.addEventListener('error', function(event) {
