@@ -687,9 +687,11 @@ function initializeTableSorting() {
             }
             th.style.position = 'relative';
             th.style.cursor = 'pointer';
+            th.setAttribute('tabindex', '0');
+            th.setAttribute('role', 'button');
             if (!th.hasAttribute('aria-sort')) th.setAttribute('aria-sort', 'none');
             th.innerHTML = `${th.innerHTML} <span class="sort-indicator"></span>`;
-            th.addEventListener('click', () => {
+            const sortColumn = () => {
                 const currentDir = th.classList.contains('sort-asc') ? 'asc' : th.classList.contains('sort-desc') ? 'desc' : null;
                 const newDir = currentDir === 'asc' ? 'desc' : 'asc';
                 headers.forEach(header => {
@@ -699,6 +701,10 @@ function initializeTableSorting() {
                 th.classList.add(newDir === 'asc' ? 'sort-asc' : 'sort-desc');
                 th.setAttribute('aria-sort', newDir === 'asc' ? 'ascending' : 'descending');
                 sortTableByColumn(table, index, newDir === 'asc');
+            };
+            th.addEventListener('click', sortColumn);
+            th.addEventListener('keydown', event => {
+                if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); sortColumn(); }
             });
         });
     });
@@ -739,7 +745,14 @@ function sortTableByColumn(table, columnIndex, asc = true) {
 
 function initializeTablePagination() {
     const tables = document.querySelectorAll('table.table-custom');
-    tables.forEach(table => {
+    tables.forEach((table, tableIndex) => {
+        const headersForFeatures = table.querySelectorAll('thead th');
+        const tableKey = table.id || table.dataset.tableKey || ('table-' + tableIndex);
+        table.dataset.tableKey = tableKey;
+        if (headersForFeatures.length >= 5) table.classList.add('table-sticky-columns');
+        const savedDensity = localStorage.getItem('table-density-' + tableKey) || 'comfortable';
+        table.classList.remove('table-density-compact', 'table-density-spacious');
+        if (savedDensity !== 'comfortable') table.classList.add('table-density-' + savedDensity);
         // Supply mobile card labels from the header once, so every table gets
         // the same responsive behavior without duplicating labels in markup.
         const labels = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
@@ -756,7 +769,10 @@ function initializeTablePagination() {
 
         // This table is paginated by Flask. Avoid a second client-side pager.
         if (table.dataset.serverPagination === 'true') return;
-        if (rows.length <= pageSize) return;
+        if (rows.length <= pageSize) {
+            addTableDensityControl(table, null, tableKey);
+            return;
+        }
 
         if (table._pagination) return;
 
@@ -810,6 +826,7 @@ function initializeTablePagination() {
 
         right.appendChild(info);
         right.appendChild(rpp);
+        addTableDensityControl(table, right, tableKey);
         if (!serverSearch) right.appendChild(exportBtn);
         if (!serverSearch) wrapper.appendChild(searchWrap);
         wrapper.appendChild(right);
@@ -828,6 +845,12 @@ function initializeTablePagination() {
             searchQuery: ''
         };
 
+        var savedSearch = localStorage.getItem('table-search-' + tableKey) || '';
+        if (pagination.searchEl && savedSearch) {
+            pagination.searchEl.value = savedSearch;
+            pagination.searchQuery = savedSearch.toLowerCase().trim();
+        }
+
         var controls = document.createElement('div');
         controls.className = 'table-pagination';
         table.parentNode.insertBefore(controls, table.nextSibling);
@@ -838,6 +861,7 @@ function initializeTablePagination() {
         if (pagination.searchEl) {
             pagination.searchEl.addEventListener('input', function() {
                 pagination.searchQuery = this.value.toLowerCase().trim();
+                localStorage.setItem('table-search-' + tableKey, this.value);
                 pagination.currentPage = 1;
                 renderTablePage(table);
             });
@@ -852,6 +876,21 @@ function initializeTablePagination() {
 
         renderTablePage(table);
     });
+}
+
+function addTableDensityControl(table, toolbarRight, tableKey) {
+    if (!toolbarRight || toolbarRight.querySelector('.table-density')) return;
+    var wrap = document.createElement('label');
+    wrap.className = 'table-density';
+    wrap.innerHTML = 'Density <select class="form-select form-select-sm" aria-label="Table density"><option value="compact">Compact</option><option value="comfortable">Comfortable</option><option value="spacious">Spacious</option></select>';
+    var select = wrap.querySelector('select');
+    select.value = localStorage.getItem('table-density-' + tableKey) || 'comfortable';
+    select.addEventListener('change', function() {
+        table.classList.remove('table-density-compact', 'table-density-spacious');
+        if (this.value !== 'comfortable') table.classList.add('table-density-' + this.value);
+        localStorage.setItem('table-density-' + tableKey, this.value);
+    });
+    toolbarRight.appendChild(wrap);
 }
 
 function getActiveRows(pagination) {
