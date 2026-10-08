@@ -1341,7 +1341,6 @@ body.htmx-request #main-content {
 .form-select.is-valid { border-color: #20c997 !important; box-shadow: 0 0 0 0.18rem rgba(32,201,151,.12); }
 .table-container { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.25) transparent; }
 .table-container:focus-within { outline: 2px solid rgba(13,202,240,.55); outline-offset: 2px; }
-.table-columns-menu { background:#0d2740; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.35); min-width:180px; }
 .mobile-bottom-nav { display:flex; position:fixed; left:0; right:0; bottom:0; z-index:1040; justify-content:space-around; padding:.45rem .25rem calc(.45rem + env(safe-area-inset-bottom)); background:rgba(10,28,46,.97); border-top:1px solid rgba(255,255,255,.14); box-shadow:0 -4px 18px rgba(0,0,0,.25); }
 .mobile-bottom-nav a, .mobile-bottom-nav button { flex:1; border:0; background:transparent; color:rgba(255,255,255,.62); text-decoration:none; display:flex; flex-direction:column; align-items:center; gap:2px; font-size:.66rem; min-height:42px; }
 .mobile-bottom-nav i { font-size:1.15rem; line-height:1; }
