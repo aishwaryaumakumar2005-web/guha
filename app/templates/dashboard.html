@@ -266,38 +266,22 @@
         </div>
 
 
-        <!-- Recent Payments + Birthdays &amp; Anniversaries -->
-        <div id="dashboard-recent-activity" class="bento-card bento-xl-12 bento-md-12 animate-on-scroll" style="order:10;">
+        <!-- Recent Activity + Birthdays &amp; Anniversaries -->
+        <div id="dashboard-recent-activity" class="bento-card bento-xl-8 bento-md-12 animate-on-scroll" style="order:10;">
             <div class="glass-card p-4 h-100">
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h5 class="mb-0 fw-bold"><i class="bi bi-journal-text me-2" style="color:hsl(200,100%,50%);"></i>Recent Payments</h5>
-                    <a href="{{ url_for('fees.list') }}" class="btn btn-sm" style="background:transparent;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);border-radius:8px;padding:4px 14px;font-size:0.8rem;">View All</a>
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-activity me-2" style="color:hsl(200,100%,50%);"></i>Recent Activity</h5>
+                    <span class="small text-white-50">Latest updates</span>
                 </div>
-                <div class="table-container">
-                    <table class="table table-custom sortable" data-page-size="10">
-                        <thead><tr><th scope="col" aria-sort="none">Student</th><th scope="col" aria-sort="none">Amount</th><th scope="col" aria-sort="none">Date</th><th scope="col" class="no-sort">Method</th><th scope="col" class="no-sort">Status</th></tr></thead>
-                        <tbody>
-                            {% if recent_fees %}
-                                {% for fee in recent_fees %}
-                                    <tr>
-                                        <td data-label="Student" class="fw-medium text-white small"><a href="{{ url_for('students.profile', id=fee.student.id) }}" class="text-info text-decoration-none" title="View {{ fee.student.name }}'s details">{{ fee.student.name }}</a></td>
-                                        <td data-label="Amount" class="fw-semibold small" style="color:hsl(200,100%,50%);">₹{{ "{:,.2f}".format(fee.amount_paid) }}</td>
-                                        <td data-label="Date" class="text-white small" style="opacity:0.7;">{{ fee.payment_date.strftime("%d %b %Y") }}</td>
-                                        <td data-label="Method"><span class="badge badge-custom badge-cyan" style="font-size:0.6rem;">{{ fee.payment_method }}</span></td>
-                                        <td data-label="Status">
-                                            {% if fee.concession and fee.concession > 0 %}
-                                                <span class="badge" style="background:rgba(255,193,7,0.2);color:#ffc107;border:1px solid rgba(255,193,7,0.3);font-size:0.58rem;">Concession</span>
-                                            {% else %}
-                                                <span class="badge" style="background:rgba(0,191,166,0.15);color:#00BFA6;border:1px solid rgba(0,191,166,0.3);font-size:0.58rem;">Full</span>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                {% endfor %}
-                            {% else %}
-                                <tr>{{ empty_state('No recent payments', 'Fee payments will appear here once a collection is recorded', 'fees', none, none, none, 5) }}</tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
+                <div class="d-flex flex-column gap-2">
+                    {% for item in recent_activity %}
+                    <div class="d-flex align-items-center gap-3 p-2 rounded" style="background:rgba(255,255,255,0.03);">
+                        <i class="bi {{ item.icon }} text-info" aria-hidden="true"></i>
+                        <div class="flex-grow-1 small text-white">{{ item.text }}</div>
+                        <div class="text-white-50 small text-nowrap">{{ item.date.strftime('%d %b %Y') }}</div>
+                        <span class="badge badge-custom badge-cyan" style="font-size:0.58rem;">{{ item.kind }}</span>
+                    </div>
+                    {% else %}<div class="text-center py-4 text-white-50 small">No recent activity.</div>{% endfor %}
                 </div>
             </div>
         </div>

@@ -3,7 +3,7 @@ from datetime import date, datetime, timedelta
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
 from app.extensions import db
-from app.models import User, Student, Tutor, Course, Enquiry, FeeRecord, Attendance, LeaveRequest, Exam, Task, student_courses
+from app.models import User, Student, Tutor, Course, Enquiry, FeeRecord, Attendance, LeaveRequest, Exam, Task, AuditLog, student_courses
 from app.helpers import admin_required, get_gst_rates, is_ajax_request
 from app.services.account_service import (compute_account_summary,
                                           agreed_enrollment_items_bulk,
@@ -168,6 +168,25 @@ def _today_figures(today):
 def _recent_lists():
     return (Enquiry.query.order_by(Enquiry.id.desc()).limit(5).all(),
             FeeRecord.query.order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).limit(5).all())
+
+
+def _recent_activity_feed(limit=12):
+    """Build a compact, date-sorted activity feed for the dashboard."""
+    activities = []
+    for student in Student.query.order_by(Student.enrollment_date.desc(), Student.id.desc()).limit(limit).all():
+        activities.append({'date': student.enrollment_date, 'kind': 'Admission',
+                           'text': f'{student.name} admitted', 'icon': 'bi-person-plus'})
+    for fee in FeeRecord.query.order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).limit(limit).all():
+        activities.append({'date': fee.payment_date, 'kind': 'Payment',
+                           'text': f'{fee.student.name} paid ₹{fee.amount_paid:,.2f}', 'icon': 'bi-cash-stack'})
+    for enquiry in Enquiry.query.order_by(Enquiry.updated_at.desc(), Enquiry.id.desc()).limit(limit).all():
+        activities.append({'date': (enquiry.updated_at or enquiry.created_at).date(), 'kind': 'Enquiry',
+                           'text': f'{enquiry.student_name} · {enquiry.status}', 'icon': 'bi-chat-left-text'})
+    for log in AuditLog.query.order_by(AuditLog.timestamp.desc(), AuditLog.id.desc()).limit(limit).all():
+        if log.entity_type in ('Task', 'Student', 'Enquiry', 'FeeRecord'):
+            activities.append({'date': log.timestamp.date(), 'kind': 'Status change',
+                               'text': f'{log.entity_type} {log.entity_id or ""} · {log.action}', 'icon': 'bi-arrow-repeat'})
+    return sorted(activities, key=lambda item: item['date'], reverse=True)[:limit]
 
 
 def _fee_chart(today, months=6):
@@ -430,6 +449,7 @@ def dashboard():
         stats['monthly_fees_collected'] = 0.0
         recent_enquiries = []
         recent_fees = []
+        recent_activity = []
         chart_months = []
         chart_data = []
         pending_leaves_count, approved_leaves_count = _safe(
@@ -469,6 +489,7 @@ def dashboard():
         staff_today_exams, staff_attendance_done = _safe('staff_today_info', _staff_today_info, ([], False))
     else:
         recent_enquiries, recent_fees = _safe('recent_lists', _recent_lists, ([], []))
+        recent_activity = _safe('recent_activity', _recent_activity_feed, [])
         chart_months, chart_data = _safe(
             'fee_chart', lambda: _fee_chart(today), ([], []))
         top_courses = _safe('top_courses', _top_courses, [])
@@ -486,6 +507,7 @@ def dashboard():
     return render_template('dashboard.html',
         stats=stats, recent_enquiries=recent_enquiries,
         recent_fees=recent_fees, chart_months=chart_months, chart_data=chart_data,
+        recent_activity=recent_activity,
         top_courses=top_courses,
         due_students=due_students, total_outstanding=total_outstanding, dues_ageing=dues_ageing,
         capacity_courses=capacity_courses, overflow_capacity=overflow_capacity,
