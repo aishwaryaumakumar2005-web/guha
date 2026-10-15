@@ -105,7 +105,7 @@
     <div class="glass-card p-3 mb-4" id="lcKpiCard">
         <div class="d-flex justify-content-between align-items-center">
             <h6 class="mb-0 text-white fw-bold"><i class="bi bi-bar-chart-line-fill me-2 text-info" aria-hidden="true"></i>Course retention (all time)</h6>
-            <button class="btn btn-sm btn-outline-premium collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#lcKpiBody" aria-expanded="false" aria-controls="lcKpiBody"><i class="bi bi-chevron-down" aria-hidden="true"></i></button>
+            <button class="btn btn-sm btn-outline-premium collapsed" type="button" id="lcKpiToggle" aria-expanded="false" aria-controls="lcKpiBody"><i class="bi bi-chevron-down" aria-hidden="true"></i></button>
         </div>
         <div class="collapse" id="lcKpiBody">
             {% if kpis %}
@@ -415,6 +415,24 @@
         lcFetchList();
     }
     function lcInit() {
+        var kpiToggle = document.getElementById('lcKpiToggle');
+        var kpiBody = document.getElementById('lcKpiBody');
+        if (kpiToggle && kpiBody && !kpiToggle.dataset.bound) {
+            kpiToggle.dataset.bound = '1';
+            kpiToggle.addEventListener('click', function () {
+                if (!window.bootstrap || !bootstrap.Collapse) return;
+                var collapse = bootstrap.Collapse.getOrCreateInstance(kpiBody, {toggle: false});
+                collapse.toggle();
+            });
+            kpiBody.addEventListener('shown.bs.collapse', function () {
+                kpiToggle.classList.remove('collapsed');
+                kpiToggle.setAttribute('aria-expanded', 'true');
+            });
+            kpiBody.addEventListener('hidden.bs.collapse', function () {
+                kpiToggle.classList.add('collapsed');
+                kpiToggle.setAttribute('aria-expanded', 'false');
+            });
+        }
         // Convert the base flash banner into a toast, matching the app's
         // notification language, then drop the banner.
         document.querySelectorAll('.flash-alert').forEach(function (el) {
