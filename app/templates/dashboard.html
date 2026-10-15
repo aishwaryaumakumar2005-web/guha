@@ -189,50 +189,6 @@
             </div>
         </div>
 
-        <!-- Course Capacity Utilisation -->
-        <div class="bento-card bento-xl-4 bento-md-12 animate-on-scroll stagger-1">
-            <div class="glass-card p-4 h-100">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0 fw-bold"><i class="bi bi-bar-chart-fill me-2" style="color:hsl(200,100%,55%);" aria-hidden="true"></i>Course Capacity</h5>
-                    <a href="{{ url_for('courses.list') }}" class="btn btn-sm" style="background:transparent;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);border-radius:8px;padding:4px 12px;font-size:0.75rem;">Courses</a>
-                </div>
-                {% if overflow_capacity %}
-                    <div class="small mb-3" style="color:#ffc107;"><i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>{{ overflow_capacity }} course{{ 's' if overflow_capacity != 1 else '' }} over capacity</div>
-                {% else %}
-                    <div class="small text-white-50 mb-3" style="opacity:0.7;">Seat utilisation across {{ capacity_courses|length }} courses</div>
-                {% endif %}
-                <div class="d-flex flex-column gap-3">
-                    {% for c in capacity_courses[:5] %}
-                        {% set pct = c.pct if c.pct <= 100 else 100 %}
-                        {% if c.pct >= 90 %}
-                            {% set bar_color = 'hsl(0,100%,60%)' %}
-                        {% elif c.pct >= 70 %}
-                            {% set bar_color = 'hsl(40,100%,55%)' %}
-                        {% else %}
-                            {% set bar_color = 'hsl(150,100%,45%)' %}
-                        {% endif %}
-                        <div>
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <span class="small text-white text-truncate fw-medium me-2">{{ c.code }} · {{ c.name }}</span>
-                                <span class="small fw-bold flex-shrink-0" style="color:{{ bar_color }};">{{ c.enrolled }}/{{ c.capacity }} <span style="opacity:0.6;">{{ c.pct }}%</span></span>
-                            </div>
-                            <div class="progress" style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;">
-                                <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct }}" style="width:{{ pct }}%;background:{{ bar_color }};border-radius:3px;transition:width 0.5s ease;"></div>
-                            </div>
-                        </div>
-                    {% endfor %}
-                    {% if not capacity_courses %}
-                        <div class="text-center py-3"><p class="small text-white-50 mb-0">No courses yet.</p></div>
-                    {% endif %}
-                </div>
-                {% if capacity_courses|length > 5 %}
-                <div class="mt-3 pt-2 border-top text-center" style="border-color:rgba(255,255,255,0.08);">
-                    <a href="{{ url_for('courses.list') }}" class="small text-decoration-none" style="color:rgba(255,255,255,0.45);font-size:0.72rem;">Showing 5 of {{ capacity_courses|length }} courses</a>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-
         <!-- Top Courses -->
         <div class="bento-card bento-xl-4 bento-md-12 animate-on-scroll stagger-1">
             <div class="glass-card p-4 h-100">
