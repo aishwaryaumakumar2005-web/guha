@@ -58,7 +58,7 @@
 
     <div class="bento-grid{% if current_user.role not in ('Admin', 'Operation') %} staff-dashboard-kpi{% endif %}">
         <!-- Stat Cards -->
-        <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll">
+        <div class="bento-card bento-xl-3 bento-md-6 dashboard-kpi-card animate-on-scroll">
             <a href="{{ url_for('students.list') }}" class="text-decoration-none d-block h-100">
             <div class="summary-card students">
                 <div><div class="stat-number">{{ stats.active_students }}</div><div class="stat-label">Active Students</div></div>
@@ -70,7 +70,7 @@
             </a>
         </div>
         {% if current_user.role in ('Admin', 'Operation') %}
-        <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll stagger-1">
+        <div class="bento-card bento-xl-3 bento-md-6 dashboard-kpi-card animate-on-scroll stagger-1">
             <a href="{{ url_for('courses.list') }}" class="text-decoration-none d-block h-100">
             <div class="summary-card courses">
                 <div><div class="stat-number">{{ stats.courses }}</div><div class="stat-label">Courses</div></div>
@@ -79,7 +79,7 @@
             </div>
             </a>
         </div>
-        <div class="bento-card bento-xl-3 bento-md-6 animate-on-scroll stagger-2">
+        <div class="bento-card bento-xl-3 bento-md-6 dashboard-kpi-card animate-on-scroll stagger-2">
             <a href="{{ url_for('tutors.list') }}" class="text-decoration-none d-block h-100">
             <div class="summary-card staff">
                 <div><div class="stat-number">{{ stats.tutors }}</div><div class="stat-label">Staff</div></div>
@@ -117,7 +117,7 @@
             </a>
         </div>
         {% endif %}
-        <div class="bento-card bento-xl-{{ 12 if current_user.role not in ('Admin', 'Operation') else 3 }} bento-md-6 animate-on-scroll stagger-4{% if current_user.role not in ('Admin', 'Operation') %} staff-attendance-kpi{% endif %}">
+        <div class="bento-card bento-xl-{{ 12 if current_user.role not in ('Admin', 'Operation') else 3 }} bento-md-6 dashboard-kpi-card animate-on-scroll stagger-4{% if current_user.role not in ('Admin', 'Operation') %} staff-attendance-kpi{% endif %}">
             <a href="{{ url_for('attendance.attendance') }}" class="text-decoration-none d-block h-100">
             <div class="summary-card staff">
                 <div><div class="stat-number">{{ ('%d%%' % stats.avg_student_attendance) if stats.avg_student_attendance is not none else '—' }}</div><div class="stat-label">Attendance</div></div>
@@ -406,7 +406,7 @@
         {% endif %}
     </div>
 </div>
-<style>.dashboard-sparkline{width:120px;height:28px;overflow:visible;opacity:.85}.dashboard-sparkline polyline{fill:none;stroke:#7dd3fc;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.dashboard-sparkline.admissions polyline{stroke:#60a5fa}.dashboard-sparkline.attendance polyline{stroke:#4ade80}.dashboard-modern .activity-status-change .dashboard-activity-icon{background:rgba(245,158,11,.16);color:#fbbf24}.dashboard-modern .dashboard-timeline-item{min-height:2rem}.dashboard-modern .dashboard-timeline-item .dashboard-activity-text{font-size:.78rem;line-height:1.25;min-width:0}.dashboard-modern .dashboard-activity-date{flex:0 0 4.8rem;width:4.8rem;text-align:right;font-size:.68rem;line-height:1.2}.dashboard-modern .dashboard-activity-kind{display:inline-flex;align-items:center;justify-content:center;flex:0 0 5.2rem;width:5.2rem;min-height:1.35rem;font-size:.58rem;line-height:1;white-space:nowrap}@media (max-width:767.98px){.dashboard-modern .glass-card{border-radius:14px}.dashboard-modern .dashboard-timeline-item{gap:.5rem!important}.dashboard-modern .dashboard-timeline-item .badge{display:none}.dashboard-modern .dashboard-phase{margin-top:.85rem}.dashboard-modern .dashboard-ring{width:40px;height:40px}.dashboard-modern .dashboard-activity-date{flex-basis:3.8rem;width:3.8rem}.dashboard-modern .dashboard-activity-kind{display:none}}</style>
+<style>.dashboard-sparkline{width:120px;height:28px;overflow:visible;opacity:.85}.dashboard-sparkline polyline{fill:none;stroke:#7dd3fc;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.dashboard-sparkline.admissions polyline{stroke:#60a5fa}.dashboard-sparkline.attendance polyline{stroke:#4ade80}.dashboard-modern .activity-status-change .dashboard-activity-icon{background:rgba(245,158,11,.16);color:#fbbf24}.dashboard-modern .dashboard-kpi-card,.dashboard-modern .dashboard-kpi-card>a,.dashboard-modern .dashboard-kpi-card .summary-card{height:100%}.dashboard-modern .dashboard-kpi-card .summary-card{min-height:180px;box-sizing:border-box}.dashboard-modern .dashboard-kpi-card .summary-card .dashboard-sparkline{margin-top:auto}.dashboard-modern .dashboard-timeline-item{min-height:2rem}.dashboard-modern .dashboard-timeline-item .dashboard-activity-text{font-size:.78rem;line-height:1.25;min-width:0}.dashboard-modern .dashboard-activity-date{flex:0 0 4.8rem;width:4.8rem;text-align:right;font-size:.68rem;line-height:1.2}.dashboard-modern .dashboard-activity-kind{display:inline-flex;align-items:center;justify-content:center;flex:0 0 5.2rem;width:5.2rem;min-height:1.35rem;font-size:.58rem;line-height:1;white-space:nowrap}@media (max-width:767.98px){.dashboard-modern .glass-card{border-radius:14px}.dashboard-modern .dashboard-timeline-item{gap:.5rem!important}.dashboard-modern .dashboard-timeline-item .badge{display:none}.dashboard-modern .dashboard-phase{margin-top:.85rem}.dashboard-modern .dashboard-ring{width:40px;height:40px}.dashboard-modern .dashboard-activity-date{flex-basis:3.8rem;width:3.8rem}.dashboard-modern .dashboard-activity-kind{display:none}}</style>
 <script>
 function fetchWithTimeout(url, opts) {
     opts = opts || {};
