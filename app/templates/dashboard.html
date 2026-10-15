@@ -357,7 +357,7 @@
                             {% if recent_fees %}
                                 {% for fee in recent_fees %}
                                     <tr>
-                                        <td data-label="Student" class="fw-medium text-white small">{{ fee.student.name }}</td>
+                                        <td data-label="Student" class="fw-medium text-white small"><a href="{{ url_for('students.profile', id=fee.student.id) }}" class="text-info text-decoration-none" title="View {{ fee.student.name }}'s details">{{ fee.student.name }}</a></td>
                                         <td data-label="Amount" class="fw-semibold small" style="color:hsl(200,100%,50%);">₹{{ "{:,.2f}".format(fee.amount_paid) }}</td>
                                         <td data-label="Date" class="text-white small" style="opacity:0.7;">{{ fee.payment_date.strftime("%d %b %Y") }}</td>
                                         <td data-label="Method"><span class="badge badge-custom badge-cyan" style="font-size:0.6rem;">{{ fee.payment_method }}</span></td>
