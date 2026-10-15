@@ -1,4 +1,4 @@
-{% extends 'base.html' %}{% block title %}Dashboard{% endblock %}{% block head_extra %}<style>.dashboard-skeleton{height:12px;border-radius:6px;background:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.14) 50%,rgba(255,255,255,.06) 75%);background-size:200% 100%;animation:dashboardShimmer 1.4s infinite}.dashboard-modern .glass-card{border:1px solid rgba(148,163,184,.13);border-radius:18px;box-shadow:0 14px 34px rgba(2,8,23,.18)}.dashboard-modern .glass-card h5{letter-spacing:-.02em}.dashboard-modern .bento-card{min-width:0}.dashboard-modern .dashboard-timeline{position:relative;padding-left:1.25rem}.dashboard-modern .dashboard-timeline:before{content:"";position:absolute;left:.32rem;top:.35rem;bottom:.35rem;width:1px;background:rgba(125,211,252,.22)}.dashboard-modern .dashboard-timeline-item{position:relative;padding:0 0 .65rem}.dashboard-modern .dashboard-timeline-item:before{content:"";position:absolute;left:-1.25rem;top:.38rem;width:.55rem;height:.55rem;border:2px solid #0ea5e9;border-radius:50%;background:#0b1f36;box-shadow:0 0 0 3px rgba(14,165,233,.08)}.dashboard-modern .dashboard-timeline-item:last-child{padding-bottom:0}.dashboard-modern .dashboard-phase{color:rgba(148,163,184,.72);font-size:.65rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700;margin:.65rem 0 .45rem}.dashboard-modern .dashboard-phase:first-child{margin-top:0}@keyframes dashboardShimmer{to{background-position:-200% 0}}</style>{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item active" aria-current="page">Dashboard</li>{% endblock %}{% block content %}<div class="container-fluid p-0 dashboard-modern">
+{% extends 'base.html' %}{% block title %}Dashboard{% endblock %}{% block head_extra %}<style>.dashboard-skeleton{height:12px;border-radius:6px;background:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.14) 50%,rgba(255,255,255,.06) 75%);background-size:200% 100%;animation:dashboardShimmer 1.4s infinite}.dashboard-modern .glass-card{border:1px solid rgba(148,163,184,.13);border-radius:18px;box-shadow:0 14px 34px rgba(2,8,23,.18)}.dashboard-modern .glass-card h5{letter-spacing:-.02em}.dashboard-modern .bento-card{min-width:0}.dashboard-modern .dashboard-timeline{position:relative;padding-left:1.25rem}.dashboard-modern .dashboard-timeline:before{content:"";position:absolute;left:.32rem;top:.35rem;bottom:.35rem;width:1px;background:rgba(125,211,252,.22)}.dashboard-modern .dashboard-timeline-item{position:relative;padding:0 0 .65rem}.dashboard-modern .dashboard-timeline-item:before{content:"";position:absolute;left:-1.25rem;top:.38rem;width:.55rem;height:.55rem;border:2px solid #0ea5e9;border-radius:50%;background:#0b1f36;box-shadow:0 0 0 3px rgba(14,165,233,.08)}.dashboard-modern .dashboard-timeline-item:last-child{padding-bottom:0}.dashboard-modern .dashboard-phase{color:rgba(148,163,184,.72);font-size:.65rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700;margin:.65rem 0 .45rem}.dashboard-modern .dashboard-phase:first-child{margin-top:0}.dashboard-modern .dashboard-trend{font-size:.68rem;font-weight:600;letter-spacing:.01em}.dashboard-modern .dashboard-trend.up{color:#34d399}.dashboard-modern .dashboard-trend.down{color:#fb7185}.dashboard-modern .dashboard-trend.flat{color:rgba(226,232,240,.55)}.dashboard-modern .dashboard-ring{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(#22c55e calc(var(--ring-value) * 1%),rgba(255,255,255,.1) 0);position:relative}.dashboard-modern .dashboard-ring:after{content:"";position:absolute;inset:5px;border-radius:50%;background:#102a43}.dashboard-modern .dashboard-ring span{position:relative;z-index:1;font-size:.65rem;font-weight:700;color:#fff}.dashboard-modern .dashboard-activity-icon{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;flex:0 0 28px}.dashboard-modern .activity-admission .dashboard-activity-icon{background:rgba(59,130,246,.16);color:#60a5fa}.dashboard-modern .activity-payment .dashboard-activity-icon{background:rgba(34,197,94,.16);color:#4ade80}.dashboard-modern .activity-enquiry .dashboard-activity-icon{background:rgba(168,85,247,.16);color:#c084fc}.dashboard-modern .activity-status .dashboard-activity-icon{background:rgba(245,158,11,.16);color:#fbbf24}.dashboard-modern .glass-card,.dashboard-modern .summary-card{transition:transform .2s ease,box-shadow .2s ease}.dashboard-modern .glass-card:hover,.dashboard-modern .summary-card:hover{transform:translateY(-2px);box-shadow:0 18px 40px rgba(2,8,23,.24)}@keyframes dashboardShimmer{to{background-position:-200% 0}}</style>{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item active" aria-current="page">Dashboard</li>{% endblock %}{% block content %}<div class="container-fluid p-0 dashboard-modern">
     {% if today_attendance == 0 %}
     <!-- Attendance Alert Banner -->
     <div id="attendance-alert-banner" class="alert alert-dismissible fade show p-3 mb-4 rounded-3 d-flex flex-wrap align-items-center justify-content-between gap-2" style="background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.35); color: #ffc107;" role="alert">
@@ -26,7 +26,7 @@
                 <span class="badge badge-custom badge-amber"><i class="bi bi-calendar2-check me-1" aria-hidden="true"></i>{{ today_attendance }} attendance logged today</span>
                 {% if current_user.role in ('Admin', 'Operation') %}
                 <span class="badge badge-custom badge-active"><i class="bi bi-currency-rupee me-1" aria-hidden="true"></i>₹{{ "{:,.0f}".format(today_fees) }} collected today <span style="opacity:0.6;">(incl. GST)</span></span>
-                <span class="badge badge-custom badge-active"><i class="bi bi-graph-up-arrow me-1" aria-hidden="true"></i>₹{{ "{:,.0f}".format(stats.monthly_fees_collected) }} this month <span style="opacity:0.6;">(incl. GST)</span></span>
+                <span class="badge badge-custom badge-active"><i class="bi bi-graph-up-arrow me-1" aria-hidden="true"></i>₹{{ "{:,.0f}".format(stats.monthly_fees_collected) }} this month <span style="opacity:0.6;">(incl. GST)</span>{% if dashboard_trends.revenue_change_pct is not none %}<span class="dashboard-trend {{ 'up' if dashboard_trends.revenue_change_pct >= 0 else 'down' }} ms-1">{{ '%+.1f'|format(dashboard_trends.revenue_change_pct) }}%</span>{% endif %}</span>
                 <a href="{{ url_for('enquiries.kanban') }}" class="badge badge-custom badge-amber text-decoration-none"><i class="bi bi-funnel me-1" aria-hidden="true"></i>{{ stats.unresolved_enquiries }} unresolved enquiries</a>
                 {% endif %}
             </div>
@@ -63,6 +63,8 @@
             <div class="summary-card students">
                 <div><div class="stat-number">{{ stats.active_students }}</div><div class="stat-label">Active Students</div></div>
                 <div class="stat-sub">Active enrollments</div>
+                <div class="dashboard-trend up"><i class="bi bi-arrow-up-right me-1" aria-hidden="true"></i>{{ dashboard_trends.admissions_current }} admissions this month{% if dashboard_trends.admissions_change_pct is not none %} ({{ '%+.1f'|format(dashboard_trends.admissions_change_pct) }}% vs last){% endif %}</div>
+                {% if dashboard_sparklines.admissions %}<svg class="dashboard-sparkline admissions mt-1" viewBox="0 0 120 28" role="img" aria-label="Six month admissions trend"><polyline points="{{ dashboard_sparklines.admissions }}"></polyline></svg>{% endif %}
                 <i class="bi bi-people-fill stat-icon" aria-hidden="true"></i>
             </div>
             </a>
@@ -119,7 +121,10 @@
             <a href="{{ url_for('attendance.attendance') }}" class="text-decoration-none d-block h-100">
             <div class="summary-card staff">
                 <div><div class="stat-number">{{ ('%d%%' % stats.avg_student_attendance) if stats.avg_student_attendance is not none else '—' }}</div><div class="stat-label">Attendance</div></div>
+                {% if dashboard_trends.attendance_rate is not none %}<div class="dashboard-ring" style="--ring-value:{{ dashboard_trends.attendance_rate }}" aria-label="Attendance {{ dashboard_trends.attendance_rate }} percent"><span>{{ dashboard_trends.attendance_rate|round|int }}%</span></div>{% endif %}
                 <div class="stat-sub">{% if current_user.role in ('Admin', 'Operation') %}Last 14 days{% else %}My students &middot; last 14 days{% endif %}</div>
+                {% if dashboard_trends.attendance_delta is not none %}<div class="dashboard-trend {{ 'up' if dashboard_trends.attendance_delta >= 0 else 'down' }}"><i class="bi bi-activity me-1" aria-hidden="true"></i>{{ '%+.1f'|format(dashboard_trends.attendance_delta) }} pts vs prior 14 days</div>{% endif %}
+                {% if dashboard_sparklines.attendance %}<svg class="dashboard-sparkline attendance mt-1" viewBox="0 0 120 28" role="img" aria-label="Seven day attendance trend"><polyline points="{{ dashboard_sparklines.attendance }}"></polyline></svg>{% endif %}
                 <i class="bi bi-calendar-check stat-icon" aria-hidden="true"></i>
             </div>
             </a>
@@ -197,6 +202,7 @@
                     <div>
                         <h5 class="mb-0 fw-bold"><i class="bi bi-graph-up me-2" style="color:hsl(150,100%,40%);"></i>Fee Collection Trend</h5>
                         <div class="small text-white-50 mt-1" style="font-size:0.75rem;">Revenue collection history over time &middot; incl. GST</div>
+                        {% if dashboard_sparklines.payments %}<svg class="dashboard-sparkline mt-1" viewBox="0 0 120 28" role="img" aria-label="Six month payment trend"><polyline points="{{ dashboard_sparklines.payments }}"></polyline></svg>{% endif %}
                     </div>
                     <div class="d-flex align-items-center gap-1 p-1 rounded-3" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);" id="fee-chart-range-btns">
                         <button type="button" class="btn btn-sm py-1 px-3 fee-range-btn" data-months="3" style="font-size:0.72rem;border-radius:6px;background:transparent;color:rgba(255,255,255,0.7);border:0;">3M</button>
@@ -280,8 +286,8 @@
                     <div class="dashboard-phase">{{ group }}</div>
                     <div class="dashboard-timeline">
                         {% for item in group_items %}
-                        <div class="dashboard-timeline-item d-flex align-items-center gap-3">
-                            <i class="bi {{ item.icon }} text-info" aria-hidden="true"></i>
+                        <div class="dashboard-timeline-item activity-{{ item.kind|lower|replace(' ', '-') }} d-flex align-items-center gap-3">
+                            <span class="dashboard-activity-icon"><i class="bi {{ item.icon }}" aria-hidden="true"></i></span>
                             <div class="flex-grow-1 small text-white text-truncate">{{ item.text }}</div>
                             <div class="text-white-50 small text-nowrap">{{ item.date.strftime('%d %b') }}</div>
                             <span class="badge badge-custom badge-cyan" style="font-size:0.58rem;">{{ item.kind }}</span>
@@ -400,6 +406,7 @@
         {% endif %}
     </div>
 </div>
+<style>.dashboard-sparkline{width:120px;height:28px;overflow:visible;opacity:.85}.dashboard-sparkline polyline{fill:none;stroke:#7dd3fc;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.dashboard-sparkline.admissions polyline{stroke:#60a5fa}.dashboard-sparkline.attendance polyline{stroke:#4ade80}.dashboard-modern .activity-status-change .dashboard-activity-icon{background:rgba(245,158,11,.16);color:#fbbf24}@media (max-width:767.98px){.dashboard-modern .glass-card{border-radius:14px}.dashboard-modern .dashboard-timeline-item{gap:.5rem!important}.dashboard-modern .dashboard-timeline-item .badge{display:none}.dashboard-modern .dashboard-phase{margin-top:.85rem}.dashboard-modern .dashboard-ring{width:40px;height:40px}}</style>
 <script>
 function fetchWithTimeout(url, opts) {
     opts = opts || {};

@@ -165,6 +165,98 @@ def _today_figures(today):
     return float(today_fees), int(today_attendance)
 
 
+def _dashboard_trends(today):
+    """Small, comparable trend values used by the dashboard KPI cards."""
+    month_start = date(today.year, today.month, 1)
+    previous_month_end = month_start - timedelta(days=1)
+    previous_month_start = date(previous_month_end.year, previous_month_end.month, 1)
+    current_revenue = float(db.session.query(func.sum(FeeRecord.amount_paid)).filter(
+        FeeRecord.payment_date >= month_start, FeeRecord.payment_date <= today).scalar() or 0)
+    previous_revenue = float(db.session.query(func.sum(FeeRecord.amount_paid)).filter(
+        FeeRecord.payment_date >= previous_month_start,
+        FeeRecord.payment_date <= previous_month_end).scalar() or 0)
+    current_admissions = Student.query.filter(
+        Student.enrollment_date >= month_start, Student.enrollment_date <= today).count()
+    previous_admissions = Student.query.filter(
+        Student.enrollment_date >= previous_month_start,
+        Student.enrollment_date <= previous_month_end).count()
+    current_window = today - timedelta(days=13)
+    previous_window_end = current_window - timedelta(days=1)
+    previous_window_start = previous_window_end - timedelta(days=13)
+
+    def _attendance_rate(start, end):
+        row = db.session.query(
+            func.count(Attendance.id).label('total'),
+            func.sum(case((Attendance.status == 'Present', 1), else_=0)).label('present')
+        ).filter(Attendance.person_type == 'student',
+                 Attendance.date >= start, Attendance.date <= end).first()
+        return round((row.present or 0) * 100 / row.total, 1) if row.total else None
+
+    current_attendance = _attendance_rate(current_window, today)
+    previous_attendance = _attendance_rate(previous_window_start, previous_window_end)
+
+    def _delta(current, previous):
+        return round(current - previous, 1) if current is not None and previous is not None else None
+
+    return {
+        'revenue_change_pct': round((current_revenue - previous_revenue) * 100 / previous_revenue, 1) if previous_revenue else None,
+        'admissions_current': current_admissions,
+        'admissions_change_pct': round((current_admissions - previous_admissions) * 100 / previous_admissions, 1) if previous_admissions else None,
+        'attendance_delta': _delta(current_attendance, previous_attendance),
+        'attendance_rate': current_attendance,
+    }
+
+
+def _sparkline_points(values, width=120, height=28):
+    values = [float(value or 0) for value in values]
+    if not values:
+        return ''
+    low, high = min(values), max(values)
+    span = high - low or 1
+    step = width / max(len(values) - 1, 1)
+    return ' '.join(f'{i * step:.1f},{height - ((value - low) / span * (height - 4) + 2):.1f}'
+                    for i, value in enumerate(values))
+
+
+def _dashboard_sparklines(today):
+    """Return compact six-point payment/admission and seven-point attendance trends."""
+    month_starts = []
+    year, month = today.year, today.month
+    for _ in range(6):
+        month_starts.append(date(year, month, 1))
+        month -= 1
+        if month == 0:
+            year, month = year - 1, 12
+    month_starts.reverse()
+    next_month = date(today.year + (1 if today.month == 12 else 0), 1 if today.month == 12 else today.month + 1, 1)
+    fee_rows = db.session.query(FeeRecord.payment_date, FeeRecord.amount_paid).filter(
+        FeeRecord.payment_date >= month_starts[0], FeeRecord.payment_date < next_month).all()
+    admission_rows = Student.query.with_entities(Student.enrollment_date).filter(
+        Student.enrollment_date >= month_starts[0], Student.enrollment_date < next_month).all()
+    fees_by_month = {start: 0 for start in month_starts}
+    admissions_by_month = {start: 0 for start in month_starts}
+    for payment_date, amount in fee_rows:
+        start = date(payment_date.year, payment_date.month, 1)
+        fees_by_month[start] = fees_by_month.get(start, 0) + float(amount or 0)
+    for (enrollment_date,) in admission_rows:
+        start = date(enrollment_date.year, enrollment_date.month, 1)
+        admissions_by_month[start] = admissions_by_month.get(start, 0) + 1
+    attendance_rows = db.session.query(
+        Attendance.date,
+        func.count(Attendance.id).label('total'),
+        func.sum(case((Attendance.status == 'Present', 1), else_=0)).label('present')
+    ).filter(Attendance.person_type == 'student',
+             Attendance.date >= today - timedelta(days=6),
+             Attendance.date <= today).group_by(Attendance.date).all()
+    attendance_by_day = {row.date: round((row.present or 0) * 100 / row.total, 1) if row.total else 0 for row in attendance_rows}
+    attendance_values = [attendance_by_day.get(today - timedelta(days=i), 0) for i in range(6, -1, -1)]
+    return {
+        'payments': _sparkline_points([fees_by_month[start] for start in month_starts]),
+        'admissions': _sparkline_points([admissions_by_month[start] for start in month_starts]),
+        'attendance': _sparkline_points(attendance_values),
+    }
+
+
 def _recent_lists():
     return (Enquiry.query.order_by(Enquiry.id.desc()).limit(5).all(),
             FeeRecord.query.order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).limit(5).all())
@@ -173,14 +265,17 @@ def _recent_lists():
 def _recent_activity_feed(limit=12):
     """Build a compact, date-sorted activity feed for the dashboard."""
     activities = []
-    for student in Student.query.order_by(Student.enrollment_date.desc(), Student.id.desc()).limit(limit).all():
+    for student in Student.query.filter(Student.enrollment_date.isnot(None)).order_by(Student.enrollment_date.desc(), Student.id.desc()).limit(limit).all():
         activities.append({'date': student.enrollment_date, 'kind': 'Admission',
                            'text': f'{student.name} admitted', 'icon': 'bi-person-plus'})
     for fee in FeeRecord.query.order_by(FeeRecord.payment_date.desc(), FeeRecord.id.desc()).limit(limit).all():
         activities.append({'date': fee.payment_date, 'kind': 'Payment',
                            'text': f'{fee.student.name} paid ₹{fee.amount_paid:,.2f}', 'icon': 'bi-cash-stack'})
     for enquiry in Enquiry.query.order_by(Enquiry.updated_at.desc(), Enquiry.id.desc()).limit(limit).all():
-        activities.append({'date': (enquiry.updated_at or enquiry.created_at).date(), 'kind': 'Enquiry',
+        enquiry_date = enquiry.updated_at or enquiry.created_at
+        if not enquiry_date:
+            continue
+        activities.append({'date': enquiry_date.date(), 'kind': 'Enquiry',
                            'text': f'{enquiry.student_name} · {enquiry.status}', 'icon': 'bi-chat-left-text'})
     for log in AuditLog.query.order_by(AuditLog.timestamp.desc(), AuditLog.id.desc()).limit(limit).all():
         if log.entity_type in ('Task', 'Student', 'Enquiry', 'FeeRecord'):
@@ -451,6 +546,15 @@ def dashboard():
     stats = _safe('stats', get_dashboard_stats, _empty_stats())
     today_fees, today_attendance = _safe(
         'today_figures', lambda: _today_figures(today), (0.0, 0))
+    empty_trends = {
+        'revenue_change_pct': None, 'admissions_current': 0,
+        'admissions_change_pct': None, 'attendance_delta': None,
+        'attendance_rate': None}
+    empty_sparklines = {'payments': '', 'admissions': '', 'attendance': ''}
+    dashboard_trends = empty_trends if current_user.role == 'Staff' else _safe(
+        'dashboard_trends', lambda: _dashboard_trends(today), empty_trends)
+    dashboard_sparklines = empty_sparklines if current_user.role == 'Staff' else _safe(
+        'dashboard_sparklines', lambda: _dashboard_sparklines(today), empty_sparklines)
 
     if current_user.role == 'Staff':
         stats['monthly_fees_collected'] = 0.0
@@ -521,6 +625,8 @@ def dashboard():
         birthdays_today=birthdays_today, anniversaries_today=anniversaries_today,
         today=today, today_fees=float(today_fees), today_attendance=int(today_attendance),
         dashboard_updated_at=datetime.now(),
+        dashboard_trends=dashboard_trends,
+        dashboard_sparklines=dashboard_sparklines,
         staff_today_exams=staff_today_exams, staff_attendance_done=staff_attendance_done,
         account_balances=_safe(
             'account_balances',
