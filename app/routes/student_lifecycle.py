@@ -963,28 +963,3 @@ def export():
     return send_file(
         io.BytesIO(out.encode('utf-8', errors='replace')),
         mimetype='text/csv', as_attachment=True, download_name=filename)
-
-
-@student_lifecycle_bp.route('/students/lifecycle/report')
-@login_required
-def report():
-    """Compact reporting payload for dashboards and scheduled monitors."""
-    ds = _lifecycle_dataset('all')
-    rows = ds['data']
-    total = len(rows)
-    reviewed = {a.student_id for a in LifecycleAck.query.all()}
-    report_data = {
-        'generated_on': date.today().isoformat(),
-        'total_students': total,
-        'enrolled': sum(d['bucket'] == 'Enrolled' for d in rows),
-        'long_absent': sum(d['bucket'] == 'Long Absent' for d in rows),
-        'completed': sum(d['bucket'] == 'Completed' for d in rows),
-        'dropped': sum(d['bucket'] == 'Dropped' for d in rows),
-        'not_enrolled': sum(d['bucket'] == 'Not Enrolled' for d in rows),
-        'pending_review': sum(d['bucket'] == 'Long Absent' and
-                              d['student'].id not in reviewed for d in rows),
-        'thresholds': ds['thresholds'],
-    }
-    if request.args.get('format') == 'json':
-        return jsonify(report_data)
-    return render_template('student_lifecycle_report.html', report=report_data)
