@@ -19,7 +19,7 @@
             <h2 class="text-white fw-bold">Student Lifecycle</h2>
             <p class="text-white mb-0">Track course completion, dropouts and long-absent students. <span class="text-info">{% if is_admin %}Admin only{% else %}Read-only for staff{% endif %}</span></p>
         </div>
-        <a href="{{ url_for('student_lifecycle.report') }}" class="btn btn-outline-info btn-sm" target="_blank" rel="noopener" hx-boost="false" data-no-ajax title="Open lifecycle report"><i class="bi bi-graph-up-arrow me-1" aria-hidden="true"></i>Report</a>
+        <a href="{{ url_for('student_lifecycle.report') }}" class="btn btn-outline-info btn-sm" target="_blank" rel="noopener" hx-boost="false" hx-disable data-no-ajax title="Open lifecycle report"><i class="bi bi-graph-up-arrow me-1" aria-hidden="true"></i>Report</a>
     </div>
 
     <!-- Summary tiles -->

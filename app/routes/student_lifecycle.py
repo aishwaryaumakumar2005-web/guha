@@ -973,7 +973,7 @@ def report():
     rows = ds['data']
     total = len(rows)
     reviewed = {a.student_id for a in LifecycleAck.query.all()}
-    return jsonify({
+    report_data = {
         'generated_on': date.today().isoformat(),
         'total_students': total,
         'enrolled': sum(d['bucket'] == 'Enrolled' for d in rows),
@@ -984,4 +984,7 @@ def report():
         'pending_review': sum(d['bucket'] == 'Long Absent' and
                               d['student'].id not in reviewed for d in rows),
         'thresholds': ds['thresholds'],
-    })
+    }
+    if request.args.get('format') == 'json':
+        return jsonify(report_data)
+    return render_template('student_lifecycle_report.html', report=report_data)
