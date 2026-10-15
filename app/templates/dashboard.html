@@ -288,9 +288,9 @@
                         {% for item in group_items %}
                         <div class="dashboard-timeline-item activity-{{ item.kind|lower|replace(' ', '-') }} d-flex align-items-center gap-3">
                             <span class="dashboard-activity-icon"><i class="bi {{ item.icon }}" aria-hidden="true"></i></span>
-                            <div class="flex-grow-1 small text-white text-truncate">{{ item.text }}</div>
-                            <div class="text-white-50 small text-nowrap">{{ item.date.strftime('%d %b') }}</div>
-                            <span class="badge badge-custom badge-cyan" style="font-size:0.58rem;">{{ item.kind }}</span>
+                            <div class="dashboard-activity-text flex-grow-1 text-white text-truncate">{{ item.text }}</div>
+                            <div class="dashboard-activity-date text-white-50 text-nowrap">{{ item.date.strftime('%d %b') }}</div>
+                            <span class="dashboard-activity-kind badge badge-custom badge-cyan">{{ item.kind }}</span>
                         </div>
                         {% endfor %}
                     </div>
@@ -406,7 +406,7 @@
         {% endif %}
     </div>
 </div>
-<style>.dashboard-sparkline{width:120px;height:28px;overflow:visible;opacity:.85}.dashboard-sparkline polyline{fill:none;stroke:#7dd3fc;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.dashboard-sparkline.admissions polyline{stroke:#60a5fa}.dashboard-sparkline.attendance polyline{stroke:#4ade80}.dashboard-modern .activity-status-change .dashboard-activity-icon{background:rgba(245,158,11,.16);color:#fbbf24}@media (max-width:767.98px){.dashboard-modern .glass-card{border-radius:14px}.dashboard-modern .dashboard-timeline-item{gap:.5rem!important}.dashboard-modern .dashboard-timeline-item .badge{display:none}.dashboard-modern .dashboard-phase{margin-top:.85rem}.dashboard-modern .dashboard-ring{width:40px;height:40px}}</style>
+<style>.dashboard-sparkline{width:120px;height:28px;overflow:visible;opacity:.85}.dashboard-sparkline polyline{fill:none;stroke:#7dd3fc;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.dashboard-sparkline.admissions polyline{stroke:#60a5fa}.dashboard-sparkline.attendance polyline{stroke:#4ade80}.dashboard-modern .activity-status-change .dashboard-activity-icon{background:rgba(245,158,11,.16);color:#fbbf24}.dashboard-modern .dashboard-timeline-item{min-height:2rem}.dashboard-modern .dashboard-timeline-item .dashboard-activity-text{font-size:.78rem;line-height:1.25;min-width:0}.dashboard-modern .dashboard-activity-date{flex:0 0 4.8rem;width:4.8rem;text-align:right;font-size:.68rem;line-height:1.2}.dashboard-modern .dashboard-activity-kind{display:inline-flex;align-items:center;justify-content:center;flex:0 0 5.2rem;width:5.2rem;min-height:1.35rem;font-size:.58rem;line-height:1;white-space:nowrap}@media (max-width:767.98px){.dashboard-modern .glass-card{border-radius:14px}.dashboard-modern .dashboard-timeline-item{gap:.5rem!important}.dashboard-modern .dashboard-timeline-item .badge{display:none}.dashboard-modern .dashboard-phase{margin-top:.85rem}.dashboard-modern .dashboard-ring{width:40px;height:40px}.dashboard-modern .dashboard-activity-date{flex-basis:3.8rem;width:3.8rem}.dashboard-modern .dashboard-activity-kind{display:none}}</style>
 <script>
 function fetchWithTimeout(url, opts) {
     opts = opts || {};
