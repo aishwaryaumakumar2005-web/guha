@@ -1,4 +1,4 @@
-{% extends 'base.html' %}{% block title %}Dashboard{% endblock %}{% block head_extra %}<style>.dashboard-skeleton{height:12px;border-radius:6px;background:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.14) 50%,rgba(255,255,255,.06) 75%);background-size:200% 100%;animation:dashboardShimmer 1.4s infinite}@keyframes dashboardShimmer{to{background-position:-200% 0}}</style>{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item active" aria-current="page">Dashboard</li>{% endblock %}{% block content %}<div class="container-fluid p-0">
+{% extends 'base.html' %}{% block title %}Dashboard{% endblock %}{% block head_extra %}<style>.dashboard-skeleton{height:12px;border-radius:6px;background:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.14) 50%,rgba(255,255,255,.06) 75%);background-size:200% 100%;animation:dashboardShimmer 1.4s infinite}.dashboard-modern .glass-card{border:1px solid rgba(148,163,184,.13);border-radius:18px;box-shadow:0 14px 34px rgba(2,8,23,.18)}.dashboard-modern .glass-card h5{letter-spacing:-.02em}.dashboard-modern .bento-card{min-width:0}.dashboard-modern .dashboard-timeline{position:relative;padding-left:1.25rem}.dashboard-modern .dashboard-timeline:before{content:"";position:absolute;left:.32rem;top:.35rem;bottom:.35rem;width:1px;background:rgba(125,211,252,.22)}.dashboard-modern .dashboard-timeline-item{position:relative;padding:0 0 .65rem}.dashboard-modern .dashboard-timeline-item:before{content:"";position:absolute;left:-1.25rem;top:.38rem;width:.55rem;height:.55rem;border:2px solid #0ea5e9;border-radius:50%;background:#0b1f36;box-shadow:0 0 0 3px rgba(14,165,233,.08)}.dashboard-modern .dashboard-timeline-item:last-child{padding-bottom:0}.dashboard-modern .dashboard-phase{color:rgba(148,163,184,.72);font-size:.65rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700;margin:.65rem 0 .45rem}.dashboard-modern .dashboard-phase:first-child{margin-top:0}@keyframes dashboardShimmer{to{background-position:-200% 0}}</style>{% endblock %}{% block breadcrumb_items %}<li class="breadcrumb-item active" aria-current="page">Dashboard</li>{% endblock %}{% block content %}<div class="container-fluid p-0 dashboard-modern">
     {% if today_attendance == 0 %}
     <!-- Attendance Alert Banner -->
     <div id="attendance-alert-banner" class="alert alert-dismissible fade show p-3 mb-4 rounded-3 d-flex flex-wrap align-items-center justify-content-between gap-2" style="background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.35); color: #ffc107;" role="alert">
@@ -236,7 +236,7 @@
                 <button type="button" id="aiAdvisorToggle" aria-expanded="false" aria-controls="aiContent" onclick="toggleAiAdvisor()" class="d-flex align-items-center justify-content-between w-100 bg-transparent border-0 p-0 text-start" style="cursor:pointer;">
                     <span class="d-flex align-items-center gap-2">
                         <i class="bi bi-cpu-fill fs-5" style="color:hsl(200,100%,50%);" aria-hidden="true"></i>
-                        <span class="mb-0 fw-bold h5" style="color:hsl(200,100%,50%);">AI Institute Advisor</span>
+                        <span class="mb-0 fw-bold h5" style="color:hsl(200,100%,50%);">More insights</span>
                         <span class="badge badge-custom badge-active ms-2" style="font-size:0.6rem;">LIVE</span>
                     </span>
                     <i class="bi bi-chevron-down collapse-icon fs-6" style="color:rgba(255,255,255,0.5);" aria-hidden="true"></i>
@@ -273,16 +273,24 @@
                     <h5 class="mb-0 fw-bold"><i class="bi bi-activity me-2" style="color:hsl(200,100%,50%);"></i>Recent Activity</h5>
                     <span class="small text-white-50">Latest updates</span>
                 </div>
-                <div class="d-flex flex-column gap-2">
-                    {% for item in recent_activity %}
-                    <div class="d-flex align-items-center gap-3 p-2 rounded" style="background:rgba(255,255,255,0.03);">
-                        <i class="bi {{ item.icon }} text-info" aria-hidden="true"></i>
-                        <div class="flex-grow-1 small text-white">{{ item.text }}</div>
-                        <div class="text-white-50 small text-nowrap">{{ item.date.strftime('%d %b %Y') }}</div>
-                        <span class="badge badge-custom badge-cyan" style="font-size:0.58rem;">{{ item.kind }}</span>
+                {% if recent_activity %}
+                {% for group in ['Today', 'Yesterday', 'Earlier'] %}
+                    {% set group_items = recent_activity|selectattr('date_group', 'equalto', group)|list %}
+                    {% if group_items %}
+                    <div class="dashboard-phase">{{ group }}</div>
+                    <div class="dashboard-timeline">
+                        {% for item in group_items %}
+                        <div class="dashboard-timeline-item d-flex align-items-center gap-3">
+                            <i class="bi {{ item.icon }} text-info" aria-hidden="true"></i>
+                            <div class="flex-grow-1 small text-white text-truncate">{{ item.text }}</div>
+                            <div class="text-white-50 small text-nowrap">{{ item.date.strftime('%d %b') }}</div>
+                            <span class="badge badge-custom badge-cyan" style="font-size:0.58rem;">{{ item.kind }}</span>
+                        </div>
+                        {% endfor %}
                     </div>
-                    {% else %}<div class="text-center py-4 text-white-50 small">No recent activity.</div>{% endfor %}
-                </div>
+                    {% endif %}
+                {% endfor %}
+                {% else %}<div class="text-center py-4 text-white-50 small">No recent activity.</div>{% endif %}
             </div>
         </div>
         <div class="bento-card bento-xl-4 bento-md-12 animate-on-scroll stagger-2" style="order:12;">

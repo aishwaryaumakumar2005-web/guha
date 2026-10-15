@@ -184,9 +184,16 @@ def _recent_activity_feed(limit=12):
                            'text': f'{enquiry.student_name} · {enquiry.status}', 'icon': 'bi-chat-left-text'})
     for log in AuditLog.query.order_by(AuditLog.timestamp.desc(), AuditLog.id.desc()).limit(limit).all():
         if log.entity_type in ('Task', 'Student', 'Enquiry', 'FeeRecord'):
+            if not log.timestamp:
+                continue
             activities.append({'date': log.timestamp.date(), 'kind': 'Status change',
                                'text': f'{log.entity_type} {log.entity_id or ""} · {log.action}', 'icon': 'bi-arrow-repeat'})
-    return sorted(activities, key=lambda item: item['date'], reverse=True)[:limit]
+    activities = sorted(activities, key=lambda item: item['date'], reverse=True)[:limit]
+    today = date.today()
+    for item in activities:
+        age = (today - item['date']).days
+        item['date_group'] = 'Today' if age == 0 else ('Yesterday' if age == 1 else 'Earlier')
+    return activities
 
 
 def _fee_chart(today, months=6):
