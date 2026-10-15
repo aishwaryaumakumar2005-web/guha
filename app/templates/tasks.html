@@ -755,7 +755,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (analyticsModal) analyticsModal.addEventListener('show.bs.modal', function() {
         var target = document.getElementById('taskAnalyticsBody');
         target.textContent = 'Loading...';
-        fetch('/tasks/analytics').then(function(r) { return r.json(); }).then(function(data) {
+        fetch({{ url_for('tasks.task_analytics')|tojson }}).then(function(r) {
+            if (!r.ok) throw new Error('Task analytics request failed');
+            return r.json();
+        }).then(function(data) {
             var statuses = Object.keys(data.by_status || {}).map(function(key) {
                 return '<div class="d-flex justify-content-between border-bottom border-secondary border-opacity-25 py-1"><span>' + esc(key) + '</span><strong>' + data.by_status[key] + '</strong></div>';
             }).join('');
