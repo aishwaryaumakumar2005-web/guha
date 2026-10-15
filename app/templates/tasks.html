@@ -762,9 +762,19 @@ document.addEventListener('DOMContentLoaded', function() {
             target.innerHTML = '<div class="row g-2 mb-3"><div class="col-4"><strong>Total</strong><br>' + data.total + '</div><div class="col-4"><strong>Overdue</strong><br>' + data.overdue + '</div><div class="col-4"><strong>Avg. days</strong><br>' + data.average_completion_days + '</div></div><strong>Status breakdown</strong><div class="mt-1">' + statuses + '</div>';
         }).catch(function() { target.textContent = 'Analytics are unavailable.'; });
     });
+    function esc(value) {
+        var text = String(value == null ? '' : value);
+        return text.replace(/[&<>"']/g, function(character) {
+            return {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[character];
+        });
+    }
+    var taskDetailsUrlTemplate = {{ url_for('tasks.task_details', id=0)|tojson }};
     document.querySelectorAll('.task-details-btn').forEach(function(btn) { btn.addEventListener('click', function() {
         var body = document.getElementById('taskDetailsBody'); body.textContent = 'Loading...';
-        fetch('/tasks/details/' + btn.dataset.id).then(function(r){return r.json();}).then(function(t){
+        fetch(taskDetailsUrlTemplate.replace(/0$/, btn.dataset.id)).then(function(r){
+            if (!r.ok) throw new Error('Task details request failed');
+            return r.json();
+        }).then(function(t){
             document.getElementById('taskDetailsTitle').textContent = t.title;
             var history = (t.history || []).map(function(row) {
                 var transition = row.from_status ? row.from_status + ' → ' + row.to_status : (row.to_status || '');
