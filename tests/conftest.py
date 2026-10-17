@@ -42,7 +42,14 @@ def _seed_base():
         name='Staff User',
         email='staff@guha.test',
     )
-    db.session.add_all([admin, staff_user])
+    operation_user = User(
+        username='operation',
+        password_hash=generate_password_hash('operation123'),
+        role='Operation',
+        name='Operations User',
+        email='operation@guha.test',
+    )
+    db.session.add_all([admin, staff_user, operation_user])
     db.session.flush()
 
     tutor = Tutor(name='Staff User', email='staff@guha.test', phone='9876543210', status='Active')
@@ -107,6 +114,14 @@ def staff_client(app):
     with app.test_client() as c:
         resp = c.post('/login', data={'username': 'staff', 'password': 'staff123'})
         assert resp.status_code == 302, 'staff login failed'
+        yield c
+
+
+@pytest.fixture()
+def operation_client(app):
+    with app.test_client() as c:
+        resp = c.post('/login', data={'username': 'operation', 'password': 'operation123'})
+        assert resp.status_code == 302, 'operation login failed'
         yield c
 
 

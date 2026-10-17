@@ -303,10 +303,12 @@ def import_excel():
         required_columns = ['name', 'email', 'phone']
         missing_columns = [col for col in required_columns if col not in column_map]
         if missing_columns:
+            workbook.close()
             return jsonify({"success": False, "errors": [f"Missing required columns: {', '.join(missing_columns)}"]}), 400
         tutors_data = []
         for row_number, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
             if row_number > MAX_TUTOR_IMPORT_ROWS + 1:
+                workbook.close()
                 return jsonify({"success": False, "errors": [f"Import is limited to {MAX_TUTOR_IMPORT_ROWS} rows."]}), 413
             if not any(row):
                 continue
@@ -320,6 +322,9 @@ def import_excel():
                 'courses': cell_text(row[column_map['courses']]) if 'courses' in column_map and column_map['courses'] < len(row) else ''
             }
             tutors_data.append(tutor_data)
+        # read_only workbooks keep a file handle open. Close it before
+        # removing the temporary file (required on Windows).
+        workbook.close()
         os.unlink(tmp_file_path)
         tmp_file_path = None
         if not tutors_data:
@@ -382,7 +387,14 @@ def import_excel():
         return jsonify({"success": True, "message": f"Successfully imported {imported_count} tutors. Skipped {skipped_count} row(s) (duplicates or invalid).", "imported": imported_count, "skipped": skipped_count}), 200
     except Exception as e:
         if tmp_file_path and os.path.exists(tmp_file_path):
-            os.unlink(tmp_file_path)
+            try:
+                workbook.close()
+            except (NameError, UnboundLocalError, AttributeError):
+                pass
+            try:
+                os.unlink(tmp_file_path)
+            except PermissionError:
+                pass
         return jsonify({"success": False, "errors": [f"Error processing file: {str(e)}"]}), 500
 
 
