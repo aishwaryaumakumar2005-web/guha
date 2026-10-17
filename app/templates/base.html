@@ -442,7 +442,7 @@ My Leaves</span>
                         <i class="bi bi-box-arrow-right"></i>
                     </a>
                     {% if current_user.role == 'Admin' %}
-                    <a href="{{ url_for('auth.change_password') }}" title="Change Password" aria-label="Change Password" class="theme-toggle-btn">
+                    <a href="{{ url_for('auth.change_password') }}" hx-boost="false" title="Change Password" aria-label="Change Password" class="theme-toggle-btn">
                         <i class="bi bi-key-fill"></i>
                     </a>
                     {% endif %}
