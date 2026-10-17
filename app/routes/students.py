@@ -763,4 +763,11 @@ def student_photo(student_id):
     student = Student.query.get_or_404(student_id)
     if not student.photo_data:
         return '', 404
-    return send_file(io.BytesIO(student.photo_data), mimetype=student.photo_mime or 'image/jpeg')
+    response = send_file(io.BytesIO(student.photo_data),
+                         mimetype=student.photo_mime or 'image/jpeg',
+                         max_age=0)
+    # The URL remains stable when a photo is replaced. Prevent the browser
+    # from displaying a cached old image or cached 404 after saving.
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    return response

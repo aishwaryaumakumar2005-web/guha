@@ -38,5 +38,20 @@ def test_operation_can_upload_and_render_tutor_photo(operation_client, app):
     assert photo.headers['Cache-Control'].startswith('no-store')
 
 
+def test_operation_can_upload_and_render_student_photo(operation_client, app):
+    with app.app_context():
+        student = Student.query.filter_by(email='student@guha.test').one()
+        sid = student.id
+    response = operation_client.post(f'/students/edit/{sid}', data={
+        'name': 'Test Student', 'email': 'student@guha.test',
+        'phone': '9876543210', 'status': 'Active',
+        'photo': (io.BytesIO(b'fake-image'), 'student.jpg'),
+    }, content_type='multipart/form-data')
+    assert response.status_code == 302
+    photo = operation_client.get(f'/students/photo/{sid}')
+    assert photo.status_code == 200
+    assert photo.headers['Cache-Control'].startswith('no-store')
+
+
 def test_operation_cannot_open_admin_console(operation_client):
     assert operation_client.get('/admin').status_code == 302
