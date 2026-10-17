@@ -119,7 +119,7 @@ class Form:
 
 
 class StudentForm(Form):
-    required = ['name', 'email', 'phone']
+    required = ['name', 'phone']
     email = ['email']
     phone = ['phone']
     # NB: no 'courses' validation here — it is a multi-select read via

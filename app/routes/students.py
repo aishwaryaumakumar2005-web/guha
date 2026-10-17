@@ -134,7 +134,7 @@ def list():
             flash(err, 'danger')
             return redirect(url_for('students.list'))
         name = form.data.get('name', '').strip()
-        email = _normalize_email(form.data.get('email'))
+        email = _normalize_email(form.data.get('email')) or None
         phone = _normalize_phone(form.data.get('phone'))
         status = form.data.get('status', 'Active')
         selected_courses = [c for c in request.form.getlist('courses') if c]
@@ -173,8 +173,9 @@ def list():
                 return jsonify({'success': False, 'errors': [msg]}), 409
             flash(msg, 'danger')
             return redirect(url_for('students.list'))
-        exists = Student.query.filter(
+        exists = (Student.query.filter(
             db.func.lower(Student.email) == email.lower()).first()
+                  if email else None)
         if exists:
             message = f"Student with email '{email}' already exists!"
             if is_ajax_request():
@@ -460,10 +461,11 @@ def edit(id):
         for msg in form.error_messages:
             flash(msg, 'danger')
         return redirect(url_for('students.list'))
-    new_email = _normalize_email(form.data.get('email'))
-    if new_email.lower() != (student.email or '').lower():
-        exists = Student.query.filter(
+    new_email = _normalize_email(form.data.get('email')) or None
+    if (new_email or '').lower() != (student.email or '').lower():
+        exists = (Student.query.filter(
             db.func.lower(Student.email) == new_email.lower()).first()
+                  if new_email else None)
         if exists:
             msg = f"Email '{new_email}' is already in use by another student."
             if is_ajax_request():
