@@ -393,4 +393,11 @@ def tutor_photo(tutor_id):
     tutor = Tutor.query.get_or_404(tutor_id)
     if not tutor.photo_data:
         return '', 404
-    return send_file(io.BytesIO(tutor.photo_data), mimetype=tutor.photo_mime or 'image/jpeg')
+    response = send_file(io.BytesIO(tutor.photo_data),
+                         mimetype=tutor.photo_mime or 'image/jpeg',
+                         max_age=0)
+    # The URL is stable while the stored image can be replaced. Prevent the
+    # directory from showing a stale cached image (or cached 404) after save.
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    return response
