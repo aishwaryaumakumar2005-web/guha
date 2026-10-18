@@ -815,11 +815,21 @@ def report_pdf():
                 self.cell(widths[i], 6, col, border=1, align='C', fill=True)
             self.ln()
 
-        def table_row(self, cols, widths, aligns=None):
-            self.set_font('DejaVu', '', 8)
+        def table_row(self, cols, widths, aligns=None, fit_to_cell=False):
             self.set_text_color(50, 50, 50)
             for i, col in enumerate(cols):
                 a = aligns[i] if aligns else 'C'
+                # The monthly tables have twelve narrow columns.  Reduce only
+                # the text that needs it so large amounts remain fully visible
+                # instead of being clipped at the cell boundary.
+                font_size = 8
+                if fit_to_cell:
+                    for candidate in (8, 7.5, 7, 6.5, 6, 5.5):
+                        self.set_font('DejaVu', '', candidate)
+                        if self.get_string_width(str(col)) <= widths[i] - 1:
+                            font_size = candidate
+                            break
+                self.set_font('DejaVu', '', font_size)
                 self.cell(widths[i], 5, str(col), border=1, align=a)
             self.ln()
 
@@ -855,7 +865,7 @@ def report_pdf():
         pdf.ln(4)
         pdf.section_title(f'Monthly Income - {filter_year}')
         pdf.table_header(['Month', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], [20] + [14]*12)
-        pdf.table_row(['Income (₹)'] + [f'{v:,.2f}' for v in income_monthly], [20] + [14]*12, ['L'] + ['R']*12)
+        pdf.table_row(['Income (₹)'] + [f'{v:,.2f}' for v in income_monthly], [20] + [14]*12, ['L'] + ['R']*12, fit_to_cell=True)
 
     elif tab == 'fees':
         fees_q = filter_by_company_methods(db.session.query(
@@ -867,7 +877,7 @@ def report_pdf():
         months_names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
         pdf.section_title('Monthly Fees Collection')
         pdf.table_header(['Month'] + months_names, [20] + [14]*12)
-        pdf.table_row(['Amount (₹)'] + [f'{v:,.2f}' for v in fees_monthly], [20] + [14]*12, ['L'] + ['R']*12)
+        pdf.table_row(['Amount (₹)'] + [f'{v:,.2f}' for v in fees_monthly], [20] + [14]*12, ['L'] + ['R']*12, fit_to_cell=True)
         pdf.ln(3)
 
         course_fee_map = course_wise_income_summary(start_date, end_date, selected_company_id)
@@ -907,7 +917,7 @@ def report_pdf():
         monthly_exp = [exp_map.get(m, 0.0) for m in range(1, 13)]
         pdf.section_title('Monthly Expense')
         pdf.table_header(['Month'] + months_names, [20] + [14]*12)
-        pdf.table_row(['Amount (₹)'] + [f'{v:,.2f}' for v in monthly_exp], [20] + [14]*12, ['L'] + ['R']*12)
+        pdf.table_row(['Amount (₹)'] + [f'{v:,.2f}' for v in monthly_exp], [20] + [14]*12, ['L'] + ['R']*12, fit_to_cell=True)
         pdf.ln(3)
         cat_exp_q = db.session.query(
             Expense.category_id, db.func.sum(Expense.amount).label('total')
