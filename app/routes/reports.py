@@ -1032,7 +1032,14 @@ def report_pdf():
             fund = fund_map_ov.get(m, 0.0)
             n = inc + fund - exp
             status = 'Profit' if n > 0 else ('Loss' if n < 0 else 'Breakeven')
-            pdf.table_row([months_names[m-1], f'{inc:,.2f}', f'{fund:,.2f}', f'{exp:,.2f}', f"{'+' if n >= 0 else ''}{n:,.2f}", status], [30, 40, 40, 40, 40, 30], ['C', 'R', 'R', 'R', 'R', 'C'])
+            # Keep the six-column P&L table within the 190 mm printable width
+            # of the portrait page so the final column is not pushed off-page.
+            pdf.table_row(
+                [months_names[m-1], f'{inc:,.2f}', f'{fund:,.2f}', f'{exp:,.2f}',
+                 f"{'+' if n >= 0 else ''}{n:,.2f}", status],
+                [24, 32, 32, 32, 38, 32],
+                ['C', 'R', 'R', 'R', 'R', 'C'],
+                fit_to_cell=True)
 
     elif tab == 'payment_methods':
         report_pm, total_period = payment_method_period_breakdown(
