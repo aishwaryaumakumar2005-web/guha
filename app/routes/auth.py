@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from urllib.parse import urlparse
 from app.forms import LoginForm, RegistrationForm, ForgotPasswordForm
 from flask import current_app
+from sqlalchemy.exc import OperationalError
 
 auth_bp = Blueprint('auth', __name__)
 _login_attempts = {}
@@ -127,39 +128,60 @@ def login():
                 _record_login(username, False)
                 _audit_auth('LOGIN', username, False, 'Inactive account', user.id)
                 flash("Invalid username or password.", "danger")
-            elif user and check_password_hash(user.password_hash, password):
-                _record_login(username, True)
-                _audit_auth('LOGIN', username, True, user_id=user.id)
-                try:
-                    _ensure_tutor(user)
-                    db.session.commit()
-                except Exception as e:
-                    current_app.logger.exception('Failed to ensure tutor record during login')
-                    try:
-                        db.session.rollback()
-                    except Exception:
-                        pass
-                if user.role in ('Staff', 'Operation'):
-                    # "Inactive" used to be display-only: deactivated staff
-                    # kept full access. Gate login on the tutor record.
-                    from sqlalchemy import inspect
-                    tutor = None
-                    if inspect(db.engine).has_table('tutor'):
-                        tutor = Tutor.query.filter(
-                            db.func.lower(Tutor.email) == (user.email or '').lower()
-                        ).first()
-                    if tutor is not None and (tutor.status or 'Active') != 'Active':
-                        flash("Your staff account has been deactivated. Please contact the administrator.", 'danger')
-                        return render_template('login.html')
-                remember = request.form.get('remember_me') == 'on'
-                login_user(user, remember=remember, duration=timedelta(days=30) if remember else None)
-                flash(f"Welcome back, {user.name}!", "success")
-                next_page = _safe_next(request.args.get('next'))
-                return redirect(next_page or url_for('dashboard.dashboard'))
             else:
-                _record_login(username, False)
-                _audit_auth('LOGIN', username, False, 'Invalid credentials', user.id if user else None)
-                flash("Invalid username or password.", "danger")
+                # Treat malformed/legacy password hashes as invalid
+                # credentials instead of letting Werkzeug raise a 500 during
+                # login. The account can then be repaired through password
+                # reset/admin tooling.
+                password_valid = False
+                if user:
+                    try:
+                        password_valid = check_password_hash(user.password_hash or '', password)
+                    except (TypeError, ValueError):
+                        current_app.logger.warning(
+                            'Invalid password hash for user id=%s', user.id)
+
+                if password_valid:
+                    _record_login(username, True)
+                    _audit_auth('LOGIN', username, True, user_id=user.id)
+                    try:
+                        _ensure_tutor(user)
+                        db.session.commit()
+                    except Exception as e:
+                        current_app.logger.exception('Failed to ensure tutor record during login')
+                        try:
+                            db.session.rollback()
+                        except Exception:
+                            pass
+                    if user.role in ('Staff', 'Operation'):
+                        # "Inactive" used to be display-only: deactivated staff
+                        # kept full access. Gate login on the tutor record.
+                        from sqlalchemy import inspect
+                        tutor = None
+                        if inspect(db.engine).has_table('tutor'):
+                            tutor = Tutor.query.filter(
+                                db.func.lower(Tutor.email) == (user.email or '').lower()
+                            ).first()
+                        if tutor is not None and (tutor.status or 'Active') != 'Active':
+                            flash("Your staff account has been deactivated. Please contact the administrator.", 'danger')
+                            return render_template('login.html')
+                    remember = request.form.get('remember_me') == 'on'
+                    login_user(user, remember=remember, duration=timedelta(days=30) if remember else None)
+                    flash(f"Welcome back, {user.name}!", "success")
+                    next_page = _safe_next(request.args.get('next'))
+                    return redirect(next_page or url_for('dashboard.dashboard'))
+                else:
+                    _record_login(username, False)
+                    _audit_auth('LOGIN', username, False, 'Invalid credentials', user.id if user else None)
+                    flash("Invalid username or password.", "danger")
+        except OperationalError:
+            # Render/Neon can temporarily reject connections when the
+            # database quota is exhausted. Keep the login page usable and
+            # avoid exposing a framework 500 page to users.
+            db.session.rollback()
+            current_app.logger.exception('Database unavailable during login')
+            flash('The service is temporarily unavailable. Please try again shortly.', 'danger')
+            return render_template('login.html'), 503
         except Exception as e:
             # Ensure we print full traceback to console for debugging local 500s
             import traceback
