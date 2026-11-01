@@ -216,6 +216,11 @@ Full Name</label>
                         <input type="date" class="form-control" name="date_of_birth">
                     </div>
                     <div class="mb-3">
+                        <label class="form-label small text-white">Enrollment Date <span class="opacity-75">(required)</span></label>
+                        <input type="date" class="form-control" id="newEnrollmentDate" name="enrollment_date" required>
+                        <div class="form-text text-white-50">Enter the actual admission date, not the date entered into the system.</div>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label small text-white">
                         Courses Mapping</label>
                         <select class="form-select ts-select" name="courses" multiple placeholder="Search courses...">
@@ -232,7 +237,12 @@ Full Name</label>
                             <input class="form-control" id="discountValue" name="discount_value" type="number" min="0" step="0.01" value="0" placeholder="0"></div>
                     </div>
                     <div class="form-text text-white-50 mb-3">The selected discount applies to each newly selected course. GST is recalculated on the reduced fee.</div>
-                    <div class="row g-2 mb-3"><div class="col-6"><label class="form-label small text-white">Billing mode</label><select class="form-select" name="billing_mode"><option value="fixed">Fixed course fee</option><option value="monthly">Monthly billing</option></select></div><div class="col-6"><label class="form-label small text-white">Monthly fee (₹)</label><input class="form-control" name="monthly_fee" type="number" min="0" step="0.01"></div></div>
+                    <div class="row g-2 mb-3"><div class="col-6"><label class="form-label small text-white">Billing mode</label><select class="form-select" id="newBillingMode" name="billing_mode"><option value="fixed">Fixed course fee</option><option value="monthly">Monthly billing</option></select></div><div class="col-6"><label class="form-label small text-white">Monthly fee (₹)</label><input class="form-control" name="monthly_fee" type="number" min="0" step="0.01"></div></div>
+                    <div class="mb-3 d-none" id="newFeeStartDateWrap">
+                        <label class="form-label small text-white">Monthly Fee Start Date <span class="opacity-75">(required for monthly billing)</span></label>
+                        <input type="date" class="form-control" id="newFeeStartDate" name="billing_started_on">
+                        <div class="form-text text-white-50">Defaults to the enrollment date unless you enter a different date.</div>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label small text-white d-block">Photo (Optional)</label>
                         <input type="file" class="form-control" name="photo" accept="image/png,image/jpeg,image/gif,image/webp">
@@ -249,6 +259,26 @@ Enroll & Generate QR</button>
         </div>
     </div>
 </div>
+<script>
+(function () {
+    var mode = document.getElementById('newBillingMode');
+    var wrap = document.getElementById('newFeeStartDateWrap');
+    var enrollment = document.getElementById('newEnrollmentDate');
+    var feeStart = document.getElementById('newFeeStartDate');
+    if (!mode || !wrap || !enrollment || !feeStart) return;
+    function syncFeeStart() {
+        var monthly = mode.value === 'monthly';
+        wrap.classList.toggle('d-none', !monthly);
+        feeStart.required = monthly;
+        if (monthly && !feeStart.value && enrollment.value) feeStart.value = enrollment.value;
+    }
+    mode.addEventListener('change', syncFeeStart);
+    enrollment.addEventListener('change', function () {
+        if (!feeStart.value) feeStart.value = enrollment.value;
+    });
+    syncFeeStart();
+})();
+</script>
 <!-- EDIT STUDENT MODAL (single instance, populated by openEditStudent) -->
 <div class="modal fade" id="editStudentModal" tabindex="-1" aria-labelledby="editStudentModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">

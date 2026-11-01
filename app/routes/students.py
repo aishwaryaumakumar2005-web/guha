@@ -133,6 +133,27 @@ def list():
                 return jsonify({"success": False, "errors": [err]}), 400
             flash(err, 'danger')
             return redirect(url_for('students.list'))
+        enrollment_date_raw = (request.form.get('enrollment_date') or '')
+        enrollment_date = _parse_date(enrollment_date_raw)
+        # The new-admission form always supplies this field. Keep a safe
+        # compatibility fallback for older API/automation callers that do
+        # not send it, while preventing the UI from silently using today.
+        if not enrollment_date_raw.strip():
+            enrollment_date = date.today()
+        elif enrollment_date is None:
+            err = "Enrollment date is required (use YYYY-MM-DD)"
+            if is_ajax_request():
+                return jsonify({"success": False, "errors": [err]}), 400
+            flash(err, 'danger')
+            return redirect(url_for('students.list'))
+        if enrollment_date > date.today():
+            err = "Enrollment date cannot be in the future"
+            if is_ajax_request():
+                return jsonify({"success": False, "errors": [err]}), 400
+            flash(err, 'danger')
+            return redirect(url_for('students.list'))
+        fee_start_date_raw = (request.form.get('billing_started_on') or '')
+        fee_start_date = _parse_date(fee_start_date_raw)
         name = form.data.get('name', '').strip()
         email = _normalize_email(form.data.get('email')) or None
         phone = _normalize_phone(form.data.get('phone'))
@@ -149,6 +170,17 @@ def list():
             msg = 'Select a valid billing mode and monthly fee.'
             if is_ajax_request(): return jsonify({'success': False, 'errors': [msg]}), 400
             flash(msg, 'danger'); return redirect(url_for('students.list'))
+        if billing_mode == 'monthly':
+            if not fee_start_date_raw.strip():
+                fee_start_date = enrollment_date
+            elif fee_start_date is None:
+                msg = 'Monthly fee start date is required (use YYYY-MM-DD).'
+                if is_ajax_request(): return jsonify({'success': False, 'errors': [msg]}), 400
+                flash(msg, 'danger'); return redirect(url_for('students.list'))
+            if fee_start_date > date.today():
+                msg = 'Monthly fee start date cannot be in the future.'
+                if is_ajax_request(): return jsonify({'success': False, 'errors': [msg]}), 400
+                flash(msg, 'danger'); return redirect(url_for('students.list'))
         discount_snapshots = {}
         try:
             for raw_cid in selected_courses:
@@ -196,6 +228,7 @@ def list():
                 # commit_with_retry): a rolled-back session detaches pending
                 # objects, so reusing them would re-insert stale state.
                 fresh = Student(name=name, email=email, phone=phone, status=status,
+                                enrollment_date=enrollment_date,
                                 date_of_birth=date_of_birth, photo_data=photo_data,
                                 photo_mime=photo_mime)
                 for c_id in selected_courses:
@@ -207,7 +240,7 @@ def list():
                         fresh.courses.append(course)
                 db.session.add(fresh)
                 db.session.flush()
-                ensure_enrolled_on(fresh.id)
+                ensure_enrolled_on(fresh.id, when=enrollment_date)
                 stamp_agreed_dues(fresh.id)
                 for course_id, snapshot in discount_snapshots.items():
                     dtype, dvalue, damount, net, gst, final_fee = snapshot
@@ -224,7 +257,7 @@ def list():
                         agreed_fee=net,
                         billing_mode=billing_mode,
                         monthly_fee=monthly_fee if billing_mode == 'monthly' else None,
-                        billing_started_on=date.today() if billing_mode == 'monthly' else None,
+                        billing_started_on=fee_start_date if billing_mode == 'monthly' else None,
                     ))
                 db.session.commit()
                 return fresh
