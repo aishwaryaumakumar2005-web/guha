@@ -1,4 +1,5 @@
 from app.extensions import db
+from calendar import monthrange
 from datetime import date
 from app.models import Account, FeeRecord, Expense, OwnerFunding, Company
 from .payment_methods import DEFAULT_ACCOUNTS, METHOD_TYPE, classify_method, ACCOUNT_TYPE_ICONS
@@ -162,13 +163,38 @@ def student_outstanding_bulk(student_ids):
     return out
 
 
+def _add_months(anchor, months):
+    """Return ``anchor`` shifted by whole calendar months.
+
+    Month-end enrollment dates are clamped to the last day of the target
+    month (31 Jan -> 28/29 Feb), which gives a stable monthly anniversary.
+    """
+    month_index = anchor.year * 12 + (anchor.month - 1) + months
+    year, month_index = divmod(month_index, 12)
+    month = month_index + 1
+    day = min(anchor.day, monthrange(year, month)[1])
+    return date(year, month, day)
+
+
 def _billable_months(enrolled_on, as_of=None):
+    """Number of monthly installments that are due as of ``as_of``.
+
+    The enrollment/billing-start month is not due on its first day.  The
+    first installment becomes due on the student's one-month anniversary;
+    subsequent installments follow that anniversary.  This is deliberately
+    limited to callers that have already established ``billing_mode`` is
+    ``monthly``; fixed/full-course dues retain their existing behavior.
+    """
     if not enrolled_on:
-        return 1
+        return 0
     as_of = as_of or date.today()
     if enrolled_on > as_of:
         return 0
-    return (as_of.year - enrolled_on.year) * 12 + as_of.month - enrolled_on.month + 1
+
+    months = (as_of.year - enrolled_on.year) * 12 + as_of.month - enrolled_on.month
+    if _add_months(enrolled_on, months) > as_of:
+        months -= 1
+    return max(months, 0)
 
 
 def _item_current_due(item, as_of=None):
