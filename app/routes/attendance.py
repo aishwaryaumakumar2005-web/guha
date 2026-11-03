@@ -6,6 +6,11 @@ from app.models import Attendance, Student, Tutor, AuditLog, student_courses
 
 attendance_bp = Blueprint('attendance', __name__)
 
+# Keep attendance permissions in sync with the rest of the business-domain
+# routes.  ``Operator`` is a legacy value still present in some databases,
+# while new accounts use ``Operation``.
+ATTENDANCE_ADMIN_ROLES = ('Admin', 'Operation', 'Operator')
+
 ATTENDANCE_STATUSES = ('Present', 'Absent', 'Late', 'Half Day', 'Leave')
 DEFAULT_STATUS = 'Present'
 
@@ -86,7 +91,7 @@ def attendance():
         students = Student.query.filter_by(status='Active').all()
 
     # Tutors list: admin sees all, staff see only themselves
-    if current_user.role in ('Admin', 'Operation'):
+    if current_user.role in ATTENDANCE_ADMIN_ROLES:
         tutors = Tutor.query.filter_by(status='Active').all()
     else:
         tutor = Tutor.query.filter_by(email=current_user.email).first()
@@ -124,7 +129,7 @@ def attendance():
         prev_url=prev_url, next_url=next_url, today_url=today_url,
         marked_students=marked_students, marked_tutors=marked_tutors,
         current_tutor_id=tutor_id, status_options=ATTENDANCE_STATUSES,
-        status_badge=STATUS_BADGE, is_admin=current_user.role in ('Admin', 'Operation'))
+        status_badge=STATUS_BADGE, is_admin=current_user.role in ATTENDANCE_ADMIN_ROLES)
 
 
 @attendance_bp.route('/api/tutor/<int:tutor_id>/attendance/mark', methods=['POST'])
@@ -132,7 +137,7 @@ def attendance():
 def api_tutor_attendance_mark(tutor_id):
     tutor = Tutor.query.get_or_404(tutor_id)
     # Admin, or the staff user whose tutor profile matches this tutor_id.
-    if current_user.role not in ('Admin', 'Operation'):
+    if current_user.role not in ATTENDANCE_ADMIN_ROLES:
         own = Tutor.query.filter_by(email=current_user.email).first()
         if not own or own.id != tutor_id:
             return jsonify({"error": "Not authorized for this tutor."}), 403
@@ -191,7 +196,7 @@ def api_attendance_mark():
     today = date.today()
     if day is None:
         day = today
-    if day != today and current_user.role not in ('Admin', 'Operation'):
+    if day != today and current_user.role not in ATTENDANCE_ADMIN_ROLES:
         return jsonify({"error": "Only admins can modify attendance for past or future dates."}), 403
 
     # --- Authorization ---
@@ -220,7 +225,7 @@ def api_attendance_mark():
     if record and current_user.role == 'Staff' and record.marked_by == 'manual':
         return jsonify({"error": "Attendance already marked by admin today.", "previous_status": record.status}), 409
 
-    marked_by = 'manual' if current_user.role in ('Admin', 'Operation') else f'tutor_{tutor.id}' if current_user.role == 'Staff' else 'manual'
+    marked_by = 'manual' if current_user.role in ATTENDANCE_ADMIN_ROLES else f'tutor_{tutor.id}' if current_user.role == 'Staff' else 'manual'
     previous = record.status if record else None
     if record:
         record.status = status

@@ -125,6 +125,33 @@ def test_staff_marks_own_tutor_attendance(staff_client, app):
         assert rec.status == 'Present'
 
 
+def test_staff_tutor_mark_is_visible_to_admin(client, app):
+    """A staff mark must use the same person/date key as the admin roster."""
+    tid = _tutor_id(app)
+    assert client.post('/login', data={'username': 'staff', 'password': 'staff123'}).status_code == 302
+    assert client.post('/api/attendance/mark', json={
+        'person_type': 'tutor', 'person_id': tid, 'status': 'Present',
+    }).status_code == 200
+
+    client.get('/logout')
+    assert client.post('/login', data={'username': 'admin', 'password': 'admin123'}).status_code == 302
+    body = client.get('/attendance').get_data(as_text=True)
+    assert f'id="status-label-tutor-{tid}"' in body
+    assert f'id="status-label-tutor-{tid}" class="badge badge-custom badge-active"' in body
+
+
+def test_operation_role_can_use_attendance_actions(operation_client, app):
+    sid = _student_id(app)
+    body = operation_client.get('/attendance').get_data(as_text=True)
+    assert 'id="att-is-admin"' in body
+    response = operation_client.post('/api/attendance/mark', json={
+        'person_type': 'student', 'person_id': sid,
+        'status': 'Absent',
+        'date': (date.today() - timedelta(days=1)).isoformat(),
+    })
+    assert response.status_code == 200
+
+
 def test_tutor_route_self_ok(staff_client, app):
     tid = _tutor_id(app)
     sid = _student_id(app)
