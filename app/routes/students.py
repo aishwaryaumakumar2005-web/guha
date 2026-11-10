@@ -601,7 +601,28 @@ def edit(id):
             student_courses.c.billing_mode == 'monthly',
             db.or_(student_courses.c.status.is_(None), student_courses.c.status == 'Enrolled')
         ).values(billing_started_on=billing_started_on))
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        # The email column is unique, so surface the real edit problem instead
+        # of reporting a generic duplicate/retry error.
+        if new_email:
+            duplicate = Student.query.filter(
+                Student.id != student.id,
+                db.func.lower(Student.email) == new_email.lower()
+            ).first()
+            if duplicate:
+                msg = f"Email '{new_email}' is already assigned to another student."
+                if is_ajax_request():
+                    return jsonify({'success': False, 'errors': [msg]}), 400
+                flash(msg, 'danger')
+                return redirect(url_for('students.list'))
+        msg = 'Could not save the student. Please check the entered details and try again.'
+        if is_ajax_request():
+            return jsonify({'success': False, 'errors': [msg]}), 409
+        flash(msg, 'danger')
+        return redirect(url_for('students.list'))
     message = "Student details updated!"
     if is_ajax_request():
         return jsonify({"success": True, "message": message}), 200
