@@ -379,6 +379,30 @@ def _fee_due_rows(student_ids=None):
              FeeRecord.status != 'Voided').group_by(FeeRecord.student_id).all()
     paid_map = {sid: (float(paid or 0), float(concession or 0))
                 for sid, paid, concession in paid_rows}
+    # When a legacy fixed-fee enrollment is converted to monthly billing,
+    # receipts before the monthly start date must not settle the new monthly
+    # installments. Keep those receipts in financial reports; adjust only the
+    # outstanding-fee view used by dashboard reminders.
+    monthly_start_by_student = {}
+    for sid, items in items_map.items():
+        monthly_items = [it for it in items if it.get('billing_mode') == 'monthly']
+        if len(items) == len(monthly_items) and monthly_items:
+            starts = [it.get('billing_started_on') or it.get('enrolled_on') for it in monthly_items]
+            monthly_start_by_student[sid] = min((start for start in starts if start), default=None)
+    if monthly_start_by_student:
+        legacy_rows = FeeRecord.query.filter(
+            FeeRecord.student_id.in_(list(monthly_start_by_student)),
+            FeeRecord.status != 'Voided'
+        ).all()
+        legacy_paid = {sid: [0.0, 0.0] for sid in monthly_start_by_student}
+        for fee in legacy_rows:
+            start = monthly_start_by_student.get(fee.student_id)
+            if start and fee.payment_date < start:
+                legacy_paid[fee.student_id][0] += float(fee.amount_paid or 0)
+                legacy_paid[fee.student_id][1] += float(fee.concession or 0)
+        for sid, (paid, concession) in legacy_paid.items():
+            total_paid, total_concession = paid_map.get(sid, (0.0, 0.0))
+            paid_map[sid] = (total_paid - paid, total_concession - concession)
     rows = []
     for s in students:
         items = items_map.get(s.id, [])
