@@ -152,6 +152,21 @@ def test_operation_role_can_use_attendance_actions(operation_client, app):
     assert response.status_code == 200
 
 
+def test_operation_bulk_marks_roster(operation_client, app):
+    sid = _student_id(app)
+    tid = _tutor_id(app)
+    response = operation_client.post('/api/attendance/bulk-mark', json={
+        'items': [
+            {'person_type': 'student', 'person_id': sid},
+            {'person_type': 'tutor', 'person_id': tid},
+        ],
+        'status': 'Present',
+        'date': date.today().isoformat(),
+    })
+    assert response.status_code == 200
+    assert response.get_json()['marked'] == 2
+
+
 def test_tutor_route_self_ok(staff_client, app):
     tid = _tutor_id(app)
     sid = _student_id(app)

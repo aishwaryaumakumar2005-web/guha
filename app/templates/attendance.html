@@ -397,52 +397,37 @@ function attSyncStatus(sel) {
 
 function attMarkBulk(btn, pType, status) {
     var pane = document.getElementById(pType + '-pane');
+    if (!pane) { showToast('Attendance roster is unavailable.', 'danger'); return; }
     var sels = Array.prototype.slice.call(pane.querySelectorAll('.attendance-status-select'));
     if (!sels.length) return;
     var original = btn.innerHTML;
     btn.disabled = true;
     btn.textContent = 'Working…';
-    var done = 0, failed = 0, overwritten = 0;
-    var chain = Promise.resolve();
-    sels.forEach(function (sel) {
-        chain = chain.then(function () {
-            return fetch('/api/attendance/mark', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    person_type: sel.dataset.personType,
-                    person_id: parseInt(sel.dataset.personId, 10),
-                    status: status,
-                    date: window.ATTENDANCE_PAGE_DATE || undefined
-                })
-            })
-            .then(function (r) { return r.json().then(function (d) { return {status: r.status, data: d}; }); })
-            .then(function (res) {
-                if (res.data.success) {
-                    sel.dataset.prevStatus = status;
-                    sel.value = status;
-                    attSetBadge(sel.dataset.personType, sel.dataset.personId, status);
-                    done++;
-                    if (res.data.previous_status && res.data.previous_status !== status) overwritten++;
-                } else {
-                    failed++;
-                }
-            })
-            .catch(function () { failed++; });
+    var items = sels.map(function (sel) { return {person_type: sel.dataset.personType, person_id: parseInt(sel.dataset.personId, 10)}; });
+    fetch('/api/attendance/bulk-mark', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({items: items, status: status, date: window.ATTENDANCE_PAGE_DATE || undefined})
+    }).then(function (r) {
+        return r.json().then(function (d) { return {ok: r.ok, data: d}; });
+    }).then(function (res) {
+        if (!res.ok || !res.data.success) throw new Error(res.data.error || 'Bulk attendance failed');
+        sels.forEach(function (sel) {
+            sel.dataset.prevStatus = status;
+            sel.value = status;
+            attSetBadge(sel.dataset.personType, sel.dataset.personId, status);
         });
-    });
-    chain.then(function () {
         btn.disabled = false;
         btn.innerHTML = original;
         attUpdateSummaries();
-        // B11: same-day marks are upserts. If a bulk run replaced an earlier
-        // status for a day, say so instead of silently flipping attendance.
-        var parts = [String(done) + ' marked ' + status];
-        if (overwritten) parts.push(String(overwritten) + ' replaced an earlier mark for this day');
-        if (failed) parts.push(String(failed) + ' failed');
+        var parts = [String(res.data.marked) + ' marked ' + status];
+        if (res.data.overwritten) parts.push(String(res.data.overwritten) + ' replaced an earlier mark for this day');
         var msg = parts.join(', ');
         attAnnounce(msg);
-        showToast(msg, (failed || overwritten) ? 'warning' : 'success');
+        showToast(msg, res.data.overwritten ? 'warning' : 'success');
+    }).catch(function (err) {
+        btn.disabled = false;
+        btn.innerHTML = original;
+        showToast(err.message || 'Bulk attendance update failed.', 'danger');
     });
 }
 

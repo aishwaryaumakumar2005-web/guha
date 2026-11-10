@@ -18,6 +18,11 @@ def _local_today():
     """Return the academy's calendar date, independent of Render's UTC host."""
     return datetime.now(ATTENDANCE_TIMEZONE).date()
 
+
+def _is_attendance_admin():
+    role = str(current_user.role or '').strip().lower()
+    return role in {'admin', 'operation', 'operator', 'operative'}
+
 ATTENDANCE_STATUSES = ('Present', 'Absent', 'Late', 'Half Day', 'Leave')
 DEFAULT_STATUS = 'Present'
 
@@ -98,7 +103,7 @@ def attendance():
         students = Student.query.filter_by(status='Active').all()
 
     # Tutors list: admin sees all, staff see only themselves
-    if current_user.role in ATTENDANCE_ADMIN_ROLES:
+    if _is_attendance_admin():
         tutors = Tutor.query.filter_by(status='Active').all()
     else:
         tutor = Tutor.query.filter_by(email=current_user.email).first()
@@ -136,7 +141,7 @@ def attendance():
         prev_url=prev_url, next_url=next_url, today_url=today_url,
         marked_students=marked_students, marked_tutors=marked_tutors,
         current_tutor_id=tutor_id, status_options=ATTENDANCE_STATUSES,
-        status_badge=STATUS_BADGE, is_admin=current_user.role in ATTENDANCE_ADMIN_ROLES)
+        status_badge=STATUS_BADGE, is_admin=_is_attendance_admin())
 
 
 @attendance_bp.route('/api/tutor/<int:tutor_id>/attendance/mark', methods=['POST'])
@@ -144,7 +149,7 @@ def attendance():
 def api_tutor_attendance_mark(tutor_id):
     tutor = Tutor.query.get_or_404(tutor_id)
     # Admin, or the staff user whose tutor profile matches this tutor_id.
-    if current_user.role not in ATTENDANCE_ADMIN_ROLES:
+    if not _is_attendance_admin():
         own = Tutor.query.filter_by(email=current_user.email).first()
         if not own or own.id != tutor_id:
             return jsonify({"error": "Not authorized for this tutor."}), 403
@@ -167,7 +172,7 @@ def api_tutor_attendance_mark(tutor_id):
         return jsonify({"error": "Student not assigned to this tutor's courses."}), 403
     today = _local_today()
     day = _parse_day(data.get('date')) or today
-    if day != today and current_user.role not in ATTENDANCE_ADMIN_ROLES:
+    if day != today and not _is_attendance_admin():
         return jsonify({"error": "Only admins can modify attendance for past or future dates."}), 403
     record = Attendance.query.filter_by(person_type='student', person_id=person_id, date=day).first()
     if record and record.marked_by == 'manual':
@@ -206,7 +211,7 @@ def api_attendance_mark():
     today = _local_today()
     if day is None:
         day = today
-    if day != today and current_user.role not in ATTENDANCE_ADMIN_ROLES:
+    if day != today and not _is_attendance_admin():
         return jsonify({"error": "Only admins can modify attendance for past or future dates."}), 403
 
     # --- Authorization ---
@@ -235,7 +240,7 @@ def api_attendance_mark():
     if record and current_user.role == 'Staff' and record.marked_by == 'manual':
         return jsonify({"error": "Attendance already marked by admin today.", "previous_status": record.status}), 409
 
-    marked_by = 'manual' if current_user.role in ATTENDANCE_ADMIN_ROLES else f'tutor_{tutor.id}' if current_user.role == 'Staff' else 'manual'
+    marked_by = 'manual' if _is_attendance_admin() else f'tutor_{tutor.id}' if current_user.role == 'Staff' else 'manual'
     previous = record.status if record else None
     if record:
         record.status = status
@@ -254,6 +259,73 @@ def api_attendance_mark():
     if previous and previous != status:
         resp['previous_status'] = previous
     return jsonify(resp)
+
+
+@attendance_bp.route('/api/attendance/bulk-mark', methods=['POST'])
+@login_required
+def api_attendance_bulk_mark():
+    """Mark a roster in one transaction so bulk actions cannot partially fail."""
+    data = request.get_json() or {}
+    items = data.get('items')
+    status = data.get('status', DEFAULT_STATUS)
+    day = _parse_day(data.get('date')) or _local_today()
+    if not isinstance(items, list) or not items:
+        return jsonify({'error': 'items must be a non-empty list.'}), 400
+    if len(items) > 1000:
+        return jsonify({'error': 'Too many attendance rows in one request.'}), 400
+    if status not in ATTENDANCE_STATUSES:
+        return jsonify({'error': 'Invalid attendance status.'}), 400
+    if day != _local_today() and not _is_attendance_admin():
+        return jsonify({'error': 'Only admins can modify attendance for past or future dates.'}), 403
+
+    tutor = None
+    if current_user.role == 'Staff':
+        tutor = Tutor.query.filter_by(email=current_user.email).first()
+        if not tutor:
+            return jsonify({'error': 'No tutor profile found for your account.'}), 403
+    allowed_student_ids = set()
+    if tutor:
+        course_ids = [c.id for c in tutor.courses if (c.status or 'Active') != 'Archived']
+        allowed_student_ids = {row[0] for row in db.session.query(student_courses.c.student_id).filter(
+            student_courses.c.course_id.in_(course_ids),
+            db.or_(student_courses.c.status == 'Enrolled', student_courses.c.status.is_(None))
+        ).distinct().all()}
+
+    changed = 0
+    overwritten = 0
+    for item in items:
+        person_type = str(item.get('person_type') or '').lower() if isinstance(item, dict) else ''
+        person_id = _int_person_id(item) if isinstance(item, dict) else None
+        if person_type not in ('student', 'tutor') or person_id is None:
+            db.session.rollback()
+            return jsonify({'error': 'Each item must contain a valid person_type and person_id.'}), 400
+        if tutor and ((person_type == 'tutor' and person_id != tutor.id) or
+                      (person_type == 'student' and person_id not in allowed_student_ids)):
+            db.session.rollback()
+            return jsonify({'error': 'One or more attendance rows are outside your scope.'}), 403
+        model = Student if person_type == 'student' else Tutor
+        if not model.query.get(person_id):
+            db.session.rollback()
+            return jsonify({'error': f'{person_type.capitalize()} not found.'}), 404
+        record = Attendance.query.filter_by(person_type=person_type, person_id=person_id, date=day).first()
+        previous = record.status if record else None
+        if record:
+            if record.status != status:
+                overwritten += 1
+            record.status = status
+            record.timestamp = datetime.utcnow()
+            record.marked_by = 'manual' if _is_attendance_admin() else f'tutor_{tutor.id}'
+        else:
+            record = Attendance(person_type=person_type, person_id=person_id, date=day,
+                                status=status,
+                                marked_by='manual' if _is_attendance_admin() else f'tutor_{tutor.id}')
+            db.session.add(record)
+        changed += 1
+        db.session.flush()
+        _audit_change(record, previous, record.marked_by)
+    db.session.commit()
+    return jsonify({'success': True, 'marked': changed, 'overwritten': overwritten,
+                    'date': day.isoformat(), 'status': status})
 
 
 @attendance_bp.route('/api/attendance/scan', methods=['POST'])
