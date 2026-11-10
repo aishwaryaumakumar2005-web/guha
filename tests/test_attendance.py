@@ -161,6 +161,20 @@ def test_tutor_route_self_ok(staff_client, app):
     assert resp.status_code == 200
 
 
+def test_tutor_route_uses_requested_roster_date(admin_client, app):
+    tid = _tutor_id(app)
+    sid = _student_id(app)
+    selected = (date.today() - timedelta(days=3)).isoformat()
+    resp = admin_client.post(f'/api/tutor/{tid}/attendance/mark', json={
+        'person_type': 'student', 'person_id': sid, 'status': 'Present',
+        'date': selected,
+    })
+    assert resp.status_code == 200
+    with app.app_context():
+        assert Attendance.query.filter_by(person_type='student', person_id=sid,
+                                          date=date.today() - timedelta(days=3)).first() is not None
+
+
 def test_tutor_route_cross_tutor_forbidden(staff_client, app):
     with app.app_context():
         other = Tutor(name='Other Tutor', email='other@guha.test', phone='9000000001', status='Active')

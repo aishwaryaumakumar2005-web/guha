@@ -1,4 +1,5 @@
 from datetime import datetime, date, timedelta
+from zoneinfo import ZoneInfo
 from flask import Blueprint, render_template, request, jsonify, flash, url_for
 from flask_login import login_required, current_user
 from app.extensions import db
@@ -10,6 +11,12 @@ attendance_bp = Blueprint('attendance', __name__)
 # routes.  ``Operator`` is a legacy value still present in some databases,
 # while new accounts use ``Operation``.
 ATTENDANCE_ADMIN_ROLES = ('Admin', 'Operation', 'Operator')
+ATTENDANCE_TIMEZONE = ZoneInfo('Asia/Kolkata')
+
+
+def _local_today():
+    """Return the academy's calendar date, independent of Render's UTC host."""
+    return datetime.now(ATTENDANCE_TIMEZONE).date()
 
 ATTENDANCE_STATUSES = ('Present', 'Absent', 'Late', 'Half Day', 'Leave')
 DEFAULT_STATUS = 'Present'
@@ -97,7 +104,7 @@ def attendance():
         tutor = Tutor.query.filter_by(email=current_user.email).first()
         tutors = [tutor] if tutor else []
 
-    today = date.today()
+    today = _local_today()
     day = today
     raw_date = request.args.get('date')
     if raw_date:
@@ -158,8 +165,11 @@ def api_tutor_attendance_mark(tutor_id):
     allowed_ids_set = {sid[0] for sid in allowed_student_ids}
     if person_id not in allowed_ids_set:
         return jsonify({"error": "Student not assigned to this tutor's courses."}), 403
-    today = date.today()
-    record = Attendance.query.filter_by(person_type='student', person_id=person_id, date=today).first()
+    today = _local_today()
+    day = _parse_day(data.get('date')) or today
+    if day != today and current_user.role not in ATTENDANCE_ADMIN_ROLES:
+        return jsonify({"error": "Only admins can modify attendance for past or future dates."}), 403
+    record = Attendance.query.filter_by(person_type='student', person_id=person_id, date=day).first()
     if record and record.marked_by == 'manual':
         return jsonify({"error": "Attendance already marked by admin today. Tutor cannot override.", "previous_status": record.status}), 409
     previous = record.status if record else None
@@ -168,7 +178,7 @@ def api_tutor_attendance_mark(tutor_id):
         record.timestamp = datetime.utcnow()
         record.marked_by = f'tutor_{tutor_id}'
     else:
-        record = Attendance(person_type='student', person_id=person_id, date=today, status=status, marked_by=f'tutor_{tutor_id}')
+        record = Attendance(person_type='student', person_id=person_id, date=day, status=status, marked_by=f'tutor_{tutor_id}')
         db.session.add(record)
     db.session.flush()
     _audit_change(record, previous, 'tutor')
@@ -193,7 +203,7 @@ def api_attendance_mark():
     if status not in ATTENDANCE_STATUSES:
         return jsonify({"error": "Invalid attendance status."}), 400
     day = _parse_day(data.get('date'))
-    today = date.today()
+    today = _local_today()
     if day is None:
         day = today
     if day != today and current_user.role not in ATTENDANCE_ADMIN_ROLES:
@@ -274,7 +284,7 @@ def api_attendance_scan():
             return jsonify({"success": False, "message": "Staff can only scan their own attendance."}), 403
         if person_type == 'student' and (not own or person.id not in _active_student_ids_for_tutor(own)):
             return jsonify({"success": False, "message": "Student is not assigned to your active courses."}), 403
-    today = date.today()
+    today = _local_today()
     record = Attendance.query.filter_by(person_type=person_type, person_id=person.id, date=today).first()
     # Admin manual marks are authoritative: scanning must not silently override them.
     if record and record.marked_by == 'manual':

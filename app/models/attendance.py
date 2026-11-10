@@ -1,5 +1,11 @@
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from app.extensions import db
+
+
+def academy_today():
+    """Calendar date used by attendance defaults (Asia/Kolkata)."""
+    return datetime.now(ZoneInfo('Asia/Kolkata')).date()
 
 
 class Attendance(db.Model):
@@ -15,7 +21,7 @@ class Attendance(db.Model):
     # (lifecycle windows, streak math). UTC defaulting made marks recorded
     # just after midnight local land on the previous day, silently skewing
     # everything that counts sessions within a window.
-    date = db.Column(db.Date, default=datetime.now().date, nullable=False)
+    date = db.Column(db.Date, default=academy_today, nullable=False)
     status = db.Column(db.String(20), default='Present')
     marked_by = db.Column(db.String(50), default='manual')
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
