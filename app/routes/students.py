@@ -362,13 +362,18 @@ def list():
             active_course_ids.setdefault(sid, set()).add(cid)
         billing_rows = db.session.query(
             student_courses.c.student_id, student_courses.c.billing_mode,
-            student_courses.c.monthly_fee
+            student_courses.c.monthly_fee, student_courses.c.billing_started_on
         ).filter(
             student_courses.c.student_id.in_([s.id for s in pagination.items]),
             db.or_(student_courses.c.status.is_(None), student_courses.c.status == 'Enrolled')
         ).all()
-        for sid, mode, monthly_fee in billing_rows:
-            billing_settings.setdefault(sid, {'mode': mode or 'fixed', 'monthly_fee': monthly_fee})
+        for sid, mode, monthly_fee, billing_started_on in billing_rows:
+            current = billing_settings.setdefault(sid, {
+                'mode': mode or 'fixed', 'monthly_fee': monthly_fee,
+                'billing_started_on': billing_started_on,
+            })
+            if current.get('billing_started_on') is None and billing_started_on is not None:
+                current['billing_started_on'] = billing_started_on
     return render_template('students.html', students=pagination.items, courses=all_courses,
         is_staff=(current_user.role == 'Staff'), selected_course_id=course_filter,
         pagination=pagination, q=q, status_filter=status_filter,
@@ -539,6 +544,14 @@ def edit(id):
         except (TypeError, ValueError):
             continue
     billing_mode = request.form.get('billing_mode', '').strip()
+    billing_started_on_raw = (request.form.get('billing_started_on') or '').strip()
+    billing_started_on = _parse_date(billing_started_on_raw)
+    if billing_started_on_raw and billing_started_on is None:
+        flash('Invalid monthly fee start date (use YYYY-MM-DD).', 'danger')
+        return redirect(url_for('students.list'))
+    if billing_started_on and billing_started_on > date.today():
+        flash('Monthly fee start date cannot be in the future.', 'danger')
+        return redirect(url_for('students.list'))
     try:
         monthly_fee = float(request.form.get('monthly_fee') or 0)
     except (TypeError, ValueError):
@@ -548,6 +561,9 @@ def edit(id):
         return redirect(url_for('students.list'))
     if billing_mode == 'monthly' and any(c.gst_applicable for c in Course.query.filter(Course.id.in_(requested_ids)).all()):
         flash('Monthly billing is available only for non-GST courses.', 'danger')
+        return redirect(url_for('students.list'))
+    if billing_mode == 'monthly' and billing_started_on is None:
+        flash('Monthly fee start date is required for monthly billing.', 'danger')
         return redirect(url_for('students.list'))
     existing_ids = {c.id for c in student.courses}
     # NB: this module defines a view named `list`, so the builtin list()
@@ -571,20 +587,20 @@ def edit(id):
         # same course in one save); re-run-safe because it only fills NULLs.
         stamp_agreed_dues(student.id)
     if billing_mode:
-        from datetime import date as _billing_date
-        prior_monthly = db.session.query(student_courses.c.billing_mode).filter(
-            student_courses.c.student_id == student.id,
-            student_courses.c.course_id.in_(requested_ids),
-            db.or_(student_courses.c.status.is_(None), student_courses.c.status == 'Enrolled')
-        ).all()
-        was_monthly = any(row[0] == 'monthly' for row in prior_monthly)
         db.session.execute(student_courses.update().where(
             student_courses.c.student_id == student.id,
             student_courses.c.course_id.in_(requested_ids),
             db.or_(student_courses.c.status.is_(None), student_courses.c.status == 'Enrolled')
         ).values(billing_mode=billing_mode,
                  monthly_fee=monthly_fee if billing_mode == 'monthly' else None,
-                 billing_started_on=_billing_date.today() if billing_mode == 'monthly' and not was_monthly else None))
+                 billing_started_on=billing_started_on if billing_mode == 'monthly' else None))
+    elif billing_started_on is not None:
+        db.session.execute(student_courses.update().where(
+            student_courses.c.student_id == student.id,
+            student_courses.c.course_id.in_(requested_ids),
+            student_courses.c.billing_mode == 'monthly',
+            db.or_(student_courses.c.status.is_(None), student_courses.c.status == 'Enrolled')
+        ).values(billing_started_on=billing_started_on))
     db.session.commit()
     message = "Student details updated!"
     if is_ajax_request():
