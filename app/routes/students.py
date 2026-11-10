@@ -106,6 +106,12 @@ students_bp = Blueprint('students', __name__)
 def list():
     # Handle POST (add student) - only for admin
     if request.method == 'POST':
+        # The edit modal is shared by all rows and normally sets its form
+        # action in JavaScript. Keep a server-side fallback so a browser with
+        # stale/cached JS cannot accidentally submit an edit as a new student.
+        edit_student_id = request.form.get('edit_student_id', type=int)
+        if edit_student_id:
+            return edit(edit_student_id)
         if current_user.role not in ('Admin', 'Operation'):
             if is_ajax_request():
                 return jsonify({"success": False, "errors": ["Only admins can add students"]}), 403
