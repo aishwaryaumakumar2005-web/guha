@@ -38,7 +38,8 @@ def test_attendance_page_admin(admin_client):
     assert 'function loadAttendanceAnalysis' in body
     assert 'id="btn-start-scanner"' in body
     assert 'attendance-status-select' in body
-    assert 'Mark all present' in body
+    assert 'Mark all present' not in body
+    assert 'Mark all absent' not in body
     assert 'Export CSV' in body
 
 
