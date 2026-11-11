@@ -179,11 +179,11 @@ def _add_months(anchor, months):
 def _billable_months(enrolled_on, as_of=None):
     """Number of monthly installments that are due as of ``as_of``.
 
-    The enrollment/billing-start month is not due on its first day.  The
-    first installment becomes due on the student's one-month anniversary;
-    subsequent installments follow that anniversary.  This is deliberately
-    limited to callers that have already established ``billing_mode`` is
-    ``monthly``; fixed/full-course dues retain their existing behavior.
+    The enrollment/billing-start date is the first installment date.
+    Subsequent installments follow that calendar-day anniversary. This is
+    deliberately limited to callers that have already established
+    ``billing_mode`` is ``monthly``; fixed/full-course dues retain their
+    existing behavior.
     """
     if not enrolled_on:
         return 0
@@ -194,7 +194,7 @@ def _billable_months(enrolled_on, as_of=None):
     months = (as_of.year - enrolled_on.year) * 12 + as_of.month - enrolled_on.month
     if _add_months(enrolled_on, months) > as_of:
         months -= 1
-    return max(months, 0)
+    return max(months + 1, 0)
 
 
 def _item_current_due(item, as_of=None):
