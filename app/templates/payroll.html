@@ -242,7 +242,7 @@
                         <label class="form-label text-white small">Tutor</label>
                         <select name="tutor_id" class="form-select" required autofocus>
                             <option value="">-- Select Tutor --</option>
-                            {% for t in tutors %}
+                            {% for t in tutors if t.status == 'Active' %}
                             <option value="{{ t.id }}">{{ t.name }}{% if t.payroll_settings %} (Base: ₹{{ "{:,.2f}".format(t.payroll_settings.base_salary) }}){% endif %}</option>
                             {% endfor %}
                         </select>
