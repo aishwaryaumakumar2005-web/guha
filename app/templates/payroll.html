@@ -22,12 +22,6 @@
             <a href="{{ url_for('payroll.payslips_zip', month=filter_month, year=filter_year, status=filter_status) }}" class="btn btn-outline-premium" hx-boost="false" data-no-ajax>
                 <i class="bi bi-file-earmark-zip me-2"></i>Payslips (ZIP)
             </a>
-            <button class="btn btn-outline-premium" data-bs-toggle="modal" data-bs-target="#confirmAllModal">
-                <i class="bi bi-check-all me-2"></i>Confirm All
-            </button>
-            <button class="btn btn-outline-premium" data-bs-toggle="modal" data-bs-target="#processAllModal">
-                <i class="bi bi-gear-wide-connected me-2"></i>Process All
-            </button>
             <button class="btn btn-premium" data-bs-toggle="modal" data-bs-target="#processModal">
                 <i class="bi bi-plus-circle me-2"></i>Process Payroll
             </button>
@@ -154,7 +148,7 @@
                 {{ tutor.name }}
             </button>{% if not loop.last %}, {% endif %}
             {% endfor %}.
-            Configure settings here, or use "Process All" to generate records for every active tutor.
+            Configure settings here, then process each tutor individually.
         </div>
     </div>
     {% endif %}
