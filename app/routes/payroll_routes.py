@@ -47,7 +47,21 @@ def _parse_breakdown(raw):
 
 
 def _dump_breakdown(breakdown):
-    return json.dumps(breakdown, ensure_ascii=False)
+    """Serialize the calculator breakdown for the payroll snapshot.
+
+    The salary calculator keeps the ORM ``student`` object in each row for
+    the salary-calculator view.  Payroll records store the same breakdown as
+    JSON, so convert that presentation-only object to the student's name
+    before encoding it.
+    """
+    serializable = []
+    for row in breakdown or []:
+        snapshot = dict(row)
+        student = snapshot.pop('student', None)
+        if student is not None:
+            snapshot['student'] = getattr(student, 'name', str(student))
+        serializable.append(snapshot)
+    return json.dumps(serializable, ensure_ascii=False)
 
 
 def _parse_paid_date(raw, default):
