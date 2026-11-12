@@ -277,6 +277,17 @@ def create_app(config_object=None):
         except Exception as e:
             db.session.rollback()
             print(f"Notification table setup skipped: {e}", flush=True)
+        # Payroll settings/records were introduced after some production
+        # databases were created.  Ensure these additive tables exist even
+        # when the broader AUTO_MIGRATE switch is disabled, so the payroll
+        # page can read and save tutor settings on legacy deployments.
+        try:
+            from .models import TutorPayrollSettings, PayrollRecord
+            TutorPayrollSettings.__table__.create(bind=db.engine, checkfirst=True)
+            PayrollRecord.__table__.create(bind=db.engine, checkfirst=True)
+        except Exception as e:
+            db.session.rollback()
+            print(f"Payroll table setup skipped: {e}", flush=True)
         # Run schema creation and migrations only for local sqlite or when explicitly enabled
         auto_migrate = app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite') or os.environ.get('AUTO_MIGRATE', '').lower() in ('1', 'true', 'yes')
         if auto_migrate:
