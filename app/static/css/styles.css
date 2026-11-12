@@ -353,8 +353,8 @@ body.dark-mode ::-webkit-scrollbar-thumb { background: #3A3A5C; }
     position: absolute;
     top: 0;
     left: 0;
-    width: 210px;
-    height: 297px;
+    width: 105px;
+    height: 149px;
     border-radius: 8px !important;
     object-fit: contain;
     background: #fff;
