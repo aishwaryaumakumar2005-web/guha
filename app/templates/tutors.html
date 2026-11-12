@@ -57,7 +57,9 @@ Actions</th>
                                 <td data-label="Instructor">
                                     <div class="d-flex align-items-center gap-2">
                                         {% if tutor.photo_data %}
-                                            <img src="{{ url_for('tutors.tutor_photo', tutor_id=tutor.id) }}" alt="Photo of {{ tutor.name }}" class="rounded-circle object-fit-cover" style="width:32px;height:32px;" loading="lazy">
+                                            <span class="tutor-photo-thumb">
+                                                <img src="{{ url_for('tutors.tutor_photo', tutor_id=tutor.id) }}" alt="Photo of {{ tutor.name }}" class="tutor-photo-image rounded-circle object-fit-cover" loading="lazy">
+                                            </span>
                                         {% else %}
                                             <span class="student-initials" aria-hidden="true">{{ tutor.name|first|upper }}</span>
                                         {% endif %}

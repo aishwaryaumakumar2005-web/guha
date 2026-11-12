@@ -328,6 +328,39 @@ body.dark-mode ::-webkit-scrollbar-thumb { background: #3A3A5C; }
     transition-delay: 0s;
 }
 
+/* Tutor roster photo: keep the 32px thumbnail in the row, but show a
+   portrait A4-sized preview while hovering. */
+.tutor-photo-thumb {
+    position: relative;
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+    z-index: 1;
+}
+.tutor-photo-image {
+    display: block;
+    width: 32px;
+    height: 32px;
+    cursor: zoom-in;
+    transition: width 0.2s ease, height 0.2s ease, border-radius 0.2s ease,
+                box-shadow 0.2s ease;
+}
+.tutor-photo-thumb:hover {
+    z-index: 100;
+}
+.tutor-photo-thumb:hover .tutor-photo-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 210px;
+    height: 297px;
+    border-radius: 8px !important;
+    object-fit: contain;
+    background: #fff;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
 /* Initials avatar: same 32px footprint as .student-photo so rows without a
    photo keep identical alignment instead of shifting left. */
 .student-initials {
