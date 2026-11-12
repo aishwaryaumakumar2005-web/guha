@@ -182,8 +182,13 @@ def api_tutor_attendance_mark(tutor_id):
     if status not in ATTENDANCE_STATUSES:
         return jsonify({"error": "Invalid attendance status."}), 400
     course_ids = [c.id for c in tutor.courses if (c.status or 'Active') != 'Archived']
-    allowed_student_ids = db.session.query(student_courses.c.student_id).filter(
-        student_courses.c.course_id.in_(course_ids)
+    allowed_student_ids = db.session.query(student_courses.c.student_id).join(
+        Student, Student.id == student_courses.c.student_id
+    ).filter(
+        student_courses.c.course_id.in_(course_ids),
+        db.or_(student_courses.c.status.is_(None),
+               student_courses.c.status.notin_(('Dropped', 'Completed'))),
+        Student.status == 'Active',
     ).distinct().all()
     allowed_ids_set = {sid[0] for sid in allowed_student_ids}
     if person_id not in allowed_ids_set:

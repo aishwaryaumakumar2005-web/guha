@@ -96,12 +96,14 @@ def staff_can_view_student(student_id):
     tutor = Tutor.query.filter_by(email=current_user.email).first()
     if not tutor:
         return False
-    course_ids = [c.id for c in tutor.courses]
+    course_ids = [c.id for c in tutor.courses if (c.status or 'Active') != 'Archived']
     if not course_ids:
         return False
     return db.session.query(student_courses).filter(
         student_courses.c.student_id == student_id,
-        student_courses.c.course_id.in_(course_ids)
+        student_courses.c.course_id.in_(course_ids),
+        db.or_(student_courses.c.status.is_(None),
+               student_courses.c.status.notin_(('Dropped', 'Completed'))),
     ).first() is not None
 
 

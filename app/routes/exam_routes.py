@@ -25,6 +25,17 @@ def _staff_may_manage(exam):
     return current_user.role.lower() in ('admin', 'operation', 'operator') or exam.course_id in _staff_course_ids()
 
 
+def _has_active_student_enrollment(student_id, course_id):
+    """Return whether a student may participate in this course's exam."""
+    return db.session.query(student_courses.c.student_id).filter(
+        student_courses.c.student_id == student_id,
+        student_courses.c.course_id == course_id,
+        db.or_(student_courses.c.status.is_(None),
+               student_courses.c.status.notin_(('Dropped', 'Completed'))),
+        Student.status == 'Active',
+    ).join(Student, Student.id == student_courses.c.student_id).first() is not None
+
+
 def _parse_optional_date(raw):
     if not raw:
         return None
@@ -632,7 +643,7 @@ def mcq_take(id):
     if not student:
         flash('Only students can take exams.', 'danger')
         return redirect(url_for('dashboard.dashboard'))
-    if exam.course not in student.courses:
+    if not _has_active_student_enrollment(student.id, exam.course_id):
         flash('You are not enrolled in this exam\'s course.', 'danger')
         return redirect(url_for('dashboard.dashboard'))
     assignment = ExamAssignment.query.filter_by(exam_id=exam.id, student_id=student.id).first()
@@ -666,6 +677,8 @@ def mcq_submit(id):
     student = Student.query.filter_by(email=current_user.email).first()
     if not student:
         return jsonify({'error': 'Not a student'}), 403
+    if not _has_active_student_enrollment(student.id, exam.course_id):
+        return jsonify({'error': 'You are no longer enrolled in this exam\'s course.'}), 403
     attempt = McqAttempt.query.filter_by(exam_id=exam.id, student_id=student.id, status='in_progress').first()
     if not attempt:
         return jsonify({'error': 'No active attempt'}), 400
@@ -943,7 +956,14 @@ def mcq_student_report_pdf(id, student_id):
 @admin_required
 def mcq_assign(id):
     exam = Exam.query.get_or_404(id)
-    enrolled = Student.query.filter(Student.courses.any(id=exam.course_id)).order_by(Student.name).all()
+    enrolled = Student.query.join(
+        student_courses, student_courses.c.student_id == Student.id
+    ).filter(
+        student_courses.c.course_id == exam.course_id,
+        db.or_(student_courses.c.status.is_(None),
+               student_courses.c.status.notin_(('Dropped', 'Completed'))),
+        Student.status == 'Active',
+    ).order_by(Student.name).all()
     allowed_ids = {s.id for s in enrolled}
     if request.method == 'POST':
         student_ids = request.form.getlist('student_ids')
