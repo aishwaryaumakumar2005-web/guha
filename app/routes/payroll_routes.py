@@ -492,18 +492,16 @@ def delete_payroll(id):
         return redirect(url_for('payroll.payroll_list', month=month, year=year))
     expense = Expense.query.get(record.expense_id) if record.expense_id else None
     if was_paid:
-        record.status = 'Reversed'
         if expense:
-            expense.status = 'Voided'
-            expense.voided_at = datetime.utcnow()
-            expense.voided_by = current_user.id
-            expense.void_reason = f'Payroll reversal for {tutor_name}'
+            db.session.delete(expense)
+        db.session.delete(record)
+        db.session.commit()
+        flash(f"Salary deleted for {tutor_name}; the linked expense was also removed.", "success")
     else:
-        record.status = 'Cancelled'
-    db.session.commit()
-    if was_paid and expense:
-        flash(f"Salary reversed for {tutor_name}; the linked expense was voided for audit.", "success")
-    else:
+        # Draft/cancelled records have no posted accounting impact, so remove
+        # them instead of changing status and leaving them visible in All.
+        db.session.delete(record)
+        db.session.commit()
         flash(f"Salary deleted for {tutor_name}.", "success")
     return redirect(url_for('payroll.payroll_list', month=month, year=year))
 
