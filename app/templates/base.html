@@ -100,7 +100,7 @@ Menu</span>
                 <span>
 Dashboard</span>
             </a>
-            {% if current_user.role in ('Admin', 'Operation', 'Operator') %}            <!-- Accordion: Academic -->
+            {% if current_user.role in ('Admin', 'Operation', 'Operator', 'Operative') %}            <!-- Accordion: Academic -->
             <div class="accord-section">
                     <div class="accord-trigger {% if request.path in ['/students','/courses','/tutors','/attendance','/leaves','/exams','/students/lifecycle','/enquiries'] %}expanded{% endif %}">
                     <span class="nav-icon">

@@ -19,7 +19,7 @@ from datetime import date, timedelta
 
 from app.extensions import db
 from app.models import (
-    Attendance, AuditLog, Course, Enquiry, LifecycleAck, Student, Tutor,
+    Attendance, AuditLog, Course, Enquiry, LifecycleAck, Student, Tutor, User,
     ensure_enrolled_on,
 )
 from app.routes.student_lifecycle import (
@@ -120,6 +120,35 @@ def test_tutor_mark_reports_previous_status(staff_client, app):
     j = r2.get_json()
     assert j['success'] is True
     assert j['previous_status'] == 'Late'
+
+
+def test_tutor_role_can_mark_and_admin_can_see_it(app):
+    """Tutor-labelled accounts use the same attendance path as Staff."""
+    with app.app_context():
+        user = User.query.filter_by(username='staff').one()
+        user.role = 'Tutor'
+        tutor = Tutor.query.filter_by(email=user.email).one()
+        tid = tutor.id
+        sid = Student.query.filter_by(email='student@guha.test').one().id
+        db.session.commit()
+
+    with app.test_client() as tutor_client:
+        assert tutor_client.post('/login', data={'username': 'staff', 'password': 'staff123'}).status_code == 302
+        response = tutor_client.post('/api/attendance/mark', json={
+            'person_type': 'student', 'person_id': sid, 'status': 'Present'})
+        assert response.status_code == 200
+
+    with app.app_context():
+        record = Attendance.query.filter_by(person_type='student', person_id=sid).one()
+        assert record.status == 'Present'
+        assert record.marked_by == f'tutor_{tid}'
+
+    with app.test_client() as admin_client:
+        assert admin_client.post('/login', data={'username': 'admin', 'password': 'admin123'}).status_code == 302
+        page = admin_client.get('/attendance')
+        assert page.status_code == 200
+        assert b'Test Student' in page.data
+        assert b'Present' in page.data
 
 
 # ---- E1: CSV export honours filters, staff included ----

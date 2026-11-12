@@ -23,6 +23,20 @@ def _is_attendance_admin():
     role = str(current_user.role or '').strip().lower()
     return role in {'admin', 'operation', 'operator', 'operative'}
 
+
+def _is_tutor_user():
+    """Support both the legacy Staff role and the Tutor role."""
+    role = str(current_user.role or '').strip().lower()
+    return role in {'staff', 'tutor'}
+
+
+def _current_tutor():
+    if not _is_tutor_user() or not current_user.email:
+        return None
+    return Tutor.query.filter(
+        db.func.lower(Tutor.email) == current_user.email.strip().lower()
+    ).first()
+
 ATTENDANCE_STATUSES = ('Present', 'Absent', 'Late', 'Half Day', 'Leave')
 DEFAULT_STATUS = 'Present'
 
@@ -86,12 +100,16 @@ def attendance():
     tutor_id = request.args.get('tutor_id', type=int)
 
     # If staff user, automatically filter to their courses
-    if current_user.role == 'Staff' and not tutor_id:
-        tutor = Tutor.query.filter_by(email=current_user.email).first()
-        if tutor:
-            tutor_id = tutor.id
+    if _is_tutor_user():
+        # Never allow a tutor to broaden their roster through query params.
+        tutor = _current_tutor()
+        tutor_id = tutor.id if tutor else None
 
-    if tutor_id:
+    if _is_tutor_user() and not tutor_id:
+        # A tutor account without a matching profile must not fall back to
+        # the unrestricted admin roster.
+        students = []
+    elif tutor_id:
         tutor = Tutor.query.get_or_404(tutor_id)
         course_ids = [c.id for c in tutor.courses if (c.status or 'Active') != 'Archived']
         student_subquery = db.session.query(student_courses.c.student_id).filter(
@@ -106,7 +124,7 @@ def attendance():
     if _is_attendance_admin():
         tutors = Tutor.query.filter_by(status='Active').all()
     else:
-        tutor = Tutor.query.filter_by(email=current_user.email).first()
+        tutor = _current_tutor()
         tutors = [tutor] if tutor else []
 
     today = _local_today()
@@ -150,7 +168,7 @@ def api_tutor_attendance_mark(tutor_id):
     tutor = Tutor.query.get_or_404(tutor_id)
     # Admin, or the staff user whose tutor profile matches this tutor_id.
     if not _is_attendance_admin():
-        own = Tutor.query.filter_by(email=current_user.email).first()
+        own = _current_tutor()
         if not own or own.id != tutor_id:
             return jsonify({"error": "Not authorized for this tutor."}), 403
     data = request.get_json() or {}
@@ -215,8 +233,8 @@ def api_attendance_mark():
         return jsonify({"error": "Only admins can modify attendance for past or future dates."}), 403
 
     # --- Authorization ---
-    if current_user.role == 'Staff':
-        tutor = Tutor.query.filter_by(email=current_user.email).first()
+    if _is_tutor_user():
+        tutor = _current_tutor()
         if not tutor:
             return jsonify({"error": "No tutor profile found for your account."}), 403
         if person_type == 'tutor' and person_id != tutor.id:
@@ -229,6 +247,8 @@ def api_attendance_mark():
             ).distinct().all()
             if person_id not in {sid[0] for sid in allowed}:
                 return jsonify({"error": "Student not assigned to your courses."}), 403
+    elif not _is_attendance_admin():
+        return jsonify({"error": "This account is not authorized to mark attendance."}), 403
     else:
         # Admin: reject orphan-person writes that would create junk rows.
         model = Student if person_type == 'student' else Tutor
@@ -237,10 +257,10 @@ def api_attendance_mark():
 
     # --- Conflict check: admin mark blocks tutor override ---
     record = Attendance.query.filter_by(person_type=person_type, person_id=person_id, date=day).first()
-    if record and current_user.role == 'Staff' and record.marked_by == 'manual':
+    if record and _is_tutor_user() and record.marked_by == 'manual':
         return jsonify({"error": "Attendance already marked by admin today.", "previous_status": record.status}), 409
 
-    marked_by = 'manual' if _is_attendance_admin() else f'tutor_{tutor.id}' if current_user.role == 'Staff' else 'manual'
+    marked_by = 'manual' if _is_attendance_admin() else f'tutor_{tutor.id}' if _is_tutor_user() else 'manual'
     previous = record.status if record else None
     if record:
         record.status = status
@@ -278,9 +298,12 @@ def api_attendance_bulk_mark():
     if day != _local_today() and not _is_attendance_admin():
         return jsonify({'error': 'Only admins can modify attendance for past or future dates.'}), 403
 
+    if not _is_attendance_admin() and not _is_tutor_user():
+        return jsonify({'error': 'This account is not authorized to mark attendance.'}), 403
+
     tutor = None
-    if current_user.role == 'Staff':
-        tutor = Tutor.query.filter_by(email=current_user.email).first()
+    if _is_tutor_user():
+        tutor = _current_tutor()
         if not tutor:
             return jsonify({'error': 'No tutor profile found for your account.'}), 403
     allowed_student_ids = set()
@@ -350,8 +373,8 @@ def api_attendance_scan():
         return jsonify({"success": False, "message": "Invalid QR code signature or record not found."}), 404
     if person.status != 'Active':
         return jsonify({"success": False, "message": f"{person.name} is registered but inactive."}), 400
-    if current_user.role == 'Staff':
-        own = Tutor.query.filter_by(email=current_user.email).first()
+    if _is_tutor_user():
+        own = _current_tutor()
         if person_type == 'tutor' and (not own or own.id != person.id):
             return jsonify({"success": False, "message": "Staff can only scan their own attendance."}), 403
         if person_type == 'student' and (not own or person.id not in _active_student_ids_for_tutor(own)):
