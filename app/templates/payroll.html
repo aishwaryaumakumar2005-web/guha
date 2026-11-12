@@ -143,6 +143,12 @@
                     data-bs-toggle="modal" data-bs-target="#settingsModal"
                     data-settings-key="{{ tutor.id }}"
                     data-settings-url="{{ url_for('payroll.update_settings', tutor_id=tutor.id) }}"
+                    data-settings-name="{{ tutor.name }}"
+                    data-settings-base="{{ (tutor.payroll_settings.base_salary if tutor.payroll_settings else 0) or 0 }}"
+                    data-settings-commission="{{ (tutor.payroll_settings.commission_percentage if tutor.payroll_settings else 0) or 0 }}"
+                    data-settings-tds="{{ (tutor.payroll_settings.tds_percentage if tutor.payroll_settings else 10) or 10 }}"
+                    data-settings-bonus="{{ (tutor.payroll_settings.bonus if tutor.payroll_settings else 0) or 0 }}"
+                    data-settings-deductions="{{ (tutor.payroll_settings.other_deductions if tutor.payroll_settings else 0) or 0 }}"
                     title="Configure payroll settings for {{ tutor.name }}">
                 {{ tutor.name }}
             </button>{% if not loop.last %}, {% endif %}
@@ -214,7 +220,7 @@
                             {% endif %}
                             <button type="button" class="btn btn-outline-danger" title="Delete" data-action-url="{{ url_for('payroll.delete_payroll', id=r.id) }}" data-action-msg="Delete this payroll record for {{ r.tutor.name }} ({{ month_label }} {{ r.year }})?{% if r.status == 'Paid' %} The recorded salary expense will also be removed.{% endif %}" {% if r.status == 'Paid' %}data-action-confirm="1"{% endif %}><i class="bi bi-trash"></i></button>
                             <button class="btn btn-outline-secondary" title="Notes" data-bs-toggle="modal" data-bs-target="#notesModal" data-notes-id="{{ r.id }}" data-notes-url="{{ url_for('payroll.update_notes', id=r.id) }}"><i class="bi bi-sticky"></i></button>
-                            <button type="button" class="btn btn-outline-secondary" title="Payroll Settings" data-bs-toggle="modal" data-bs-target="#settingsModal" data-settings-key="{{ r.tutor_id }}" data-settings-url="{{ url_for('payroll.update_settings', tutor_id=r.tutor_id) }}"><i class="bi bi-gear"></i></button>
+                            <button type="button" class="btn btn-outline-secondary" title="Payroll Settings" data-bs-toggle="modal" data-bs-target="#settingsModal" data-settings-key="{{ r.tutor_id }}" data-settings-url="{{ url_for('payroll.update_settings', tutor_id=r.tutor_id) }}" data-settings-name="{{ r.tutor.name }}" data-settings-base="{{ (r.tutor.payroll_settings.base_salary if r.tutor.payroll_settings else 0) or 0 }}" data-settings-commission="{{ (r.tutor.payroll_settings.commission_percentage if r.tutor.payroll_settings else 0) or 0 }}" data-settings-tds="{{ (r.tutor.payroll_settings.tds_percentage if r.tutor.payroll_settings else 10) or 10 }}" data-settings-bonus="{{ (r.tutor.payroll_settings.bonus if r.tutor.payroll_settings else 0) or 0 }}" data-settings-deductions="{{ (r.tutor.payroll_settings.other_deductions if r.tutor.payroll_settings else 0) or 0 }}"><i class="bi bi-gear"></i></button>
                         </div>
                     </td>
                 </tr>
@@ -639,8 +645,15 @@
 
     bind('[data-settings-key]', function (btn) {
         var key = btn.getAttribute('data-settings-key');
-        var s = settings[key] || settings[Number(key)];
-        if (!s) return;
+        var s = settings[key] || settings[Number(key)] || {
+            name: btn.getAttribute('data-settings-name') || 'Tutor',
+            base_salary: btn.getAttribute('data-settings-base') || 0,
+            commission_percentage: btn.getAttribute('data-settings-commission') || 0,
+            tds_percentage: btn.getAttribute('data-settings-tds') || 10,
+            bonus: btn.getAttribute('data-settings-bonus') || 0,
+            other_deductions: btn.getAttribute('data-settings-deductions') || 0,
+            bank_name: '', account_number: '', ifsc_code: ''
+        };
         document.getElementById('settingsForm').action = btn.getAttribute('data-settings-url');
         document.getElementById('settingsInfo').textContent = 'Configure payroll settings for ' + s.name + '.';
         document.getElementById('setting-base').value = s.base_salary;
