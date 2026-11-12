@@ -149,7 +149,8 @@
                     data-settings-tds="{{ (tutor.payroll_settings.tds_percentage if tutor.payroll_settings else 10) or 10 }}"
                     data-settings-bonus="{{ (tutor.payroll_settings.bonus if tutor.payroll_settings else 0) or 0 }}"
                     data-settings-deductions="{{ (tutor.payroll_settings.other_deductions if tutor.payroll_settings else 0) or 0 }}"
-                    title="Configure payroll settings for {{ tutor.name }}">
+                    title="Configure payroll settings for {{ tutor.name }}"
+                    onclick="openPayrollSettings(this); return false;">
                 {{ tutor.name }}
             </button>{% if not loop.last %}, {% endif %}
             {% endfor %}.
@@ -220,7 +221,7 @@
                             {% endif %}
                             <button type="button" class="btn btn-outline-danger" title="Delete" data-action-url="{{ url_for('payroll.delete_payroll', id=r.id) }}" data-action-msg="Delete this payroll record for {{ r.tutor.name }} ({{ month_label }} {{ r.year }})?{% if r.status == 'Paid' %} The recorded salary expense will also be removed.{% endif %}" {% if r.status == 'Paid' %}data-action-confirm="1"{% endif %}><i class="bi bi-trash"></i></button>
                             <button class="btn btn-outline-secondary" title="Notes" data-bs-toggle="modal" data-bs-target="#notesModal" data-notes-id="{{ r.id }}" data-notes-url="{{ url_for('payroll.update_notes', id=r.id) }}"><i class="bi bi-sticky"></i></button>
-                            <button type="button" class="btn btn-outline-secondary" title="Payroll Settings" data-bs-toggle="modal" data-bs-target="#settingsModal" data-settings-key="{{ r.tutor_id }}" data-settings-url="{{ url_for('payroll.update_settings', tutor_id=r.tutor_id) }}" data-settings-name="{{ r.tutor.name }}" data-settings-base="{{ (r.tutor.payroll_settings.base_salary if r.tutor.payroll_settings else 0) or 0 }}" data-settings-commission="{{ (r.tutor.payroll_settings.commission_percentage if r.tutor.payroll_settings else 0) or 0 }}" data-settings-tds="{{ (r.tutor.payroll_settings.tds_percentage if r.tutor.payroll_settings else 10) or 10 }}" data-settings-bonus="{{ (r.tutor.payroll_settings.bonus if r.tutor.payroll_settings else 0) or 0 }}" data-settings-deductions="{{ (r.tutor.payroll_settings.other_deductions if r.tutor.payroll_settings else 0) or 0 }}"><i class="bi bi-gear"></i></button>
+                            <button type="button" class="btn btn-outline-secondary" title="Payroll Settings" data-bs-toggle="modal" data-bs-target="#settingsModal" data-settings-key="{{ r.tutor_id }}" data-settings-url="{{ url_for('payroll.update_settings', tutor_id=r.tutor_id) }}" data-settings-name="{{ r.tutor.name }}" data-settings-base="{{ (r.tutor.payroll_settings.base_salary if r.tutor.payroll_settings else 0) or 0 }}" data-settings-commission="{{ (r.tutor.payroll_settings.commission_percentage if r.tutor.payroll_settings else 0) or 0 }}" data-settings-tds="{{ (r.tutor.payroll_settings.tds_percentage if r.tutor.payroll_settings else 10) or 10 }}" data-settings-bonus="{{ (r.tutor.payroll_settings.bonus if r.tutor.payroll_settings else 0) or 0 }}" data-settings-deductions="{{ (r.tutor.payroll_settings.other_deductions if r.tutor.payroll_settings else 0) or 0 }}" onclick="openPayrollSettings(this); return false;"><i class="bi bi-gear"></i></button>
                         </div>
                     </td>
                 </tr>
@@ -624,26 +625,7 @@
         }
     }
 
-    bind('[data-confirm-id]', function (btn) {
-        var r = recs[btn.getAttribute('data-confirm-id')];
-        if (!r) return;
-        document.getElementById('confirmForm').action = btn.getAttribute('data-confirm-url');
-        document.getElementById('confirmInfo').textContent =
-            'Salary for ' + r.name + ' — period ' + r.period + '. Net payable ' + fmt(r.net) + '.';
-        document.getElementById('confirm-paid-date').value = new Date().toISOString().slice(0, 10);
-        var sel = document.getElementById('confirm-method');
-        if (sel && r.method) { sel.value = r.method; sel.dispatchEvent(new Event('change')); }
-    });
-
-    bind('[data-notes-id]', function (btn) {
-        var r = recs[btn.getAttribute('data-notes-id')];
-        if (!r) return;
-        document.getElementById('notesForm').action = btn.getAttribute('data-notes-url');
-        document.getElementById('notesInfo').textContent = r.name + ' — period ' + r.period;
-        document.getElementById('notes-text').value = r.notes || '';
-    });
-
-    bind('[data-settings-key]', function (btn) {
+    window.openPayrollSettings = function (btn) {
         var key = btn.getAttribute('data-settings-key');
         var s = settings[key] || settings[Number(key)] || {
             name: btn.getAttribute('data-settings-name') || 'Tutor',
@@ -664,6 +646,38 @@
         document.getElementById('setting-bank').value = s.bank_name || '';
         document.getElementById('setting-account').value = s.account_number || '';
         document.getElementById('setting-ifsc').value = s.ifsc_code || '';
+        var modal = document.getElementById('settingsModal');
+        if (window.bootstrap && bootstrap.Modal) {
+            bootstrap.Modal.getOrCreateInstance(modal).show();
+        } else {
+            modal.classList.add('show');
+            modal.style.display = 'block';
+            modal.removeAttribute('aria-hidden');
+            document.body.classList.add('modal-open');
+        }
+    };
+
+    bind('[data-confirm-id]', function (btn) {
+        var r = recs[btn.getAttribute('data-confirm-id')];
+        if (!r) return;
+        document.getElementById('confirmForm').action = btn.getAttribute('data-confirm-url');
+        document.getElementById('confirmInfo').textContent =
+            'Salary for ' + r.name + ' — period ' + r.period + '. Net payable ' + fmt(r.net) + '.';
+        document.getElementById('confirm-paid-date').value = new Date().toISOString().slice(0, 10);
+        var sel = document.getElementById('confirm-method');
+        if (sel && r.method) { sel.value = r.method; sel.dispatchEvent(new Event('change')); }
+    });
+
+    bind('[data-notes-id]', function (btn) {
+        var r = recs[btn.getAttribute('data-notes-id')];
+        if (!r) return;
+        document.getElementById('notesForm').action = btn.getAttribute('data-notes-url');
+        document.getElementById('notesInfo').textContent = r.name + ' — period ' + r.period;
+        document.getElementById('notes-text').value = r.notes || '';
+    });
+
+    bind('[data-settings-key]', function (btn) {
+        window.openPayrollSettings(btn);
     });
 
     bind('[data-action-url]', function (btn) {
