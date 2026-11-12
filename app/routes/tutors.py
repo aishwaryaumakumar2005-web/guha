@@ -116,7 +116,10 @@ def list():
             flash(message, "success")
         return redirect(url_for('tutors.list'))
     q = (request.args.get('q') or '').strip()
-    status_filter = request.args.get('status', '').strip()
+    # Keep the roster focused on currently active tutors on first load.  An
+    # explicit `status=all` still exposes the full directory when needed.
+    requested_status = request.args.get('status', '').strip()
+    status_filter = requested_status if requested_status in (*TUTOR_STATUSES, 'all') else 'Active'
     query = Tutor.query
     if q:
         like = f'%{q}%'
