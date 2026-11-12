@@ -205,7 +205,7 @@
                     <td class="text-center">
                         <div class="btn-group btn-group-sm">
                             {% if breakdowns[r.id] %}
-                            <button class="btn btn-outline-secondary" title="Commission Breakdown" data-bs-toggle="modal" data-bs-target="#breakdownModal" data-breakdown-id="{{ r.id }}"><i class="bi bi-people"></i></button>
+                            <button type="button" class="btn btn-outline-secondary" title="Commission Breakdown" data-bs-toggle="modal" data-bs-target="#breakdownModal" data-breakdown-id="{{ r.id }}" onclick="openCommissionBreakdown(this); return false;"><i class="bi bi-people"></i></button>
                             {% endif %}
                             <a href="{{ url_for('payroll.payslip_pdf', id=r.id) }}" class="btn btn-outline-info" title="Download Payslip" hx-boost="false" data-no-ajax><i class="bi bi-file-pdf"></i></a>
                             {% if r.status == 'Draft' %}
@@ -619,6 +619,36 @@
         }
     }
 
+    window.openCommissionBreakdown = function (btn) {
+        var id = btn.getAttribute('data-breakdown-id');
+        var rows = brk[id] || brk[Number(id)] || [];
+        var body = document.getElementById('breakdown-body');
+        body.innerHTML = '';
+        var total = 0;
+        rows.forEach(function (row) {
+            total += Number(row.commission || 0);
+            var tr = document.createElement('tr');
+            tr.innerHTML =
+                '<td>' + escapeHtml(row.student) + '</td>' +
+                '<td>' + escapeHtml(row.roll_no || '-') + '</td>' +
+                '<td class="text-end">₹' + Number(row.fees || 0).toFixed(2) + '</td>' +
+                '<td class="text-center">1 / ' + (row.tutor_count || 1) + '</td>' +
+                '<td class="text-end">₹' + Number(row.commission || 0).toFixed(2) + '</td>';
+            body.appendChild(tr);
+        });
+        document.getElementById('breakdownInfo').textContent =
+            rows.length ? 'Total commission across ' + rows.length + ' student(s): ' + fmt(total) : 'No student fees in this period.';
+        var modal = document.getElementById('breakdownModal');
+        if (window.bootstrap && bootstrap.Modal) {
+            bootstrap.Modal.getOrCreateInstance(modal).show();
+        } else {
+            modal.classList.add('show');
+            modal.style.display = 'block';
+            modal.removeAttribute('aria-hidden');
+            document.body.classList.add('modal-open');
+        }
+    };
+
     window.openPayrollSettings = function (btn) {
         var key = btn.getAttribute('data-settings-key');
         var s = settings[key] || settings[Number(key)] || {
@@ -733,23 +763,7 @@
     }
 
     bind('[data-breakdown-id]', function (btn) {
-        var rows = brk[btn.getAttribute('data-breakdown-id')] || [];
-        var body = document.getElementById('breakdown-body');
-        body.innerHTML = '';
-        var total = 0;
-        rows.forEach(function (row) {
-            total += row.commission;
-            var tr = document.createElement('tr');
-            tr.innerHTML =
-                '<td>' + escapeHtml(row.student) + '</td>' +
-                '<td>' + escapeHtml(row.roll_no || '-') + '</td>' +
-                '<td class="text-end">₹' + row.fees.toFixed(2) + '</td>' +
-                '<td class="text-center">1 / ' + row.tutor_count + '</td>' +
-                '<td class="text-end">₹' + row.commission.toFixed(2) + '</td>';
-            body.appendChild(tr);
-        });
-        document.getElementById('breakdownInfo').textContent =
-            rows.length ? 'Total commission across ' + rows.length + ' student(s): ' + fmt(total) : 'No student fees in this period.';
+        window.openCommissionBreakdown(btn);
     });
 
     if (window.bootstrap && bootstrap.Tooltip) {
