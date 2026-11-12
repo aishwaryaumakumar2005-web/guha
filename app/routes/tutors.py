@@ -154,8 +154,12 @@ def edit(id):
                 return jsonify({'success': False, 'errors': [msg]}), 409
             flash(msg, 'warning')
             return redirect(url_for('tutors.list'))
-    if new_email.lower() != (tutor.email or '').lower():
+    # Compare normalized values and exclude the tutor being edited.  Legacy
+    # rows may contain case/whitespace differences, otherwise an unchanged
+    # email can incorrectly match the current row as a duplicate.
+    if new_email != _norm_email(tutor.email):
         exists = Tutor.query.filter(
+            Tutor.id != tutor.id,
             db.func.lower(Tutor.email) == new_email.lower()).first()
         if exists:
             msg = f"Email '{new_email}' is already in use by another tutor."
