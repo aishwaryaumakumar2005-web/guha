@@ -2678,6 +2678,18 @@ body:not(.dark-mode) .ai-advisor-panel .text-muted:not(.insight-card *) {
 .chat-fab.open .bi-x-lg { display: block; }
 .chat-fab:hover { transform: scale(1.1); box-shadow: 0 6px 32px rgba(239, 68, 68, 0.6); }
 
+/* The floating assistant overlaps mobile action controls. Keep it available
+   on larger screens, but remove both the icon and panel from mobile layouts. */
+@media (max-width: 767.98px) {
+    .chat-fab,
+    .chat-panel {
+        display: none !important;
+    }
+    .main-content {
+        padding-bottom: 24px;
+    }
+}
+
 .chat-panel {
     position: fixed;
     bottom: 92px;
