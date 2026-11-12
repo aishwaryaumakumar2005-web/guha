@@ -138,8 +138,14 @@
         <div>
             <strong>{{ missing_tutors|length }} active tutor(s)</strong> have no payroll record for
             <strong>{{ ["January","February","March","April","May","June","July","August","September","October","November","December"][filter_month-1] }} {{ filter_year }}</strong>:
-            <span class="text-white-50">{{ missing_tutors|map(attribute='name')|join(', ') }}</span>.
-            Use "Process All" to generate records for every active tutor.
+            {% for tutor in missing_tutors %}
+            <button type="button" class="btn btn-link btn-sm p-0 align-baseline text-warning"
+                    data-bs-toggle="modal" data-bs-target="#settingsModal"
+                    data-settings-key="{{ tutor.id }}" title="Configure payroll settings for {{ tutor.name }}">
+                {{ tutor.name }}
+            </button>{% if not loop.last %}, {% endif %}
+            {% endfor %}.
+            Configure settings here, or use "Process All" to generate records for every active tutor.
         </div>
     </div>
     {% endif %}
