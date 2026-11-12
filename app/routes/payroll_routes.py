@@ -210,7 +210,11 @@ def payroll_list():
             'name': t.name,
             'base_salary': (t.payroll_settings.base_salary if t.payroll_settings else 0) or 0,
             'commission_percentage': (t.payroll_settings.commission_percentage if t.payroll_settings else 0) or 0,
-            'tds_percentage': (t.payroll_settings.tds_percentage if t.payroll_settings else 10) or 10,
+            # Preserve an intentionally saved 0% TDS; only an absent value
+            # gets the legacy 10% default.
+            'tds_percentage': (t.payroll_settings.tds_percentage
+                               if t.payroll_settings and t.payroll_settings.tds_percentage is not None
+                               else 10),
             'bonus': (t.payroll_settings.bonus if t.payroll_settings else 0) or 0,
             'other_deductions': (t.payroll_settings.other_deductions if t.payroll_settings else 0) or 0,
             'bank_name': (t.payroll_settings.bank_name if t.payroll_settings else '') or '',
